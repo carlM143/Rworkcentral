@@ -11,7 +11,7 @@ import LateAdjustmentFilters from '~/components/timekeeping/late-adjustment/Late
 import LateAdjustmentTable from '~/components/timekeeping/late-adjustment/LateAdjustmentTable.vue'
 
 import LateAdjustmentModal from '~/components/timekeeping/late-adjustment/LateAdjustmentModal.vue'
-
+import LateAdjustmentExportModal from '~/components/timekeeping/late-adjustment/LateAdjustmentExportModal.vue'
 import type {
   LateAdjustmentFormData,
   LateAdjustmentRecord,
@@ -53,9 +53,8 @@ const {
   success,
 } = useToast()
 
-/* =========================================================
-   MODAL
-========================================================= */
+const exportOpen =
+  ref(false)
 
 const modalOpen =
   ref(false)
@@ -214,20 +213,49 @@ const handleEmployee = (
   )
 }
 
-/* =========================================================
-   EXPORT
-========================================================= */
-
 const handleExport = () => {
-  info(
-    'Export Late Adjustments',
-    'Late adjustment export will be connected later.',
-  )
+  exportOpen.value =
+    true
 }
 
-/* =========================================================
-   BACK
-========================================================= */
+const handleExportSubmit = (
+  payload: {
+    format:
+      | 'Excel'
+      | 'PDF'
+      | 'CSV'
+
+    scope:
+      | 'Current Filters'
+      | 'Selected Date Range'
+
+    includeEmployeeInfo:
+      boolean
+
+    includeSchedule:
+      boolean
+
+    includeOriginalLate:
+      boolean
+
+    includeAdjustedLate:
+      boolean
+
+    includeDifference:
+      boolean
+
+    includeReason:
+      boolean
+
+    includeStatus:
+      boolean
+  },
+) => {
+  info(
+    `Export ${payload.format}`,
+    `${filteredAdjustments.value.length} late adjustment record(s) are ready for export. Actual file generation will be connected during backend integration.`,
+  )
+}
 
 const handleBack = () => {
   router.push(
@@ -355,23 +383,52 @@ const handleBack = () => {
 
     <!-- MODAL -->
 
-    <LateAdjustmentModal
-      :open="
-        modalOpen
-      "
-      :adjustment="
-        selectedAdjustment
-      "
-      :mode="
-        modalMode
-      "
-      @close="
-        closeModal
-      "
-      @save="
-        handleSave
-      "
-    />
+   <LateAdjustmentModal
+  :open="
+    modalOpen
+  "
+  :adjustment="
+    selectedAdjustment
+  "
+  :mode="
+    modalMode
+  "
+  @close="
+    closeModal
+  "
+  @save="
+    handleSave
+  "
+/>
+
+<!-- EXPORT MODAL -->
+
+<LateAdjustmentExportModal
+  :open="
+    exportOpen
+  "
+  :record-count="
+    filteredAdjustments.length
+  "
+  :department="
+    department
+  "
+  :status="
+    status
+  "
+  :date-from="
+    dateFrom
+  "
+  :date-to="
+    dateTo
+  "
+  @close="
+    exportOpen = false
+  "
+  @export="
+    handleExportSubmit
+  "
+/>
 
   </section>
 </template>

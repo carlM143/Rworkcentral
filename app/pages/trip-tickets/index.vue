@@ -12,6 +12,8 @@ import AddEditTripTicketModal from '~/components/timekeeping/trip-tickets/AddEdi
 import TripTicketDetailsModal from '~/components/timekeeping/trip-tickets/TripTicketDetailsModal.vue'
 import TripTicketStatusModal from '~/components/timekeeping/trip-tickets/TripTicketStatusModal.vue'
 
+import TripTicketExportModal from '~/components/timekeeping/trip-tickets/TripTicketExportModal.vue'
+
 import type {
   TripTicket,
   TripTicketAction,
@@ -65,9 +67,8 @@ const {
   success,
 } = useToast()
 
-/* =========================================================
-   ADD / EDIT
-========================================================= */
+const exportModalOpen =
+  ref(false)
 
 const formModalOpen =
   ref(false)
@@ -435,9 +436,52 @@ const handleEmployee = (
 ========================================================= */
 
 const handleExport = () => {
+  exportModalOpen.value =
+    true
+}
+
+const handleExportSubmit = (
+  payload: {
+    format:
+      | 'Excel'
+      | 'PDF'
+      | 'CSV'
+
+    scope:
+      | 'Current Filters'
+      | 'Selected Date Range'
+
+    includeTicketInfo:
+      boolean
+
+    includeTripInfo:
+      boolean
+
+    includeEmployee:
+      boolean
+
+    includeClient:
+      boolean
+
+    includeRoute:
+      boolean
+
+    includeVehicle:
+      boolean
+
+    includeSchedule:
+      boolean
+
+    includeActualTimes:
+      boolean
+
+    includeStatus:
+      boolean
+  },
+) => {
   info(
-    'Export Trip Tickets',
-    'Trip ticket report export will be connected later.',
+    `Export ${payload.format}`,
+    `${filteredTickets.value.length} trip ticket record(s) are ready for export. Actual file generation will be connected during backend integration.`,
   )
 }
 
@@ -631,23 +675,52 @@ const handleBack = () => {
 
     <!-- STATUS -->
 
-    <TripTicketStatusModal
-      :open="
-        statusModalOpen
-      "
-      :ticket="
-        statusTicket
-      "
-      :action="
-        statusAction
-      "
-      @close="
-        closeStatus
-      "
-      @save="
-        handleStatusSave
-      "
-    />
+<TripTicketStatusModal
+  :open="
+    statusModalOpen
+  "
+  :ticket="
+    statusTicket
+  "
+  :action="
+    statusAction
+  "
+  @close="
+    closeStatus
+  "
+  @save="
+    handleStatusSave
+  "
+/>
+
+<!-- EXPORT MODAL -->
+
+<TripTicketExportModal
+  :open="
+    exportModalOpen
+  "
+  :record-count="
+    filteredTickets.length
+  "
+  :client="
+    client
+  "
+  :status="
+    status
+  "
+  :date-from="
+    dateFrom
+  "
+  :date-to="
+    dateTo
+  "
+  @close="
+    exportModalOpen = false
+  "
+  @export="
+    handleExportSubmit
+  "
+/>
 
   </section>
 </template>

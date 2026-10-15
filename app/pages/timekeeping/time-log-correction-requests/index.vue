@@ -5,14 +5,11 @@ import {
 } from 'lucide-vue-next'
 
 import TimeCorrectionStats from '~/components/timekeeping/time-log-corrections/TimeCorrectionStats.vue'
-
 import TimeCorrectionFilters from '~/components/timekeeping/time-log-corrections/TimeCorrectionFilters.vue'
-
 import TimeCorrectionTable from '~/components/timekeeping/time-log-corrections/TimeCorrectionTable.vue'
-
 import TimeCorrectionSidePanel from '~/components/timekeeping/time-log-corrections/TimeCorrectionSidePanel.vue'
-
 import TimeCorrectionDetailsModal from '~/components/timekeeping/time-log-corrections/TimeCorrectionDetailsModal.vue'
+import TimeCorrectionExportModal from '~/components/timekeeping/time-log-corrections/TimeCorrectionExportModal.vue'
 
 import type {
   TimeLogCorrectionRequest,
@@ -55,6 +52,9 @@ const {
   info,
   success,
 } = useToast()
+
+const exportOpen =
+  ref(false)
 
 /* =========================================================
    DETAILS
@@ -148,14 +148,43 @@ const handleEmployee = (
 /* =========================================================
    EXPORT
 ========================================================= */
-
 const handleExport = () => {
-  info(
-    'Export Corrections',
-    'Correction request export will be connected later.',
-  )
+  exportOpen.value =
+    true
 }
 
+const handleExportSubmit = (
+  payload: {
+    format:
+      | 'Excel'
+      | 'PDF'
+      | 'CSV'
+
+    scope:
+      | 'Current Filters'
+      | 'Selected Date Range'
+
+    includeEmployeeInfo:
+      boolean
+
+    includeLogs:
+      boolean
+
+    includeReason:
+      boolean
+
+    includeApproval:
+      boolean
+
+    includeAttachment:
+      boolean
+  },
+) => {
+  info(
+    `Export ${payload.format}`,
+    `${filteredRequests.value.length} correction request record(s) are ready for export. Actual file generation will be connected later.`,
+  )
+}
 /* =========================================================
    QUICK FILTER
 ========================================================= */
@@ -298,12 +327,30 @@ const handleBack = () => {
     <!-- DETAILS MODAL -->
 
     <TimeCorrectionDetailsModal
-      :open="detailsOpen"
-      :request="selectedRequest"
-      @close="closeDetails"
-      @approve="handleApprove"
-      @reject="handleReject"
-    />
+  :open="detailsOpen"
+  :request="selectedRequest"
+  @close="closeDetails"
+  @approve="handleApprove"
+  @reject="handleReject"
+/>
+
+<!-- EXPORT MODAL -->
+
+<TimeCorrectionExportModal
+  :open="exportOpen"
+  :record-count="filteredRequests.length"
+  :department="department"
+  :status="status"
+  :correction-type="correctionType"
+  :date-from="dateFrom"
+  :date-to="dateTo"
+  @close="
+    exportOpen = false
+  "
+  @export="
+    handleExportSubmit
+  "
+/>
 
   </section>
 </template>

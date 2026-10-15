@@ -103,15 +103,6 @@ const validatePersonalStep = () => {
 }
 
 const validateDocumentsStep = () => {
-  if (!form.value.documents.length) {
-    warning(
-      'No Documents Added',
-      'Please upload at least one employee document before continuing.',
-    )
-
-    return false
-  }
-
   return true
 }
 

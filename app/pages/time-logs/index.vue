@@ -4,6 +4,8 @@ import {
   LogIn,
 } from 'lucide-vue-next'
 
+import TimeLogExportModal from '~/components/timekeeping/time-logs/TimeLogExportModal.vue'
+
 const {
   search,
   department,
@@ -36,10 +38,50 @@ const {
   info,
 } = useToast()
 
+const exportOpen =
+  ref(false)
+
 const handleExport = () => {
+  exportOpen.value =
+    true
+}
+
+const handleExportSubmit = (
+  payload: {
+    format:
+      | 'Excel'
+      | 'PDF'
+      | 'CSV'
+
+    scope:
+      | 'Current Filters'
+      | 'Selected Date Range'
+
+    includeEmployee:
+      boolean
+
+    includeSchedule:
+      boolean
+
+    includeTimeEntries:
+      boolean
+
+    includeBreaks:
+      boolean
+
+    includeIssues:
+      boolean
+
+    includeWorkedHours:
+      boolean
+
+    includeStatus:
+      boolean
+  },
+) => {
   info(
-    'Export Time Logs',
-    'Time log export will be connected later.',
+    `Export ${payload.format}`,
+    `${filteredLogs.value.length} time log record(s) are ready for export. Actual file generation will be connected during backend integration.`,
   )
 }
 
@@ -94,7 +136,6 @@ const handleManualTimeLog =
     />
 
     <div class="table-footer">
-
       <p>
         Showing
 
@@ -115,9 +156,34 @@ const handleManualTimeLog =
         v-model="currentPage"
         :total-pages="totalPages"
       />
-
     </div>
 
+      <TimeLogExportModal
+        :open="
+          exportOpen
+        "
+        :record-count="
+          filteredLogs.length
+        "
+        :department="
+          department
+        "
+        :status="
+          status
+        "
+        :date-from="
+          dateFrom
+        "
+        :date-to="
+          dateTo
+        "
+        @close="
+          exportOpen = false
+        "
+        @export="
+          handleExportSubmit
+        "
+      />
   </section>
 </template>
 

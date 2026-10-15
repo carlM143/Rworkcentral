@@ -12,6 +12,8 @@ import AddEditSwitchRestDayModal from '~/components/timekeeping/switch-rest-day/
 import SwitchRestDayDetailsModal from '~/components/timekeeping/switch-rest-day/SwitchRestDayDetailsModal.vue'
 import SwitchRestDayStatusModal from '~/components/timekeeping/switch-rest-day/SwitchRestDayStatusModal.vue'
 
+import SwitchRestDayExportModal from '~/components/timekeeping/switch-rest-day/SwitchRestDayExportModal.vue'
+
 import type {
   SwitchRestDayAction,
   SwitchRestDayFormData,
@@ -65,6 +67,9 @@ const {
   info,
   success,
 } = useToast()
+
+const exportModalOpen =
+  ref(false)
 
 /* =========================================================
    ADD / EDIT
@@ -391,9 +396,52 @@ const handleSchedule = (
 ========================================================= */
 
 const handleExport = () => {
+  exportModalOpen.value =
+    true
+}
+
+const handleExportSubmit = (
+  payload: {
+    format:
+      | 'Excel'
+      | 'PDF'
+      | 'CSV'
+
+    scope:
+      | 'Current Filters'
+      | 'Selected Date Range'
+
+    includeRequestInfo:
+      boolean
+
+    includeEmployee:
+      boolean
+
+    includeDepartment:
+      boolean
+
+    includeRestDays:
+      boolean
+
+    includeEffectiveDate:
+      boolean
+
+    includeEffectiveWeek:
+      boolean
+
+    includeReason:
+      boolean
+
+    includeRequestedAt:
+      boolean
+
+    includeStatus:
+      boolean
+  },
+) => {
   info(
-    'Export Switch Rest Day',
-    'Rest day switch report export will be connected later.',
+    `Export ${payload.format}`,
+    `${filteredRequests.value.length} rest day switch request(s) are ready for export. Actual file generation will be connected during backend integration.`,
   )
 }
 
@@ -606,22 +654,51 @@ const handleBack = () => {
     <!-- STATUS -->
 
     <SwitchRestDayStatusModal
-      :open="
-        statusModalOpen
-      "
-      :record="
-        statusRecord
-      "
-      :action="
-        statusAction
-      "
-      @close="
-        closeStatusModal
-      "
-      @save="
-        handleStatusSave
-      "
-    />
+  :open="
+    statusModalOpen
+  "
+  :record="
+    statusRecord
+  "
+  :action="
+    statusAction
+  "
+  @close="
+    closeStatusModal
+  "
+  @save="
+    handleStatusSave
+  "
+/>
+
+<!-- EXPORT MODAL -->
+
+<SwitchRestDayExportModal
+  :open="
+    exportModalOpen
+  "
+  :record-count="
+    filteredRequests.length
+  "
+  :department="
+    department
+  "
+  :status="
+    status
+  "
+  :date-from="
+    dateFrom
+  "
+  :date-to="
+    dateTo
+  "
+  @close="
+    exportModalOpen = false
+  "
+  @export="
+    handleExportSubmit
+  "
+/>
 
   </section>
 </template>

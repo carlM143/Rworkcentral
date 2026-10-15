@@ -9,7 +9,7 @@ import {
 
 import RequestTimeCorrectionModal from '~/components/timekeeping/time-log-corrections/RequestTimeCorrectionModal.vue'
 import TimeCorrectionHistoryModal from '~/components/timekeeping/time-log-corrections/TimeCorrectionHistoryModal.vue'
-
+import TimeLogDetailsModal from '~/components/timekeeping/time-logs/TimeLogDetailsModal.vue'
 import type {
   TimeLogRecord,
 } from '~/types/timekeeping'
@@ -60,6 +60,9 @@ const menuStyle =
 /* =========================================================
    MODALS
 ========================================================= */
+
+const detailsModalOpen =
+  ref(false)
 
 const correctionModalOpen =
   ref(false)
@@ -196,20 +199,46 @@ const closeMenu = () => {
    VIEW TIME LOG
 ========================================================= */
 
+/* =========================================================
+   VIEW TIME LOG
+========================================================= */
+
 const handleView = () => {
   closeMenu()
 
-  const timeIn =
-    props.log.timeIn ||
-    'No log'
+  detailsModalOpen.value =
+    true
+}
 
-  const timeOut =
-    props.log.timeOut ||
-    'No log'
+const handleDetailsCorrection = (
+  _log: TimeLogRecord,
+) => {
+  detailsModalOpen.value =
+    false
 
-  info(
-    'Time Log Details',
-    `${props.log.employeeName} · ${props.log.date} · ${timeIn} - ${timeOut}`,
+  if (
+    hasPendingRequest.value
+  ) {
+    info(
+      'Pending Correction',
+      'This attendance record already has a pending correction request.',
+    )
+
+    return
+  }
+
+  correctionModalOpen.value =
+    true
+}
+
+const handleDetailsEmployee = (
+  log: TimeLogRecord,
+) => {
+  detailsModalOpen.value =
+    false
+
+  router.push(
+    `/employees/${log.employeeId}`,
   )
 }
 
@@ -489,9 +518,22 @@ onBeforeUnmount(() => {
 
     </Teleport>
 
-    <!-- =========================================
-         REQUEST CORRECTION MODAL
-    ========================================== -->
+<TimeLogDetailsModal
+  :open="
+    detailsModalOpen
+  "
+  :log="log"
+  @close="
+    detailsModalOpen =
+      false
+  "
+  @correction="
+    handleDetailsCorrection
+  "
+  @employee="
+    handleDetailsEmployee
+  "
+/>
 
     <RequestTimeCorrectionModal
       :open="

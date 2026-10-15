@@ -1,25 +1,353 @@
 <script setup lang="ts">
 import {
   Clock3,
-  MoreHorizontal,
-  Timer,
-  UserRound,
+  TimerReset,
 } from 'lucide-vue-next'
 
-import type {
-  OvertimeRequest,
-  OvertimeRequestStatus,
-  OvertimeType,
-} from '~/types/overtimeRequest'
+import OvertimeRowActions from '~/components/timekeeping/overtime-requests/OvertimeRowActions.vue'
 
-defineProps<{
-  requests:
-    OvertimeRequest[]
-}>()
+import type {
+  OvertimeActionRequest,
+} from '~/types/overtimeActions'
+
+const props =
+  defineProps<{
+    requests: any[]
+  }>()
+
+const emit =
+  defineEmits<{
+    view: [
+      request:
+        OvertimeActionRequest,
+    ]
+
+    review: [
+      request:
+        OvertimeActionRequest,
+    ]
+
+    history: [
+      request:
+        OvertimeActionRequest,
+    ]
+
+    cancel: [
+      request:
+        OvertimeActionRequest,
+    ]
+  }>()
+
+/* =========================================================
+   NORMALIZER
+========================================================= */
+
+const normalizeRequest = (
+  row: any,
+): OvertimeActionRequest => {
+  return {
+    id:
+      row.id ??
+      row.requestId ??
+      row.request_id ??
+      row.requestNumber,
+
+    requestNo:
+      row.requestNumber ??
+      row.requestNo ??
+      row.request_no ??
+      'OT Request',
+
+    employeeName:
+      row.employeeName ??
+      row.employee_name ??
+      row.employee?.name ??
+      'Unknown Employee',
+
+    employeeNo:
+      row.employeeNumber ??
+      row.employeeNo ??
+      row.employee_number ??
+      row.employee?.employeeNumber,
+
+    department:
+      row.department ??
+      row.departmentName ??
+      row.department_name ??
+      '—',
+
+    position:
+      row.position ??
+      row.positionName ??
+      row.position_name ??
+      '',
+
+    otDate:
+      row.otDate ??
+      row.ot_date ??
+      row.date ??
+      '',
+
+    schedule:
+      row.schedule ??
+      row.workSchedule ??
+      row.work_schedule ??
+      '',
+
+    otStart:
+      row.otStart ??
+      row.ot_start ??
+      row.startTime ??
+      row.start_time ??
+      '',
+
+    otEnd:
+      row.otEnd ??
+      row.ot_end ??
+      row.endTime ??
+      row.end_time ??
+      '',
+
+    requestedHours:
+      Number(
+        row.requestedHours ??
+        row.requested_hours ??
+        row.hours ??
+        0,
+      ),
+
+    approvedHours:
+      row.approvedHours ??
+      row.approved_hours ??
+      null,
+
+    otType:
+      row.overtimeType ??
+      row.otType ??
+      row.overtime_type ??
+      row.ot_type ??
+      'Regular OT',
+
+    reason:
+      row.reason ??
+      'No reason provided.',
+
+    status:
+      row.status ??
+      'Pending',
+
+    requestedAt:
+      row.requestedAt ??
+      row.requested_at ??
+      row.createdAt ??
+      row.created_at,
+
+    reviewedBy:
+      row.reviewedBy ??
+      row.reviewed_by ??
+      row.approvedBy ??
+      row.approved_by,
+
+    reviewedAt:
+      row.reviewedAt ??
+      row.reviewed_at ??
+      row.approvedAt ??
+      row.approved_at,
+
+    remarks:
+      row.approvalRemarks ??
+      row.approval_remarks ??
+      row.reviewRemarks ??
+      row.review_remarks,
+  }
+}
+
+/* =========================================================
+   HELPERS
+========================================================= */
+
+const requestNumber = (
+  row: any,
+) => {
+  return (
+    row.requestNumber ??
+    row.requestNo ??
+    row.request_no ??
+    '—'
+  )
+}
+
+const employeeName = (
+  row: any,
+) => {
+  return (
+    row.employeeName ??
+    row.employee_name ??
+    row.employee?.name ??
+    '—'
+  )
+}
+
+const employeeNumber = (
+  row: any,
+) => {
+  return (
+    row.employeeNumber ??
+    row.employeeNo ??
+    row.employee_number ??
+    row.employee?.employeeNumber ??
+    ''
+  )
+}
+
+const department = (
+  row: any,
+) => {
+  return (
+    row.department ??
+    row.departmentName ??
+    row.department_name ??
+    '—'
+  )
+}
+
+const position = (
+  row: any,
+) => {
+  return (
+    row.position ??
+    row.positionName ??
+    row.position_name ??
+    ''
+  )
+}
+
+const otDate = (
+  row: any,
+) => {
+  return (
+    row.otDate ??
+    row.ot_date ??
+    row.date ??
+    ''
+  )
+}
+
+const schedule = (
+  row: any,
+) => {
+  if (row.schedule) {
+    return row.schedule
+  }
+
+  if (
+    row.otStart &&
+    row.otEnd
+  ) {
+    return (
+      `${row.otStart} – ${row.otEnd}`
+    )
+  }
+
+  if (
+    row.ot_start &&
+    row.ot_end
+  ) {
+    return (
+      `${row.ot_start} – ${row.ot_end}`
+    )
+  }
+
+  return '—'
+}
+
+const requestedHours = (
+  row: any,
+) => {
+  return Number(
+    row.requestedHours ??
+    row.requested_hours ??
+    row.hours ??
+    0,
+  )
+}
+
+const approvedHours = (
+  row: any,
+) => {
+  return (
+    row.approvedHours ??
+    row.approved_hours ??
+    null
+  )
+}
+
+const overtimeType = (
+  row: any,
+) => {
+  return (
+    row.overtimeType ??
+    row.otType ??
+    row.overtime_type ??
+    row.ot_type ??
+    'Regular OT'
+  )
+}
+
+const reason = (
+  row: any,
+) => {
+  return (
+    row.reason ??
+    'No reason provided.'
+  )
+}
+
+const status = (
+  row: any,
+) => {
+  return (
+    row.status ??
+    'Pending'
+  )
+}
+
+const requestedAt = (
+  row: any,
+) => {
+  return (
+    row.requestedAt ??
+    row.requested_at ??
+    row.createdAt ??
+    row.created_at ??
+    ''
+  )
+}
+
+/* =========================================================
+   FORMATTING
+========================================================= */
 
 const formatDate = (
   value: string,
 ) => {
+  if (!value) {
+    return '—'
+  }
+
+  const date =
+    new Date(
+      `${value}T00:00:00`,
+    )
+
+  if (
+    Number.isNaN(
+      date.getTime(),
+    )
+  ) {
+    return value
+  }
+
   return new Intl.DateTimeFormat(
     'en-US',
     {
@@ -27,103 +355,75 @@ const formatDate = (
       day: 'numeric',
       year: 'numeric',
     },
-  ).format(
-    new Date(
-      `${value}T00:00:00`,
-    ),
-  )
+  ).format(date)
 }
 
 const formatDateTime = (
   value: string,
 ) => {
+  if (!value) {
+    return '—'
+  }
+
+  const date =
+    new Date(value)
+
+  if (
+    Number.isNaN(
+      date.getTime(),
+    )
+  ) {
+    return value
+  }
+
   return new Intl.DateTimeFormat(
     'en-US',
     {
       month: 'short',
       day: 'numeric',
       year: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
-    },
-  ).format(
-    new Date(value),
-  )
-}
-
-const formatTime = (
-  value: string,
-) => {
-  const [hour, minute] =
-    value.split(':')
-      .map(Number)
-
-  const date =
-    new Date()
-
-  date.setHours(
-    hour ?? 0,
-    minute ?? 0,
-    0,
-    0,
-  )
-
-  return new Intl.DateTimeFormat(
-    'en-US',
-    {
       hour: 'numeric',
       minute: '2-digit',
     },
   ).format(date)
 }
 
-const statusClass = (
-  status:
-    OvertimeRequestStatus,
+const typeClass = (
+  value: string,
 ) => {
+  const lowered =
+    value.toLowerCase()
+
   if (
-    status === 'Approved'
+    lowered.includes(
+      'rest',
+    )
   ) {
-    return 'approved'
+    return 'purple'
   }
 
   if (
-    status === 'Pending'
+    lowered.includes(
+      'holiday',
+    )
   ) {
-    return 'pending'
+    return 'green'
   }
 
-  if (
-    status === 'For Review'
-  ) {
-    return 'review'
-  }
-
-  if (
-    status === 'Rejected'
-  ) {
-    return 'rejected'
-  }
-
-  return 'cancelled'
+  return 'blue'
 }
 
-const typeClass = (
-  type: OvertimeType,
+/* =========================================================
+   EVENTS
+========================================================= */
+
+const handleView = (
+  row: any,
 ) => {
-  if (
-    type === 'Regular OT'
-  ) {
-    return 'regular'
-  }
-
-  if (
-    type === 'Rest Day OT'
-  ) {
-    return 'rest-day'
-  }
-
-  return 'holiday'
+  emit(
+    'view',
+    normalizeRequest(row),
+  )
 }
 </script>
 
@@ -139,18 +439,14 @@ const typeClass = (
         </h3>
 
         <p>
-          Review employee overtime requests,
-          requested hours and approval status.
+          Review employee overtime requests, requested hours and approval status.
         </p>
 
       </div>
 
     </div>
 
-    <div
-      v-if="requests.length"
-      class="table-scroll"
-    >
+    <div class="table-scroll">
 
       <table>
 
@@ -176,50 +472,60 @@ const typeClass = (
         <tbody>
 
           <tr
-            v-for="
-              item in requests
+            v-for="row in requests"
+            :key="
+              row.id ??
+              row.requestNumber
             "
-            :key="item.id"
           >
+
+            <!-- REQUEST -->
 
             <td>
 
-              <strong class="request-number">
-                {{
-                  item.requestNumber
-                }}
-              </strong>
+              <button
+                type="button"
+                class="request-link"
+                @click="
+                  handleView(row)
+                "
+              >
+                {{ requestNumber(row) }}
+              </button>
 
             </td>
+
+            <!-- EMPLOYEE -->
 
             <td>
 
               <div class="employee-cell">
 
-                <div class="employee-icon">
+                <div class="employee-avatar">
 
-                  <UserRound
-                    :size="15"
-                  />
+                  {{
+                    employeeName(row)
+                      .charAt(0)
+                  }}
 
                 </div>
 
                 <div>
 
                   <strong>
-                    {{
-                      item.employeeName
-                    }}
+                    {{ employeeName(row) }}
                   </strong>
 
                   <span>
-                    {{
-                      item.employeeNumber
-                    }}
-                    ·
-                    {{
-                      item.position
-                    }}
+                    {{ employeeNumber(row) }}
+
+                    <template
+                      v-if="
+                        position(row)
+                      "
+                    >
+                      · {{ position(row) }}
+                    </template>
                   </span>
 
                 </div>
@@ -228,96 +534,86 @@ const typeClass = (
 
             </td>
 
+            <!-- DEPARTMENT -->
+
             <td>
-
-              <span class="department">
-                {{
-                  item.department
-                }}
-              </span>
-
+              {{ department(row) }}
             </td>
 
+            <!-- OT DATE -->
+
             <td>
 
-              <strong class="ot-date">
+              <strong class="date-text">
                 {{
                   formatDate(
-                    item.overtimeDate,
+                    otDate(row),
                   )
                 }}
               </strong>
 
             </td>
 
+            <!-- SCHEDULE -->
+
             <td>
 
-              <div class="schedule-cell">
+              <span class="schedule-text">
 
                 <Clock3
-                  :size="12"
+                  :size="11"
                 />
 
-                <span>
-                  {{
-                    formatTime(
-                      item.startTime,
-                    )
-                  }}
-                  –
-                  {{
-                    formatTime(
-                      item.endTime,
-                    )
-                  }}
-                </span>
+                {{ schedule(row) }}
 
-              </div>
+              </span>
 
             </td>
+
+            <!-- REQUESTED -->
 
             <td>
 
-              <div class="hour-cell">
+              <strong class="requested">
 
-                <Timer
-                  :size="12"
+                <TimerReset
+                  :size="11"
                 />
 
-                <strong>
-                  {{
-                    item.requestedHours
-                  }}
-                  hrs
-                </strong>
+                {{ requestedHours(row) }}
+                hrs
 
-              </div>
+              </strong>
 
             </td>
+
+            <!-- APPROVED -->
 
             <td>
 
               <strong
                 v-if="
-                  item.approvedHours !==
+                  approvedHours(row) !==
+                  null &&
+                  approvedHours(row) !==
                   undefined
                 "
-                class="approved-hours"
+                class="approved"
               >
-                {{
-                  item.approvedHours
-                }}
+                {{ approvedHours(row) }}
                 hrs
               </strong>
 
               <span
                 v-else
-                class="empty-value"
+                class="muted"
               >
                 —
               </span>
 
             </td>
+
+            <!-- TYPE -->
 
             <td>
 
@@ -325,88 +621,107 @@ const typeClass = (
                 class="type-badge"
                 :class="
                   typeClass(
-                    item.overtimeType,
+                    overtimeType(row),
                   )
                 "
               >
-                {{
-                  item.overtimeType
-                }}
+                {{ overtimeType(row) }}
               </span>
 
             </td>
 
-            <td>
-
-              <div class="reason-cell">
-
-                <strong>
-                  {{
-                    item.reason
-                  }}
-                </strong>
-
-                <span
-                  v-if="
-                    item.remarks
-                  "
-                >
-                  {{
-                    item.remarks
-                  }}
-                </span>
-
-              </div>
-
-            </td>
+            <!-- REASON -->
 
             <td>
 
-              <span
-                class="status-badge"
-                :class="
-                  statusClass(
-                    item.status,
-                  )
-                "
+              <p
+                class="reason"
+                :title="reason(row)"
               >
-
-                <span class="status-dot" />
-
-                {{
-                  item.status
-                }}
-
-              </span>
+                {{ reason(row) }}
+              </p>
 
             </td>
+
+            <!-- STATUS -->
+
+            <td>
+
+              <StatusBadge
+                :status="
+                  status(row)
+                "
+              />
+
+            </td>
+
+            <!-- REQUESTED AT -->
 
             <td>
 
               <span class="requested-at">
+
                 {{
                   formatDateTime(
-                    item.requestedAt,
+                    requestedAt(row),
                   )
                 }}
+
               </span>
 
             </td>
 
-            <td>
+            <!-- THREE DOTS -->
 
-              <button
-                type="button"
-                class="action-button"
-                title="Actions will be added later"
-              >
+            <td class="actions-cell">
 
-                <MoreHorizontal
-                  :size="17"
-                />
+              <OvertimeRowActions
+                :request="
+                  normalizeRequest(
+                    row,
+                  )
+                "
+                @view="
+                  emit(
+                    'view',
+                    $event,
+                  )
+                "
+                @review="
+                  emit(
+                    'review',
+                    $event,
+                  )
+                "
+                @history="
+                  emit(
+                    'history',
+                    $event,
+                  )
+                "
+                @cancel="
+                  emit(
+                    'cancel',
+                    $event,
+                  )
+                "
+              />
 
-              </button>
+            </td>
 
+          </tr>
+
+          <tr
+            v-if="
+              !requests.length
+            "
+          >
+
+            <td
+              colspan="12"
+              class="empty-state"
+            >
+              No overtime requests found.
             </td>
 
           </tr>
@@ -414,25 +729,6 @@ const typeClass = (
         </tbody>
 
       </table>
-
-    </div>
-
-    <div
-      v-else
-      class="empty-state"
-    >
-
-      <Timer
-        :size="31"
-      />
-
-      <strong>
-        No overtime requests found
-      </strong>
-
-      <span>
-        Try changing your overtime filters.
-      </span>
 
     </div>
 
@@ -446,7 +742,7 @@ const typeClass = (
   border:
     1px solid var(--border);
 
-  border-radius: 11px;
+  border-radius: 10px;
 
   background:
     var(--bg-card);
@@ -456,8 +752,13 @@ const typeClass = (
 }
 
 .table-heading {
+  display: flex;
+
+  align-items: center;
+  justify-content: space-between;
+
   padding:
-    15px 16px;
+    14px 15px;
 
   border-bottom:
     1px solid var(--border-soft);
@@ -469,17 +770,18 @@ const typeClass = (
   color:
     var(--text-primary);
 
-  font-size: 14px;
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .table-heading p {
   margin:
-    5px 0 0;
+    3px 0 0;
 
   color:
     var(--text-muted);
 
-  font-size: 9px;
+  font-size: 8px;
 }
 
 .table-scroll {
@@ -489,14 +791,14 @@ const typeClass = (
 table {
   width: 100%;
 
-  min-width: 1900px;
+  min-width: 1670px;
 
   border-collapse: collapse;
 }
 
 th {
   padding:
-    12px 13px;
+    10px 11px;
 
   background:
     var(--bg-card-soft);
@@ -504,7 +806,7 @@ th {
   color:
     var(--text-secondary);
 
-  font-size: 9px;
+  font-size: 7.5px;
   font-weight: 700;
 
   text-align: left;
@@ -516,7 +818,7 @@ th {
 
 td {
   padding:
-    13px;
+    10px 11px;
 
   border-top:
     1px solid var(--border-soft);
@@ -524,7 +826,7 @@ td {
   color:
     var(--text-secondary);
 
-  font-size: 9px;
+  font-size: 8px;
 
   vertical-align: middle;
 }
@@ -534,41 +836,64 @@ tbody tr:hover {
     var(--bg-card-soft);
 }
 
-.request-number {
+/* REQUEST */
+
+.request-link {
+  border: 0;
+
+  padding: 0;
+
+  background:
+    transparent;
+
   color:
     var(--primary);
 
-  white-space: nowrap;
+  font-family: inherit;
+
+  font-size: 8px;
+  font-weight: 700;
+
+  cursor: pointer;
 }
+
+.request-link:hover {
+  text-decoration: underline;
+}
+
+/* EMPLOYEE */
 
 .employee-cell {
   display: flex;
 
-  min-width: 230px;
+  min-width: 190px;
 
   align-items: center;
 
   gap: 8px;
 }
 
-.employee-icon {
+.employee-avatar {
   display: flex;
 
-  width: 32px;
-  height: 32px;
+  width: 29px;
+  height: 29px;
 
   flex-shrink: 0;
 
   align-items: center;
   justify-content: center;
 
-  border-radius: 8px;
+  border-radius: 7px;
 
   background:
     var(--primary-soft);
 
   color:
     var(--primary);
+
+  font-size: 9px;
+  font-weight: 700;
 }
 
 .employee-cell strong,
@@ -580,49 +905,43 @@ tbody tr:hover {
   color:
     var(--text-primary);
 
-  font-size: 9px;
+  font-size: 8.5px;
 }
 
 .employee-cell span {
-  margin-top: 3px;
+  margin-top: 2px;
 
   color:
     var(--text-muted);
 
-  font-size: 8px;
+  font-size: 7px;
 }
 
-.department {
+/* DATE */
+
+.date-text {
   color:
     var(--text-primary);
 
   white-space: nowrap;
 }
 
-.ot-date {
-  color:
-    var(--text-primary);
+/* SCHEDULE */
 
-  white-space: nowrap;
-}
-
-.schedule-cell {
-  display: flex;
-
-  min-width: 145px;
+.schedule-text {
+  display: inline-flex;
 
   align-items: center;
 
   gap: 5px;
+
+  white-space: nowrap;
 }
 
-.schedule-cell svg {
-  color:
-    var(--text-muted);
-}
+/* HOURS */
 
-.hour-cell {
-  display: flex;
+.requested {
+  display: inline-flex;
 
   align-items: center;
 
@@ -634,33 +953,35 @@ tbody tr:hover {
   white-space: nowrap;
 }
 
-.approved-hours {
+.approved {
   color:
     var(--green);
 
   white-space: nowrap;
 }
 
-.empty-value {
+.muted {
   color:
     var(--text-muted);
 }
+
+/* TYPE */
 
 .type-badge {
   display: inline-flex;
 
   padding:
-    5px 8px;
+    4px 7px;
 
-  border-radius: 20px;
+  border-radius: 18px;
 
-  font-size: 8px;
+  font-size: 7px;
   font-weight: 650;
 
   white-space: nowrap;
 }
 
-.type-badge.regular {
+.type-badge.blue {
   background:
     var(--primary-soft);
 
@@ -668,7 +989,7 @@ tbody tr:hover {
     var(--primary);
 }
 
-.type-badge.rest-day {
+.type-badge.purple {
   background:
     var(--purple-soft);
 
@@ -676,75 +997,7 @@ tbody tr:hover {
     var(--purple);
 }
 
-.type-badge.holiday {
-  background:
-    var(--orange-soft);
-
-  color:
-    var(--orange);
-}
-
-.reason-cell {
-  min-width: 230px;
-  max-width: 280px;
-}
-
-.reason-cell strong,
-.reason-cell span {
-  display: block;
-}
-
-.reason-cell strong {
-  color:
-    var(--text-primary);
-
-  font-size: 9px;
-}
-
-.reason-cell span {
-  overflow: hidden;
-
-  margin-top: 3px;
-
-  color:
-    var(--text-muted);
-
-  font-size: 8px;
-
-  text-overflow: ellipsis;
-
-  white-space: nowrap;
-}
-
-.status-badge {
-  display: inline-flex;
-
-  align-items: center;
-
-  gap: 5px;
-
-  padding:
-    5px 8px;
-
-  border-radius: 20px;
-
-  font-size: 8px;
-  font-weight: 650;
-
-  white-space: nowrap;
-}
-
-.status-dot {
-  width: 5px;
-  height: 5px;
-
-  border-radius: 50%;
-
-  background:
-    currentColor;
-}
-
-.status-badge.approved {
+.type-badge.green {
   background:
     var(--green-soft);
 
@@ -752,98 +1005,51 @@ tbody tr:hover {
     var(--green);
 }
 
-.status-badge.pending {
-  background:
-    var(--orange-soft);
+/* REASON */
 
-  color:
-    var(--orange);
-}
+.reason {
+  width: 230px;
 
-.status-badge.review {
-  background:
-    var(--purple-soft);
+  margin: 0;
 
-  color:
-    var(--purple);
-}
+  overflow: hidden;
 
-.status-badge.rejected {
-  background:
-    var(--red-soft);
-
-  color:
-    var(--red);
-}
-
-.status-badge.cancelled {
-  background:
-    var(--bg-card-soft);
-
-  color:
-    var(--text-muted);
-}
-
-.requested-at {
-  white-space: nowrap;
-}
-
-.action-button {
-  display: flex;
-
-  width: 31px;
-  height: 31px;
-
-  align-items: center;
-  justify-content: center;
-
-  border:
-    1px solid transparent;
-
-  border-radius: 7px;
-
-  background:
-    transparent;
-
-  color:
-    var(--text-secondary);
-}
-
-.action-button:hover {
-  border-color:
-    var(--border);
-
-  background:
-    var(--bg-card-soft);
-
-  color:
-    var(--primary);
-}
-
-.empty-state {
-  display: flex;
-
-  min-height: 250px;
-
-  flex-direction: column;
-
-  align-items: center;
-  justify-content: center;
-
-  gap: 7px;
-
-  color:
-    var(--text-muted);
-}
-
-.empty-state strong {
   color:
     var(--text-primary);
 
-  font-size: 11px;
+  font-size: 8px;
+  font-weight: 600;
+
+  text-overflow: ellipsis;
+
+  white-space: nowrap;
 }
 
-.empty-state span {
-  font-size: 9px;
+/* REQUESTED AT */
+
+.requested-at {
+  color:
+    var(--text-secondary);
+
+  white-space: nowrap;
+}
+
+/* ACTION */
+
+.actions-cell {
+  width: 40px;
+
+  text-align: center;
+}
+
+/* EMPTY */
+
+.empty-state {
+  padding: 35px;
+
+  color:
+    var(--text-muted);
+
+  text-align: center;
 }
 </style>

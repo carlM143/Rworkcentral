@@ -12,6 +12,7 @@ import AddEditTripModal from '~/components/timekeeping/manage-trips/AddEditTripM
 import TripDetailsModal from '~/components/timekeeping/manage-trips/TripDetailsModal.vue'
 import TripStatusModal from '~/components/timekeeping/manage-trips/TripStatusModal.vue'
 import TripTicketModal from '~/components/timekeeping/manage-trips/TripTicketModal.vue'
+import ManageTripExportModal from '~/components/timekeeping/manage-trips/ManageTripExportModal.vue'
 
 import type {
   ManageTrip,
@@ -69,9 +70,7 @@ const {
   success,
 } = useToast()
 
-/* =========================================================
-   ADD / EDIT
-========================================================= */
+const exportModalOpen = ref(false)
 
 const formModalOpen =
   ref(false)
@@ -490,9 +489,49 @@ const closeTicketModal =
 ========================================================= */
 
 const handleExport = () => {
+  exportModalOpen.value =
+    true
+}
+
+const handleExportSubmit = (
+  payload: {
+    format:
+      | 'Excel'
+      | 'PDF'
+      | 'CSV'
+
+    scope:
+      | 'Current Filters'
+      | 'Selected Date Range'
+
+    includeTripInfo:
+      boolean
+
+    includeEmployee:
+      boolean
+
+    includeClient:
+      boolean
+
+    includeRoute:
+      boolean
+
+    includeSchedule:
+      boolean
+
+    includeActualTimes:
+      boolean
+
+    includeDuration:
+      boolean
+
+    includeStatus:
+      boolean
+  },
+) => {
   info(
-    'Export Trips',
-    'Trip report export will be connected later.',
+    `Export ${payload.format}`,
+    `${filteredTrips.value.length} trip record(s) are ready for export. Actual file generation will be connected during backend integration.`,
   )
 }
 
@@ -718,10 +757,6 @@ const handleBack = () => {
       "
     />
 
-    <!-- =========================================
-         TRIP TICKET MODAL
-    ========================================== -->
-
     <TripTicketModal
       :open="
         ticketModalOpen
@@ -733,6 +768,37 @@ const handleBack = () => {
         closeTicketModal
       "
     />
+
+<!-- =========================================
+     EXPORT MODAL
+========================================== -->
+
+<ManageTripExportModal
+  :open="
+    exportModalOpen
+  "
+  :record-count="
+    filteredTrips.length
+  "
+  :client="
+    client
+  "
+  :status="
+    status
+  "
+  :date-from="
+    dateFrom
+  "
+  :date-to="
+    dateTo
+  "
+  @close="
+    exportModalOpen = false
+  "
+  @export="
+    handleExportSubmit
+  "
+/>
 
   </section>
 </template>

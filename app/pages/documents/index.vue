@@ -93,7 +93,7 @@ const handleRequirements = () => {
     <!-- HEADER -->
     <PageHeader
       title="Documents"
-      description="Manage employee documents, verification, expiration dates and document requirements."
+      description="Manage employee test, verification, expiration dates and document requirements."
     >
 
       <AppButton

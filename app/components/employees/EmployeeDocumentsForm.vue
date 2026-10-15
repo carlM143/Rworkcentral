@@ -2,11 +2,15 @@
 import {
   Files,
   FileText,
-  UploadCloud,
-  Trash2,
   CheckCircle2,
+  Circle,
   ShieldCheck,
   Info,
+  Landmark,
+  GraduationCap,
+  IdCard,
+  HeartPulse,
+  BriefcaseBusiness,
 } from 'lucide-vue-next'
 
 const {
@@ -15,366 +19,536 @@ const {
   removeDocument,
 } = useEmployeeForm()
 
-const documentTypes = [
-  'Employment Contract',
-  'Valid ID',
-  'Birth Certificate',
-  'SSS Document',
-  'PhilHealth Document',
-  'Pag-IBIG Document',
-  'TIN Document',
-  'Driver\'s License',
-  'Training Certificate',
-  'Medical Certificate',
-  'Diploma / Transcript',
-  'Other',
+interface DocumentRequirement {
+  id: string
+  label: string
+  category: string
+  description: string
+}
+
+const requirements: DocumentRequirement[] = [
+  {
+    id: 'employment-contract',
+    label: 'Employment Contract',
+    category: 'Employment',
+    description: 'Signed employment contract or appointment document.',
+  },
+  {
+    id: 'valid-id',
+    label: 'Valid Government ID',
+    category: 'Identification',
+    description: 'Any valid government-issued identification.',
+  },
+  {
+    id: 'birth-certificate',
+    label: 'Birth Certificate',
+    category: 'Personal',
+    description: 'PSA or official birth certificate.',
+  },
+  {
+    id: 'sss',
+    label: 'SSS Document',
+    category: 'Government',
+    description: 'SSS number verification or supporting document.',
+  },
+  {
+    id: 'philhealth',
+    label: 'PhilHealth Document',
+    category: 'Government',
+    description: 'PhilHealth membership or number verification.',
+  },
+  {
+    id: 'pagibig',
+    label: 'Pag-IBIG Document',
+    category: 'Government',
+    description: 'Pag-IBIG / HDMF membership supporting document.',
+  },
+  {
+    id: 'tin',
+    label: 'TIN / BIR Document',
+    category: 'Government',
+    description: 'TIN verification or applicable BIR document.',
+  },
+  {
+    id: 'nbi-clearance',
+    label: 'NBI Clearance',
+    category: 'Clearance',
+    description: 'Valid NBI clearance submitted by the employee.',
+  },
+  {
+    id: 'police-clearance',
+    label: 'Police Clearance',
+    category: 'Clearance',
+    description: 'Police clearance when required by the company.',
+  },
+  {
+    id: 'barangay-clearance',
+    label: 'Barangay Clearance',
+    category: 'Clearance',
+    description: 'Barangay clearance or certificate of residency.',
+  },
+  {
+    id: 'diploma',
+    label: 'Diploma / Transcript of Records',
+    category: 'Education',
+    description: 'Diploma, TOR or other education supporting document.',
+  },
+  {
+    id: 'medical-certificate',
+    label: 'Medical Certificate',
+    category: 'Medical',
+    description: 'Pre-employment or fit-to-work medical certificate.',
+  },
+  {
+    id: 'drivers-license',
+    label: 'Driver\'s License',
+    category: 'Identification',
+    description: 'Required for employees assigned as drivers.',
+  },
+  {
+    id: 'training-certificate',
+    label: 'Training / Certification',
+    category: 'Qualification',
+    description: 'Relevant training, competency or professional certificate.',
+  },
 ]
 
-const selectedType = ref('')
-const selectedFile = ref<File | null>(null)
+const isSubmitted = (
+  requirement: DocumentRequirement,
+) => {
+  return form.value.documents.some(
+    document =>
+      document.id === requirement.id,
+  )
+}
 
-const {
-  success,
-  warning,
-} = useToast()
+const toggleRequirement = (
+  requirement: DocumentRequirement,
+  checked: boolean,
+) => {
+  if (checked) {
+    if (isSubmitted(requirement)) {
+      return
+    }
 
-const handleAddDocument = () => {
-  if (!selectedType.value) {
-    warning(
-      'Document Type Required',
-      'Please select a document type.',
-    )
+    addDocument({
+      id: requirement.id,
+      type: requirement.label,
+      name: 'Submitted requirement',
+      file: null,
+    })
 
     return
   }
 
-  if (!selectedFile.value) {
-    warning(
-      'File Required',
-      'Please select a file to upload.',
+  removeDocument(
+    requirement.id,
+  )
+}
+
+const submittedCount =
+  computed(
+    () =>
+      form.value.documents.length,
+  )
+
+const pendingCount =
+  computed(
+    () =>
+      Math.max(
+        requirements.length -
+        submittedCount.value,
+        0,
+      ),
+  )
+
+const completionPercentage =
+  computed(() => {
+    if (!requirements.length) {
+      return 0
+    }
+
+    return Math.round(
+      (
+        submittedCount.value /
+        requirements.length
+      ) * 100,
     )
-
-    return
-  }
-
-  addDocument({
-    id:
-      Date.now().toString() +
-      Math.random().toString(36).slice(2),
-
-    type: selectedType.value,
-
-    name: selectedFile.value.name,
-
-    file: selectedFile.value,
   })
 
-  success(
-    'Document Added',
-    `${selectedType.value} has been added to the employee record.`,
-  )
-
-  selectedType.value = ''
-  selectedFile.value = null
-}
-
-const handleRemoveDocument = (
-  id: string,
+const requirementIcon = (
+  category: string,
 ) => {
-  removeDocument(id)
+  if (category === 'Government') {
+    return Landmark
+  }
 
-  success(
-    'Document Removed',
-    'The document has been removed from the employee record.',
-  )
+  if (category === 'Education') {
+    return GraduationCap
+  }
+
+  if (category === 'Identification') {
+    return IdCard
+  }
+
+  if (category === 'Medical') {
+    return HeartPulse
+  }
+
+  if (category === 'Employment') {
+    return BriefcaseBusiness
+  }
+
+  return FileText
 }
-
-const formatFileSize = (
-  size?: number,
-) => {
-  if (!size) {
-    return ''
-  }
-
-  if (size < 1024) {
-    return `${size} B`
-  }
-
-  if (size < 1024 * 1024) {
-    return `${(
-      size / 1024
-    ).toFixed(1)} KB`
-  }
-
-  return `${(
-    size /
-    (1024 * 1024)
-  ).toFixed(1)} MB`
-}
-
-const uploadedCount = computed(
-  () => form.value.documents.length,
-)
 </script>
 
 <template>
   <FormSection
     title="Employee Documents"
-    description="Upload and organize the employee's required employment and compliance documents."
+    description="Mark the employment and compliance requirements already submitted by the employee."
     :icon="Files"
   >
     <div class="documents-layout">
 
-      <!-- ====================================
-           LEFT SUMMARY
-      ===================================== -->
+      <!-- LEFT SUMMARY -->
+
       <aside class="summary-column">
 
         <div class="summary-heading">
+
           <div class="summary-main-icon">
             <Files :size="29" />
           </div>
 
           <strong>
-            Employee Files
+            Document Requirements
           </strong>
 
           <span>
-            Document requirements
+            Submission checklist
           </span>
+
         </div>
 
-        <div class="document-status-card">
-          <div class="status-icon">
-            <CheckCircle2 :size="19" />
+        <div class="progress-card">
+
+          <div class="progress-heading">
+
+            <div>
+              <span>
+                Requirements Submitted
+              </span>
+
+              <strong>
+                {{ submittedCount }}
+                /
+                {{ requirements.length }}
+              </strong>
+            </div>
+
+            <div class="percentage">
+              {{ completionPercentage }}%
+            </div>
+
+          </div>
+
+          <div class="progress-track">
+            <div
+              class="progress-value"
+              :style="{
+                width:
+                  `${completionPercentage}%`,
+              }"
+            />
+          </div>
+
+        </div>
+
+        <div class="summary-stats">
+
+          <div class="summary-stat submitted">
+
+            <div class="stat-icon">
+              <CheckCircle2 :size="16" />
+            </div>
+
+            <div>
+              <span>Submitted</span>
+
+              <strong>
+                {{ submittedCount }}
+              </strong>
+            </div>
+
+          </div>
+
+          <div class="summary-stat pending">
+
+            <div class="stat-icon">
+              <Circle :size="16" />
+            </div>
+
+            <div>
+              <span>Pending</span>
+
+              <strong>
+                {{ pendingCount }}
+              </strong>
+            </div>
+
+          </div>
+
+        </div>
+
+        <div class="requirements-summary">
+
+          <div>
+            <ShieldCheck :size="14" />
+            Government Records
           </div>
 
           <div>
-            <span>
-              Uploaded Documents
-            </span>
-
-            <strong>
-              {{ uploadedCount }}
-            </strong>
-          </div>
-        </div>
-
-        <div class="requirements-list">
-          <div class="requirement-item">
-            <FileText :size="14" />
-
-            <span>
-              Employment Contract
-            </span>
+            <IdCard :size="14" />
+            Identification
           </div>
 
-          <div class="requirement-item">
-            <ShieldCheck :size="14" />
-
-            <span>
-              Government Records
-            </span>
+          <div>
+            <GraduationCap :size="14" />
+            Educational Records
           </div>
 
-          <div class="requirement-item">
-            <FileText :size="14" />
-
-            <span>
-              Valid Identification
-            </span>
+          <div>
+            <BriefcaseBusiness :size="14" />
+            Employment Records
           </div>
 
-          <div class="requirement-item">
-            <FileText :size="14" />
-
-            <span>
-              Certificates
-            </span>
-          </div>
         </div>
 
         <div class="summary-note">
-          Employee documents will become part
-          of the employee's centralized HR file
-          after the employee record is saved.
+          Unchecked requirements will remain marked as pending and may be submitted later through the employee document management module.
         </div>
 
       </aside>
 
-      <!-- ====================================
-           RIGHT CONTENT
-      ===================================== -->
+      <!-- RIGHT CONTENT -->
+
       <div class="documents-content">
 
-        <!-- UPLOAD HEADER -->
         <div class="section-title">
+
           <div class="section-title-icon">
-            <UploadCloud :size="17" />
+            <CheckCircle2 :size="17" />
           </div>
 
           <div>
             <strong>
-              Upload Document
+              Submitted Requirements
             </strong>
 
             <span>
-              Select the document category and
-              attach the corresponding employee file.
+              Check every document already submitted by the employee.
             </span>
           </div>
+
         </div>
 
-        <!-- DOCUMENT TYPE -->
-        <div class="upload-form">
-          <div class="form-field">
-            <label class="field-label">
-              Document Type
-              <span>*</span>
-            </label>
+        <!-- CHECKLIST -->
 
-            <AppSelect
-              v-model="selectedType"
-              :options="documentTypes"
-              placeholder="Select document type"
-            />
-          </div>
+        <div class="requirements-grid">
 
-          <div class="form-field">
-            <AppFileUpload
-              v-model="selectedFile"
-              label="Document File"
-              description="Upload PDF, JPG or PNG document."
-              accept=".pdf,.jpg,.jpeg,.png"
-              :max-size-mb="5"
-            />
-          </div>
+          <label
+            v-for="requirement in requirements"
+            :key="requirement.id"
+            class="requirement-card"
+            :class="{
+              selected:
+                isSubmitted(
+                  requirement,
+                ),
+            }"
+          >
 
-          <div class="upload-action">
-            <AppButton
-              :icon="UploadCloud"
-              @click="handleAddDocument"
+            <div class="checkbox-wrap">
+
+              <input
+                type="checkbox"
+                :checked="
+                  isSubmitted(
+                    requirement,
+                  )
+                "
+                @change="
+                  toggleRequirement(
+                    requirement,
+                    ($event.target as HTMLInputElement).checked,
+                  )
+                "
+              >
+
+            </div>
+
+            <div
+              class="requirement-icon"
+              :class="{
+                selected:
+                  isSubmitted(
+                    requirement,
+                  ),
+              }"
             >
-              Add Document
-            </AppButton>
-          </div>
+              <component
+                :is="
+                  requirementIcon(
+                    requirement.category,
+                  )
+                "
+                :size="17"
+              />
+            </div>
+
+            <div class="requirement-info">
+
+              <div class="requirement-top">
+
+                <strong>
+                  {{ requirement.label }}
+                </strong>
+
+                <span
+                  class="status-badge"
+                  :class="{
+                    submitted:
+                      isSubmitted(
+                        requirement,
+                      ),
+                  }"
+                >
+                  {{
+                    isSubmitted(
+                      requirement,
+                    )
+                      ? 'Submitted'
+                      : 'Pending'
+                  }}
+                </span>
+
+              </div>
+
+              <span class="category">
+                {{ requirement.category }}
+              </span>
+
+              <p>
+                {{ requirement.description }}
+              </p>
+
+            </div>
+
+          </label>
+
         </div>
+
+        <!-- SELECTED SUMMARY -->
 
         <div class="section-divider" />
 
-        <!-- ====================================
-             UPLOADED DOCUMENTS
-        ===================================== -->
         <div class="section-title">
+
           <div class="section-title-icon green">
             <Files :size="17" />
           </div>
 
           <div>
             <strong>
-              Uploaded Documents
+              Selected Documents
             </strong>
 
             <span>
-              Review the employee documents
-              included in this record.
+              Documents marked as submitted for this employee.
             </span>
           </div>
+
         </div>
 
-        <!-- EMPTY STATE -->
         <div
-          v-if="!form.documents.length"
+          v-if="
+            !form.documents.length
+          "
           class="empty-documents"
         >
+
           <div class="empty-icon">
             <Files :size="25" />
           </div>
 
           <strong>
-            No documents uploaded yet
+            No requirements selected
           </strong>
 
           <p>
-            Select a document type and upload
-            a file above.
+            Check the documents that the employee has already submitted.
           </p>
+
         </div>
 
-        <!-- DOCUMENT LIST -->
         <div
           v-else
-          class="documents-list"
+          class="selected-list"
         >
+
           <div
             v-for="document in form.documents"
             :key="document.id"
-            class="document-item"
+            class="selected-item"
           >
-            <div class="document-icon">
-              <FileText :size="18" />
+
+            <div class="selected-icon">
+              <CheckCircle2 :size="16" />
             </div>
 
-            <div class="document-info">
+            <div class="selected-info">
+
               <strong>
                 {{ document.type }}
               </strong>
 
               <span>
-                {{ document.name }}
+                Requirement submitted
               </span>
 
-              <small v-if="document.file">
-                {{
-                  formatFileSize(
-                    document.file.size,
-                  )
-                }}
-              </small>
             </div>
 
-            <div class="document-status">
-              <CheckCircle2 :size="14" />
-
-              Ready
+            <div class="submitted-label">
+              Submitted
             </div>
 
-            <button
-              type="button"
-              class="delete-button"
-              title="Remove document"
-              @click="
-                handleRemoveDocument(
-                  document.id,
-                )
-              "
-            >
-              <Trash2 :size="15" />
-            </button>
           </div>
+
         </div>
 
         <!-- INFO -->
+
         <div class="information-card">
+
           <div class="information-icon">
             <Info :size="18" />
           </div>
 
           <div>
             <strong>
-              Document Management
+              Document Requirement Tracking
             </strong>
 
             <p>
-              Later, this module can support
-              document categories, expiration
-              dates, renewal reminders and
-              restricted document access.
+              Checked items mean the employee already submitted the requirement. Unchecked items remain pending and can be completed later during onboarding or document management.
             </p>
           </div>
+
         </div>
 
       </div>
+
     </div>
   </FormSection>
 </template>
@@ -384,6 +558,7 @@ const uploadedCount = computed(
   display: grid;
   grid-template-columns:
     230px minmax(0, 1fr);
+
   gap: 24px;
 }
 
@@ -398,10 +573,12 @@ const uploadedCount = computed(
 
 .summary-heading {
   display: flex;
+
   flex-direction: column;
   align-items: center;
 
-  padding-bottom: 18px;
+  padding:
+    18px 10px;
 
   text-align: center;
 }
@@ -409,8 +586,8 @@ const uploadedCount = computed(
 .summary-main-icon {
   display: flex;
 
-  width: 72px;
-  height: 72px;
+  width: 62px;
+  height: 62px;
 
   align-items: center;
   justify-content: center;
@@ -419,118 +596,241 @@ const uploadedCount = computed(
 
   border-radius: 50%;
 
-  background: var(--primary-soft);
-  color: var(--primary);
+  background:
+    var(--primary-soft);
+
+  color:
+    var(--primary);
 }
 
 .summary-heading strong {
-  color: var(--text-primary);
+  color:
+    var(--text-primary);
 
-  font-size: 12px;
-  font-weight: 700;
+  font-size: 11px;
 }
 
 .summary-heading span {
   margin-top: 3px;
 
-  color: var(--text-muted);
+  color:
+    var(--text-muted);
 
-  font-size: 9px;
+  font-size: 8px;
 }
 
-.document-status-card {
-  display: flex;
-  align-items: center;
-  gap: 10px;
+/* PROGRESS */
+
+.progress-card {
+  margin-bottom: 10px;
 
   padding: 12px;
 
-  border: 1px solid var(--border);
+  border:
+    1px solid var(--border);
+
   border-radius: 9px;
 
-  background: var(--bg-card-soft);
+  background:
+    var(--bg-card-soft);
 }
 
-.status-icon {
+.progress-heading {
   display: flex;
 
-  width: 34px;
-  height: 34px;
+  align-items: center;
+  justify-content: space-between;
+
+  gap: 10px;
+}
+
+.progress-heading span {
+  display: block;
+
+  color:
+    var(--text-muted);
+
+  font-size: 7px;
+}
+
+.progress-heading strong {
+  display: block;
+
+  margin-top: 3px;
+
+  color:
+    var(--text-primary);
+
+  font-size: 12px;
+}
+
+.percentage {
+  color:
+    var(--primary);
+
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.progress-track {
+  width: 100%;
+  height: 5px;
+
+  margin-top: 10px;
+
+  overflow: hidden;
+
+  border-radius: 20px;
+
+  background:
+    var(--border-soft);
+}
+
+.progress-value {
+  height: 100%;
+
+  border-radius: inherit;
+
+  background:
+    var(--primary);
+
+  transition:
+    width 0.2s ease;
+}
+
+/* SUMMARY STATS */
+
+.summary-stats {
+  display: grid;
+
+  grid-template-columns:
+    repeat(
+      2,
+      minmax(0, 1fr)
+    );
+
+  gap: 7px;
+
+  margin-bottom: 10px;
+}
+
+.summary-stat {
+  display: flex;
+
+  align-items: center;
+
+  gap: 8px;
+
+  padding: 9px;
+
+  border:
+    1px solid var(--border);
+
+  border-radius: 8px;
+
+  background:
+    var(--bg-card);
+}
+
+.stat-icon {
+  display: flex;
+
+  width: 29px;
+  height: 29px;
+
+  flex-shrink: 0;
 
   align-items: center;
   justify-content: center;
 
-  border-radius: 8px;
-
-  background: var(--green-soft);
-  color: var(--green);
+  border-radius: 7px;
 }
 
-.document-status-card span,
-.document-status-card strong {
+.summary-stat.submitted
+.stat-icon {
+  background:
+    var(--green-soft);
+
+  color:
+    var(--green);
+}
+
+.summary-stat.pending
+.stat-icon {
+  background:
+    var(--orange-soft);
+
+  color:
+    var(--orange);
+}
+
+.summary-stat span {
   display: block;
+
+  color:
+    var(--text-muted);
+
+  font-size: 6.5px;
 }
 
-.document-status-card span {
-  color: var(--text-muted);
+.summary-stat strong {
+  display: block;
 
-  font-size: 8px;
-}
-
-.document-status-card strong {
   margin-top: 2px;
 
-  color: var(--text-primary);
+  color:
+    var(--text-primary);
 
-  font-size: 15px;
+  font-size: 10px;
 }
 
-.requirements-list {
-  margin-top: 12px;
+/* SUMMARY LIST */
 
-  overflow: hidden;
-
-  border: 1px solid var(--border);
-  border-radius: 9px;
-
-  background: var(--bg-card-soft);
-}
-
-.requirement-item {
+.requirements-summary {
   display: flex;
+
+  flex-direction: column;
+
+  gap: 6px;
+
+  margin-bottom: 10px;
+}
+
+.requirements-summary div {
+  display: flex;
+
   align-items: center;
-  gap: 8px;
 
-  padding: 10px;
+  gap: 7px;
 
-  border-bottom:
+  padding:
+    7px 8px;
+
+  border:
     1px solid var(--border-soft);
 
-  color: var(--text-secondary);
+  border-radius: 7px;
 
-  font-size: 8px;
-}
+  color:
+    var(--text-secondary);
 
-.requirement-item:last-child {
-  border-bottom: 0;
-}
-
-.requirement-item svg {
-  color: var(--primary);
+  font-size: 7.5px;
 }
 
 .summary-note {
-  margin-top: 13px;
+  padding: 9px;
 
-  padding: 10px;
+  border-radius: 7px;
 
-  border-radius: 8px;
+  background:
+    var(--primary-soft);
 
-  background: var(--primary-soft);
-  color: var(--text-secondary);
+  color:
+    var(--text-secondary);
 
-  font-size: 8px;
-  line-height: 1.55;
+  font-size: 7px;
+
+  line-height: 1.5;
 }
 
 /* RIGHT */
@@ -541,288 +841,15 @@ const uploadedCount = computed(
 
 .section-title {
   display: flex;
+
   align-items: center;
+
   gap: 9px;
 
-  margin-bottom: 15px;
+  margin-bottom: 12px;
 }
 
 .section-title-icon {
-  display: flex;
-
-  width: 32px;
-  height: 32px;
-
-  flex-shrink: 0;
-
-  align-items: center;
-  justify-content: center;
-
-  border-radius: 8px;
-
-  background: var(--primary-soft);
-  color: var(--primary);
-}
-
-.section-title-icon.green {
-  background: var(--green-soft);
-  color: var(--green);
-}
-
-.section-title strong,
-.section-title span {
-  display: block;
-}
-
-.section-title strong {
-  color: var(--text-primary);
-
-  font-size: 11px;
-}
-
-.section-title span {
-  margin-top: 2px;
-
-  color: var(--text-muted);
-
-  font-size: 8px;
-}
-
-.upload-form {
-  display: grid;
-
-  grid-template-columns:
-    minmax(180px, 0.7fr)
-    minmax(280px, 1.3fr);
-
-  gap: 15px;
-}
-
-.form-field {
-  min-width: 0;
-}
-
-.field-label {
-  display: block;
-
-  margin-bottom: 7px;
-
-  color: var(--text-secondary);
-
-  font-size: 10px;
-  font-weight: 600;
-}
-
-.field-label span {
-  color: var(--red);
-}
-
-.upload-action {
-  grid-column: 1 / -1;
-
-  display: flex;
-  justify-content: flex-end;
-}
-
-.section-divider {
-  height: 1px;
-
-  margin: 24px 0 18px;
-
-  background: var(--border-soft);
-}
-
-/* EMPTY */
-
-.empty-documents {
-  display: flex;
-
-  min-height: 170px;
-
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-
-  border: 1px dashed var(--border);
-  border-radius: 10px;
-
-  background: var(--bg-card-soft);
-
-  text-align: center;
-}
-
-.empty-icon {
-  display: flex;
-
-  width: 45px;
-  height: 45px;
-
-  align-items: center;
-  justify-content: center;
-
-  margin-bottom: 9px;
-
-  border-radius: 10px;
-
-  background: var(--primary-soft);
-  color: var(--primary);
-}
-
-.empty-documents strong {
-  color: var(--text-primary);
-
-  font-size: 10px;
-}
-
-.empty-documents p {
-  margin: 4px 0 0;
-
-  color: var(--text-muted);
-
-  font-size: 8px;
-}
-
-/* LIST */
-
-.documents-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.document-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-
-  padding: 10px 12px;
-
-  border: 1px solid var(--border);
-  border-radius: 9px;
-
-  background: var(--bg-card-soft);
-}
-
-.document-icon {
-  display: flex;
-
-  width: 36px;
-  height: 36px;
-
-  flex-shrink: 0;
-
-  align-items: center;
-  justify-content: center;
-
-  border-radius: 8px;
-
-  background: var(--primary-soft);
-  color: var(--primary);
-}
-
-.document-info {
-  min-width: 0;
-  flex: 1;
-}
-
-.document-info strong,
-.document-info span,
-.document-info small {
-  display: block;
-}
-
-.document-info strong {
-  color: var(--text-primary);
-
-  font-size: 9px;
-}
-
-.document-info span {
-  overflow: hidden;
-
-  margin-top: 2px;
-
-  color: var(--text-secondary);
-
-  font-size: 8px;
-
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-
-.document-info small {
-  margin-top: 2px;
-
-  color: var(--text-muted);
-
-  font-size: 7px;
-}
-
-.document-status {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-
-  padding: 5px 8px;
-
-  border-radius: 20px;
-
-  background: var(--green-soft);
-  color: var(--green);
-
-  font-size: 8px;
-  font-weight: 600;
-}
-
-.delete-button {
-  display: flex;
-
-  width: 30px;
-  height: 30px;
-
-  align-items: center;
-  justify-content: center;
-
-  border: 0;
-  border-radius: 7px;
-
-  background: transparent;
-  color: var(--text-muted);
-}
-
-.delete-button:hover {
-  background: var(--red-soft);
-  color: var(--red);
-}
-
-/* INFO */
-
-.information-card {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-
-  margin-top: 22px;
-  padding: 13px;
-
-  border: 1px solid
-    color-mix(
-      in srgb,
-      var(--primary) 18%,
-      var(--border)
-    );
-
-  border-radius: 9px;
-
-  background:
-    color-mix(
-      in srgb,
-      var(--primary-soft) 55%,
-      var(--bg-card)
-    );
-}
-
-.information-icon {
   display: flex;
 
   width: 34px;
@@ -835,49 +862,472 @@ const uploadedCount = computed(
 
   border-radius: 8px;
 
-  background: var(--primary-soft);
-  color: var(--primary);
+  background:
+    var(--primary-soft);
+
+  color:
+    var(--primary);
+}
+
+.section-title-icon.green {
+  background:
+    var(--green-soft);
+
+  color:
+    var(--green);
+}
+
+.section-title strong,
+.section-title span {
+  display: block;
+}
+
+.section-title strong {
+  color:
+    var(--text-primary);
+
+  font-size: 10px;
+}
+
+.section-title span {
+  margin-top: 2px;
+
+  color:
+    var(--text-muted);
+
+  font-size: 7.5px;
+}
+
+/* CHECKLIST */
+
+.requirements-grid {
+  display: grid;
+
+  grid-template-columns:
+    repeat(
+      2,
+      minmax(0, 1fr)
+    );
+
+  gap: 8px;
+}
+
+.requirement-card {
+  position: relative;
+
+  display: grid;
+
+  grid-template-columns:
+    auto auto minmax(0, 1fr);
+
+  align-items: flex-start;
+
+  gap: 9px;
+
+  min-height: 100px;
+
+  padding: 11px;
+
+  border:
+    1px solid var(--border);
+
+  border-radius: 9px;
+
+  background:
+    var(--bg-card-soft);
+
+  cursor: pointer;
+
+  transition:
+    border-color 0.18s ease,
+    background 0.18s ease,
+    transform 0.18s ease;
+}
+
+.requirement-card:hover {
+  border-color:
+    var(--primary);
+
+  transform:
+    translateY(-1px);
+}
+
+.requirement-card.selected {
+  border-color:
+    var(--primary);
+
+  background:
+    var(--primary-soft);
+}
+
+.checkbox-wrap {
+  padding-top: 2px;
+}
+
+.checkbox-wrap input {
+  width: 15px;
+  height: 15px;
+
+  margin: 0;
+
+  accent-color:
+    var(--primary);
+
+  cursor: pointer;
+}
+
+.requirement-icon {
+  display: flex;
+
+  width: 32px;
+  height: 32px;
+
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 8px;
+
+  background:
+    var(--bg-card);
+
+  color:
+    var(--text-muted);
+}
+
+.requirement-icon.selected {
+  background:
+    var(--green-soft);
+
+  color:
+    var(--green);
+}
+
+.requirement-info {
+  min-width: 0;
+}
+
+.requirement-top {
+  display: flex;
+
+  align-items: center;
+  justify-content: space-between;
+
+  gap: 7px;
+}
+
+.requirement-top strong {
+  color:
+    var(--text-primary);
+
+  font-size: 8.5px;
+}
+
+.status-badge {
+  flex-shrink: 0;
+
+  padding:
+    3px 6px;
+
+  border-radius: 20px;
+
+  background:
+    var(--orange-soft);
+
+  color:
+    var(--orange);
+
+  font-size: 6.5px;
+  font-weight: 700;
+}
+
+.status-badge.submitted {
+  background:
+    var(--green-soft);
+
+  color:
+    var(--green);
+}
+
+.category {
+  display: block;
+
+  margin-top: 3px;
+
+  color:
+    var(--primary);
+
+  font-size: 6.5px;
+  font-weight: 600;
+}
+
+.requirement-info p {
+  margin:
+    5px 0 0;
+
+  color:
+    var(--text-muted);
+
+  font-size: 7px;
+
+  line-height: 1.45;
+}
+
+/* DIVIDER */
+
+.section-divider {
+  height: 1px;
+
+  margin:
+    18px 0;
+
+  background:
+    var(--border-soft);
+}
+
+/* SELECTED */
+
+.selected-list {
+  display: flex;
+
+  flex-direction: column;
+
+  gap: 6px;
+}
+
+.selected-item {
+  display: flex;
+
+  align-items: center;
+
+  gap: 9px;
+
+  padding:
+    9px 10px;
+
+  border:
+    1px solid var(--border-soft);
+
+  border-radius: 8px;
+
+  background:
+    var(--bg-card-soft);
+}
+
+.selected-icon {
+  display: flex;
+
+  width: 31px;
+  height: 31px;
+
+  flex-shrink: 0;
+
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 7px;
+
+  background:
+    var(--green-soft);
+
+  color:
+    var(--green);
+}
+
+.selected-info {
+  min-width: 0;
+
+  flex: 1;
+}
+
+.selected-info strong,
+.selected-info span {
+  display: block;
+}
+
+.selected-info strong {
+  color:
+    var(--text-primary);
+
+  font-size: 8.5px;
+}
+
+.selected-info span {
+  margin-top: 2px;
+
+  color:
+    var(--text-muted);
+
+  font-size: 7px;
+}
+
+.submitted-label {
+  padding:
+    4px 7px;
+
+  border-radius: 20px;
+
+  background:
+    var(--green-soft);
+
+  color:
+    var(--green);
+
+  font-size: 7px;
+  font-weight: 700;
+}
+
+/* EMPTY */
+
+.empty-documents {
+  display: flex;
+
+  min-height: 145px;
+
+  flex-direction: column;
+
+  align-items: center;
+  justify-content: center;
+
+  padding: 20px;
+
+  border:
+    1px dashed var(--border);
+
+  border-radius: 9px;
+
+  background:
+    var(--bg-card-soft);
+
+  text-align: center;
+}
+
+.empty-icon {
+  display: flex;
+
+  width: 42px;
+  height: 42px;
+
+  align-items: center;
+  justify-content: center;
+
+  margin-bottom: 8px;
+
+  border-radius: 9px;
+
+  background:
+    var(--primary-soft);
+
+  color:
+    var(--primary);
+}
+
+.empty-documents strong {
+  color:
+    var(--text-primary);
+
+  font-size: 10px;
+}
+
+.empty-documents p {
+  margin:
+    4px 0 0;
+
+  color:
+    var(--text-muted);
+
+  font-size: 7.5px;
+}
+
+/* INFO */
+
+.information-card {
+  display: flex;
+
+  align-items: flex-start;
+
+  gap: 9px;
+
+  margin-top: 15px;
+
+  padding: 10px;
+
+  border-radius: 8px;
+
+  background:
+    var(--primary-soft);
+}
+
+.information-icon {
+  display: flex;
+
+  width: 31px;
+  height: 31px;
+
+  flex-shrink: 0;
+
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 7px;
+
+  background:
+    var(--bg-card);
+
+  color:
+    var(--primary);
 }
 
 .information-card strong {
   display: block;
 
-  color: var(--text-primary);
+  color:
+    var(--text-primary);
 
-  font-size: 10px;
+  font-size: 9px;
 }
 
 .information-card p {
-  margin: 4px 0 0;
+  margin:
+    3px 0 0;
 
-  color: var(--text-secondary);
+  color:
+    var(--text-secondary);
 
-  font-size: 8px;
-  line-height: 1.55;
+  font-size: 7.5px;
+
+  line-height: 1.5;
 }
+
+/* RESPONSIVE */
 
 @media (max-width: 900px) {
   .documents-layout {
-    grid-template-columns: 1fr;
+    grid-template-columns:
+      1fr;
   }
 
   .summary-column {
     max-width: 450px;
+
     width: 100%;
 
-    margin: 0 auto;
+    margin:
+      0 auto;
+
     padding-right: 0;
     padding-bottom: 20px;
 
     border-right: 0;
+
     border-bottom:
       1px solid var(--border-soft);
   }
 }
 
 @media (max-width: 650px) {
-  .upload-form {
-    grid-template-columns: 1fr;
+  .requirements-grid {
+    grid-template-columns:
+      1fr;
   }
 }
 </style>

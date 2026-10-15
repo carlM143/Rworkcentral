@@ -14,6 +14,7 @@ import ManualTimeTable from '~/components/timekeeping/manual-time-in-out/ManualT
 import AddManualTimeModal from '~/components/timekeeping/manual-time-in-out/AddManualTimeModal.vue'
 
 import ManualTimeDetailsModal from '~/components/timekeeping/manual-time-in-out/ManualTimeDetailsModal.vue'
+import ManualEntryExportModal from '~/components/timekeeping/manual-time-in-out/ManualEntryExportModal.vue'
 
 import type {
   ManualTimeEntry,
@@ -62,6 +63,9 @@ const {
   info,
   success,
 } = useToast()
+
+const exportModalOpen =
+  ref(false)
 
 /* =========================================================
    ADD / EDIT MODAL
@@ -293,14 +297,47 @@ const handleTimeLog = (
   })
 }
 
-/* =========================================================
-   EXPORT
-========================================================= */
-
 const handleExport = () => {
+  exportModalOpen.value =
+    true
+}
+
+const handleExportSubmit = (
+  payload: {
+    format:
+      | 'Excel'
+      | 'PDF'
+      | 'CSV'
+
+    scope:
+      | 'Current Filters'
+      | 'Selected Date Range'
+
+    includeEmployee:
+      boolean
+
+    includeSchedule:
+      boolean
+
+    includeEntryType:
+      boolean
+
+    includeEntryTime:
+      boolean
+
+    includeReason:
+      boolean
+
+    includeEncoder:
+      boolean
+
+    includeStatus:
+      boolean
+  },
+) => {
   info(
-    'Export Manual Entries',
-    'Manual time entry export will be connected later.',
+    `Export ${payload.format}`,
+    `${filteredEntries.value.length} manual time entr${filteredEntries.value.length === 1 ? 'y is' : 'ies are'} ready for export. Actual file generation will be connected during backend integration.`,
   )
 }
 
@@ -468,21 +505,51 @@ const handleBack = () => {
       "
     />
 
-    <!-- DETAILS -->
+<ManualTimeDetailsModal
+  :open="
+    detailsModalOpen
+  "
+  :entry="
+    selectedEntry
+  "
+  @close="
+    closeDetails
+  "
+/>
 
-    <ManualTimeDetailsModal
-      :open="
-        detailsModalOpen
-      "
-      :entry="
-        selectedEntry
-      "
-      @close="
-        closeDetails
-      "
-    />
+<!-- EXPORT MODAL -->
 
-  </section>
+<ManualEntryExportModal
+  :open="
+    exportModalOpen
+  "
+  :record-count="
+    filteredEntries.length
+  "
+  :department="
+    department
+  "
+  :entry-type="
+    entryType
+  "
+  :status="
+    status
+  "
+  :date-from="
+    dateFrom
+  "
+  :date-to="
+    dateTo
+  "
+  @close="
+    exportModalOpen = false
+  "
+  @export="
+    handleExportSubmit
+  "
+/>
+
+</section>
 </template>
 
 <style scoped>

@@ -9,8 +9,25 @@ import OvertimeRequestStats from '~/components/overtime/requests/OvertimeRequest
 import OvertimeRequestFilters from '~/components/overtime/requests/OvertimeRequestFilters.vue'
 import OvertimeRequestTable from '~/components/overtime/requests/OvertimeRequestTable.vue'
 
+import OvertimeExportModal from '~/components/timekeeping/overtime-requests/OvertimeExportModal.vue'
+import FileOvertimeRequestModal from '~/components/timekeeping/overtime-requests/FileOvertimeRequestModal.vue'
+import OvertimeRequestDetailsModal from '~/components/timekeeping/overtime-requests/OvertimeRequestDetailsModal.vue'
+import OvertimeReviewModal from '~/components/timekeeping/overtime-requests/OvertimeReviewModal.vue'
+import OvertimeHistoryModal from '~/components/timekeeping/overtime-requests/OvertimeHistoryModal.vue'
+import OvertimeCancelModal from '~/components/timekeeping/overtime-requests/OvertimeCancelModal.vue'
+
+import type {
+  FileOvertimeRequestPayload,
+  OvertimeActionRequest,
+  OvertimeCancelPayload,
+  OvertimeExportPayload,
+  OvertimeReviewPayload,
+} from '~/types/overtimeActions'
+
 definePageMeta({
-  alias: ['/timekeeping/overtime-requests'],
+  alias: [
+    '/timekeeping/overtime-requests',
+  ],
 })
 
 const router =
@@ -46,23 +63,158 @@ const {
   info,
 } = useToast()
 
+/* =========================================================
+   MODALS
+========================================================= */
+
+const exportModalOpen =
+  ref(false)
+
+const fileRequestModalOpen =
+  ref(false)
+
+const detailsModalOpen =
+  ref(false)
+
+const reviewModalOpen =
+  ref(false)
+
+const historyModalOpen =
+  ref(false)
+
+const cancelModalOpen =
+  ref(false)
+
+const selectedRequest =
+  ref<OvertimeActionRequest | null>(
+    null,
+  )
+
+/* =========================================================
+   NAVIGATION
+========================================================= */
+
 const handleBack = () => {
   router.push(
     '/overtime',
   )
 }
 
+/* =========================================================
+   HEADER ACTIONS
+========================================================= */
+
 const handleExport = () => {
-  info(
-    'Export Overtime Requests',
-    'Overtime request export functionality will be connected later.',
-  )
+  exportModalOpen.value =
+    true
 }
 
 const handleFileOvertime = () => {
+  fileRequestModalOpen.value =
+    true
+}
+
+/* =========================================================
+   ROW ACTIONS
+========================================================= */
+
+const handleViewRequest = (
+  request:
+    OvertimeActionRequest,
+) => {
+  selectedRequest.value =
+    request
+
+  detailsModalOpen.value =
+    true
+}
+
+const handleReviewRequest = (
+  request:
+    OvertimeActionRequest,
+) => {
+  selectedRequest.value =
+    request
+
+  reviewModalOpen.value =
+    true
+}
+
+const handleViewHistory = (
+  request:
+    OvertimeActionRequest,
+) => {
+  selectedRequest.value =
+    request
+
+  historyModalOpen.value =
+    true
+}
+
+const handleCancelRequest = (
+  request:
+    OvertimeActionRequest,
+) => {
+  selectedRequest.value =
+    request
+
+  cancelModalOpen.value =
+    true
+}
+
+/* =========================================================
+   FRONTEND SUBMITS
+========================================================= */
+
+const handleExportSubmit = (
+  payload:
+    OvertimeExportPayload,
+) => {
   info(
-    'File Overtime Request',
-    'Overtime request form will be added later.',
+    `Export ${payload.format}`,
+    'Overtime request export is ready for backend integration.',
+  )
+}
+
+const handleFileRequestSubmit = (
+  payload:
+    FileOvertimeRequestPayload,
+) => {
+  info(
+    'OT Request Prepared',
+    `${payload.employeeName}'s ${payload.requestedHours}-hour OT request is ready for backend submission.`,
+  )
+}
+
+const handleReviewSubmit = (
+  payload:
+    OvertimeReviewPayload,
+) => {
+  if (
+    !selectedRequest.value
+  ) {
+    return
+  }
+
+  info(
+    'Review Decision Saved',
+    `${selectedRequest.value.requestNo}: ${payload.decision} decision prepared successfully.`,
+  )
+}
+
+const handleCancelSubmit = (
+  payload:
+    OvertimeCancelPayload,
+) => {
+  if (
+    !selectedRequest.value
+  ) {
+    return
+  }
+
+  info(
+    'Cancellation Prepared',
+    `${selectedRequest.value.requestNo} cancellation is ready for backend integration.`,
   )
 }
 </script>
@@ -70,12 +222,14 @@ const handleFileOvertime = () => {
 <template>
   <section class="ot-request-page">
 
+    <!-- =====================================================
+         BACK
+    ====================================================== -->
+
     <button
       type="button"
       class="back-button"
-      @click="
-        handleBack
-      "
+      @click="handleBack"
     >
 
       <ArrowLeft
@@ -85,6 +239,10 @@ const handleFileOvertime = () => {
       Back to Overtime
 
     </button>
+
+    <!-- =====================================================
+         HEADER
+    ====================================================== -->
 
     <PageHeader
       title="Overtime Requests"
@@ -96,18 +254,14 @@ const handleFileOvertime = () => {
         <AppButton
           variant="secondary"
           :icon="Download"
-          @click="
-            handleExport
-          "
+          @click="handleExport"
         >
           Export
         </AppButton>
 
         <AppButton
           :icon="Plus"
-          @click="
-            handleFileOvertime
-          "
+          @click="handleFileOvertime"
         >
           File OT Request
         </AppButton>
@@ -116,48 +270,46 @@ const handleFileOvertime = () => {
 
     </PageHeader>
 
+    <!-- =====================================================
+         STATS
+    ====================================================== -->
+
     <OvertimeRequestStats
       :stats="stats"
     />
 
+    <!-- =====================================================
+         FILTERS
+    ====================================================== -->
+
     <OvertimeRequestFilters
-      v-model:search="
-        search
-      "
-      v-model:department="
-        department
-      "
-      v-model:overtime-type="
-        overtimeType
-      "
-      v-model:status="
-        status
-      "
-      v-model:date-from="
-        dateFrom
-      "
-      v-model:date-to="
-        dateTo
-      "
-      :departments="
-        departmentOptions
-      "
-      :overtime-types="
-        overtimeTypeOptions
-      "
-      :statuses="
-        statusOptions
-      "
-      @reset="
-        resetFilters
-      "
+      v-model:search="search"
+      v-model:department="department"
+      v-model:overtime-type="overtimeType"
+      v-model:status="status"
+      v-model:date-from="dateFrom"
+      v-model:date-to="dateTo"
+      :departments="departmentOptions"
+      :overtime-types="overtimeTypeOptions"
+      :statuses="statusOptions"
+      @reset="resetFilters"
     />
 
+    <!-- =====================================================
+         TABLE
+    ====================================================== -->
+
     <OvertimeRequestTable
-      :requests="
-        paginatedRequests
-      "
+      :requests="paginatedRequests"
+      @view="handleViewRequest"
+      @review="handleReviewRequest"
+      @history="handleViewHistory"
+      @cancel="handleCancelRequest"
     />
+
+    <!-- =====================================================
+         PAGINATION
+    ====================================================== -->
 
     <div class="table-footer">
 
@@ -184,15 +336,99 @@ const handleFileOvertime = () => {
       </p>
 
       <AppPagination
-        v-model="
-          currentPage
-        "
-        :total-pages="
-          totalPages
-        "
+        v-model="currentPage"
+        :total-pages="totalPages"
       />
 
     </div>
+
+    <!-- =====================================================
+         EXPORT MODAL
+    ====================================================== -->
+
+    <OvertimeExportModal
+      :open="exportModalOpen"
+      :record-count="
+        filteredRequests.length
+      "
+      @close="
+        exportModalOpen = false
+      "
+      @export="
+        handleExportSubmit
+      "
+    />
+
+    <!-- =====================================================
+         FILE OT REQUEST
+    ====================================================== -->
+
+    <FileOvertimeRequestModal
+      :open="fileRequestModalOpen"
+      @close="
+        fileRequestModalOpen = false
+      "
+      @submit="
+        handleFileRequestSubmit
+      "
+    />
+
+    <!-- =====================================================
+         REQUEST DETAILS
+    ====================================================== -->
+
+    <OvertimeRequestDetailsModal
+      :open="detailsModalOpen"
+      :request="selectedRequest"
+      @close="
+        detailsModalOpen = false
+      "
+      @review="
+        handleReviewRequest
+      "
+    />
+
+    <!-- =====================================================
+         REVIEW
+    ====================================================== -->
+
+    <OvertimeReviewModal
+      :open="reviewModalOpen"
+      :request="selectedRequest"
+      @close="
+        reviewModalOpen = false
+      "
+      @submit="
+        handleReviewSubmit
+      "
+    />
+
+    <!-- =====================================================
+         APPROVAL HISTORY
+    ====================================================== -->
+
+    <OvertimeHistoryModal
+      :open="historyModalOpen"
+      :request="selectedRequest"
+      @close="
+        historyModalOpen = false
+      "
+    />
+
+    <!-- =====================================================
+         CANCEL
+    ====================================================== -->
+
+    <OvertimeCancelModal
+      :open="cancelModalOpen"
+      :request="selectedRequest"
+      @close="
+        cancelModalOpen = false
+      "
+      @confirm="
+        handleCancelSubmit
+      "
+    />
 
   </section>
 </template>

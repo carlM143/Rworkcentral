@@ -648,9 +648,9 @@ const finalDescription = computed(() => {
                   Employee Documents
                 </strong>
 
-                <span>
+               <span>
                   {{ form.documents.length }}
-                  uploaded document(s)
+                  submitted requirement(s)
                 </span>
               </div>
             </div>
@@ -682,14 +682,14 @@ const finalDescription = computed(() => {
                 </strong>
 
                 <span>
-                  {{ document.name }}
+                  Submitted requirement
                 </span>
               </div>
 
               <div class="ready-status">
                 <CheckCircle2 :size="13" />
 
-                Ready
+                Submitted
               </div>
             </div>
           </div>

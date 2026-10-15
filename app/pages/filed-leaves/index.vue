@@ -12,6 +12,8 @@ import AddEditFieldLeaveModal from '~/components/timekeeping/filed-leaves/AddEdi
 import FieldLeaveDetailsModal from '~/components/timekeeping/filed-leaves/FieldLeaveDetailsModal.vue'
 import FieldLeaveStatusModal from '~/components/timekeeping/filed-leaves/FieldLeaveStatusModal.vue'
 
+import FieldLeaveExportModal from '~/components/timekeeping/filed-leaves/FieldLeaveExportModal.vue'
+
 import type {
   FieldLeaveAction,
   FieldLeaveFormData,
@@ -68,6 +70,9 @@ const {
   info,
   success,
 } = useToast()
+
+const exportModalOpen =
+  ref(false)
 
 /* =========================================================
    ADD / EDIT
@@ -466,9 +471,52 @@ const handleTrip = (
 ========================================================= */
 
 const handleExport = () => {
+  exportModalOpen.value =
+    true
+}
+
+const handleExportSubmit = (
+  payload: {
+    format:
+      | 'Excel'
+      | 'PDF'
+      | 'CSV'
+
+    scope:
+      | 'Current Filters'
+      | 'Selected Date Range'
+
+    includeRequestInfo:
+      boolean
+
+    includeEmployee:
+      boolean
+
+    includeDepartment:
+      boolean
+
+    includeType:
+      boolean
+
+    includeDestination:
+      boolean
+
+    includeSchedule:
+      boolean
+
+    includePurpose:
+      boolean
+
+    includeRelatedTrip:
+      boolean
+
+    includeStatus:
+      boolean
+  },
+) => {
   info(
-    'Export Field Leaves',
-    'Field leave report export will be connected later.',
+    `Export ${payload.format}`,
+    `${filteredFieldLeaves.value.length} field leave record(s) are ready for export. Actual file generation will be connected during backend integration.`,
   )
 }
 
@@ -706,6 +754,36 @@ const handleBack = () => {
         handleStatusSave
       "
     />
+
+    <FieldLeaveExportModal
+  :open="
+    exportModalOpen
+  "
+  :record-count="
+    filteredFieldLeaves.length
+  "
+  :department="
+    department
+  "
+  :leave-type="
+    leaveType
+  "
+  :status="
+    status
+  "
+  :date-from="
+    dateFrom
+  "
+  :date-to="
+    dateTo
+  "
+  @close="
+    exportModalOpen = false
+  "
+  @export="
+    handleExportSubmit
+  "
+/>
 
   </section>
 </template>
