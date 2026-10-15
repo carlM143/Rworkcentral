@@ -1,0 +1,282 @@
+<script setup lang="ts">
+import {
+  RotateCcw,
+  CalendarDays,
+} from 'lucide-vue-next'
+
+const search =
+  defineModel<string>(
+    'search',
+    {
+      default: '',
+    },
+  )
+
+const department =
+  defineModel<string>(
+    'department',
+    {
+      default: '',
+    },
+  )
+
+const status =
+  defineModel<string>(
+    'status',
+    {
+      default: '',
+    },
+  )
+
+const correctionType =
+  defineModel<string>(
+    'correctionType',
+    {
+      default: '',
+    },
+  )
+
+const dateFrom =
+  defineModel<string>(
+    'dateFrom',
+    {
+      default: '',
+    },
+  )
+
+const dateTo =
+  defineModel<string>(
+    'dateTo',
+    {
+      default: '',
+    },
+  )
+
+defineProps<{
+  departments: string[]
+  statusOptions: string[]
+  correctionTypeOptions: string[]
+}>()
+
+const emit =
+  defineEmits<{
+    reset: []
+  }>()
+</script>
+
+<template>
+  <div class="filters-card">
+
+    <div class="filters-row">
+
+      <AppInput
+        v-model="search"
+        searchable
+        clearable
+        placeholder="Search employee, ID or request number..."
+      />
+
+      <AppSelect
+        v-model="department"
+        :options="departments"
+        placeholder="All Departments"
+      />
+
+      <AppSelect
+        v-model="status"
+        :options="statusOptions"
+        placeholder="All Status"
+      />
+
+      <AppSelect
+        v-model="correctionType"
+        :options="correctionTypeOptions"
+        placeholder="All Correction Types"
+      />
+
+    </div>
+
+    <div class="date-row">
+
+      <div class="date-control">
+
+        <CalendarDays :size="15" />
+
+        <div>
+          <span>
+            Date From
+          </span>
+
+          <input
+            v-model="dateFrom"
+            type="date"
+          >
+        </div>
+
+      </div>
+
+      <div class="date-control">
+
+        <CalendarDays :size="15" />
+
+        <div>
+          <span>
+            Date To
+          </span>
+
+          <input
+            v-model="dateTo"
+            type="date"
+          >
+        </div>
+
+      </div>
+
+      <AppButton
+        variant="secondary"
+        :icon="RotateCcw"
+        @click="
+          emit('reset')
+        "
+      >
+        Reset Filters
+      </AppButton>
+
+    </div>
+
+  </div>
+</template>
+
+<style scoped>
+.filters-card {
+  margin-bottom: 14px;
+
+  padding: 10px;
+
+  border:
+    1px solid var(--border);
+
+  border-radius: 10px;
+
+  background:
+    var(--bg-card);
+
+  box-shadow:
+    var(--shadow);
+}
+
+.filters-row {
+  display: grid;
+
+  grid-template-columns:
+    minmax(260px, 1fr)
+    190px
+    160px
+    190px;
+
+  gap: 8px;
+}
+
+.date-row {
+  display: flex;
+
+  align-items: center;
+
+  gap: 8px;
+
+  margin-top: 8px;
+}
+
+.date-control {
+  display: flex;
+
+  min-width: 190px;
+  height: 40px;
+
+  align-items: center;
+
+  gap: 8px;
+
+  padding:
+    0 10px;
+
+  border:
+    1px solid var(--border);
+
+  border-radius: 7px;
+
+  background:
+    var(--bg-card-soft);
+
+  color:
+    var(--text-muted);
+}
+
+.date-control > div {
+  min-width: 0;
+
+  flex: 1;
+}
+
+.date-control span {
+  display: block;
+
+  margin-bottom: 1px;
+
+  color:
+    var(--text-muted);
+
+  font-size: 8px;
+}
+
+.date-control input {
+  width: 100%;
+
+  border: 0;
+  outline: none;
+
+  background:
+    transparent;
+
+  color:
+    var(--text-primary);
+
+  font-family: inherit;
+
+  font-size: 10px;
+
+  color-scheme: dark;
+}
+
+html:not(.dark)
+.date-control input {
+  color-scheme: light;
+}
+
+@media (max-width: 1150px) {
+  .filters-row {
+    grid-template-columns:
+      repeat(
+        2,
+        minmax(0, 1fr)
+      );
+  }
+}
+
+@media (max-width: 700px) {
+  .filters-row {
+    grid-template-columns:
+      1fr;
+  }
+
+  .date-row {
+    align-items: stretch;
+
+    flex-direction: column;
+  }
+
+  .date-control {
+    width: 100%;
+  }
+}
+</style>

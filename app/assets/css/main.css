@@ -1,0 +1,36 @@
+/* =========================================
+   GLOBAL TYPOGRAPHY
+========================================= */
+
+html,
+body,
+#__nuxt {
+  font-family:
+    'Poppins',
+    sans-serif;
+}
+
+/* =========================================
+   FORM + UI ELEMENTS
+========================================= */
+
+button,
+input,
+textarea,
+select,
+option {
+  font: inherit;
+}
+
+/* =========================================
+   GLOBAL FONT SMOOTHING
+========================================= */
+
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  margin: 0;
+}
