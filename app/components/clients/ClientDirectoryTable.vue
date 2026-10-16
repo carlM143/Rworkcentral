@@ -47,8 +47,8 @@ const formatDate = (
         </h3>
 
         <p>
-          Manage client accounts, contracts,
-          employee assignments and billing setup.
+          Manage client accounts, contracts
+          and employee assignments.
         </p>
       </div>
     </div>
@@ -67,7 +67,6 @@ const formatDate = (
             <th>Employees</th>
             <th>Contract End</th>
             <th>Contract</th>
-            <th>Billing Setup</th>
             <th>Status</th>
             <th>Actions</th>
           </tr>
@@ -140,19 +139,6 @@ const formatDate = (
             </td>
 
             <td>
-              <span
-                class="billing-status"
-                :class="{
-                  incomplete:
-                    client.billingRateStatus ===
-                    'Incomplete',
-                }"
-              >
-                {{ client.billingRateStatus }}
-              </span>
-            </td>
-
-            <td>
               <StatusBadge
                 :status="client.status"
               />
@@ -218,16 +204,12 @@ const formatDate = (
 .client-table-card {
   overflow: hidden;
 
-  border:
-    1px solid var(--border);
-
+  border: 1px solid var(--border);
   border-radius: 11px;
 
-  background:
-    var(--bg-card);
+  background: var(--bg-card);
 
-  box-shadow:
-    var(--shadow);
+  box-shadow: var(--shadow);
 }
 
 .table-heading {
@@ -240,8 +222,7 @@ const formatDate = (
 .table-heading h3 {
   margin: 0;
 
-  color:
-    var(--text-primary);
+  color: var(--text-primary);
 
   font-size: 11px;
 }
@@ -249,8 +230,7 @@ const formatDate = (
 .table-heading p {
   margin: 3px 0 0;
 
-  color:
-    var(--text-muted);
+  color: var(--text-muted);
 
   font-size: 8px;
 }
@@ -261,8 +241,7 @@ const formatDate = (
 
 .client-table {
   width: 100%;
-
-  min-width: 1250px;
+  min-width: 1100px;
 
   border-collapse: collapse;
 }
@@ -273,11 +252,9 @@ const formatDate = (
   border-bottom:
     1px solid var(--border);
 
-  background:
-    var(--bg-card-soft);
+  background: var(--bg-card-soft);
 
-  color:
-    var(--text-secondary);
+  color: var(--text-secondary);
 
   font-size: 8px;
   font-weight: 650;
@@ -292,8 +269,7 @@ const formatDate = (
   border-bottom:
     1px solid var(--border-soft);
 
-  color:
-    var(--text-secondary);
+  color: var(--text-secondary);
 
   font-size: 9px;
 }
@@ -303,13 +279,11 @@ const formatDate = (
 }
 
 .client-table tbody tr:hover {
-  background:
-    var(--bg-card-soft);
+  background: var(--bg-card-soft);
 }
 
 .client-cell {
   display: flex;
-
   align-items: center;
 
   gap: 8px;
@@ -328,11 +302,8 @@ const formatDate = (
 
   border-radius: 8px;
 
-  background:
-    var(--primary-soft);
-
-  color:
-    var(--primary);
+  background: var(--primary-soft);
+  color: var(--primary);
 }
 
 .client-cell strong,
@@ -344,8 +315,7 @@ const formatDate = (
 
 .client-cell strong,
 .contact-cell strong {
-  color:
-    var(--text-primary);
+  color: var(--text-primary);
 
   font-size: 9px;
 }
@@ -354,53 +324,24 @@ const formatDate = (
 .contact-cell span {
   margin-top: 2px;
 
-  color:
-    var(--text-muted);
+  color: var(--text-muted);
 
   font-size: 7px;
 }
 
 .employee-count {
   display: flex;
-
   align-items: center;
 
   gap: 5px;
 }
 
 .employee-count strong {
-  color:
-    var(--text-primary);
-}
-
-.billing-status {
-  display: inline-flex;
-
-  padding: 4px 7px;
-
-  border-radius: 20px;
-
-  background:
-    var(--green-soft);
-
-  color:
-    var(--green);
-
-  font-size: 7px;
-  font-weight: 650;
-}
-
-.billing-status.incomplete {
-  background:
-    var(--orange-soft);
-
-  color:
-    var(--orange);
+  color: var(--text-primary);
 }
 
 .row-actions {
   display: flex;
-
   align-items: center;
 
   gap: 5px;
@@ -415,24 +356,19 @@ const formatDate = (
   align-items: center;
   justify-content: center;
 
-  border:
-    1px solid var(--border);
-
+  border: 1px solid var(--border);
   border-radius: 6px;
 
-  background:
-    transparent;
+  background: transparent;
 
-  color:
-    var(--text-secondary);
+  color: var(--text-secondary);
+
+  cursor: pointer;
 }
 
 .row-actions button:hover {
-  background:
-    var(--primary-soft);
-
-  color:
-    var(--primary);
+  background: var(--primary-soft);
+  color: var(--primary);
 }
 
 .empty-state {
@@ -447,12 +383,10 @@ const formatDate = (
 
   gap: 7px;
 
-  color:
-    var(--text-muted);
+  color: var(--text-muted);
 }
 
 .empty-state strong {
-  color:
-    var(--text-primary);
+  color: var(--text-primary);
 }
 </style>

@@ -9,7 +9,8 @@ export const useClientsOverview = () => {
       {
         id: 1,
 
-        code: 'CL-001',
+        code:
+          'CL-001',
 
         name:
           'Davao Logistics Corp.',
@@ -44,18 +45,13 @@ export const useClientsOverview = () => {
 
         status:
           'Active',
-
-        billingRateStatus:
-          'Configured',
-
-        currentBilling:
-          144300,
       },
 
       {
         id: 2,
 
-        code: 'CL-002',
+        code:
+          'CL-002',
 
         name:
           'Mindanao Distribution Inc.',
@@ -90,18 +86,13 @@ export const useClientsOverview = () => {
 
         status:
           'Active',
-
-        billingRateStatus:
-          'Configured',
-
-        currentBilling:
-          85800,
       },
 
       {
         id: 3,
 
-        code: 'CL-003',
+        code:
+          'CL-003',
 
         name:
           'Southline Trading',
@@ -136,18 +127,13 @@ export const useClientsOverview = () => {
 
         status:
           'Active',
-
-        billingRateStatus:
-          'Configured',
-
-        currentBilling:
-          54700,
       },
 
       {
         id: 4,
 
-        code: 'CL-004',
+        code:
+          'CL-004',
 
         name:
           'Metro Service Solutions',
@@ -182,18 +168,13 @@ export const useClientsOverview = () => {
 
         status:
           'For Review',
-
-        billingRateStatus:
-          'Incomplete',
-
-        currentBilling:
-          102600,
       },
 
       {
         id: 5,
 
-        code: 'CL-005',
+        code:
+          'CL-005',
 
         name:
           'Prime Fleet Services',
@@ -228,12 +209,6 @@ export const useClientsOverview = () => {
 
         status:
           'Inactive',
-
-        billingRateStatus:
-          'Configured',
-
-        currentBilling:
-          0,
       },
     ])
 
@@ -320,28 +295,6 @@ export const useClientsOverview = () => {
           0,
         )
 
-      const billing =
-        clients.value.reduce(
-          (
-            total,
-            client,
-          ) =>
-            total +
-            client.currentBilling,
-          0,
-        )
-
-      const review =
-        clients.value.filter(
-          client =>
-            client.status ===
-              'For Review' ||
-            client.contractStatus ===
-              'Expiring Soon' ||
-            client.billingRateStatus ===
-              'Incomplete',
-        ).length
-
       return {
         total:
           clients.value.length,
@@ -350,10 +303,6 @@ export const useClientsOverview = () => {
           active.length,
 
         employees,
-
-        billing,
-
-        review,
       }
     })
 
@@ -373,19 +322,6 @@ export const useClientsOverview = () => {
     })
 
   /* =========================================================
-     BILLING ISSUES
-  ========================================================= */
-
-  const billingIssues =
-    computed(() => {
-      return clients.value.filter(
-        client =>
-          client.billingRateStatus ===
-          'Incomplete',
-      )
-    })
-
-  /* =========================================================
      RECENT ACTIVITY
   ========================================================= */
 
@@ -398,10 +334,10 @@ export const useClientsOverview = () => {
           'Davao Logistics Corp.',
 
         action:
-          'Billing Prepared',
+          'Employee Assignment',
 
         description:
-          'Current billing preview was generated.',
+          'Employee deployment information was updated.',
 
         date:
           '2026-09-03',
@@ -414,10 +350,10 @@ export const useClientsOverview = () => {
           'Metro Service Solutions',
 
         action:
-          'Billing Rate Review',
+          'Contract Review',
 
         description:
-          'Billing rate configuration requires completion.',
+          'Client contract information was reviewed by HR.',
 
         date:
           '2026-09-03',
@@ -560,6 +496,19 @@ export const useClientsOverview = () => {
     },
   )
 
+  watch(
+    totalPages,
+    () => {
+      if (
+        currentPage.value >
+        totalPages.value
+      ) {
+        currentPage.value =
+          totalPages.value
+      }
+    },
+  )
+
   return {
     clients,
 
@@ -579,7 +528,6 @@ export const useClientsOverview = () => {
     stats,
 
     contractAlerts,
-    billingIssues,
     recentActivity,
 
     statusOptions,

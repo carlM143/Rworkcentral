@@ -3,7 +3,6 @@ import {
   Building2,
   BadgeCheck,
   Users,
-  ReceiptText,
 } from 'lucide-vue-next'
 
 defineProps<{
@@ -11,23 +10,8 @@ defineProps<{
     total: number
     active: number
     employees: number
-    billing: number
-    review: number
   }
 }>()
-
-const currency = (
-  value: number,
-) => {
-  return new Intl.NumberFormat(
-    'en-PH',
-    {
-      style: 'currency',
-      currency: 'PHP',
-      maximumFractionDigits: 0,
-    },
-  ).format(value)
-}
 </script>
 
 <template>
@@ -57,14 +41,6 @@ const currency = (
       tone="purple"
     />
 
-    <StatCard
-      label="Current Billing"
-      :value="currency(stats.billing)"
-      :description="`${stats.review} item(s) requiring review`"
-      :icon="ReceiptText"
-      tone="orange"
-    />
-
   </div>
 </template>
 
@@ -73,14 +49,14 @@ const currency = (
   display: grid;
 
   grid-template-columns:
-    repeat(4, minmax(0, 1fr));
+    repeat(3, minmax(0, 1fr));
 
   gap: 12px;
 
   margin-bottom: 14px;
 }
 
-@media (max-width: 1100px) {
+@media (max-width: 900px) {
   .client-stats {
     grid-template-columns:
       repeat(2, minmax(0, 1fr));

@@ -8,41 +8,33 @@ export const useDepartments = () => {
   } = useEmployees()
 
   const departments = ref<Department[]>([
-    {
-      id: 1,
-      code: 'OPS',
-      name: 'Operations',
-      description:
-        'Handles daily operations, dispatching, drivers and field activities.',
-      head: 'Leo Martinez',
-      status: 'Active',
-    },
-    {
-      id: 2,
-      code: 'HR',
-      name: 'Human Resources',
-      description:
-        'Manages employee records, recruitment, employee relations and HR administration.',
-      head: 'Claire Villanueva',
-      status: 'Active',
-    },
-    {
-      id: 3,
-      code: 'FIN',
-      name: 'Finance',
-      description:
-        'Handles accounting, payroll processing and financial records.',
-      status: 'Active',
-    },
-    {
-      id: 4,
-      code: 'BILL',
-      name: 'Billing',
-      description:
-        'Manages billing preparation, client charges and billing records.',
-      status: 'Active',
-    },
-  ])
+  {
+    id: 1,
+    code: 'OPS',
+    name: 'Operations',
+    description:
+      'Handles daily operations, dispatching, drivers and field activities.',
+    head: 'Leo Martinez',
+    status: 'Active',
+  },
+  {
+    id: 2,
+    code: 'HR',
+    name: 'Human Resources',
+    description:
+      'Manages employee records, recruitment, employee relations and HR administration.',
+    head: 'Claire Villanueva',
+    status: 'Active',
+  },
+  {
+    id: 3,
+    code: 'FIN',
+    name: 'Finance',
+    description:
+      'Handles accounting, payroll processing and financial records.',
+    status: 'Active',
+  },
+])
 
   const search = ref('')
   const status = ref('')

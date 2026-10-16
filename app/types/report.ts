@@ -2,7 +2,6 @@ export type ReportCategory =
   | 'Employees'
   | 'Timekeeping'
   | 'Payroll'
-  | 'Billing'
   | 'Leave & Overtime'
   | 'Government'
 

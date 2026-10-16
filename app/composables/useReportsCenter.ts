@@ -293,10 +293,10 @@ export const useReportsCenter = () => {
           id: 8,
 
           code:
-            'RPT-BIL-001',
+            '',
 
           title:
-            'Billing Summary',
+            '',
 
           description:
             'Client billing totals, billing period, adjustments and completed billing records.',
@@ -333,10 +333,10 @@ export const useReportsCenter = () => {
           id: 9,
 
           code:
-            'RPT-BIL-002',
+            '',
 
           title:
-            'Client Billing Detail',
+            '',
 
           description:
             'Detailed billing information grouped by client, employee assignment and rate.',
@@ -652,7 +652,6 @@ export const useReportsCenter = () => {
       'Employee',
       'Timekeeping',
       'Payroll',
-      'Billing',
       'Statutory',
       'Leave & Overtime',
       'Lifecycle',

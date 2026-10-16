@@ -82,7 +82,7 @@ const handleQuickExport = () => {
 
     <PageHeader
       title="Reports Center"
-      description="Access operational, payroll, billing, statutory and employee reports from one centralized reporting hub."
+      description="Access operational, payroll, statutory and employee reports from one centralized reporting hub."
     >
 
       <div class="header-actions">

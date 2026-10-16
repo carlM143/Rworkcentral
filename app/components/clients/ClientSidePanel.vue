@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import {
   AlertTriangle,
-  ReceiptText,
   Plus,
   Users,
   Settings2,
@@ -13,13 +12,11 @@ import type {
 
 defineProps<{
   contractAlerts: Client[]
-  billingIssues: Client[]
 }>()
 
 const emit = defineEmits<{
   addClient: []
   assignments: []
-  billingRates: []
 }>()
 </script>
 
@@ -27,6 +24,7 @@ const emit = defineEmits<{
   <aside class="client-side">
 
     <!-- CONTRACT ALERTS -->
+
     <article class="side-card">
 
       <div class="side-heading">
@@ -80,61 +78,8 @@ const emit = defineEmits<{
 
     </article>
 
-    <!-- BILLING -->
-    <article class="side-card">
+    <!-- QUICK ACTIONS -->
 
-      <div class="side-heading">
-
-        <div class="side-icon purple">
-          <ReceiptText :size="16" />
-        </div>
-
-        <div>
-          <h3>
-            Billing Setup Issues
-          </h3>
-
-          <p>
-            Client billing configuration.
-          </p>
-        </div>
-
-      </div>
-
-      <div class="side-list">
-
-        <div
-          v-for="client in billingIssues"
-          :key="client.id"
-          class="side-row"
-        >
-          <div>
-            <strong>
-              {{ client.name }}
-            </strong>
-
-            <span>
-              Billing rate incomplete
-            </span>
-          </div>
-
-          <strong class="warning">
-            Review
-          </strong>
-        </div>
-
-        <p
-          v-if="!billingIssues.length"
-          class="empty-text"
-        >
-          All billing rates are configured.
-        </p>
-
-      </div>
-
-    </article>
-
-    <!-- QUICK -->
     <article class="side-card">
 
       <div class="side-heading">
@@ -175,15 +120,6 @@ const emit = defineEmits<{
           Employee Assignments
         </button>
 
-        <button
-          type="button"
-          @click="emit('billingRates')"
-        >
-          <ReceiptText :size="15" />
-
-          Billing Rates
-        </button>
-
       </div>
 
     </article>
@@ -194,7 +130,6 @@ const emit = defineEmits<{
 <style scoped>
 .client-side {
   display: flex;
-
   flex-direction: column;
 
   gap: 12px;
@@ -203,21 +138,16 @@ const emit = defineEmits<{
 .side-card {
   overflow: hidden;
 
-  border:
-    1px solid var(--border);
-
+  border: 1px solid var(--border);
   border-radius: 11px;
 
-  background:
-    var(--bg-card);
+  background: var(--bg-card);
 
-  box-shadow:
-    var(--shadow);
+  box-shadow: var(--shadow);
 }
 
 .side-heading {
   display: flex;
-
   align-items: center;
 
   gap: 9px;
@@ -243,34 +173,19 @@ const emit = defineEmits<{
 }
 
 .side-icon.orange {
-  background:
-    var(--orange-soft);
-
-  color:
-    var(--orange);
-}
-
-.side-icon.purple {
-  background:
-    var(--purple-soft);
-
-  color:
-    var(--purple);
+  background: var(--orange-soft);
+  color: var(--orange);
 }
 
 .side-icon.blue {
-  background:
-    var(--primary-soft);
-
-  color:
-    var(--primary);
+  background: var(--primary-soft);
+  color: var(--primary);
 }
 
 .side-heading h3 {
   margin: 0;
 
-  color:
-    var(--text-primary);
+  color: var(--text-primary);
 
   font-size: 10px;
 }
@@ -278,8 +193,7 @@ const emit = defineEmits<{
 .side-heading p {
   margin: 3px 0 0;
 
-  color:
-    var(--text-muted);
+  color: var(--text-muted);
 
   font-size: 7px;
 }
@@ -312,8 +226,7 @@ const emit = defineEmits<{
 }
 
 .side-row > div strong {
-  color:
-    var(--text-primary);
+  color: var(--text-primary);
 
   font-size: 8px;
 }
@@ -321,22 +234,13 @@ const emit = defineEmits<{
 .side-row > div span {
   margin-top: 2px;
 
-  color:
-    var(--text-muted);
+  color: var(--text-muted);
 
   font-size: 7px;
 }
 
-.warning {
-  color:
-    var(--orange);
-
-  font-size: 8px;
-}
-
 .empty-text {
-  color:
-    var(--text-muted);
+  color: var(--text-muted);
 
   font-size: 8px;
 }
@@ -362,19 +266,17 @@ const emit = defineEmits<{
 
   background: transparent;
 
-  color:
-    var(--text-secondary);
+  color: var(--text-secondary);
 
   font-size: 8px;
 
   text-align: left;
+
+  cursor: pointer;
 }
 
 .quick-actions button:hover {
-  background:
-    var(--bg-card-soft);
-
-  color:
-    var(--primary);
+  background: var(--bg-card-soft);
+  color: var(--primary);
 }
 </style>

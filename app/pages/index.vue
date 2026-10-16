@@ -482,7 +482,7 @@ const upcomingEvents = [
         </div>
       </article>
 
-      <!-- PAYROLL / BILLING -->
+      <!-- PAYROLL -->
       <div class="status-column">
         <article class="dashboard-card status-card">
           <div class="card-header">
@@ -547,74 +547,6 @@ const upcomingEvents = [
               <div class="step">
                 <span>5</span>
                 <small>Paid</small>
-              </div>
-            </div>
-          </div>
-        </article>
-
-        <article class="dashboard-card status-card">
-          <div class="card-header">
-            <div>
-              <h3>
-                Billing Status
-              </h3>
-
-              <p>
-                Current billing cutoff
-              </p>
-            </div>
-
-            <button class="view-all">
-              View all
-            </button>
-          </div>
-
-          <div class="status-box billing-box">
-            <div class="status-box-top">
-              <strong>
-                May 16–31, 2026 Cutoff
-              </strong>
-
-              <span class="status-badge progress">
-                In Progress
-              </span>
-            </div>
-
-            <div class="stepper blue-stepper">
-              <div class="step completed">
-                <span>
-                  <CheckCircle2 :size="18" />
-                </span>
-
-                <small>Draft</small>
-              </div>
-
-              <div class="step-line completed" />
-
-              <div class="step completed">
-                <span>2</span>
-                <small>Review</small>
-              </div>
-
-              <div class="step-line" />
-
-              <div class="step">
-                <span>3</span>
-                <small>Approval</small>
-              </div>
-
-              <div class="step-line" />
-
-              <div class="step">
-                <span>4</span>
-                <small>Finalized</small>
-              </div>
-
-              <div class="step-line" />
-
-              <div class="step">
-                <span>5</span>
-                <small>Sent</small>
               </div>
             </div>
           </div>
@@ -1394,23 +1326,6 @@ const upcomingEvents = [
     );
 }
 
-.billing-box {
-  border:
-    1px solid
-    color-mix(
-      in srgb,
-      var(--primary) 20%,
-      var(--border)
-    );
-
-  background:
-    color-mix(
-      in srgb,
-      var(--primary-soft) 55%,
-      var(--bg-card)
-    );
-}
-
 .status-box-top {
   display: flex;
   align-items: center;
@@ -1438,11 +1353,6 @@ const upcomingEvents = [
 .status-badge.review {
   background: var(--green-soft);
   color: var(--green);
-}
-
-.status-badge.progress {
-  background: var(--primary-soft);
-  color: var(--primary);
 }
 
 .stepper {
@@ -1489,12 +1399,6 @@ const upcomingEvents = [
 
   background: var(--green);
   color: white;
-}
-
-.blue-stepper .step.completed > span {
-  border-color: var(--primary);
-
-  background: var(--primary);
 }
 
 .step small {

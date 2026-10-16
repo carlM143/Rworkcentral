@@ -26,7 +26,6 @@ const {
   stats,
 
   contractAlerts,
-  billingIssues,
   recentActivity,
 
   statusOptions,
@@ -73,12 +72,6 @@ const handleAssignments = () => {
   )
 }
 
-const handleBillingRates = () => {
-  router.push(
-    '/billing-rates',
-  )
-}
-
 const handleExport = () => {
   info(
     'Export Clients',
@@ -93,7 +86,7 @@ const handleExport = () => {
     <!-- HEADER -->
     <PageHeader
       title="Clients"
-      description="Manage client accounts, contracts, employee assignments and billing configuration."
+      description="Manage client accounts, contracts and employee assignments."
     >
 
       <AppButton
@@ -194,10 +187,8 @@ const handleExport = () => {
 
       <ClientSidePanel
         :contract-alerts="contractAlerts"
-        :billing-issues="billingIssues"
         @add-client="handleAddClient"
         @assignments="handleAssignments"
-        @billing-rates="handleBillingRates"
       />
 
     </div>

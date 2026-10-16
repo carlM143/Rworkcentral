@@ -30,12 +30,6 @@ export interface Client {
 
   contractStatus: ContractStatus
   status: ClientStatus
-
-  billingRateStatus:
-    | 'Configured'
-    | 'Incomplete'
-
-  currentBilling: number
 }
 
 export interface ClientActivity {

@@ -66,24 +66,6 @@ export const useReportsOverview = () => {
       },
 
       {
-        id: 4,
-
-        title:
-          'Billing Reports',
-
-        description:
-          'Client billing summaries, billing transactions and revenue reports.',
-
-        category:
-          'Billing',
-
-        route:
-          '/reports/billing',
-
-        reports: 7,
-      },
-
-      {
         id: 5,
 
         title:
@@ -171,31 +153,6 @@ export const useReportsOverview = () => {
 
         format:
           'Excel',
-
-        status:
-          'Completed',
-      },
-
-      {
-        id: 3,
-
-        title:
-          'Client Billing Summary',
-
-        category:
-          'Billing',
-
-        period:
-          'Sep 1 - Sep 15, 2026',
-
-        generatedBy:
-          'Angela Flores',
-
-        generatedAt:
-          '2026-09-03T16:30:00',
-
-        format:
-          'PDF',
 
         status:
           'Completed',
@@ -329,17 +286,6 @@ export const useReportsOverview = () => {
 
       {
         label:
-          'Current Billing',
-
-        value:
-          '₱387,400',
-
-        description:
-          'Active client billing',
-      },
-
-      {
-        label:
           'Approved OT',
 
         value:
@@ -369,14 +315,6 @@ export const useReportsOverview = () => {
 
       route:
         '/reports/payroll',
-    },
-
-    {
-      label:
-        'Billing Summary',
-
-      route:
-        '/reports/billing',
     },
 
     {

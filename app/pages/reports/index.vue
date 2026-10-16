@@ -71,7 +71,7 @@ const handleDownload = (
     <!-- HEADER -->
     <PageHeader
       title="Reports & Analytics"
-      description="Access HRIS reports, workforce analytics, payroll summaries, billing reports and statutory records."
+      description="Access HRIS reports, workforce analytics, payroll summaries and statutory records."
     >
 
       <AppButton

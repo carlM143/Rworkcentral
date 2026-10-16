@@ -6,7 +6,7 @@ import {
   Umbrella,
   TimerReset,
   WalletCards,
-  ReceiptText,
+  // ReceiptText,
   Building2,
   BarChart3,
   Settings,
@@ -43,7 +43,6 @@ const openMenus = reactive<Record<string, boolean>>({
   timekeeping: false,
   payroll: false,
   clients: false,
-  billing: false,
   leave: false,
   overtime: false,
   departments: false,
@@ -61,9 +60,6 @@ const menuItems = [
     to: '/',
   },
 
-  // =====================================================
-  // EMPLOYEES
-  // =====================================================
   {
     label: 'Employees',
     key: 'employees',
@@ -96,6 +92,10 @@ const menuItems = [
         label: 'Overview',
         to: '/timekeeping',
       },
+       {
+        label: 'Time Logs',
+        to: '/time-logs',
+      },
       {
         label: 'Work Schedules',
         to: '/timekeeping/work-schedules',
@@ -111,10 +111,6 @@ const menuItems = [
       {
         label: 'Late Adjustment',
         to: '/late-adjustment',
-      },
-      {
-        label: 'Time Logs',
-        to: '/time-logs',
       },
       {
         label: 'Manual Time In / Out',
@@ -199,7 +195,7 @@ const menuItems = [
   // =====================================================
   // CLIENTS
   // =====================================================
-  {
+ {
   label: 'Clients',
   key: 'clients',
   icon: Building2,
@@ -216,44 +212,8 @@ const menuItems = [
       label: 'Employee Assignment',
       to: '/clients/employee-assignment',
     },
-    {
-      label: 'Billing Rates',
-      to: '/clients/billing-rates',
-    },
   ],
 },
-
-  {
-    label: 'Billing',
-    key: 'billing',
-    icon: ReceiptText,
-    children: [
-      // {
-      // label: 'Overview',
-      // to: '/billing',
-      // },
-      {
-        label: 'Billing Dashboard',
-        to: '/billing',
-      },
-      {
-        label: 'Billing Records',
-        to: '/billing/records',
-      },
-      {
-        label: 'Billing Rates',
-        to: '/billing-rates',
-      },
-      {
-        label: 'Billing Adjustments',
-        to: '/billing-adjustments',
-      },
-      {
-        label: 'Completed Billing',
-        to: '/completed-billing',
-      },
-    ],
-  },
 
   // =====================================================
   // LEAVE
@@ -479,10 +439,6 @@ const menuItems = [
       {
         label: 'Payroll Reports',
         to: '/reports/payroll',
-      },
-      {
-        label: 'Billing Reports',
-        to: '/reports/billing',
       },
       {
         label: '13th Month Pay',
