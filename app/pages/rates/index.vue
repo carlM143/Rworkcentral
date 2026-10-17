@@ -5,12 +5,46 @@ import {
   Plus,
 } from 'lucide-vue-next'
 
+const exportModalOpen = ref(false)
+
+const handleOpenExport = () => {
+  exportModalOpen.value = true
+}
+
+const handleCloseExport = () => {
+  exportModalOpen.value = false
+}
+
+const handleConfirmExport = (payload: {
+  format: string
+  scope: string
+  includeEmployee: boolean
+  includeDepartment: boolean
+  includeRateType: boolean
+  includePayBasis: boolean
+  includeBasicRate: boolean
+  includeHourlyRate: boolean
+  includeOtRate: boolean
+  includeTripRate: boolean
+  includeEffectiveDate: boolean
+  includeStatus: boolean
+}) => {
+  exportModalOpen.value = false
+
+  info(
+    'Export Payroll Rates',
+    `Export setup saved. Format: ${payload.format.toUpperCase()}, Scope: ${payload.scope}. Backend export can be connected next.`,
+  )
+}
+
 import PayrollRateStats from '~/components/payroll/rates/PayrollRateStats.vue'
 import PayrollRateFilters from '~/components/payroll/rates/PayrollRateFilters.vue'
 import PayrollRateTable from '~/components/payroll/rates/PayrollRateTable.vue'
 import AddEditPayrollRateModal from '~/components/payroll/rates/AddEditPayrollRateModal.vue'
 import PayrollRateDetailsModal from '~/components/payroll/rates/PayrollRateDetailsModal.vue'
 import PayrollRateHistoryModal from '~/components/payroll/rates/PayrollRateHistoryModal.vue'
+
+import PayrollRatesExportModal from '~/components/payroll/rates/PayrollRatesExportModal.vue'
 
 import type {
   PayrollRate,
@@ -289,16 +323,7 @@ const handleDeactivate = (
   )
 }
 
-/* =========================================================
-   EXPORT
-========================================================= */
 
-const handleExport = () => {
-  info(
-    'Export Payroll Rates',
-    'Payroll rate export will be connected later.',
-  )
-}
 
 /* =========================================================
    BACK
@@ -341,7 +366,7 @@ const handleBack = () => {
           variant="secondary"
           :icon="Download"
           @click="
-            handleExport
+            handleOpenExport
           "
         >
           Export
@@ -502,17 +527,31 @@ const handleBack = () => {
 
     <!-- HISTORY -->
 
-    <PayrollRateHistoryModal
-      :open="
-        historyOpen
-      "
-      :rate="
-        historyRate
-      "
-      @close="
-        closeHistory
-      "
-    />
+  <PayrollRateHistoryModal
+    :open="
+      historyOpen
+    "
+    :rate="
+      historyRate
+    "
+    @close="
+      closeHistory
+    "
+  />
+
+  <!-- EXPORT -->
+
+  <PayrollRatesExportModal
+    :open="
+      exportModalOpen
+    "
+    @close="
+      handleCloseExport
+    "
+    @export="
+      handleConfirmExport
+    "
+  />
 
   </section>
 </template>
