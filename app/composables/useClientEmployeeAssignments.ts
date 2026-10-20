@@ -1,12 +1,23 @@
 import type {
+  ClientAssignmentFormData,
   ClientAssignmentStatus,
   ClientAssignmentType,
   ClientEmployeeAssignment,
 } from '~/types/clientEmployeeAssignment'
 
 export const useClientEmployeeAssignments = () => {
+  const {
+    employees,
+  } = useEmployees(
+    'Active',
+  )
+
+  const {
+    clients,
+  } = useClientDirectory()
+
   /* =========================================================
-     MOCK DATA
+     DATA
   ========================================================= */
 
   const assignments =
@@ -150,8 +161,11 @@ export const useClientEmployeeAssignments = () => {
           employeeNumber: 'EMP-008',
           employeeName: 'Jenny Ramos',
 
-          department: 'Administration',
-          position: 'Administrative Assistant',
+          department:
+            'Human Resources',
+
+          position:
+            'HR Assistant',
 
           clientId: 3,
           clientCode: 'CL-003',
@@ -181,8 +195,8 @@ export const useClientEmployeeAssignments = () => {
           employeeNumber: 'EMP-009',
           employeeName: 'Robert Castillo',
 
-          department: 'Operations',
-          position: 'Driver',
+          department: 'Finance',
+          position: 'Payroll Officer',
 
           clientId: 3,
           clientCode: 'CL-003',
@@ -212,8 +226,11 @@ export const useClientEmployeeAssignments = () => {
           employeeNumber: 'EMP-010',
           employeeName: 'Grace Navarro',
 
-          department: 'Human Resources',
-          position: 'HR Assistant',
+          department:
+            'Human Resources',
+
+          position:
+            'HR Assistant',
 
           clientId: 4,
           clientCode: 'CL-004',
@@ -247,7 +264,7 @@ export const useClientEmployeeAssignments = () => {
           employeeName: 'Leo Martinez',
 
           department: 'Operations',
-          position: 'Dispatcher',
+          position: 'Supervisor',
 
           clientId: 5,
           clientCode: 'CL-005',
@@ -283,8 +300,11 @@ export const useClientEmployeeAssignments = () => {
           employeeNumber: 'EMP-012',
           employeeName: 'Claire Villanueva',
 
-          department: 'Administration',
-          position: 'Office Staff',
+          department:
+            'Human Resources',
+
+          position:
+            'HR Manager',
 
           clientId: 6,
           clientCode: 'CL-006',
@@ -316,12 +336,15 @@ export const useClientEmployeeAssignments = () => {
         {
           id: 10,
 
-          employeeId: 6,
-          employeeNumber: 'EMP-006',
-          employeeName: 'Angela Flores',
+          employeeId: 3,
+          employeeNumber: 'EMP-003',
+          employeeName: 'Pedro Reyes',
 
-          department: 'Billing',
-          position: 'Billing Officer',
+          department:
+            'Finance',
+
+          position:
+            'Accountant',
 
           clientId: 7,
           clientCode: 'CL-007',
@@ -376,29 +399,64 @@ export const useClientEmployeeAssignments = () => {
     ref(6)
 
   /* =========================================================
+     AVAILABLE EMPLOYEES
+
+     Billing employees excluded because billing module
+     was removed from the current HRIS scope.
+  ========================================================= */
+
+  const availableEmployees =
+    computed(() => {
+      return employees.value.filter(
+        employee =>
+          employee.status ===
+            'Active' &&
+          employee.department !==
+            'Billing',
+      )
+    })
+
+  /* =========================================================
+     CLIENTS
+  ========================================================= */
+
+  const availableClients =
+    computed(() => {
+      return clients.value.filter(
+        client =>
+          client.status !==
+          'Inactive',
+      )
+    })
+
+  /* =========================================================
      OPTIONS
   ========================================================= */
 
   const clientOptions =
     computed(() => {
-      return [
-        ...new Set(
-          assignments.value.map(
-            assignment =>
-              assignment.clientName,
-          ),
-        ),
-      ].sort()
+      return availableClients.value
+        .map(
+          item =>
+            item.name,
+        )
+        .sort()
     })
 
   const departmentOptions =
     computed(() => {
       return [
         ...new Set(
-          assignments.value.map(
-            assignment =>
-              assignment.department,
-          ),
+          assignments.value
+            .map(
+              assignment =>
+                assignment.department,
+            )
+            .filter(
+              value =>
+                value !==
+                'Billing',
+            ),
         ),
       ].sort()
     })
@@ -420,7 +478,7 @@ export const useClientEmployeeAssignments = () => {
     ]
 
   /* =========================================================
-     FILTERED
+     FILTER
   ========================================================= */
 
   const filteredAssignments =
@@ -535,8 +593,7 @@ export const useClientEmployeeAssignments = () => {
       return Math.max(
         1,
         Math.ceil(
-          filteredAssignments
-            .value.length /
+          filteredAssignments.value.length /
             perPage.value,
         ),
       )
@@ -551,21 +608,17 @@ export const useClientEmployeeAssignments = () => {
         ) *
         perPage.value
 
-      return filteredAssignments
-        .value
-        .slice(
-          start,
-          start +
-            perPage.value,
-        )
+      return filteredAssignments.value.slice(
+        start,
+        start +
+          perPage.value,
+      )
     })
 
   const showingFrom =
     computed(() => {
       if (
-        filteredAssignments
-          .value.length ===
-        0
+        !filteredAssignments.value.length
       ) {
         return 0
       }
@@ -586,30 +639,293 @@ export const useClientEmployeeAssignments = () => {
         currentPage.value *
           perPage.value,
 
-        filteredAssignments
-          .value.length,
+        filteredAssignments.value.length,
       )
     })
+
+  /* =========================================================
+     GET
+  ========================================================= */
+
+  const getAssignmentById = (
+    id:
+      number |
+      string,
+  ) => {
+    return assignments.value.find(
+      assignment =>
+        assignment.id ===
+        Number(id),
+    )
+  }
+
+  /* =========================================================
+     CREATE
+  ========================================================= */
+
+  const createAssignment = (
+    data:
+      ClientAssignmentFormData,
+  ) => {
+    const employee =
+      availableEmployees.value.find(
+        item =>
+          item.id ===
+          Number(
+            data.employeeId,
+          ),
+      )
+
+    const selectedClient =
+      availableClients.value.find(
+        item =>
+          item.id ===
+          Number(
+            data.clientId,
+          ),
+      )
+
+    if (
+      !employee ||
+      !selectedClient
+    ) {
+      return null
+    }
+
+    const nextId =
+      assignments.value.length
+        ? Math.max(
+            ...assignments.value.map(
+              item =>
+                item.id,
+            ),
+          ) + 1
+        : 1
+
+    const assignment:
+      ClientEmployeeAssignment = {
+        id:
+          nextId,
+
+        employeeId:
+          employee.id,
+
+        employeeNumber:
+          employee.employeeNumber,
+
+        employeeName:
+          `${employee.firstName} ${employee.lastName}`,
+
+        department:
+          employee.department,
+
+        position:
+          employee.position,
+
+        clientId:
+          selectedClient.id,
+
+        clientCode:
+          selectedClient.code,
+
+        clientName:
+          selectedClient.name,
+
+        assignmentDate:
+          data.assignmentDate,
+
+        endDate:
+          data.endDate ||
+          undefined,
+
+        assignmentType:
+          data.assignmentType,
+
+        status:
+          data.status,
+
+        assignedBy:
+          'Maria Santos',
+
+        createdAt:
+          new Date()
+            .toISOString(),
+
+        remarks:
+          data.remarks ||
+          undefined,
+      }
+
+    assignments.value.unshift(
+      assignment,
+    )
+
+    return assignment
+  }
+
+  /* =========================================================
+     UPDATE
+  ========================================================= */
+
+  const updateAssignment = (
+    id: number,
+
+    data:
+      ClientAssignmentFormData,
+  ) => {
+    const index =
+      assignments.value.findIndex(
+        assignment =>
+          assignment.id === id,
+      )
+
+    if (
+      index === -1
+    ) {
+      return null
+    }
+
+    const employee =
+      availableEmployees.value.find(
+        item =>
+          item.id ===
+          Number(
+            data.employeeId,
+          ),
+      )
+
+    const selectedClient =
+      availableClients.value.find(
+        item =>
+          item.id ===
+          Number(
+            data.clientId,
+          ),
+      )
+
+    if (
+      !employee ||
+      !selectedClient
+    ) {
+      return null
+    }
+
+    const current =
+      assignments.value[index]
+
+    assignments.value[index] = {
+      ...current,
+
+      employeeId:
+        employee.id,
+
+      employeeNumber:
+        employee.employeeNumber,
+
+      employeeName:
+        `${employee.firstName} ${employee.lastName}`,
+
+      department:
+        employee.department,
+
+      position:
+        employee.position,
+
+      clientId:
+        selectedClient.id,
+
+      clientCode:
+        selectedClient.code,
+
+      clientName:
+        selectedClient.name,
+
+      assignmentDate:
+        data.assignmentDate,
+
+      endDate:
+        data.endDate ||
+        undefined,
+
+      assignmentType:
+        data.assignmentType,
+
+      status:
+        data.status,
+
+      remarks:
+        data.remarks ||
+        undefined,
+    }
+
+    return assignments.value[index]
+  }
+
+  /* =========================================================
+     ACTIVATE
+  ========================================================= */
+
+  const activateAssignment = (
+    id: number,
+  ) => {
+    const assignment =
+      getAssignmentById(
+        id,
+      )
+
+    if (!assignment) {
+      return null
+    }
+
+    assignment.status =
+      'Active'
+
+    assignment.endDate =
+      undefined
+
+    return assignment
+  }
+
+  /* =========================================================
+     END ASSIGNMENT
+  ========================================================= */
+
+  const endAssignment = (
+    id: number,
+  ) => {
+    const assignment =
+      getAssignmentById(
+        id,
+      )
+
+    if (!assignment) {
+      return null
+    }
+
+    assignment.status =
+      'Ended'
+
+    assignment.endDate =
+      new Date()
+        .toISOString()
+        .slice(
+          0,
+          10,
+        )
+
+    return assignment
+  }
 
   /* =========================================================
      RESET
   ========================================================= */
 
   const resetFilters = () => {
-    search.value =
-      ''
-
-    client.value =
-      ''
-
-    department.value =
-      ''
-
-    status.value =
-      ''
-
-    assignmentType.value =
-      ''
+    search.value = ''
+    client.value = ''
+    department.value = ''
+    status.value = ''
+    assignmentType.value = ''
 
     currentPage.value =
       1
@@ -645,6 +961,9 @@ export const useClientEmployeeAssignments = () => {
   return {
     assignments,
 
+    availableEmployees,
+    availableClients,
+
     search,
     client,
     department,
@@ -667,6 +986,13 @@ export const useClientEmployeeAssignments = () => {
     departmentOptions,
     statusOptions,
     assignmentTypeOptions,
+
+    getAssignmentById,
+
+    createAssignment,
+    updateAssignment,
+    activateAssignment,
+    endAssignment,
 
     resetFilters,
   }

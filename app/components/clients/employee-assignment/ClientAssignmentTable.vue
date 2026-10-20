@@ -2,8 +2,13 @@
 import {
   Building2,
   CalendarDays,
+  CheckCircle2,
+  Eye,
   MoreHorizontal,
+  Pencil,
   UserRound,
+  UserRoundSearch,
+  XCircle,
 } from 'lucide-vue-next'
 
 import type {
@@ -16,6 +21,90 @@ defineProps<{
   assignments:
     ClientEmployeeAssignment[]
 }>()
+
+const emit =
+  defineEmits<{
+    view: [
+      assignment:
+        ClientEmployeeAssignment,
+    ]
+
+    edit: [
+      assignment:
+        ClientEmployeeAssignment,
+    ]
+
+    employee: [
+      assignment:
+        ClientEmployeeAssignment,
+    ]
+
+    activate: [
+      assignment:
+        ClientEmployeeAssignment,
+    ]
+
+    end: [
+      assignment:
+        ClientEmployeeAssignment,
+    ]
+  }>()
+
+const openMenuId =
+  ref<number | null>(
+    null,
+  )
+
+const toggleMenu = (
+  id: number,
+) => {
+  openMenuId.value =
+    openMenuId.value === id
+      ? null
+      : id
+}
+
+const closeMenu = () => {
+  openMenuId.value =
+    null
+}
+
+const handleAction = (
+  action:
+    | 'view'
+    | 'edit'
+    | 'employee'
+    | 'activate'
+    | 'end',
+
+  assignment:
+    ClientEmployeeAssignment,
+) => {
+  closeMenu()
+
+  emit(
+    action,
+    assignment,
+  )
+}
+
+const handleWindowClick = () => {
+  closeMenu()
+}
+
+onMounted(() => {
+  window.addEventListener(
+    'click',
+    handleWindowClick,
+  )
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener(
+    'click',
+    handleWindowClick,
+  )
+})
 
 const formatDate = (
   value?: string,
@@ -98,8 +187,6 @@ const typeClass = (
 <template>
   <article class="table-card">
 
-    <!-- HEADER -->
-
     <div class="table-heading">
 
       <div>
@@ -117,8 +204,6 @@ const typeClass = (
       </div>
 
     </div>
-
-    <!-- TABLE -->
 
     <div
       v-if="
@@ -157,8 +242,6 @@ const typeClass = (
             "
           >
 
-            <!-- EMPLOYEE -->
-
             <td>
 
               <div class="employee-cell">
@@ -174,15 +257,11 @@ const typeClass = (
                 <div>
 
                   <strong>
-                    {{
-                      assignment.employeeName
-                    }}
+                    {{ assignment.employeeName }}
                   </strong>
 
                   <span>
-                    {{
-                      assignment.employeeNumber
-                    }}
+                    {{ assignment.employeeNumber }}
                   </span>
 
                 </div>
@@ -190,8 +269,6 @@ const typeClass = (
               </div>
 
             </td>
-
-            <!-- CLIENT -->
 
             <td>
 
@@ -208,15 +285,11 @@ const typeClass = (
                 <div>
 
                   <strong>
-                    {{
-                      assignment.clientName
-                    }}
+                    {{ assignment.clientName }}
                   </strong>
 
                   <span>
-                    {{
-                      assignment.clientCode
-                    }}
+                    {{ assignment.clientCode }}
                   </span>
 
                 </div>
@@ -225,39 +298,27 @@ const typeClass = (
 
             </td>
 
-            <!-- DEPARTMENT -->
-
             <td>
 
               <span class="department">
-                {{
-                  assignment.department
-                }}
+                {{ assignment.department }}
               </span>
 
             </td>
 
-            <!-- POSITION -->
-
             <td>
 
               <strong class="position">
-                {{
-                  assignment.position
-                }}
+                {{ assignment.position }}
               </strong>
 
             </td>
-
-            <!-- ASSIGNMENT DATE -->
 
             <td>
 
               <div class="date-cell">
 
-                <CalendarDays
-                  :size="12"
-                />
+                <CalendarDays :size="12" />
 
                 {{
                   formatDate(
@@ -268,8 +329,6 @@ const typeClass = (
               </div>
 
             </td>
-
-            <!-- END DATE -->
 
             <td>
 
@@ -288,8 +347,6 @@ const typeClass = (
 
             </td>
 
-            <!-- TYPE -->
-
             <td>
 
               <span
@@ -300,14 +357,10 @@ const typeClass = (
                   )
                 "
               >
-                {{
-                  assignment.assignmentType
-                }}
+                {{ assignment.assignmentType }}
               </span>
 
             </td>
-
-            <!-- STATUS -->
 
             <td>
 
@@ -322,24 +375,18 @@ const typeClass = (
 
                 <span class="status-dot" />
 
-                {{
-                  assignment.status
-                }}
+                {{ assignment.status }}
 
               </span>
 
             </td>
-
-            <!-- ASSIGNED BY -->
 
             <td>
 
               <div class="assigned-by">
 
                 <strong>
-                  {{
-                    assignment.assignedBy
-                  }}
+                  {{ assignment.assignedBy }}
                 </strong>
 
                 <span>
@@ -352,19 +399,187 @@ const typeClass = (
 
             <!-- ACTION -->
 
-            <td>
+            <td class="action-cell">
 
-              <button
-                type="button"
-                class="action-button"
-                title="Actions will be added later"
-              >
+              <div class="action-wrapper">
 
-                <MoreHorizontal
-                  :size="17"
-                />
+                <button
+                  type="button"
+                  class="action-button"
+                  @click.stop="
+                    toggleMenu(
+                      assignment.id,
+                    )
+                  "
+                >
 
-              </button>
+                  <MoreHorizontal
+                    :size="17"
+                  />
+
+                </button>
+
+                <Transition name="menu-fade">
+
+                  <div
+                    v-if="
+                      openMenuId ===
+                      assignment.id
+                    "
+                    class="action-menu"
+                    @click.stop
+                  >
+
+                    <button
+                      type="button"
+                      @click="
+                        handleAction(
+                          'view',
+                          assignment,
+                        )
+                      "
+                    >
+
+                      <Eye :size="14" />
+
+                      <div>
+
+                        <strong>
+                          View Details
+                        </strong>
+
+                        <span>
+                          Review assignment
+                        </span>
+
+                      </div>
+
+                    </button>
+
+                    <button
+                      type="button"
+                      @click="
+                        handleAction(
+                          'edit',
+                          assignment,
+                        )
+                      "
+                    >
+
+                      <Pencil :size="14" />
+
+                      <div>
+
+                        <strong>
+                          Edit Assignment
+                        </strong>
+
+                        <span>
+                          Update deployment
+                        </span>
+
+                      </div>
+
+                    </button>
+
+                    <button
+                      type="button"
+                      @click="
+                        handleAction(
+                          'employee',
+                          assignment,
+                        )
+                      "
+                    >
+
+                      <UserRoundSearch
+                        :size="14"
+                      />
+
+                      <div>
+
+                        <strong>
+                          View Employee
+                        </strong>
+
+                        <span>
+                          Open employee profile
+                        </span>
+
+                      </div>
+
+                    </button>
+
+                    <button
+                      v-if="
+                        assignment.status ===
+                        'Pending'
+                      "
+                      type="button"
+                      @click="
+                        handleAction(
+                          'activate',
+                          assignment,
+                        )
+                      "
+                    >
+
+                      <CheckCircle2
+                        :size="14"
+                      />
+
+                      <div>
+
+                        <strong>
+                          Activate Assignment
+                        </strong>
+
+                        <span>
+                          Confirm deployment
+                        </span>
+
+                      </div>
+
+                    </button>
+
+                    <button
+                      v-if="
+                        assignment.status ===
+                        'Active'
+                      "
+                      type="button"
+                      class="danger-action"
+                      @click="
+                        handleAction(
+                          'end',
+                          assignment,
+                        )
+                      "
+                    >
+
+                      <XCircle
+                        :size="14"
+                      />
+
+                      <div>
+
+                        <strong>
+                          End Assignment
+                        </strong>
+
+                        <span>
+                          Close current deployment
+                        </span>
+
+                      </div>
+
+                    </button>
+
+                  </div>
+
+                </Transition>
+
+              </div>
 
             </td>
 
@@ -375,8 +590,6 @@ const typeClass = (
       </table>
 
     </div>
-
-    <!-- EMPTY -->
 
     <div
       v-else
@@ -402,7 +615,7 @@ const typeClass = (
 
 <style scoped>
 .table-card {
-  overflow: hidden;
+  overflow: visible;
 
   border:
     1px solid var(--border);
@@ -421,8 +634,7 @@ const typeClass = (
     15px 16px;
 
   border-bottom:
-    1px solid
-    var(--border-soft);
+    1px solid var(--border-soft);
 }
 
 .table-heading h3 {
@@ -453,8 +665,7 @@ table {
 
   min-width: 1650px;
 
-  border-collapse:
-    collapse;
+  border-collapse: collapse;
 }
 
 th {
@@ -471,9 +682,7 @@ th {
   font-weight: 700;
 
   text-align: left;
-
-  text-transform:
-    uppercase;
+  text-transform: uppercase;
 
   white-space: nowrap;
 }
@@ -483,16 +692,14 @@ td {
     13px;
 
   border-top:
-    1px solid
-    var(--border-soft);
+    1px solid var(--border-soft);
 
   color:
     var(--text-secondary);
 
   font-size: 9px;
 
-  vertical-align:
-    middle;
+  vertical-align: middle;
 }
 
 tbody tr:hover {
@@ -500,25 +707,26 @@ tbody tr:hover {
     var(--bg-card-soft);
 }
 
-/* =========================
-   EMPLOYEE
-========================= */
-
-.employee-cell {
+.employee-cell,
+.client-cell {
   display: flex;
-
-  min-width: 190px;
 
   align-items: center;
 
   gap: 8px;
 }
 
-.employee-icon {
-  display: flex;
+.employee-cell {
+  min-width: 190px;
+}
 
-  width: 34px;
-  height: 34px;
+.client-cell {
+  min-width: 235px;
+}
+
+.employee-icon,
+.client-icon {
+  display: flex;
 
   flex-shrink: 0;
 
@@ -526,6 +734,11 @@ tbody tr:hover {
   justify-content: center;
 
   border-radius: 8px;
+}
+
+.employee-icon {
+  width: 34px;
+  height: 34px;
 
   background:
     var(--primary-soft);
@@ -534,53 +747,9 @@ tbody tr:hover {
     var(--primary);
 }
 
-.employee-cell strong,
-.employee-cell span {
-  display: block;
-}
-
-.employee-cell strong {
-  color:
-    var(--text-primary);
-
-  font-size: 10px;
-}
-
-.employee-cell span {
-  margin-top: 3px;
-
-  color:
-    var(--text-muted);
-
-  font-size: 8px;
-}
-
-/* =========================
-   CLIENT
-========================= */
-
-.client-cell {
-  display: flex;
-
-  min-width: 235px;
-
-  align-items: center;
-
-  gap: 8px;
-}
-
 .client-icon {
-  display: flex;
-
   width: 30px;
   height: 30px;
-
-  flex-shrink: 0;
-
-  align-items: center;
-  justify-content: center;
-
-  border-radius: 7px;
 
   background:
     var(--purple-soft);
@@ -589,11 +758,14 @@ tbody tr:hover {
     var(--purple);
 }
 
+.employee-cell strong,
+.employee-cell span,
 .client-cell strong,
 .client-cell span {
   display: block;
 }
 
+.employee-cell strong,
 .client-cell strong {
   color:
     var(--text-primary);
@@ -601,6 +773,7 @@ tbody tr:hover {
   font-size: 9px;
 }
 
+.employee-cell span,
 .client-cell span {
   margin-top: 3px;
 
@@ -609,10 +782,6 @@ tbody tr:hover {
 
   font-size: 8px;
 }
-
-/* =========================
-   DEPARTMENT / POSITION
-========================= */
 
 .department {
   display: inline-flex;
@@ -625,9 +794,6 @@ tbody tr:hover {
   background:
     var(--bg-card-soft);
 
-  color:
-    var(--text-secondary);
-
   white-space: nowrap;
 }
 
@@ -637,10 +803,6 @@ tbody tr:hover {
 
   white-space: nowrap;
 }
-
-/* =========================
-   DATE
-========================= */
 
 .date-cell {
   display: flex;
@@ -652,24 +814,16 @@ tbody tr:hover {
   white-space: nowrap;
 }
 
-.date-cell svg {
-  color:
-    var(--text-muted);
-}
-
 .ended-date {
   color:
     var(--red);
-
-  white-space: nowrap;
 }
 
-/* =========================
-   TYPE
-========================= */
-
-.type-badge {
+.type-badge,
+.status-badge {
   display: inline-flex;
+
+  align-items: center;
 
   padding:
     5px 8px;
@@ -714,26 +868,8 @@ tbody tr:hover {
     var(--purple);
 }
 
-/* =========================
-   STATUS
-========================= */
-
 .status-badge {
-  display: inline-flex;
-
-  align-items: center;
-
   gap: 5px;
-
-  padding:
-    5px 8px;
-
-  border-radius: 20px;
-
-  font-size: 8px;
-  font-weight: 650;
-
-  white-space: nowrap;
 }
 
 .status-dot {
@@ -778,10 +914,6 @@ tbody tr:hover {
     var(--red);
 }
 
-/* =========================
-   ASSIGNED BY
-========================= */
-
 .assigned-by {
   min-width: 120px;
 }
@@ -807,9 +939,17 @@ tbody tr:hover {
   font-size: 8px;
 }
 
-/* =========================
-   ACTION
-========================= */
+/* ACTION */
+
+.action-cell {
+  position: relative;
+
+  width: 45px;
+}
+
+.action-wrapper {
+  position: relative;
+}
 
 .action-button {
   display: flex;
@@ -845,9 +985,103 @@ tbody tr:hover {
     var(--primary);
 }
 
-/* =========================
-   EMPTY
-========================= */
+.action-menu {
+  position: absolute;
+
+  z-index: 300;
+
+  top:
+    calc(100% + 5px);
+
+  right: 0;
+
+  width: 220px;
+
+  padding: 5px;
+
+  border:
+    1px solid var(--border);
+
+  border-radius: 9px;
+
+  background:
+    var(--bg-card);
+
+  box-shadow:
+    0 18px 45px
+    rgba(0, 0, 0, 0.25);
+}
+
+.action-menu button {
+  display: flex;
+
+  width: 100%;
+
+  align-items: flex-start;
+
+  gap: 8px;
+
+  padding: 8px;
+
+  border: 0;
+  border-radius: 6px;
+
+  background:
+    transparent;
+
+  color:
+    var(--text-secondary);
+
+  font-family:
+    inherit;
+
+  text-align: left;
+
+  cursor: pointer;
+}
+
+.action-menu button:hover {
+  background:
+    var(--bg-card-soft);
+
+  color:
+    var(--primary);
+}
+
+.action-menu svg {
+  flex-shrink: 0;
+
+  margin-top: 2px;
+}
+
+.action-menu strong,
+.action-menu span {
+  display: block;
+}
+
+.action-menu strong {
+  color:
+    var(--text-primary);
+
+  font-size: 8px;
+}
+
+.action-menu span {
+  margin-top: 2px;
+
+  color:
+    var(--text-muted);
+
+  font-size: 7px;
+}
+
+.action-menu .danger-action:hover {
+  background:
+    var(--red-soft);
+
+  color:
+    var(--red);
+}
 
 .empty-state {
   display: flex;
@@ -874,5 +1108,19 @@ tbody tr:hover {
 
 .empty-state span {
   font-size: 9px;
+}
+
+.menu-fade-enter-active,
+.menu-fade-leave-active {
+  transition:
+    0.12s ease;
+}
+
+.menu-fade-enter-from,
+.menu-fade-leave-to {
+  opacity: 0;
+
+  transform:
+    translateY(-3px);
 }
 </style>

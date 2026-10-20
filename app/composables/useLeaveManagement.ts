@@ -1,8 +1,9 @@
 import type {
+  LeaveBalanceSummary,
   LeaveRequest,
+  LeaveRequestFormData,
   LeaveRequestStatus,
   LeaveTypeName,
-  LeaveBalanceSummary,
 } from '~/types/leave'
 
 export const useLeaveManagement = () => {
@@ -10,16 +11,47 @@ export const useLeaveManagement = () => {
     employees,
   } = useEmployees()
 
+  const {
+    leaveTypes,
+  } = useLeaveTypes()
+
   /* =========================================================
-     CURRENT DATE
+     CURRENT DEMO DATE
   ========================================================= */
 
   const currentDate =
     '2026-09-03'
 
   /* =========================================================
-     EMPLOYEE HELPER
+     EMPLOYEES
   ========================================================= */
+
+  const activeEmployees =
+    computed(() => {
+      return employees.value.filter(
+        employee =>
+          employee.status ===
+            'Active' &&
+          employee.department !==
+            'Billing',
+      )
+    })
+
+  const activeLeaveTypes =
+    computed<LeaveTypeName[]>(
+      () => {
+        return leaveTypes.value
+          .filter(
+            type =>
+              type.status ===
+              'Active',
+          )
+          .map(
+            type =>
+              type.name as LeaveTypeName,
+          )
+      },
+    )
 
   const employeeById = (
     id: number,
@@ -30,12 +62,18 @@ export const useLeaveManagement = () => {
     )
   }
 
-  const createLeaveRequest = (
+  /* =========================================================
+     CREATE REQUEST HELPER
+  ========================================================= */
+
+  const createLeaveRequestRecord = (
     data: {
       id: number
+
       employeeId: number
 
-      leaveType: LeaveTypeName
+      leaveType:
+        LeaveTypeName
 
       dateFrom: string
       dateTo: string
@@ -44,7 +82,8 @@ export const useLeaveManagement = () => {
 
       reason?: string
 
-      status: LeaveRequestStatus
+      status:
+        LeaveRequestStatus
 
       filedAt: string
     },
@@ -61,7 +100,8 @@ export const useLeaveManagement = () => {
     }
 
     return {
-      id: data.id,
+      id:
+        data.id,
 
       employeeId:
         employee.id,
@@ -69,13 +109,14 @@ export const useLeaveManagement = () => {
       employeeNumber:
         employee.employeeNumber,
 
-      employeeName: [
-        employee.firstName,
-        employee.middleName,
-        employee.lastName,
-      ]
-        .filter(Boolean)
-        .join(' '),
+      employeeName:
+        [
+          employee.firstName,
+          employee.middleName,
+          employee.lastName,
+        ]
+          .filter(Boolean)
+          .join(' '),
 
       department:
         employee.department,
@@ -107,289 +148,380 @@ export const useLeaveManagement = () => {
   }
 
   /* =========================================================
-     MOCK LEAVE REQUESTS
+     LEAVE REQUESTS
   ========================================================= */
 
   const leaveRequests =
-    ref<LeaveRequest[]>([
-      createLeaveRequest({
-        id: 1,
-        employeeId: 1,
+    useState<LeaveRequest[]>(
+      'leave-management-requests',
+      () => [
+        createLeaveRequestRecord({
+          id: 1,
+          employeeId: 1,
 
-        leaveType:
-          'Vacation Leave',
+          leaveType:
+            'Vacation Leave',
 
-        dateFrom:
-          '2026-09-08',
+          dateFrom:
+            '2026-09-08',
 
-        dateTo:
-          '2026-09-09',
+          dateTo:
+            '2026-09-09',
 
-        days: 2,
+          days: 2,
 
-        reason:
-          'Personal appointment',
+          reason:
+            'Personal appointment',
 
-        status:
-          'Pending',
+          status:
+            'Pending',
 
-        filedAt:
-          '2026-09-02',
-      }),
+          filedAt:
+            '2026-09-02',
+        }),
 
-      createLeaveRequest({
-        id: 2,
-        employeeId: 2,
+        createLeaveRequestRecord({
+          id: 2,
+          employeeId: 2,
 
-        leaveType:
-          'Sick Leave',
+          leaveType:
+            'Sick Leave',
 
-        dateFrom:
-          '2026-09-02',
+          dateFrom:
+            '2026-09-02',
 
-        dateTo:
-          '2026-09-04',
+          dateTo:
+            '2026-09-04',
 
-        days: 3,
+          days: 3,
 
-        reason:
-          'Medical recovery',
+          reason:
+            'Medical recovery',
 
-        status:
-          'Approved',
+          status:
+            'Approved',
 
-        filedAt:
-          '2026-09-01',
-      }),
+          filedAt:
+            '2026-09-01',
+        }),
 
-      createLeaveRequest({
-        id: 3,
-        employeeId: 3,
+        createLeaveRequestRecord({
+          id: 3,
+          employeeId: 3,
 
-        leaveType:
-          'Vacation Leave',
+          leaveType:
+            'Vacation Leave',
 
-        dateFrom:
-          '2026-09-15',
+          dateFrom:
+            '2026-09-15',
 
-        dateTo:
-          '2026-09-16',
+          dateTo:
+            '2026-09-16',
 
-        days: 2,
+          days: 2,
 
-        reason:
-          'Family event',
+          reason:
+            'Family event',
 
-        status:
-          'Pending',
+          status:
+            'Pending',
 
-        filedAt:
-          '2026-09-02',
-      }),
+          filedAt:
+            '2026-09-02',
+        }),
 
-      createLeaveRequest({
-        id: 4,
-        employeeId: 4,
+        createLeaveRequestRecord({
+          id: 4,
+          employeeId: 4,
 
-        leaveType:
-          'Emergency Leave',
+          leaveType:
+            'Emergency Leave',
 
-        dateFrom:
-          '2026-08-28',
+          dateFrom:
+            '2026-08-28',
 
-        dateTo:
-          '2026-08-28',
+          dateTo:
+            '2026-08-28',
 
-        days: 1,
+          days: 1,
 
-        reason:
-          'Family emergency',
+          reason:
+            'Family emergency',
 
-        status:
-          'Approved',
+          status:
+            'Approved',
 
-        filedAt:
-          '2026-08-28',
-      }),
+          filedAt:
+            '2026-08-28',
+        }),
 
-      createLeaveRequest({
-        id: 5,
-        employeeId: 6,
+        createLeaveRequestRecord({
+          id: 5,
+          employeeId: 6,
 
-        leaveType:
-          'Sick Leave',
+          leaveType:
+            'Sick Leave',
 
-        dateFrom:
-          '2026-09-03',
+          dateFrom:
+            '2026-09-03',
 
-        dateTo:
-          '2026-09-03',
+          dateTo:
+            '2026-09-03',
 
-        days: 1,
+          days: 1,
 
-        reason:
-          'Not feeling well',
+          reason:
+            'Not feeling well',
 
-        status:
-          'Approved',
+          status:
+            'Approved',
 
-        filedAt:
-          '2026-09-03',
-      }),
+          filedAt:
+            '2026-09-03',
+        }),
 
-      createLeaveRequest({
-        id: 6,
-        employeeId: 8,
+        createLeaveRequestRecord({
+          id: 6,
+          employeeId: 8,
 
-        leaveType:
-          'Vacation Leave',
+          leaveType:
+            'Vacation Leave',
 
-        dateFrom:
-          '2026-08-20',
+          dateFrom:
+            '2026-08-20',
 
-        dateTo:
-          '2026-08-21',
+          dateTo:
+            '2026-08-21',
 
-        days: 2,
+          days: 2,
 
-        reason:
-          'Personal leave',
+          reason:
+            'Personal leave',
 
-        status:
-          'Rejected',
+          status:
+            'Rejected',
 
-        filedAt:
-          '2026-08-15',
-      }),
+          filedAt:
+            '2026-08-15',
+        }),
 
-      createLeaveRequest({
-        id: 7,
-        employeeId: 9,
+        createLeaveRequestRecord({
+          id: 7,
+          employeeId: 9,
 
-        leaveType:
-          'Vacation Leave',
+          leaveType:
+            'Vacation Leave',
 
-        dateFrom:
-          '2026-09-10',
+          dateFrom:
+            '2026-09-10',
 
-        dateTo:
-          '2026-09-12',
+          dateTo:
+            '2026-09-12',
 
-        days: 3,
+          days: 3,
 
-        reason:
-          'Family vacation',
+          reason:
+            'Family vacation',
 
-        status:
-          'Approved',
+          status:
+            'Approved',
 
-        filedAt:
-          '2026-08-30',
-      }),
-    ])
+          filedAt:
+            '2026-08-30',
+        }),
+      ],
+    )
 
   /* =========================================================
-     LEAVE BALANCES
+     BALANCES
   ========================================================= */
 
   const leaveBalances =
-    ref<LeaveBalanceSummary[]>([
-      {
-        id: 1,
+    useState<LeaveBalanceSummary[]>(
+      'leave-management-balances',
+      () => [
+        {
+          id: 1,
+
+          leaveType:
+            'Vacation Leave',
+
+          total: 120,
+          used: 36,
+          available: 84,
+        },
+
+        {
+          id: 2,
+
+          leaveType:
+            'Sick Leave',
+
+          total: 120,
+          used: 21,
+          available: 99,
+        },
+
+        {
+          id: 3,
+
+          leaveType:
+            'Emergency Leave',
+
+          total: 60,
+          used: 8,
+          available: 52,
+        },
+
+        {
+          id: 4,
+
+          leaveType:
+            'Special Leave',
+
+          total: 24,
+          used: 2,
+          available: 22,
+        },
+      ],
+    )
+
+  /* =========================================================
+     FILE LEAVE
+  ========================================================= */
+
+  const fileLeaveRequest = (
+    data:
+      LeaveRequestFormData,
+  ) => {
+    const employee =
+      employeeById(
+        Number(
+          data.employeeId,
+        ),
+      )
+
+    if (!employee) {
+      return null
+    }
+
+    const nextId =
+      leaveRequests.value.length
+        ? Math.max(
+            ...leaveRequests.value.map(
+              request =>
+                request.id,
+            ),
+          ) + 1
+        : 1
+
+    const request =
+      createLeaveRequestRecord({
+        id:
+          nextId,
+
+        employeeId:
+          Number(
+            data.employeeId,
+          ),
 
         leaveType:
-          'Vacation Leave',
+          data.leaveType,
 
-        total: 120,
-        used: 36,
-        available: 84,
-      },
+        dateFrom:
+          data.dateFrom,
 
-      {
-        id: 2,
+        dateTo:
+          data.dateTo,
 
-        leaveType:
-          'Sick Leave',
+        days:
+          data.days,
 
-        total: 120,
-        used: 21,
-        available: 99,
-      },
+        reason:
+          data.reason,
 
-      {
-        id: 3,
+        status:
+          'Pending',
 
-        leaveType:
-          'Emergency Leave',
+        filedAt:
+          currentDate,
+      })
 
-        total: 60,
-        used: 8,
-        available: 52,
-      },
+    leaveRequests.value.unshift(
+      request,
+    )
 
-      {
-        id: 4,
+    return request
+  }
 
-        leaveType:
-          'Special Leave',
+  /* =========================================================
+     GET
+  ========================================================= */
 
-        total: 24,
-        used: 2,
-        available: 22,
-      },
-    ])
+  const getLeaveRequestById = (
+    id:
+      number |
+      string,
+  ) => {
+    return leaveRequests.value.find(
+      request =>
+        request.id ===
+        Number(id),
+    )
+  }
 
   /* =========================================================
      STATS
   ========================================================= */
 
-  const stats = computed(() => {
-    const pending =
-      leaveRequests.value.filter(
-        request =>
-          request.status ===
-          'Pending',
-      ).length
+  const stats =
+    computed(() => {
+      const pending =
+        leaveRequests.value.filter(
+          request =>
+            request.status ===
+            'Pending',
+        ).length
 
-    const approvedThisMonth =
-      leaveRequests.value.filter(
-        request =>
-          request.status ===
-            'Approved' &&
-          request.dateFrom.startsWith(
-            '2026-09',
-          ),
-      ).length
+      const approvedThisMonth =
+        leaveRequests.value.filter(
+          request =>
+            request.status ===
+              'Approved' &&
+            request.dateFrom.startsWith(
+              '2026-09',
+            ),
+        ).length
 
-    const onLeave =
-      leaveRequests.value.filter(
-        request =>
-          request.status ===
-            'Approved' &&
-          request.dateFrom <=
-            currentDate &&
-          request.dateTo >=
-            currentDate,
-      ).length
+      const onLeave =
+        leaveRequests.value.filter(
+          request =>
+            request.status ===
+              'Approved' &&
+            request.dateFrom <=
+              currentDate &&
+            request.dateTo >=
+              currentDate,
+        ).length
 
-    const remainingCredits =
-      leaveBalances.value.reduce(
-        (
-          total,
-          leave,
-        ) =>
-          total +
-          leave.available,
-        0,
-      )
+      const remainingCredits =
+        leaveBalances.value.reduce(
+          (
+            total,
+            leave,
+          ) =>
+            total +
+            leave.available,
+          0,
+        )
 
-    return {
-      pending,
-      approvedThisMonth,
-      onLeave,
-      remainingCredits,
-    }
-  })
+      return {
+        pending,
+        approvedThisMonth,
+        onLeave,
+        remainingCredits,
+      }
+    })
 
   /* =========================================================
      CURRENTLY ON LEAVE
@@ -409,7 +541,7 @@ export const useLeaveManagement = () => {
     })
 
   /* =========================================================
-     PENDING REQUESTS
+     PENDING
   ========================================================= */
 
   const pendingRequests =
@@ -422,22 +554,33 @@ export const useLeaveManagement = () => {
     })
 
   /* =========================================================
-     RECENT REQUESTS
+     RECENT
   ========================================================= */
 
-  const recentRequests =
-    computed(() => {
-      return [
-        ...leaveRequests.value,
-      ].sort(
-        (a, b) =>
+ const recentRequests =
+  computed(() => {
+    return [
+      ...leaveRequests.value,
+    ]
+      .sort(
+        (
+          a,
+          b,
+        ) =>
           b.filedAt.localeCompare(
             a.filedAt,
           ),
       )
-    })
+      .slice(
+        0,
+        5,
+      )
+  })
 
   return {
+    activeEmployees,
+    activeLeaveTypes,
+
     leaveRequests,
     leaveBalances,
 
@@ -447,5 +590,8 @@ export const useLeaveManagement = () => {
     pendingRequests,
 
     recentRequests,
+
+    fileLeaveRequest,
+    getLeaveRequestById,
   }
 }

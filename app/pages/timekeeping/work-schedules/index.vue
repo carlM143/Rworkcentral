@@ -8,8 +8,6 @@ import AddWorkScheduleModal from '~/components/timekeeping/work-schedules/AddWor
 
 import AssignEmployeesModal from '~/components/timekeeping/work-schedules/AssignEmployeesModal.vue'
 
-import ManageRestDaysModal from '~/components/timekeeping/work-schedules/ManageRestDaysModal.vue'
-
 import EditWorkScheduleModal from '~/components/timekeeping/work-schedules/EditWorkScheduleModal.vue'
 
 import type {
@@ -62,9 +60,6 @@ const addScheduleOpen =
   ref(false)
 
 const assignEmployeesOpen =
-  ref(false)
-
-const manageRestDaysOpen =
   ref(false)
 
 const editScheduleOpen =
@@ -336,10 +331,6 @@ const handleSaveSchedule = (
     gracePeriod:
       data.gracePeriod,
 
-    restDays: [
-      ...data.restDays,
-    ],
-
     employeeCount:
       0,
 
@@ -495,10 +486,6 @@ const handleSaveEditedSchedule = (
 
   schedule.gracePeriod =
     data.gracePeriod
-
-  schedule.restDays = [
-    ...data.restDays,
-  ]
 
   schedule.status =
     data.status
@@ -732,99 +719,6 @@ const closeAssignEmployees =
   }
 
 /* =========================================================
-   QUICK ACTION — REST DAYS
-========================================================= */
-
-const handleRestDays =
-  () => {
-    selectedScheduleForAction
-      .value =
-      null
-
-    manageRestDaysOpen.value =
-      true
-  }
-
-/* =========================================================
-   ROW ACTION — REST DAYS
-========================================================= */
-
-const handleScheduleRestDays = (
-  schedule:
-    WorkSchedule,
-) => {
-  selectedScheduleForAction
-    .value =
-    schedule
-
-  manageRestDaysOpen.value =
-    true
-}
-
-/* =========================================================
-   SAVE REST DAYS
-========================================================= */
-
-const handleSaveRestDays = (
-  data: {
-    scheduleId: number
-
-    restDays: string[]
-
-    effectiveDate: string
-  },
-) => {
-  const schedule =
-    schedules.value.find(
-      item =>
-        item.id ===
-        data.scheduleId,
-    )
-
-  if (!schedule) {
-    info(
-      'Schedule Not Found',
-      'The selected work schedule could not be found.',
-    )
-
-    return
-  }
-
-  schedule.restDays = [
-    ...data.restDays,
-  ]
-
-  recentActivity.value.unshift({
-    id:
-      Date.now(),
-
-    title:
-      `${schedule.name} Rest Days Updated`,
-
-    description:
-      `Default rest day configuration was updated to ${data.restDays.join(', ')}.`,
-
-    performedBy:
-      'Maria Santos',
-
-    date:
-      data.effectiveDate,
-  })
-
-  manageRestDaysOpen.value =
-    false
-
-  selectedScheduleForAction
-    .value =
-    null
-
-  success(
-    'Rest Days Updated',
-    `${schedule.name} rest day configuration has been updated.`,
-  )
-}
-
-/* =========================================================
    CLOSE REST DAYS
 ========================================================= */
 
@@ -940,11 +834,10 @@ const handleToggleScheduleStatus = (
 
 <template>
   <section class="work-schedules-page">
-
-    <PageHeader
-      title="Work Schedules"
-      description="Manage employee work schedules, shifts, break times and rest day assignments."
-    >
+<PageHeader
+  title="Work Schedules"
+  description="Manage reusable employee shifts, working hours, break periods and schedule assignments."
+>
 
       <AppButton
         :icon="Plus"
@@ -1019,9 +912,7 @@ const handleToggleScheduleStatus = (
           @assign="
             handleScheduleAssign
           "
-          @rest-days="
-            handleScheduleRestDays
-          "
+
           @employees="
             handleViewAssignedEmployees
           "
@@ -1047,9 +938,6 @@ const handleToggleScheduleStatus = (
         "
         @assign="
           handleAssignEmployees
-        "
-        @rest-days="
-          handleRestDays
         "
       />
 
@@ -1105,22 +993,6 @@ const handleToggleScheduleStatus = (
       "
     />
 
-    <!-- REST DAYS -->
-
-    <ManageRestDaysModal
-      :open="
-        manageRestDaysOpen
-      "
-      :schedules="
-        actionModalSchedules
-      "
-      @close="
-        closeManageRestDays
-      "
-      @save="
-        handleSaveRestDays
-      "
-    />
 
   </section>
 </template>

@@ -17,23 +17,38 @@ type ExportScope =
   | 'Selected Date Range'
 
 interface TimeLogExportPayload {
-  format: ExportFormat
+  format:
+    ExportFormat
 
-  scope: ExportScope
+  scope:
+    ExportScope
 
-  includeEmployee: boolean
+  includeEmployee:
+    boolean
 
-  includeSchedule: boolean
+  includeAssignment:
+    boolean
 
-  includeTimeEntries: boolean
+  includeSchedule:
+    boolean
 
-  includeBreaks: boolean
+  includeTimeEntries:
+    boolean
 
-  includeIssues: boolean
+  includeBreaks:
+    boolean
 
-  includeWorkedHours: boolean
+  includeIssues:
+    boolean
 
-  includeStatus: boolean
+  includeWorkedHours:
+    boolean
+
+  includeSource:
+    boolean
+
+  includeStatus:
+    boolean
 }
 
 const props =
@@ -42,12 +57,15 @@ const props =
 
     recordCount: number
 
-    department?: string
+    workScope?: string
+    client?: string
+    workLocation?: string
 
+    department?: string
+    attendanceSource?: string
     status?: string
 
     dateFrom?: string
-
     dateTo?: string
   }>()
 
@@ -62,7 +80,7 @@ const emit =
   }>()
 
 /* =========================================================
-   FORM
+   FORMAT
 ========================================================= */
 
 const format =
@@ -70,12 +88,67 @@ const format =
     'Excel',
   )
 
+const formats = [
+  {
+    value:
+      'Excel' as const,
+
+    label:
+      'Excel',
+
+    icon:
+      FileSpreadsheet,
+
+    description:
+      'Best for attendance review, payroll reconciliation and spreadsheet processing.',
+  },
+
+  {
+    value:
+      'PDF' as const,
+
+    label:
+      'PDF',
+
+    icon:
+      FileText,
+
+    description:
+      'Generate a formatted and printable attendance report.',
+  },
+
+  {
+    value:
+      'CSV' as const,
+
+    label:
+      'CSV',
+
+    icon:
+      Table2,
+
+    description:
+      'Export raw attendance records for external processing.',
+  },
+]
+
+/* =========================================================
+   SCOPE
+========================================================= */
+
 const scope =
   ref<ExportScope>(
     'Current Filters',
   )
 
+/* =========================================================
+   INCLUDED FIELDS
+========================================================= */
+
 const includeEmployee =
+  ref(true)
+
+const includeAssignment =
   ref(true)
 
 const includeSchedule =
@@ -93,59 +166,14 @@ const includeIssues =
 const includeWorkedHours =
   ref(true)
 
+const includeSource =
+  ref(true)
+
 const includeStatus =
   ref(true)
 
 /* =========================================================
-   FORMATS
-========================================================= */
-
-const formats = [
-  {
-    value:
-      'Excel' as const,
-
-    label:
-      'Excel',
-
-    description:
-      'Best for attendance analysis, filtering and calculations.',
-
-    icon:
-      FileSpreadsheet,
-  },
-
-  {
-    value:
-      'PDF' as const,
-
-    label:
-      'PDF',
-
-    description:
-      'Best for printable DTR and attendance reports.',
-
-    icon:
-      FileText,
-  },
-
-  {
-    value:
-      'CSV' as const,
-
-    label:
-      'CSV',
-
-    description:
-      'Simple raw employee time log data.',
-
-    icon:
-      Table2,
-  },
-]
-
-/* =========================================================
-   DATE FORMAT
+   FORMAT DATE
 ========================================================= */
 
 const formatDate = (
@@ -184,7 +212,7 @@ const formatDate = (
 }
 
 /* =========================================================
-   RESET
+   RESET MODAL
 ========================================================= */
 
 const resetModal = () => {
@@ -195,6 +223,9 @@ const resetModal = () => {
     'Current Filters'
 
   includeEmployee.value =
+    true
+
+  includeAssignment.value =
     true
 
   includeSchedule.value =
@@ -212,12 +243,16 @@ const resetModal = () => {
   includeWorkedHours.value =
     true
 
+  includeSource.value =
+    true
+
   includeStatus.value =
     true
 }
 
 watch(
-  () => props.open,
+  () =>
+    props.open,
   value => {
     if (value) {
       resetModal()
@@ -242,6 +277,9 @@ const handleExport = () => {
       includeEmployee:
         includeEmployee.value,
 
+      includeAssignment:
+        includeAssignment.value,
+
       includeSchedule:
         includeSchedule.value,
 
@@ -256,6 +294,9 @@ const handleExport = () => {
 
       includeWorkedHours:
         includeWorkedHours.value,
+
+      includeSource:
+        includeSource.value,
 
       includeStatus:
         includeStatus.value,
@@ -288,9 +329,11 @@ const handleExport = () => {
             <div class="header-main">
 
               <div class="header-icon">
+
                 <Download
                   :size="18"
                 />
+
               </div>
 
               <div>
@@ -300,7 +343,7 @@ const handleExport = () => {
                 </h2>
 
                 <p>
-                  Export employee attendance and detailed time log records.
+                  Export centralized internal and client-assigned attendance records.
                 </p>
 
               </div>
@@ -314,14 +357,18 @@ const handleExport = () => {
                 emit('close')
               "
             >
+
               <X :size="18" />
+
             </button>
 
           </header>
 
+          <!-- BODY -->
+
           <div class="modal-body">
 
-            <!-- FILTER SUMMARY -->
+            <!-- SUMMARY -->
 
             <section class="filter-summary">
 
@@ -340,6 +387,36 @@ const handleExport = () => {
               <div>
 
                 <span>
+                  ASSIGNMENT
+                </span>
+
+                <strong>
+                  {{
+                    workScope ||
+                    'All Employees'
+                  }}
+                </strong>
+
+              </div>
+
+              <div>
+
+                <span>
+                  CLIENT
+                </span>
+
+                <strong>
+                  {{
+                    client ||
+                    'All Clients'
+                  }}
+                </strong>
+
+              </div>
+
+              <div>
+
+                <span>
                   DEPARTMENT
                 </span>
 
@@ -347,6 +424,40 @@ const handleExport = () => {
                   {{
                     department ||
                     'All Departments'
+                  }}
+                </strong>
+
+              </div>
+
+            </section>
+
+            <section class="secondary-summary">
+
+              <div>
+
+                <span>
+                  WORK LOCATION
+                </span>
+
+                <strong>
+                  {{
+                    workLocation ||
+                    'All Locations'
+                  }}
+                </strong>
+
+              </div>
+
+              <div>
+
+                <span>
+                  ATTENDANCE SOURCE
+                </span>
+
+                <strong>
+                  {{
+                    attendanceSource ||
+                    'All Sources'
                   }}
                 </strong>
 
@@ -422,8 +533,12 @@ const handleExport = () => {
               <div class="format-grid">
 
                 <button
-                  v-for="item in formats"
-                  :key="item.value"
+                  v-for="
+                    item in formats
+                  "
+                  :key="
+                    item.value
+                  "
                   type="button"
                   class="format-option"
                   :class="{
@@ -440,7 +555,9 @@ const handleExport = () => {
                   <div class="format-icon">
 
                     <component
-                      :is="item.icon"
+                      :is="
+                        item.icon
+                      "
                       :size="18"
                     />
 
@@ -460,7 +577,7 @@ const handleExport = () => {
 
             </section>
 
-            <!-- SCOPE -->
+            <!-- EXPORT SCOPE -->
 
             <section class="form-section">
 
@@ -483,7 +600,8 @@ const handleExport = () => {
                   </strong>
 
                   <span>
-                    Export records matching the current employee, department, status and date filters.
+                    Export records matching the current employee, assignment,
+                    client, location, source and attendance filters.
                   </span>
 
                 </div>
@@ -505,7 +623,7 @@ const handleExport = () => {
                   </strong>
 
                   <span>
-                    Export all time logs within the selected From and To dates.
+                    Export all available time logs within the selected dates.
                   </span>
 
                 </div>
@@ -540,7 +658,30 @@ const handleExport = () => {
                     </strong>
 
                     <span>
-                      Employee number, name and department.
+                      Employee number, name, department and position.
+                    </span>
+
+                  </div>
+
+                </label>
+
+                <label>
+
+                  <input
+                    v-model="
+                      includeAssignment
+                    "
+                    type="checkbox"
+                  >
+
+                  <div>
+
+                    <strong>
+                      Assignment & Location
+                    </strong>
+
+                    <span>
+                      Internal/client assignment and employee work location.
                     </span>
 
                   </div>
@@ -632,7 +773,7 @@ const handleExport = () => {
                     </strong>
 
                     <span>
-                      Late and undertime minutes recorded.
+                      Recorded late and undertime minutes.
                     </span>
 
                   </div>
@@ -666,6 +807,29 @@ const handleExport = () => {
 
                   <input
                     v-model="
+                      includeSource
+                    "
+                    type="checkbox"
+                  >
+
+                  <div>
+
+                    <strong>
+                      Attendance Source
+                    </strong>
+
+                    <span>
+                      RWorkCentral biometric, client biometric or other source.
+                    </span>
+
+                  </div>
+
+                </label>
+
+                <label>
+
+                  <input
+                    v-model="
                       includeStatus
                     "
                     type="checkbox"
@@ -678,7 +842,7 @@ const handleExport = () => {
                     </strong>
 
                     <span>
-                      Complete, incomplete, missing log and other statuses.
+                      Complete, incomplete, missing log, leave or rest day.
                     </span>
 
                   </div>
@@ -727,10 +891,13 @@ const handleExport = () => {
 <style scoped>
 .modal-overlay {
   position: fixed;
+
   z-index: 99990;
+
   inset: 0;
 
   display: flex;
+
   align-items: center;
   justify-content: center;
 
@@ -745,7 +912,8 @@ const handleExport = () => {
 
 .modal-card {
   width: 100%;
-  max-width: 660px;
+
+  max-width: 700px;
 
   max-height:
     calc(100vh - 44px);
@@ -765,18 +933,24 @@ const handleExport = () => {
     rgba(0, 0, 0, 0.3);
 }
 
+/* HEADER */
+
 .modal-header {
   position: sticky;
+
   z-index: 5;
+
   top: 0;
 
   display: flex;
+
   align-items: center;
   justify-content: space-between;
 
   gap: 15px;
 
-  padding: 16px 18px;
+  padding:
+    16px 18px;
 
   border-bottom:
     1px solid var(--border);
@@ -787,7 +961,9 @@ const handleExport = () => {
 
 .header-main {
   display: flex;
+
   align-items: center;
+
   gap: 10px;
 }
 
@@ -799,6 +975,8 @@ const handleExport = () => {
 
   align-items: center;
   justify-content: center;
+
+  flex-shrink: 0;
 
   border-radius: 9px;
 
@@ -819,7 +997,8 @@ const handleExport = () => {
 }
 
 .modal-header p {
-  margin: 3px 0 0;
+  margin:
+    3px 0 0;
 
   color:
     var(--text-muted);
@@ -850,15 +1029,23 @@ const handleExport = () => {
   cursor: pointer;
 }
 
+/* BODY */
+
 .modal-body {
-  padding: 16px 18px;
+  padding:
+    16px 18px;
 }
+
+/* SUMMARY */
 
 .filter-summary {
   display: grid;
 
   grid-template-columns:
-    repeat(3, minmax(0, 1fr));
+    repeat(
+      4,
+      minmax(0, 1fr)
+    );
 
   gap: 7px;
 
@@ -873,12 +1060,41 @@ const handleExport = () => {
     var(--bg-card-soft);
 }
 
+.secondary-summary {
+  display: grid;
+
+  grid-template-columns:
+    repeat(
+      3,
+      minmax(0, 1fr)
+    );
+
+  gap: 7px;
+
+  margin-top: 7px;
+}
+
+.secondary-summary > div {
+  padding: 9px;
+
+  border:
+    1px solid var(--border-soft);
+
+  border-radius: 7px;
+
+  background:
+    var(--bg-card-soft);
+}
+
 .filter-summary span,
-.filter-summary strong {
+.filter-summary strong,
+.secondary-summary span,
+.secondary-summary strong {
   display: block;
 }
 
-.filter-summary span {
+.filter-summary span,
+.secondary-summary span {
   color:
     var(--text-muted);
 
@@ -886,14 +1102,23 @@ const handleExport = () => {
   font-weight: 700;
 }
 
-.filter-summary strong {
+.filter-summary strong,
+.secondary-summary strong {
   margin-top: 3px;
+
+  overflow: hidden;
 
   color:
     var(--text-primary);
 
   font-size: 8px;
+
+  text-overflow: ellipsis;
+
+  white-space: nowrap;
 }
+
+/* DATE */
 
 .date-summary {
   display: grid;
@@ -907,7 +1132,8 @@ const handleExport = () => {
 
   margin-top: 8px;
 
-  padding: 9px 10px;
+  padding:
+    9px 10px;
 
   border-radius: 8px;
 
@@ -937,7 +1163,8 @@ const handleExport = () => {
   font-size: 8px;
 }
 
-.date-summary > div:last-child {
+.date-summary >
+div:last-child {
   text-align: right;
 }
 
@@ -947,6 +1174,8 @@ const handleExport = () => {
 
   font-size: 13px;
 }
+
+/* SECTIONS */
 
 .form-section {
   margin-top: 16px;
@@ -962,11 +1191,16 @@ const handleExport = () => {
   font-weight: 700;
 }
 
+/* FORMAT */
+
 .format-grid {
   display: grid;
 
   grid-template-columns:
-    repeat(3, minmax(0, 1fr));
+    repeat(
+      3,
+      minmax(0, 1fr)
+    );
 
   gap: 7px;
 }
@@ -974,9 +1208,10 @@ const handleExport = () => {
 .format-option {
   display: flex;
 
-  min-height: 105px;
+  min-height: 110px;
 
   flex-direction: column;
+
   align-items: flex-start;
 
   gap: 5px;
@@ -993,6 +1228,9 @@ const handleExport = () => {
 
   color:
     var(--text-secondary);
+
+  font-family:
+    inherit;
 
   text-align: left;
 
@@ -1046,6 +1284,8 @@ const handleExport = () => {
 
   line-height: 1.45;
 }
+
+/* RADIO */
 
 .radio-option {
   display: flex;
@@ -1104,11 +1344,16 @@ const handleExport = () => {
   line-height: 1.4;
 }
 
+/* CHECKBOX */
+
 .checkbox-grid {
   display: grid;
 
   grid-template-columns:
-    repeat(2, minmax(0, 1fr));
+    repeat(
+      2,
+      minmax(0, 1fr)
+    );
 
   gap: 6px;
 }
@@ -1133,9 +1378,13 @@ const handleExport = () => {
   cursor: pointer;
 }
 
+/* FOOTER */
+
 .modal-footer {
   position: sticky;
+
   z-index: 5;
+
   bottom: 0;
 
   display: flex;
@@ -1145,7 +1394,8 @@ const handleExport = () => {
 
   gap: 7px;
 
-  padding: 13px 18px;
+  padding:
+    13px 18px;
 
   border-top:
     1px solid var(--border);
@@ -1153,6 +1403,8 @@ const handleExport = () => {
   background:
     var(--bg-card);
 }
+
+/* TRANSITION */
 
 .export-modal-enter-active,
 .export-modal-leave-active {
@@ -1165,16 +1417,20 @@ const handleExport = () => {
   opacity: 0;
 }
 
+/* RESPONSIVE */
+
 @media (max-width: 650px) {
   .modal-overlay {
     padding: 12px;
   }
 
   .filter-summary,
+  .secondary-summary,
   .format-grid,
   .checkbox-grid,
   .date-summary {
-    grid-template-columns: 1fr;
+    grid-template-columns:
+      1fr;
   }
 
   .date-summary >
@@ -1183,12 +1439,15 @@ const handleExport = () => {
   }
 
   .date-arrow {
-    transform: rotate(90deg);
+    transform:
+      rotate(90deg);
   }
 
   .modal-footer {
     align-items: stretch;
-    flex-direction: column-reverse;
+
+    flex-direction:
+      column-reverse;
   }
 }
 </style>

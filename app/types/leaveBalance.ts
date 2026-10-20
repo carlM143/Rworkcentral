@@ -3,6 +3,22 @@ export type LeaveBalanceStatus =
   | 'Low Balance'
   | 'Exhausted'
 
+export type LeaveCreditType =
+  | 'Vacation Leave'
+  | 'Sick Leave'
+  | 'Emergency Leave'
+  | 'Special Leave'
+
+export type LeaveCreditKey =
+  | 'vacationLeave'
+  | 'sickLeave'
+  | 'emergencyLeave'
+  | 'specialLeave'
+
+export type LeaveCreditAdjustmentType =
+  | 'Add Credits'
+  | 'Deduct Credits'
+
 export interface LeaveCreditBreakdown {
   allocated: number
   used: number
@@ -31,4 +47,18 @@ export interface LeaveBalance {
   status: LeaveBalanceStatus
 
   lastUpdated: string
+}
+
+export interface LeaveCreditAdjustmentFormData {
+  employeeId: number
+
+  leaveType:
+    LeaveCreditType
+
+  adjustmentType:
+    LeaveCreditAdjustmentType
+
+  days: number
+
+  reason: string
 }

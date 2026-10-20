@@ -2,6 +2,7 @@
 import {
   CalendarDays,
   MoreHorizontal,
+  SlidersHorizontal,
   UserRound,
 } from 'lucide-vue-next'
 
@@ -14,6 +15,62 @@ defineProps<{
   balances:
     LeaveBalance[]
 }>()
+
+const emit =
+  defineEmits<{
+    employee: [
+      balance:
+        LeaveBalance,
+    ]
+
+    adjust: [
+      balance:
+        LeaveBalance,
+    ]
+  }>()
+
+const openMenuId =
+  ref<number | null>(
+    null,
+  )
+
+const toggleMenu = (
+  id: number,
+) => {
+  openMenuId.value =
+    openMenuId.value === id
+      ? null
+      : id
+}
+
+const closeMenu = () => {
+  openMenuId.value =
+    null
+}
+
+const handleEmployee = (
+  balance:
+    LeaveBalance,
+) => {
+  closeMenu()
+
+  emit(
+    'employee',
+    balance,
+  )
+}
+
+const handleAdjust = (
+  balance:
+    LeaveBalance,
+) => {
+  closeMenu()
+
+  emit(
+    'adjust',
+    balance,
+  )
+}
 
 const formatDate = (
   value: string,
@@ -130,19 +187,13 @@ const statusClass = (
                 <div>
 
                   <strong>
-                    {{
-                      item.employeeName
-                    }}
+                    {{ item.employeeName }}
                   </strong>
 
                   <span>
-                    {{
-                      item.employeeNumber
-                    }}
+                    {{ item.employeeNumber }}
                     ·
-                    {{
-                      item.position
-                    }}
+                    {{ item.position }}
                   </span>
 
                 </div>
@@ -151,159 +202,103 @@ const statusClass = (
 
             </td>
 
-            <!-- DEPARTMENT -->
-
             <td>
 
               <strong class="department">
-                {{
-                  item.department
-                }}
+                {{ item.department }}
               </strong>
 
             </td>
 
-            <!-- VL -->
-
             <td>
 
               <div class="credit-cell">
 
                 <strong>
-                  {{
-                    item.vacationLeave.available
-                  }}
+                  {{ item.vacationLeave.available }}
                 </strong>
 
                 <span>
-                  {{
-                    item.vacationLeave.used
-                  }}
+                  {{ item.vacationLeave.used }}
                   used /
-                  {{
-                    item.vacationLeave.allocated
-                  }}
+                  {{ item.vacationLeave.allocated }}
                 </span>
 
               </div>
 
             </td>
 
-            <!-- SL -->
-
             <td>
 
               <div class="credit-cell">
 
                 <strong>
-                  {{
-                    item.sickLeave.available
-                  }}
+                  {{ item.sickLeave.available }}
                 </strong>
 
                 <span>
-                  {{
-                    item.sickLeave.used
-                  }}
+                  {{ item.sickLeave.used }}
                   used /
-                  {{
-                    item.sickLeave.allocated
-                  }}
+                  {{ item.sickLeave.allocated }}
                 </span>
 
               </div>
 
             </td>
 
-            <!-- EL -->
-
             <td>
 
               <div class="credit-cell">
 
                 <strong>
-                  {{
-                    item.emergencyLeave.available
-                  }}
+                  {{ item.emergencyLeave.available }}
                 </strong>
 
                 <span>
-                  {{
-                    item.emergencyLeave.used
-                  }}
+                  {{ item.emergencyLeave.used }}
                   used /
-                  {{
-                    item.emergencyLeave.allocated
-                  }}
+                  {{ item.emergencyLeave.allocated }}
                 </span>
 
               </div>
 
             </td>
 
-            <!-- SPECIAL -->
-
             <td>
 
               <div class="credit-cell">
 
                 <strong>
-                  {{
-                    item.specialLeave.available
-                  }}
+                  {{ item.specialLeave.available }}
                 </strong>
 
                 <span>
-                  {{
-                    item.specialLeave.used
-                  }}
+                  {{ item.specialLeave.used }}
                   used /
-                  {{
-                    item.specialLeave.allocated
-                  }}
+                  {{ item.specialLeave.allocated }}
                 </span>
 
               </div>
 
             </td>
 
-            <!-- TOTAL -->
-
             <td>
-
               <strong class="total-value">
-                {{
-                  item.totalAllocated
-                }}
+                {{ item.totalAllocated }}
               </strong>
-
             </td>
 
-            <!-- USED -->
-
             <td>
-
               <strong class="used-value">
-                {{
-                  item.totalUsed
-                }}
+                {{ item.totalUsed }}
               </strong>
-
             </td>
-
-            <!-- AVAILABLE -->
 
             <td>
-
               <strong class="available-value">
-                {{
-                  item.totalAvailable
-                }}
+                {{ item.totalAvailable }}
               </strong>
-
             </td>
-
-            <!-- STATUS -->
 
             <td>
 
@@ -318,15 +313,11 @@ const statusClass = (
 
                 <span class="status-dot" />
 
-                {{
-                  item.status
-                }}
+                {{ item.status }}
 
               </span>
 
             </td>
-
-            <!-- UPDATED -->
 
             <td>
 
@@ -348,19 +339,62 @@ const statusClass = (
 
             <!-- ACTION -->
 
-            <td>
+            <td class="action-cell">
 
               <button
                 type="button"
                 class="action-button"
-                title="Actions will be added later"
+                title="More actions"
+                @click.stop="
+                  toggleMenu(
+                    item.id,
+                  )
+                "
               >
-
                 <MoreHorizontal
                   :size="17"
                 />
-
               </button>
+
+              <div
+                v-if="
+                  openMenuId ===
+                  item.id
+                "
+                class="action-menu"
+              >
+
+                <button
+                  type="button"
+                  @click="
+                    handleEmployee(
+                      item,
+                    )
+                  "
+                >
+                  <UserRound
+                    :size="14"
+                  />
+
+                  View Employee
+                </button>
+
+                <button
+                  type="button"
+                  @click="
+                    handleAdjust(
+                      item,
+                    )
+                  "
+                >
+                  <SlidersHorizontal
+                    :size="14"
+                  />
+
+                  Adjust Credits
+                </button>
+
+              </div>
 
             </td>
 
@@ -396,8 +430,6 @@ const statusClass = (
 
 <style scoped>
 .table-card {
-  overflow: hidden;
-
   border:
     1px solid var(--border);
 
@@ -468,7 +500,8 @@ th {
   text-transform:
     uppercase;
 
-  white-space: nowrap;
+  white-space:
+    nowrap;
 }
 
 td {
@@ -483,7 +516,8 @@ td {
 
   font-size: 9px;
 
-  vertical-align: middle;
+  vertical-align:
+    middle;
 }
 
 tbody tr:hover {
@@ -507,10 +541,10 @@ tbody tr:hover {
   width: 32px;
   height: 32px;
 
+  flex-shrink: 0;
+
   align-items: center;
   justify-content: center;
-
-  flex-shrink: 0;
 
   border-radius: 8px;
 
@@ -546,7 +580,8 @@ tbody tr:hover {
   color:
     var(--text-primary);
 
-  white-space: nowrap;
+  white-space:
+    nowrap;
 }
 
 .credit-cell {
@@ -606,7 +641,8 @@ tbody tr:hover {
   font-size: 8px;
   font-weight: 650;
 
-  white-space: nowrap;
+  white-space:
+    nowrap;
 }
 
 .status-dot {
@@ -650,7 +686,8 @@ tbody tr:hover {
 
   gap: 5px;
 
-  white-space: nowrap;
+  white-space:
+    nowrap;
 }
 
 .updated-cell svg {
@@ -658,8 +695,16 @@ tbody tr:hover {
     var(--text-muted);
 }
 
+.action-cell {
+  position: relative;
+
+  width: 45px;
+
+  text-align: right;
+}
+
 .action-button {
-  display: flex;
+  display: inline-flex;
 
   width: 31px;
   height: 31px;
@@ -677,6 +722,8 @@ tbody tr:hover {
 
   color:
     var(--text-secondary);
+
+  cursor: pointer;
 }
 
 .action-button:hover {
@@ -685,6 +732,67 @@ tbody tr:hover {
 
   background:
     var(--bg-card-soft);
+
+  color:
+    var(--primary);
+}
+
+.action-menu {
+  position: absolute;
+  z-index: 50;
+
+  top: 44px;
+  right: 10px;
+
+  width: 160px;
+
+  overflow: hidden;
+
+  border:
+    1px solid var(--border);
+
+  border-radius: 8px;
+
+  background:
+    var(--bg-card);
+
+  box-shadow:
+    0 12px 35px
+    rgba(0, 0, 0, 0.22);
+}
+
+.action-menu button {
+  display: flex;
+
+  width: 100%;
+
+  align-items: center;
+
+  gap: 8px;
+
+  padding:
+    9px 10px;
+
+  border: 0;
+
+  background:
+    transparent;
+
+  color:
+    var(--text-secondary);
+
+  font-family: inherit;
+
+  font-size: 8px;
+
+  text-align: left;
+
+  cursor: pointer;
+}
+
+.action-menu button:hover {
+  background:
+    var(--primary-soft);
 
   color:
     var(--primary);

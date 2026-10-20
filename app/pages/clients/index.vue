@@ -1,13 +1,40 @@
 <script setup lang="ts">
 import {
-  Plus,
   Download,
+  Plus,
   RotateCcw,
 } from 'lucide-vue-next'
+
+import ClientFormModal from '~/components/clients/ClientFormModal.vue'
+import ClientDetailsModal from '~/components/clients/ClientDetailsModal.vue'
+import ClientExportModal from '~/components/clients/ClientExportModal.vue'
 
 import type {
   Client,
 } from '~/types/client'
+
+type ClientFormData = {
+  code: string
+  name: string
+  industry: string
+
+  contactPerson: string
+  email: string
+  phone: string
+
+  address: string
+
+  branches: number
+
+  contractStart: string
+  contractEnd: string
+
+  contractStatus:
+    Client['contractStatus']
+
+  status:
+    Client['status']
+}
 
 const {
   search,
@@ -31,6 +58,9 @@ const {
   statusOptions,
   contractOptions,
 
+  createClient,
+  updateClient,
+
   resetFilters,
 } = useClientsOverview()
 
@@ -38,44 +68,194 @@ const router =
   useRouter()
 
 const {
+  success,
   info,
 } = useToast()
 
-const handleAddClient = () => {
-  info(
-    'Add Client',
-    'Client creation form will be implemented after the Clients Overview.',
-  )
-}
+/* =========================================================
+   FORM MODAL
+========================================================= */
 
-const handleViewClient = (
-  client: Client,
-) => {
-  router.push(
-    `/clients/${client.id}`,
-  )
+const formOpen =
+  ref(false)
+
+const editingClient =
+  ref<
+    Client |
+    null
+  >(null)
+
+const handleAddClient = () => {
+  editingClient.value =
+    null
+
+  formOpen.value =
+    true
 }
 
 const handleEditClient = (
   client: Client,
 ) => {
-  info(
-    'Edit Client',
-    `${client.name} editing UI will be implemented with Client Details.`,
+  editingClient.value =
+    client
+
+  formOpen.value =
+    true
+}
+
+const closeForm = () => {
+  formOpen.value =
+    false
+
+  editingClient.value =
+    null
+}
+
+/* =========================================================
+   SAVE
+========================================================= */
+
+const handleSaveClient = (
+  data:
+    ClientFormData,
+) => {
+  if (
+    editingClient.value
+  ) {
+    const updated =
+      updateClient(
+        editingClient.value.id,
+        {
+          ...data,
+        },
+      )
+
+    if (!updated) {
+      info(
+        'Client Not Found',
+        'The selected client could not be found.',
+      )
+
+      return
+    }
+
+    closeForm()
+
+    success(
+      'Client Updated',
+      `${updated.name} has been updated successfully.`,
+    )
+
+    return
+  }
+
+  const created =
+    createClient({
+      ...data,
+    })
+
+  closeForm()
+
+  success(
+    'Client Added',
+    `${created.name} has been added to the client directory.`,
   )
 }
+
+/* =========================================================
+   DETAILS
+========================================================= */
+
+const detailsOpen =
+  ref(false)
+
+const selectedClient =
+  ref<
+    Client |
+    null
+  >(null)
+
+const handleViewClient = (
+  client:
+    Client,
+) => {
+  selectedClient.value =
+    client
+
+  detailsOpen.value =
+    true
+}
+
+const closeDetails = () => {
+  detailsOpen.value =
+    false
+
+  selectedClient.value =
+    null
+}
+
+const handleEditFromDetails = (
+  client:
+    Client,
+) => {
+  closeDetails()
+
+  handleEditClient(
+    client,
+  )
+}
+
+/* =========================================================
+   ASSIGNMENTS
+========================================================= */
 
 const handleAssignments = () => {
-  info(
-    'Employee Assignments',
-    'Client employee assignment UI will be implemented later.',
+  router.push(
+    '/clients/employee-assignment',
   )
 }
 
+const handleClientAssignments = (
+  client:
+    Client,
+) => {
+  closeDetails()
+
+  router.push({
+    path:
+      '/clients/employee-assignment',
+
+    query: {
+      client:
+        client.name,
+    },
+  })
+}
+
+/* =========================================================
+   EXPORT
+========================================================= */
+
+const exportOpen =
+  ref(false)
+
 const handleExport = () => {
+  exportOpen.value =
+    true
+}
+
+const handleExportSubmit = (
+  format:
+    | 'Excel'
+    | 'PDF'
+    | 'CSV',
+) => {
+  exportOpen.value =
+    false
+
   info(
-    'Export Clients',
-    'Client export will be connected later.',
+    `Export ${format}`,
+    `${filteredClients.value.length} client record(s) are ready for export. Actual file generation will be connected during backend integration.`,
   )
 }
 </script>
@@ -84,75 +264,111 @@ const handleExport = () => {
   <section class="clients-page">
 
     <!-- HEADER -->
+
     <PageHeader
       title="Clients"
       description="Manage client accounts, contracts and employee assignments."
     >
 
-      <AppButton
-        variant="secondary"
-        :icon="Download"
-        @click="handleExport"
-      >
-        Export
-      </AppButton>
+      <div class="header-actions">
 
-      <AppButton
-        :icon="Plus"
-        @click="handleAddClient"
-      >
-        Add Client
-      </AppButton>
+        <AppButton
+          variant="secondary"
+          :icon="Download"
+          @click="
+            handleExport
+          "
+        >
+          Export
+        </AppButton>
+
+        <AppButton
+          :icon="Plus"
+          @click="
+            handleAddClient
+          "
+        >
+          Add Client
+        </AppButton>
+
+      </div>
 
     </PageHeader>
 
     <!-- STATS -->
+
     <ClientStats
-      :stats="stats"
+      :stats="
+        stats
+      "
     />
 
     <!-- FILTERS -->
+
     <div class="client-filters">
 
       <AppInput
-        v-model="search"
+        v-model="
+          search
+        "
         searchable
         clearable
         placeholder="Search client, code or contact person..."
       />
 
       <AppSelect
-        v-model="status"
-        :options="statusOptions"
+        v-model="
+          status
+        "
+        :options="
+          statusOptions
+        "
         placeholder="All Status"
       />
 
       <AppSelect
-        v-model="contractStatus"
-        :options="contractOptions"
+        v-model="
+          contractStatus
+        "
+        :options="
+          contractOptions
+        "
         placeholder="All Contracts"
       />
 
       <AppButton
         variant="secondary"
         :icon="RotateCcw"
-        @click="resetFilters"
+        @click="
+          resetFilters
+        "
       >
         Reset
       </AppButton>
 
     </div>
 
-    <!-- MAIN -->
+    <!-- CONTENT -->
+
     <div class="clients-layout">
 
       <div class="clients-main">
 
+        <!-- TABLE -->
+
         <ClientDirectoryTable
-          :clients="paginatedClients"
-          @view="handleViewClient"
-          @edit="handleEditClient"
+          :clients="
+            paginatedClients
+          "
+          @view="
+            handleViewClient
+          "
+          @edit="
+            handleEditClient
+          "
         />
+
+        <!-- PAGINATION -->
 
         <div class="table-footer">
 
@@ -160,38 +376,121 @@ const handleExport = () => {
             Showing
 
             <strong>
-              {{ showingFrom }}–{{ showingTo }}
+              {{
+                showingFrom
+              }}–{{
+                showingTo
+              }}
             </strong>
 
             of
 
             <strong>
-              {{ filteredClients.length }}
+              {{
+                filteredClients.length
+              }}
             </strong>
 
             clients
           </p>
 
           <AppPagination
-            v-model="currentPage"
-            :total-pages="totalPages"
+            v-model="
+              currentPage
+            "
+            :total-pages="
+              totalPages
+            "
           />
 
         </div>
 
+        <!-- ACTIVITY -->
+
         <RecentClientActivity
-          :activities="recentActivity"
+          :activities="
+            recentActivity
+          "
         />
 
       </div>
 
+      <!-- SIDE PANEL -->
+
       <ClientSidePanel
-        :contract-alerts="contractAlerts"
-        @add-client="handleAddClient"
-        @assignments="handleAssignments"
+        :contract-alerts="
+          contractAlerts
+        "
+        @add-client="
+          handleAddClient
+        "
+        @assignments="
+          handleAssignments
+        "
       />
 
     </div>
+
+    <!-- ADD / EDIT CLIENT -->
+
+    <ClientFormModal
+      :open="
+        formOpen
+      "
+      :client="
+        editingClient
+      "
+      @close="
+        closeForm
+      "
+      @save="
+        handleSaveClient
+      "
+    />
+
+    <!-- CLIENT DETAILS -->
+
+    <ClientDetailsModal
+      :open="
+        detailsOpen
+      "
+      :client="
+        selectedClient
+      "
+      @close="
+        closeDetails
+      "
+      @edit="
+        handleEditFromDetails
+      "
+      @assignments="
+        handleClientAssignments
+      "
+    />
+
+    <!-- EXPORT -->
+
+    <ClientExportModal
+      :open="
+        exportOpen
+      "
+      :record-count="
+        filteredClients.length
+      "
+      :status="
+        status
+      "
+      :contract-status="
+        contractStatus
+      "
+      @close="
+        exportOpen =
+          false
+      "
+      @export="
+        handleExportSubmit
+      "
+    />
 
   </section>
 </template>
@@ -202,7 +501,16 @@ const handleExport = () => {
 
   max-width: 1660px;
 
-  margin: 0 auto;
+  margin:
+    0 auto;
+}
+
+.header-actions {
+  display: flex;
+
+  align-items: center;
+
+  gap: 8px;
 }
 
 /* FILTERS */
@@ -266,7 +574,8 @@ const handleExport = () => {
 
   gap: 20px;
 
-  padding: 1px 3px 0;
+  padding:
+    1px 3px 0;
 }
 
 .table-footer p {
@@ -287,24 +596,39 @@ const handleExport = () => {
 
 @media (max-width: 1100px) {
   .clients-layout {
-    grid-template-columns: 1fr;
+    grid-template-columns:
+      1fr;
   }
 
   .client-filters {
     grid-template-columns:
-      repeat(2, minmax(0, 1fr));
+      repeat(
+        2,
+        minmax(0, 1fr)
+      );
   }
 }
 
 @media (max-width: 650px) {
+  .header-actions {
+    width: 100%;
+
+    align-items: stretch;
+
+    flex-direction: column;
+  }
+
   .client-filters {
-    grid-template-columns: 1fr;
+    grid-template-columns:
+      1fr;
   }
 
   .table-footer {
-    flex-direction: column;
+    align-items:
+      flex-start;
 
-    align-items: flex-start;
+    flex-direction:
+      column;
   }
 }
 </style>

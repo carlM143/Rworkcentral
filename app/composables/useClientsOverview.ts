@@ -5,212 +5,215 @@ import type {
 
 export const useClientsOverview = () => {
   const clients =
-    ref<Client[]>([
-      {
-        id: 1,
+    useState<Client[]>(
+      'clients-overview',
+      () => [
+        {
+          id: 1,
 
-        code:
-          'CL-001',
+          code:
+            'CL-001',
 
-        name:
-          'Davao Logistics Corp.',
+          name:
+            'Davao Logistics Corp.',
 
-        industry:
-          'Logistics',
+          industry:
+            'Logistics',
 
-        contactPerson:
-          'James Villanueva',
+          contactPerson:
+            'James Villanueva',
 
-        email:
-          'admin@davaologistics.example.com',
+          email:
+            'admin@davaologistics.example.com',
 
-        phone:
-          '09171230001',
+          phone:
+            '09171230001',
 
-        address:
-          'Davao City',
+          address:
+            'Davao City',
 
-        branches: 2,
+          branches: 2,
 
-        assignedEmployees: 5,
+          assignedEmployees: 5,
 
-        contractStart:
-          '2026-01-01',
+          contractStart:
+            '2026-01-01',
 
-        contractEnd:
-          '2026-12-31',
+          contractEnd:
+            '2026-12-31',
 
-        contractStatus:
-          'Active',
+          contractStatus:
+            'Active',
 
-        status:
-          'Active',
-      },
+          status:
+            'Active',
+        },
 
-      {
-        id: 2,
+        {
+          id: 2,
 
-        code:
-          'CL-002',
+          code:
+            'CL-002',
 
-        name:
-          'Mindanao Distribution Inc.',
+          name:
+            'Mindanao Distribution Inc.',
 
-        industry:
-          'Distribution',
+          industry:
+            'Distribution',
 
-        contactPerson:
-          'Carla Mendoza',
+          contactPerson:
+            'Carla Mendoza',
 
-        email:
-          'operations@mindanaodistribution.example.com',
+          email:
+            'operations@mindanaodistribution.example.com',
 
-        phone:
-          '09171230002',
+          phone:
+            '09171230002',
 
-        address:
-          'Panabo City',
+          address:
+            'Panabo City',
 
-        branches: 3,
+          branches: 3,
 
-        assignedEmployees: 3,
+          assignedEmployees: 3,
 
-        contractStart:
-          '2026-02-01',
+          contractStart:
+            '2026-02-01',
 
-        contractEnd:
-          '2026-10-31',
+          contractEnd:
+            '2026-10-31',
 
-        contractStatus:
-          'Expiring Soon',
+          contractStatus:
+            'Expiring Soon',
 
-        status:
-          'Active',
-      },
+          status:
+            'Active',
+        },
 
-      {
-        id: 3,
+        {
+          id: 3,
 
-        code:
-          'CL-003',
+          code:
+            'CL-003',
 
-        name:
-          'Southline Trading',
+          name:
+            'Southline Trading',
 
-        industry:
-          'Trading',
+          industry:
+            'Trading',
 
-        contactPerson:
-          'Martin Lopez',
+          contactPerson:
+            'Martin Lopez',
 
-        email:
-          'accounts@southline.example.com',
+          email:
+            'accounts@southline.example.com',
 
-        phone:
-          '09171230003',
+          phone:
+            '09171230003',
 
-        address:
-          'Tagum City',
+          address:
+            'Tagum City',
 
-        branches: 1,
+          branches: 1,
 
-        assignedEmployees: 2,
+          assignedEmployees: 2,
 
-        contractStart:
-          '2026-03-15',
+          contractStart:
+            '2026-03-15',
 
-        contractEnd:
-          '2027-03-14',
+          contractEnd:
+            '2027-03-14',
 
-        contractStatus:
-          'Active',
+          contractStatus:
+            'Active',
 
-        status:
-          'Active',
-      },
+          status:
+            'Active',
+        },
 
-      {
-        id: 4,
+        {
+          id: 4,
 
-        code:
-          'CL-004',
+          code:
+            'CL-004',
 
-        name:
-          'Metro Service Solutions',
+          name:
+            'Metro Service Solutions',
 
-        industry:
-          'Business Services',
+          industry:
+            'Business Services',
 
-        contactPerson:
-          'Andrea Garcia',
+          contactPerson:
+            'Andrea Garcia',
 
-        email:
-          'hr@metroservices.example.com',
+          email:
+            'hr@metroservices.example.com',
 
-        phone:
-          '09171230004',
+          phone:
+            '09171230004',
 
-        address:
-          'Davao City',
+          address:
+            'Davao City',
 
-        branches: 2,
+          branches: 2,
 
-        assignedEmployees: 4,
+          assignedEmployees: 4,
 
-        contractStart:
-          '2026-04-01',
+          contractStart:
+            '2026-04-01',
 
-        contractEnd:
-          '2026-12-31',
+          contractEnd:
+            '2026-12-31',
 
-        contractStatus:
-          'Active',
+          contractStatus:
+            'Active',
 
-        status:
-          'For Review',
-      },
+          status:
+            'For Review',
+        },
 
-      {
-        id: 5,
+        {
+          id: 5,
 
-        code:
-          'CL-005',
+          code:
+            'CL-005',
 
-        name:
-          'Prime Fleet Services',
+          name:
+            'Prime Fleet Services',
 
-        industry:
-          'Transport Services',
+          industry:
+            'Transport Services',
 
-        contactPerson:
-          'Robert Santos',
+          contactPerson:
+            'Robert Santos',
 
-        email:
-          'admin@primefleet.example.com',
+          email:
+            'admin@primefleet.example.com',
 
-        phone:
-          '09171230005',
+          phone:
+            '09171230005',
 
-        address:
-          'Digos City',
+          address:
+            'Digos City',
 
-        branches: 1,
+          branches: 1,
 
-        assignedEmployees: 2,
+          assignedEmployees: 2,
 
-        contractStart:
-          '2025-08-01',
+          contractStart:
+            '2025-08-01',
 
-        contractEnd:
-          '2026-07-31',
+          contractEnd:
+            '2026-07-31',
 
-        contractStatus:
-          'Expired',
+          contractStatus:
+            'Expired',
 
-        status:
-          'Inactive',
-      },
-    ])
+          status:
+            'Inactive',
+        },
+      ],
+    )
 
   /* =========================================================
      FILTERS
@@ -230,6 +233,10 @@ export const useClientsOverview = () => {
 
   const perPage =
     ref(6)
+
+  /* =========================================================
+     FILTERED
+  ========================================================= */
 
   const filteredClients =
     computed(() => {
@@ -284,17 +291,6 @@ export const useClientsOverview = () => {
             'Active',
         )
 
-      const employees =
-        active.reduce(
-          (
-            total,
-            client,
-          ) =>
-            total +
-            client.assignedEmployees,
-          0,
-        )
-
       return {
         total:
           clients.value.length,
@@ -302,7 +298,16 @@ export const useClientsOverview = () => {
         active:
           active.length,
 
-        employees,
+        employees:
+          active.reduce(
+            (
+              total,
+              client,
+            ) =>
+              total +
+              client.assignedEmployees,
+            0,
+          ),
       }
     })
 
@@ -322,75 +327,62 @@ export const useClientsOverview = () => {
     })
 
   /* =========================================================
-     RECENT ACTIVITY
+     ACTIVITY
   ========================================================= */
 
   const recentActivity =
-    ref<ClientActivity[]>([
-      {
-        id: 1,
+    useState<ClientActivity[]>(
+      'clients-overview-activity',
+      () => [
+        {
+          id: 1,
 
-        clientName:
-          'Davao Logistics Corp.',
+          clientName:
+            'Davao Logistics Corp.',
 
-        action:
-          'Employee Assignment',
+          action:
+            'Employee Assignment',
 
-        description:
-          'Employee deployment information was updated.',
+          description:
+            'Employee deployment information was updated.',
 
-        date:
-          '2026-09-03',
-      },
+          date:
+            '2026-09-03',
+        },
 
-      {
-        id: 2,
+        {
+          id: 2,
 
-        clientName:
-          'Metro Service Solutions',
+          clientName:
+            'Metro Service Solutions',
 
-        action:
-          'Contract Review',
+          action:
+            'Contract Review',
 
-        description:
-          'Client contract information was reviewed by HR.',
+          description:
+            'Client contract information was reviewed by HR.',
 
-        date:
-          '2026-09-03',
-      },
+          date:
+            '2026-09-03',
+        },
 
-      {
-        id: 3,
+        {
+          id: 3,
 
-        clientName:
-          'Mindanao Distribution Inc.',
+          clientName:
+            'Mindanao Distribution Inc.',
 
-        action:
-          'Contract Reminder',
+          action:
+            'Contract Reminder',
 
-        description:
-          'Client contract is approaching expiration.',
+          description:
+            'Client contract is approaching expiration.',
 
-        date:
-          '2026-09-02',
-      },
-
-      {
-        id: 4,
-
-        clientName:
-          'Southline Trading',
-
-        action:
-          'Employee Assignment',
-
-        description:
-          'Employee assignment information was updated.',
-
-        date:
-          '2026-09-01',
-      },
-    ])
+          date:
+            '2026-09-02',
+        },
+      ],
+    )
 
   /* =========================================================
      OPTIONS
@@ -467,16 +459,140 @@ export const useClientsOverview = () => {
       )
     })
 
+  /* =========================================================
+     CREATE
+  ========================================================= */
+
+  const createClient = (
+    data:
+      Omit<
+        Client,
+        | 'id'
+        | 'assignedEmployees'
+      >,
+  ) => {
+    const nextId =
+      clients.value.length
+        ? Math.max(
+            ...clients.value.map(
+              item =>
+                item.id,
+            ),
+          ) + 1
+        : 1
+
+    const client:
+      Client = {
+        id:
+          nextId,
+
+        ...data,
+
+        assignedEmployees:
+          0,
+      }
+
+    clients.value.unshift(
+      client,
+    )
+
+    recentActivity.value.unshift({
+      id:
+        Date.now(),
+
+      clientName:
+        client.name,
+
+      action:
+        'Client Added',
+
+      description:
+        'New client account was registered.',
+
+      date:
+        new Date()
+          .toISOString()
+          .slice(
+            0,
+            10,
+          ),
+    })
+
+    return client
+  }
+
+  /* =========================================================
+     UPDATE
+  ========================================================= */
+
+  const updateClient = (
+    id: number,
+    data:
+      Partial<Client>,
+  ) => {
+    const index =
+      clients.value.findIndex(
+        client =>
+          client.id === id,
+      )
+
+    if (
+      index === -1
+    ) {
+      return null
+    }
+
+    clients.value[index] = {
+      ...clients.value[index],
+      ...data,
+      id,
+    }
+
+    const updated =
+      clients.value[index]
+
+    recentActivity.value.unshift({
+      id:
+        Date.now(),
+
+      clientName:
+        updated.name,
+
+      action:
+        'Client Updated',
+
+      description:
+        'Client account information was updated.',
+
+      date:
+        new Date()
+          .toISOString()
+          .slice(
+            0,
+            10,
+          ),
+    })
+
+    return updated
+  }
+
+  /* =========================================================
+     HELPERS
+  ========================================================= */
+
   const resetFilters = () => {
     search.value = ''
     status.value = ''
     contractStatus.value = ''
 
-    currentPage.value = 1
+    currentPage.value =
+      1
   }
 
   const getClientById = (
-    id: number | string,
+    id:
+      number |
+      string,
   ) => {
     return clients.value.find(
       client =>
@@ -492,7 +608,8 @@ export const useClientsOverview = () => {
       contractStatus,
     ],
     () => {
-      currentPage.value = 1
+      currentPage.value =
+        1
     },
   )
 
@@ -532,6 +649,9 @@ export const useClientsOverview = () => {
 
     statusOptions,
     contractOptions,
+
+    createClient,
+    updateClient,
 
     resetFilters,
     getClientById,

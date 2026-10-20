@@ -6,8 +6,22 @@ import {
 } from 'lucide-vue-next'
 
 import EmployeePayrollStats from '~/components/payroll/employee-payroll/EmployeePayrollStats.vue'
+
 import EmployeePayrollFilters from '~/components/payroll/employee-payroll/EmployeePayrollFilters.vue'
+
 import EmployeePayrollTable from '~/components/payroll/employee-payroll/EmployeePayrollTable.vue'
+
+import EmployeePayrollDetailsModal from '~/components/payroll/employee-payroll/EmployeePayrollDetailsModal.vue'
+
+import EmployeePayrollPayslipModal from '~/components/payroll/employee-payroll/EmployeePayrollPayslipModal.vue'
+
+import EmployeePayrollExportModal from '~/components/payroll/employee-payroll/EmployeePayrollExportModal.vue'
+
+import EmployeePayrollSummaryModal from '~/components/payroll/employee-payroll/EmployeePayrollSummaryModal.vue'
+
+import type {
+  EmployeePayroll,
+} from '~/types/employeePayroll'
 
 const router =
   useRouter()
@@ -49,10 +63,6 @@ const {
 
 /* =========================================================
    QUERY FILTERS
-
-   Examples:
-   /employee-payroll?period=EMP-PP-2026-0915
-   /employee-payroll?employee=EMP-002
 ========================================================= */
 
 watch(
@@ -92,22 +102,222 @@ watch(
 )
 
 /* =========================================================
-   UI ONLY ACTIONS
+   DETAILS
 ========================================================= */
 
-const handleExport = () => {
-  info(
-    'Export Employee Payroll',
-    'Employee payroll export functionality will be connected later.',
+const detailsOpen =
+  ref(false)
+
+const selectedPayroll =
+  ref<
+    EmployeePayroll |
+    null
+  >(null)
+
+const handleView = (
+  payroll:
+    EmployeePayroll,
+) => {
+  selectedPayroll.value =
+    payroll
+
+  detailsOpen.value =
+    true
+}
+
+/* =========================================================
+   EMPLOYEE
+========================================================= */
+
+const handleEmployee = (
+  payroll:
+    EmployeePayroll,
+) => {
+  router.push(
+    `/employees/${payroll.employeeId}`,
   )
 }
 
-const handleSummary = () => {
+/* =========================================================
+   TIME LOGS
+========================================================= */
+
+const handleTimeLogs = (
+  payroll:
+    EmployeePayroll,
+) => {
+  router.push({
+    path:
+      '/time-logs',
+
+    query: {
+      employee:
+        payroll.employeeNumber,
+
+      dateFrom:
+        payroll.periodStart,
+
+      dateTo:
+        payroll.periodEnd,
+    },
+  })
+}
+
+/* =========================================================
+   SOURCE PAYROLL
+========================================================= */
+
+const handleSource = (
+  payroll:
+    EmployeePayroll,
+) => {
+  if (
+    payroll.payrollStatus ===
+    'Completed'
+  ) {
+    router.push({
+      path:
+        '/completed-employees-payroll',
+
+      query: {
+        period:
+          payroll.periodCode,
+      },
+    })
+
+    return
+  }
+
+  router.push({
+    path:
+      '/pending-employees-payroll',
+
+    query: {
+      period:
+        payroll.periodCode,
+
+      employee:
+        payroll.employeeNumber,
+    },
+  })
+}
+
+/* =========================================================
+   PAYSLIP
+========================================================= */
+
+const payslipOpen =
+  ref(false)
+
+const payslipPayroll =
+  ref<
+    EmployeePayroll |
+    null
+  >(null)
+
+const handlePayslip = (
+  payroll:
+    EmployeePayroll,
+) => {
+  payslipPayroll.value =
+    payroll
+
+  payslipOpen.value =
+    true
+}
+
+const handlePrintPayslip = () => {
+  payslipOpen.value =
+    false
+
   info(
-    'Payroll Summary',
-    'Detailed payroll summary and reporting will be connected later.',
+    'Print Payslip',
+    'Printable/PDF payslip generation will be connected during backend integration.',
   )
 }
+
+/* =========================================================
+   EXPORT
+========================================================= */
+
+const exportOpen =
+  ref(false)
+
+const handleExport = () => {
+  exportOpen.value =
+    true
+}
+
+const handleExportSubmit = (
+  format:
+    | 'Excel'
+    | 'PDF'
+    | 'CSV',
+) => {
+  exportOpen.value =
+    false
+
+  info(
+    `Export ${format}`,
+    `${filteredPayrolls.value.length} employee payroll record(s) are ready for export. Actual file generation will be connected later.`,
+  )
+}
+
+/* =========================================================
+   SUMMARY
+========================================================= */
+
+const summaryOpen =
+  ref(false)
+
+const handleSummary = () => {
+  summaryOpen.value =
+    true
+}
+
+const summaryPending =
+  computed(() => {
+    return filteredPayrolls.value.filter(
+      payroll =>
+        payroll.payrollStatus !==
+        'Completed',
+    ).length
+  })
+
+const summaryCompleted =
+  computed(() => {
+    return filteredPayrolls.value.filter(
+      payroll =>
+        payroll.payrollStatus ===
+        'Completed',
+    ).length
+  })
+
+const summaryPaid =
+  computed(() => {
+    return filteredPayrolls.value.filter(
+      payroll =>
+        payroll.paymentStatus ===
+          'Paid' ||
+        payroll.paymentStatus ===
+          'Released',
+    ).length
+  })
+
+const summaryUnpaid =
+  computed(() => {
+    return filteredPayrolls.value.filter(
+      payroll =>
+        payroll.paymentStatus ===
+          'Not Yet Paid' ||
+        payroll.paymentStatus ===
+          'Pending Payment',
+    ).length
+  })
+
+/* =========================================================
+   BACK
+========================================================= */
 
 const handleBack = () => {
   router.push(
@@ -118,8 +328,6 @@ const handleBack = () => {
 
 <template>
   <section class="employee-payroll-page">
-
-    <!-- BACK -->
 
     <button
       type="button"
@@ -134,8 +342,6 @@ const handleBack = () => {
       Back to Payroll
 
     </button>
-
-    <!-- HEADER -->
 
     <PageHeader
       title="Employee Payroll"
@@ -167,15 +373,11 @@ const handleBack = () => {
 
     </PageHeader>
 
-    <!-- STATS -->
-
     <EmployeePayrollStats
       :stats="
         stats
       "
     />
-
-    <!-- FILTERS -->
 
     <EmployeePayrollFilters
       v-model:search="
@@ -216,15 +418,26 @@ const handleBack = () => {
       "
     />
 
-    <!-- TABLE -->
-
     <EmployeePayrollTable
       :payrolls="
         paginatedPayrolls
       "
+      @view="
+        handleView
+      "
+      @employee="
+        handleEmployee
+      "
+      @time-logs="
+        handleTimeLogs
+      "
+      @payslip="
+        handlePayslip
+      "
+      @source="
+        handleSource
+      "
     />
-
-    <!-- PAGINATION -->
 
     <div class="table-footer">
 
@@ -260,6 +473,102 @@ const handleBack = () => {
       />
 
     </div>
+
+    <!-- DETAILS -->
+
+    <EmployeePayrollDetailsModal
+      :open="
+        detailsOpen
+      "
+      :payroll="
+        selectedPayroll
+      "
+      @close="
+        detailsOpen =
+          false
+      "
+    />
+
+    <!-- PAYSLIP -->
+
+    <EmployeePayrollPayslipModal
+      :open="
+        payslipOpen
+      "
+      :payroll="
+        payslipPayroll
+      "
+      @close="
+        payslipOpen =
+          false
+      "
+      @print="
+        handlePrintPayslip
+      "
+    />
+
+    <!-- EXPORT -->
+
+    <EmployeePayrollExportModal
+      :open="
+        exportOpen
+      "
+      :record-count="
+        filteredPayrolls.length
+      "
+      :period="
+        period
+      "
+      :department="
+        department
+      "
+      :payroll-status="
+        payrollStatus
+      "
+      :payment-status="
+        paymentStatus
+      "
+      :date-from="
+        dateFrom
+      "
+      :date-to="
+        dateTo
+      "
+      @close="
+        exportOpen =
+          false
+      "
+      @export="
+        handleExportSubmit
+      "
+    />
+
+    <!-- SUMMARY -->
+
+    <EmployeePayrollSummaryModal
+      :open="
+        summaryOpen
+      "
+      :stats="
+        stats
+      "
+      :pending="
+        summaryPending
+      "
+      :completed="
+        summaryCompleted
+      "
+      :paid="
+        summaryPaid
+      "
+      :unpaid="
+        summaryUnpaid
+      "
+      @close="
+        summaryOpen =
+          false
+      "
+    />
 
   </section>
 </template>
@@ -347,11 +656,9 @@ const handleBack = () => {
   .header-actions {
     width: 100%;
 
-    align-items:
-      stretch;
+    align-items: stretch;
 
-    flex-direction:
-      column;
+    flex-direction: column;
   }
 
   .table-footer {

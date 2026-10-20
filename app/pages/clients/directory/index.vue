@@ -6,8 +6,25 @@ import {
 } from 'lucide-vue-next'
 
 import ClientDirectoryStats from '~/components/clients/directory/ClientDirectoryStats.vue'
+
 import ClientDirectoryFilters from '~/components/clients/directory/ClientDirectoryFilters.vue'
+
 import ClientDirectoryTable from '~/components/clients/directory/ClientDirectoryTable.vue'
+
+import ClientDirectoryFormModal from '~/components/clients/directory/ClientDirectoryFormModal.vue'
+
+import ClientDirectoryDetailsModal from '~/components/clients/directory/ClientDirectoryDetailsModal.vue'
+
+import ClientDirectoryExportModal from '~/components/clients/directory/ClientDirectoryExportModal.vue'
+
+import type {
+  ClientDirectoryFormData,
+  ClientDirectoryRecord,
+} from '~/composables/useClientDirectory'
+
+import type {
+  ClientDirectoryExportFormat,
+} from '~/components/clients/directory/ClientDirectoryExportModal.vue'
 
 const router =
   useRouter()
@@ -33,30 +50,198 @@ const {
   statusOptions,
   contractStatusOptions,
 
+  createClient,
+  updateClient,
+
   resetFilters,
 } = useClientDirectory()
 
 const {
   info,
+  success,
 } = useToast()
 
 /* =========================================================
-   UI ONLY ACTIONS
+   ADD / EDIT
 ========================================================= */
 
-const handleExport = () => {
-  info(
-    'Export Client Directory',
-    'Client directory export functionality will be connected later.',
+const formOpen =
+  ref(false)
+
+const editingClient =
+  ref<
+    ClientDirectoryRecord |
+    null
+  >(null)
+
+const handleAddClient = () => {
+  editingClient.value =
+    null
+
+  formOpen.value =
+    true
+}
+
+const handleEditClient = (
+  client:
+    ClientDirectoryRecord,
+) => {
+  editingClient.value =
+    client
+
+  formOpen.value =
+    true
+}
+
+const closeForm = () => {
+  formOpen.value =
+    false
+
+  editingClient.value =
+    null
+}
+
+/* =========================================================
+   SAVE
+========================================================= */
+
+const handleSaveClient = (
+  data:
+    ClientDirectoryFormData,
+) => {
+  if (
+    editingClient.value
+  ) {
+    const updated =
+      updateClient(
+        editingClient.value.id,
+        data,
+      )
+
+    if (!updated) {
+      info(
+        'Client Not Found',
+        'The selected client could not be found.',
+      )
+
+      return
+    }
+
+    closeForm()
+
+    success(
+      'Client Updated',
+      `${updated.name} has been updated successfully.`,
+    )
+
+    return
+  }
+
+  const created =
+    createClient(
+      data,
+    )
+
+  closeForm()
+
+  success(
+    'Client Added',
+    `${created.name} has been added to the client directory.`,
   )
 }
 
-const handleAddClient = () => {
-  info(
-    'Add Client',
-    'Client creation form will be added after all Client submenu UIs are completed.',
+/* =========================================================
+   DETAILS
+========================================================= */
+
+const detailsOpen =
+  ref(false)
+
+const selectedClient =
+  ref<
+    ClientDirectoryRecord |
+    null
+  >(null)
+
+const handleViewClient = (
+  client:
+    ClientDirectoryRecord,
+) => {
+  selectedClient.value =
+    client
+
+  detailsOpen.value =
+    true
+}
+
+const closeDetails = () => {
+  detailsOpen.value =
+    false
+
+  selectedClient.value =
+    null
+}
+
+const handleEditFromDetails = (
+  client:
+    ClientDirectoryRecord,
+) => {
+  closeDetails()
+
+  handleEditClient(
+    client,
   )
 }
+
+/* =========================================================
+   EMPLOYEE ASSIGNMENTS
+========================================================= */
+
+const handleAssignments = (
+  client:
+    ClientDirectoryRecord,
+) => {
+  closeDetails()
+
+  router.push({
+    path:
+      '/clients/employee-assignment',
+
+    query: {
+      client:
+        client.name,
+    },
+  })
+}
+
+/* =========================================================
+   EXPORT
+========================================================= */
+
+const exportOpen =
+  ref(false)
+
+const handleExport = () => {
+  exportOpen.value =
+    true
+}
+
+const handleExportSubmit = (
+  format:
+    ClientDirectoryExportFormat,
+) => {
+  exportOpen.value =
+    false
+
+  info(
+    `Export ${format}`,
+    `${filteredClients.value.length} client record(s) are ready for export. Actual file generation will be connected during backend integration.`,
+  )
+}
+
+/* =========================================================
+   BACK
+========================================================= */
 
 const handleBack = () => {
   router.push(
@@ -78,7 +263,9 @@ const handleBack = () => {
       "
     >
 
-      <ArrowLeft :size="15" />
+      <ArrowLeft
+        :size="15"
+      />
 
       Back to Clients
 
@@ -88,7 +275,7 @@ const handleBack = () => {
 
     <PageHeader
       title="Client Directory"
-      description="View registered clients, contact information, branches, assigned employees and contract status."
+      description="View registered clients, contact information, client sites, assigned employees and contract status."
     >
 
       <div class="header-actions">
@@ -159,6 +346,15 @@ const handleBack = () => {
       :clients="
         paginatedClients
       "
+      @view="
+        handleViewClient
+      "
+      @edit="
+        handleEditClient
+      "
+      @assignments="
+        handleAssignments
+      "
     />
 
     <!-- PAGINATION -->
@@ -197,6 +393,70 @@ const handleBack = () => {
       />
 
     </div>
+
+    <!-- ADD / EDIT -->
+
+    <ClientDirectoryFormModal
+      :open="
+        formOpen
+      "
+      :client="
+        editingClient
+      "
+      @close="
+        closeForm
+      "
+      @save="
+        handleSaveClient
+      "
+    />
+
+    <!-- DETAILS -->
+
+    <ClientDirectoryDetailsModal
+      :open="
+        detailsOpen
+      "
+      :client="
+        selectedClient
+      "
+      @close="
+        closeDetails
+      "
+      @edit="
+        handleEditFromDetails
+      "
+      @assignments="
+        handleAssignments
+      "
+    />
+
+    <!-- EXPORT -->
+
+    <ClientDirectoryExportModal
+      :open="
+        exportOpen
+      "
+      :record-count="
+        filteredClients.length
+      "
+      :industry="
+        industry
+      "
+      :status="
+        status
+      "
+      :contract-status="
+        contractStatus
+      "
+      @close="
+        exportOpen =
+          false
+      "
+      @export="
+        handleExportSubmit
+      "
+    />
 
   </section>
 </template>

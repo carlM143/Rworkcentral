@@ -4,16 +4,6 @@ import type {
   ContractStatus,
 } from '~/types/client'
 
-/*
-|--------------------------------------------------------------------------
-| CLIENT DIRECTORY RECORD
-|--------------------------------------------------------------------------
-|
-| Pick lang tayo ng existing fields mula sa Client type.
-| Dinagdagan natin ng UI-only fields para sa directory.
-|
-*/
-
 export type ClientDirectoryRecord =
   Pick<
     Client,
@@ -28,14 +18,25 @@ export type ClientDirectoryRecord =
     | 'branches'
   > & {
     assignedEmployees: number
-    status: ClientStatus
-    contractStatus: ContractStatus
+
+    status:
+      ClientStatus
+
+    contractStatus:
+      ContractStatus
+
     dateStarted: string
   }
 
+export type ClientDirectoryFormData =
+  Omit<
+    ClientDirectoryRecord,
+    'id'
+  >
+
 export const useClientDirectory = () => {
   /* =========================================================
-     MOCK DATA
+     DATA
   ========================================================= */
 
   const clients =
@@ -44,382 +45,162 @@ export const useClientDirectory = () => {
       () => [
         {
           id: 1,
-
-          code:
-            'CL-001',
-
-          name:
-            'Davao Transport Services Inc.',
-
-          industry:
-            'Transportation',
-
-          contactPerson:
-            'John Ramirez',
-
-          email:
-            'john.ramirez@davaotransport.ph',
-
-          phone:
-            '0917 123 4567',
-
-          address:
-            'Davao City, Davao del Sur',
-
+          code: 'CL-001',
+          name: 'Davao Transport Services Inc.',
+          industry: 'Transportation',
+          contactPerson: 'John Ramirez',
+          email: 'john.ramirez@davaotransport.ph',
+          phone: '0917 123 4567',
+          address: 'Davao City, Davao del Sur',
           branches: 4,
-
           assignedEmployees: 24,
-
-          status:
-            'Active',
-
-          contractStatus:
-            'Active',
-
-          dateStarted:
-            '2024-01-15',
+          status: 'Active',
+          contractStatus: 'Active',
+          dateStarted: '2024-01-15',
         },
 
         {
           id: 2,
-
-          code:
-            'CL-002',
-
-          name:
-            'Prime Logistics Solutions',
-
-          industry:
-            'Logistics',
-
-          contactPerson:
-            'Angela Cruz',
-
-          email:
-            'angela.cruz@primelogistics.ph',
-
-          phone:
-            '0918 456 7821',
-
-          address:
-            'Tagum City, Davao del Norte',
-
+          code: 'CL-002',
+          name: 'Prime Logistics Solutions',
+          industry: 'Logistics',
+          contactPerson: 'Angela Cruz',
+          email: 'angela.cruz@primelogistics.ph',
+          phone: '0918 456 7821',
+          address: 'Tagum City, Davao del Norte',
           branches: 3,
-
           assignedEmployees: 18,
-
-          status:
-            'Active',
-
-          contractStatus:
-            'Expiring Soon',
-
-          dateStarted:
-            '2024-03-08',
+          status: 'Active',
+          contractStatus: 'Expiring Soon',
+          dateStarted: '2024-03-08',
         },
 
         {
           id: 3,
-
-          code:
-            'CL-003',
-
-          name:
-            'Mindanao Retail Group',
-
-          industry:
-            'Retail',
-
-          contactPerson:
-            'Michael Torres',
-
-          email:
-            'michael@mindanaoretail.ph',
-
-          phone:
-            '0917 852 1100',
-
-          address:
-            'Davao City, Davao del Sur',
-
+          code: 'CL-003',
+          name: 'Mindanao Retail Group',
+          industry: 'Retail',
+          contactPerson: 'Michael Torres',
+          email: 'michael@mindanaoretail.ph',
+          phone: '0917 852 1100',
+          address: 'Davao City, Davao del Sur',
           branches: 7,
-
           assignedEmployees: 36,
-
-          status:
-            'Active',
-
-          contractStatus:
-            'Active',
-
-          dateStarted:
-            '2023-11-20',
+          status: 'Active',
+          contractStatus: 'Active',
+          dateStarted: '2023-11-20',
         },
 
         {
           id: 4,
-
-          code:
-            'CL-004',
-
-          name:
-            'Southern Food Corporation',
-
-          industry:
-            'Food & Beverage',
-
-          contactPerson:
-            'Karen Villanueva',
-
-          email:
-            'karen@southernfood.ph',
-
-          phone:
-            '0920 455 2211',
-
-          address:
-            'General Santos City',
-
+          code: 'CL-004',
+          name: 'Southern Food Corporation',
+          industry: 'Food & Beverage',
+          contactPerson: 'Karen Villanueva',
+          email: 'karen@southernfood.ph',
+          phone: '0920 455 2211',
+          address: 'General Santos City',
           branches: 5,
-
           assignedEmployees: 21,
-
-          status:
-            'For Review',
-
-          contractStatus:
-            'Expiring Soon',
-
-          dateStarted:
-            '2025-02-10',
+          status: 'For Review',
+          contractStatus: 'Expiring Soon',
+          dateStarted: '2025-02-10',
         },
 
         {
           id: 5,
-
-          code:
-            'CL-005',
-
-          name:
-            'Greenfield Manufacturing Corp.',
-
-          industry:
-            'Manufacturing',
-
-          contactPerson:
-            'Robert Lim',
-
-          email:
-            'robert.lim@greenfield.ph',
-
-          phone:
-            '0919 900 7712',
-
-          address:
-            'Panabo City, Davao del Norte',
-
+          code: 'CL-005',
+          name: 'Greenfield Manufacturing Corp.',
+          industry: 'Manufacturing',
+          contactPerson: 'Robert Lim',
+          email: 'robert.lim@greenfield.ph',
+          phone: '0919 900 7712',
+          address: 'Panabo City, Davao del Norte',
           branches: 2,
-
           assignedEmployees: 14,
-
-          status:
-            'Active',
-
-          contractStatus:
-            'Active',
-
-          dateStarted:
-            '2024-07-01',
+          status: 'Active',
+          contractStatus: 'Active',
+          dateStarted: '2024-07-01',
         },
 
         {
           id: 6,
-
-          code:
-            'CL-006',
-
-          name:
-            'Metro Property Management',
-
-          industry:
-            'Real Estate',
-
-          contactPerson:
-            'Patricia Santos',
-
-          email:
-            'patricia@metroproperty.ph',
-
-          phone:
-            '0916 332 1029',
-
-          address:
-            'Davao City, Davao del Sur',
-
+          code: 'CL-006',
+          name: 'Metro Property Management',
+          industry: 'Real Estate',
+          contactPerson: 'Patricia Santos',
+          email: 'patricia@metroproperty.ph',
+          phone: '0916 332 1029',
+          address: 'Davao City, Davao del Sur',
           branches: 2,
-
           assignedEmployees: 9,
-
-          status:
-            'Inactive',
-
-          contractStatus:
-            'Expired',
-
-          dateStarted:
-            '2023-08-16',
+          status: 'Inactive',
+          contractStatus: 'Expired',
+          dateStarted: '2023-08-16',
         },
 
         {
           id: 7,
-
-          code:
-            'CL-007',
-
-          name:
-            'Pacific Warehousing Services',
-
-          industry:
-            'Warehousing',
-
-          contactPerson:
-            'Daniel Mendoza',
-
-          email:
-            'daniel@pacificwarehouse.ph',
-
-          phone:
-            '0917 663 8812',
-
-          address:
-            'Cagayan de Oro City',
-
+          code: 'CL-007',
+          name: 'Pacific Warehousing Services',
+          industry: 'Warehousing',
+          contactPerson: 'Daniel Mendoza',
+          email: 'daniel@pacificwarehouse.ph',
+          phone: '0917 663 8812',
+          address: 'Cagayan de Oro City',
           branches: 3,
-
           assignedEmployees: 16,
-
-          status:
-            'Active',
-
-          contractStatus:
-            'Active',
-
-          dateStarted:
-            '2025-05-12',
+          status: 'Active',
+          contractStatus: 'Active',
+          dateStarted: '2025-05-12',
         },
 
         {
           id: 8,
-
-          code:
-            'CL-008',
-
-          name:
-            'Golden Care Medical Services',
-
-          industry:
-            'Healthcare',
-
-          contactPerson:
-            'Jennifer Ramos',
-
-          email:
-            'jennifer@goldencare.ph',
-
-          phone:
-            '0921 509 7721',
-
-          address:
-            'Digos City, Davao del Sur',
-
+          code: 'CL-008',
+          name: 'Golden Care Medical Services',
+          industry: 'Healthcare',
+          contactPerson: 'Jennifer Ramos',
+          email: 'jennifer@goldencare.ph',
+          phone: '0921 509 7721',
+          address: 'Digos City, Davao del Sur',
           branches: 2,
-
           assignedEmployees: 11,
-
-          status:
-            'For Review',
-
-          contractStatus:
-            'Active',
-
-          dateStarted:
-            '2026-01-05',
+          status: 'For Review',
+          contractStatus: 'Active',
+          dateStarted: '2026-01-05',
         },
 
         {
           id: 9,
-
-          code:
-            'CL-009',
-
-          name:
-            'Northpoint Distribution Inc.',
-
-          industry:
-            'Distribution',
-
-          contactPerson:
-            'Carlo Reyes',
-
-          email:
-            'carlo@northpoint.ph',
-
-          phone:
-            '0918 441 2085',
-
-          address:
-            'Davao City, Davao del Sur',
-
+          code: 'CL-009',
+          name: 'Northpoint Distribution Inc.',
+          industry: 'Distribution',
+          contactPerson: 'Carlo Reyes',
+          email: 'carlo@northpoint.ph',
+          phone: '0918 441 2085',
+          address: 'Davao City, Davao del Sur',
           branches: 4,
-
           assignedEmployees: 27,
-
-          status:
-            'Active',
-
-          contractStatus:
-            'Expiring Soon',
-
-          dateStarted:
-            '2024-09-18',
+          status: 'Active',
+          contractStatus: 'Expiring Soon',
+          dateStarted: '2024-09-18',
         },
 
         {
           id: 10,
-
-          code:
-            'CL-010',
-
-          name:
-            'BluePeak Construction',
-
-          industry:
-            'Construction',
-
-          contactPerson:
-            'Mark Flores',
-
-          email:
-            'mark@bluepeak.ph',
-
-          phone:
-            '0915 701 3366',
-
-          address:
-            'Davao City, Davao del Sur',
-
+          code: 'CL-010',
+          name: 'BluePeak Construction',
+          industry: 'Construction',
+          contactPerson: 'Mark Flores',
+          email: 'mark@bluepeak.ph',
+          phone: '0915 701 3366',
+          address: 'Davao City, Davao del Sur',
           branches: 1,
-
           assignedEmployees: 8,
-
-          status:
-            'Inactive',
-
-          contractStatus:
-            'Expired',
-
-          dateStarted:
-            '2023-05-25',
+          status: 'Inactive',
+          contractStatus: 'Expired',
+          dateStarted: '2023-05-25',
         },
       ],
     )
@@ -488,7 +269,7 @@ export const useClientDirectory = () => {
     ]
 
   /* =========================================================
-     FILTERED CLIENTS
+     FILTERED
   ========================================================= */
 
   const filteredClients =
@@ -604,8 +385,7 @@ export const useClientDirectory = () => {
       return Math.max(
         1,
         Math.ceil(
-          filteredClients
-            .value.length /
+          filteredClients.value.length /
             perPage.value,
         ),
       )
@@ -620,21 +400,17 @@ export const useClientDirectory = () => {
         ) *
         perPage.value
 
-      return filteredClients
-        .value
-        .slice(
-          start,
-          start +
-            perPage.value,
-        )
+      return filteredClients.value.slice(
+        start,
+        start +
+          perPage.value,
+      )
     })
 
   const showingFrom =
     computed(() => {
       if (
-        filteredClients
-          .value.length ===
-        0
+        !filteredClients.value.length
       ) {
         return 0
       }
@@ -655,27 +431,101 @@ export const useClientDirectory = () => {
         currentPage.value *
           perPage.value,
 
-        filteredClients
-          .value.length,
+        filteredClients.value.length,
       )
     })
+
+  /* =========================================================
+     GET CLIENT
+  ========================================================= */
+
+  const getClientById = (
+    id:
+      number |
+      string,
+  ) => {
+    return clients.value.find(
+      client =>
+        client.id ===
+        Number(id),
+    )
+  }
+
+  /* =========================================================
+     CREATE
+  ========================================================= */
+
+  const createClient = (
+    data:
+      ClientDirectoryFormData,
+  ) => {
+    const nextId =
+      clients.value.length
+        ? Math.max(
+            ...clients.value.map(
+              client =>
+                client.id,
+            ),
+          ) + 1
+        : 1
+
+    const client:
+      ClientDirectoryRecord = {
+        id:
+          nextId,
+
+        ...data,
+      }
+
+    clients.value.unshift(
+      client,
+    )
+
+    return client
+  }
+
+  /* =========================================================
+     UPDATE
+  ========================================================= */
+
+  const updateClient = (
+    id: number,
+
+    data:
+      ClientDirectoryFormData,
+  ) => {
+    const index =
+      clients.value.findIndex(
+        client =>
+          client.id === id,
+      )
+
+    if (
+      index === -1
+    ) {
+      return null
+    }
+
+    clients.value[index] = {
+      ...clients.value[index],
+
+      ...data,
+
+      id,
+    }
+
+    return clients.value[index]
+  }
 
   /* =========================================================
      RESET
   ========================================================= */
 
   const resetFilters = () => {
-    search.value =
-      ''
-
-    industry.value =
-      ''
-
-    status.value =
-      ''
-
-    contractStatus.value =
-      ''
+    search.value = ''
+    industry.value = ''
+    status.value = ''
+    contractStatus.value = ''
 
     currentPage.value =
       1
@@ -730,6 +580,10 @@ export const useClientDirectory = () => {
     industryOptions,
     statusOptions,
     contractStatusOptions,
+
+    getClientById,
+    createClient,
+    updateClient,
 
     resetFilters,
   }

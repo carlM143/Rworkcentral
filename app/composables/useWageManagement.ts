@@ -6,9 +6,6 @@ import type {
 } from '~/types/wageManagement'
 
 export const useWageManagement = () => {
-  /* =========================================================
-     WAGE ORDERS
-  ========================================================= */
 
   const wageOrders =
     useState<WageOrder[]>(
@@ -160,31 +157,31 @@ export const useWageManagement = () => {
           status: 'Approved',
         },
         {
-          id: 4,
+        id: 4,
 
-          employeeId: 6,
-          employeeNumber: 'EMP-006',
-          employeeName: 'Angela Flores',
+        employeeId: 6,
+        employeeNumber: 'EMP-006',
+        employeeName: 'Angela Flores',
 
-          department: 'Billing',
-          position: 'Billing Staff',
-          region: 'NCR',
+        department: 'Finance',
+        position: 'Finance Officer',
+        region: 'NCR',
 
-          currentRate: 740,
-          newMinimumRate: 750,
+        currentRate: 740,
+        newMinimumRate: 750,
 
-          requiredIncrease: 10,
-          proposedRate: 750,
+        requiredIncrease: 10,
+        proposedRate: 750,
 
-          result: 'Required',
+        result: 'Required',
 
-          distortionRisk: false,
+        distortionRisk: false,
 
-          wageOrderCode: 'NCR-WO-2026-01',
-          effectiveDate: '2026-07-25',
+        wageOrderCode: 'NCR-WO-2026-01',
+        effectiveDate: '2026-07-25',
 
-          status: 'For Review',
-        },
+        status: 'For Review',
+      },
         {
           id: 5,
 

@@ -15,15 +15,9 @@ defineProps<{
 
 const emit = defineEmits<{
   view: [schedule: WorkSchedule]
-
   edit: [schedule: WorkSchedule]
-
   assign: [schedule: WorkSchedule]
-
-  restDays: [schedule: WorkSchedule]
-
   employees: [schedule: WorkSchedule]
-
   toggleStatus: [schedule: WorkSchedule]
 }>()
 </script>
@@ -38,9 +32,9 @@ const emit = defineEmits<{
           Work Schedule Directory
         </h3>
 
-        <p>
-          Manage employee shifts, working hours,
-          break times and rest day rules.
+       <p>
+          Manage reusable employee shifts,
+          working hours and break configurations.
         </p>
       </div>
     </div>
@@ -58,7 +52,7 @@ const emit = defineEmits<{
             <th>Type</th>
             <th>Working Hours</th>
             <th>Break</th>
-            <th>Rest Day</th>
+            <!-- <th>Rest Day</th> -->
             <th>Grace Period</th>
             <th>Employees</th>
             <th>Status</th>
@@ -135,15 +129,6 @@ const emit = defineEmits<{
               </span>
             </td>
 
-            <!-- REST DAY -->
-            <td>
-              {{
-                schedule.restDays.length
-                  ? schedule.restDays.join(', ')
-                  : '—'
-              }}
-            </td>
-
             <!-- GRACE PERIOD -->
             <td>
               {{ schedule.gracePeriod }}
@@ -187,13 +172,6 @@ const emit = defineEmits<{
                 @assign="
                   emit(
                     'assign',
-                    schedule,
-                  )
-                "
-
-                @rest-days="
-                  emit(
-                    'restDays',
                     schedule,
                   )
                 "

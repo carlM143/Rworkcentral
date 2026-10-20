@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import {
-  Users,
   Eye,
+  Users,
 } from 'lucide-vue-next'
 
 import type {
@@ -9,12 +9,17 @@ import type {
 } from '~/types/leave'
 
 defineProps<{
-  requests: LeaveRequest[]
+  requests:
+    LeaveRequest[]
 }>()
 
-const {
-  info,
-} = useToast()
+const emit =
+  defineEmits<{
+    view: [
+      request:
+        LeaveRequest,
+    ]
+  }>()
 
 const formatDate = (
   date: string,
@@ -22,23 +27,19 @@ const formatDate = (
   return new Intl.DateTimeFormat(
     'en-US',
     {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
+      month:
+        'short',
+
+      day:
+        'numeric',
+
+      year:
+        'numeric',
     },
   ).format(
     new Date(
       `${date}T00:00:00`,
     ),
-  )
-}
-
-const viewRequest = (
-  request: LeaveRequest,
-) => {
-  info(
-    'Leave Request',
-    `${request.employeeName} — ${request.leaveType}`,
   )
 }
 </script>
@@ -47,24 +48,32 @@ const viewRequest = (
   <article class="leave-table-card">
 
     <div class="table-heading">
+
       <div>
+
         <h3>
-          Recent Leave Requests
+          Leave Requests
         </h3>
 
         <p>
-          Review recently filed employee leave requests.
+          Review and manage all employee leave requests and approval statuses.
         </p>
+
       </div>
+
     </div>
 
     <div
-      v-if="requests.length"
+      v-if="
+        requests.length
+      "
       class="table-scroll"
     >
+
       <table class="leave-table">
 
         <thead>
+
           <tr>
             <th>Employee</th>
             <th>Leave Type</th>
@@ -75,22 +84,34 @@ const viewRequest = (
             <th>Status</th>
             <th />
           </tr>
+
         </thead>
 
         <tbody>
+
           <tr
-            v-for="request in requests"
-            :key="request.id"
+            v-for="
+              request in requests
+            "
+            :key="
+              request.id
+            "
           >
 
             <td>
+
               <div class="employee-cell">
 
                 <div class="employee-icon">
-                  <Users :size="15" />
+
+                  <Users
+                    :size="15"
+                  />
+
                 </div>
 
                 <div>
+
                   <strong>
                     {{ request.employeeName }}
                   </strong>
@@ -100,23 +121,35 @@ const viewRequest = (
                     ·
                     {{ request.department }}
                   </span>
+
                 </div>
 
               </div>
+
             </td>
 
             <td>
+
               <strong class="leave-type">
                 {{ request.leaveType }}
               </strong>
+
             </td>
 
             <td>
-              {{ formatDate(request.dateFrom) }}
+              {{
+                formatDate(
+                  request.dateFrom,
+                )
+              }}
             </td>
 
             <td>
-              {{ formatDate(request.dateTo) }}
+              {{
+                formatDate(
+                  request.dateTo,
+                )
+              }}
             </td>
 
             <td>
@@ -124,36 +157,69 @@ const viewRequest = (
             </td>
 
             <td>
+
               <span class="reason">
                 {{
                   request.reason ||
                   'Not provided'
                 }}
               </span>
+
             </td>
 
             <td>
+
               <StatusBadge
-                :status="request.status"
+                :status="
+                  request.status
+                "
               />
+
             </td>
 
             <td class="action-column">
+
               <button
                 type="button"
                 class="view-button"
+                title="View leave request"
                 @click="
-                  viewRequest(request)
+                  emit(
+                    'view',
+                    request,
+                  )
                 "
               >
+
                 <Eye :size="15" />
+
               </button>
+
             </td>
 
           </tr>
+
         </tbody>
 
       </table>
+
+    </div>
+
+    <div
+      v-else
+      class="empty-state"
+    >
+
+      <Users :size="27" />
+
+      <strong>
+        No leave requests found
+      </strong>
+
+      <span>
+        Filed leave requests will appear here.
+      </span>
+
     </div>
 
   </article>
@@ -163,16 +229,21 @@ const viewRequest = (
 .leave-table-card {
   overflow: hidden;
 
-  border: 1px solid var(--border);
+  border:
+    1px solid var(--border);
+
   border-radius: 11px;
 
-  background: var(--bg-card);
+  background:
+    var(--bg-card);
 
-  box-shadow: var(--shadow);
+  box-shadow:
+    var(--shadow);
 }
 
 .table-heading {
-  padding: 13px 15px;
+  padding:
+    13px 15px;
 
   border-bottom:
     1px solid var(--border-soft);
@@ -181,15 +252,18 @@ const viewRequest = (
 .table-heading h3 {
   margin: 0;
 
-  color: var(--text-primary);
+  color:
+    var(--text-primary);
 
   font-size: 11px;
 }
 
 .table-heading p {
-  margin: 3px 0 0;
+  margin:
+    3px 0 0;
 
-  color: var(--text-muted);
+  color:
+    var(--text-muted);
 
   font-size: 8px;
 }
@@ -207,7 +281,8 @@ const viewRequest = (
 }
 
 .leave-table th {
-  padding: 10px 12px;
+  padding:
+    10px 12px;
 
   border-bottom:
     1px solid var(--border);
@@ -226,7 +301,8 @@ const viewRequest = (
 }
 
 .leave-table td {
-  padding: 11px 12px;
+  padding:
+    11px 12px;
 
   border-bottom:
     1px solid var(--border-soft);
@@ -237,10 +313,7 @@ const viewRequest = (
   font-size: 9px;
 }
 
-.leave-table
-tbody
-tr:last-child
-td {
+.leave-table tbody tr:last-child td {
   border-bottom: 0;
 }
 
@@ -249,11 +322,11 @@ td {
     var(--bg-card-soft);
 }
 
-/* EMPLOYEE */
-
 .employee-cell {
   display: flex;
+
   align-items: center;
+
   gap: 8px;
 }
 
@@ -334,10 +407,13 @@ td {
 
   border-radius: 7px;
 
-  background: transparent;
+  background:
+    transparent;
 
   color:
     var(--text-secondary);
+
+  cursor: pointer;
 }
 
 .view-button:hover {
@@ -346,5 +422,31 @@ td {
 
   color:
     var(--primary);
+}
+
+.empty-state {
+  display: flex;
+
+  min-height: 220px;
+
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+
+  gap: 7px;
+
+  color:
+    var(--text-muted);
+}
+
+.empty-state strong {
+  color:
+    var(--text-primary);
+
+  font-size: 11px;
+}
+
+.empty-state span {
+  font-size: 8px;
 }
 </style>

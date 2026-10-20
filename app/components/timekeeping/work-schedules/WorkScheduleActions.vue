@@ -4,7 +4,6 @@ import {
   Eye,
   Pencil,
   Users,
-  CalendarDays,
   UserRound,
   Power,
 } from 'lucide-vue-next'
@@ -21,7 +20,6 @@ const emit = defineEmits<{
   view: [schedule: WorkSchedule]
   edit: [schedule: WorkSchedule]
   assign: [schedule: WorkSchedule]
-  restDays: [schedule: WorkSchedule]
   employees: [schedule: WorkSchedule]
   toggleStatus: [schedule: WorkSchedule]
 }>()
@@ -35,7 +33,7 @@ const menuStyle =
   ref<Record<string, string>>({})
 
 const menuWidth = 220
-const menuHeight = 255
+const menuHeight = 215
 
 /* =========================================================
    POSITION
@@ -149,15 +147,6 @@ const handleAssign = () => {
 
   emit(
     'assign',
-    props.schedule,
-  )
-}
-
-const handleRestDays = () => {
-  close()
-
-  emit(
-    'restDays',
     props.schedule,
   )
 }
@@ -301,16 +290,6 @@ onBeforeUnmount(() => {
           <Users :size="15" />
 
           Assign Employees
-        </button>
-
-        <button
-          type="button"
-          class="action-item"
-          @click="handleRestDays"
-        >
-          <CalendarDays :size="15" />
-
-          Manage Rest Days
         </button>
 
         <button

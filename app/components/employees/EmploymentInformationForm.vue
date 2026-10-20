@@ -77,25 +77,31 @@ const branches = [
   'Field Assignment',
 ]
 
-const workSchedules = [
-  '8:00 AM - 5:00 PM',
-  '7:00 AM - 4:00 PM',
-  '9:00 AM - 6:00 PM',
-  '6:00 AM - 3:00 PM',
-  '2:00 PM - 11:00 PM',
-  '10:00 PM - 7:00 AM',
-  'Flexible Schedule',
-]
+const {
+  schedules,
+} = useWorkSchedules()
+
+const workSchedules =
+  computed(() => {
+    return schedules.value
+      .filter(
+        schedule =>
+          schedule.status === 'Active',
+      )
+      .map(
+        schedule =>
+          schedule.name,
+      )
+  })
 
 const restDays = [
-  'Sunday',
   'Monday',
   'Tuesday',
   'Wednesday',
   'Thursday',
   'Friday',
   'Saturday',
-  'Saturday & Sunday',
+  'Sunday',
 ]
 
 const employeeSummary = computed(() => {
@@ -408,17 +414,44 @@ const employeeSummary = computed(() => {
           </div>
 
           <!-- REST DAY -->
-          <div class="form-field">
-            <label class="field-label">
-              Rest Day
-            </label>
+            <div class="form-field">
+              <label class="field-label">
+                Rest Day
+              </label>
 
-            <AppSelect
-              v-model="form.restDay"
-              :options="restDays"
-              placeholder="Select rest day"
-            />
-          </div>
+              <div class="rest-day-options">
+
+                <label
+                  v-for="day in restDays"
+                  :key="day"
+                  class="rest-day-option"
+                  :class="{
+                    selected:
+                      form.restDay === day,
+                  }"
+                >
+
+                  <input
+                    v-model="form.restDay"
+                    type="radio"
+                    name="employee-rest-day"
+                    :value="day"
+                  >
+
+                  <span class="radio-control" />
+
+                  <span class="radio-label">
+                    {{ day }}
+                  </span>
+
+                </label>
+
+              </div>
+
+              <small class="field-hint">
+                Select the employee's default weekly rest day.
+              </small>
+            </div>
         </div>
 
         <!-- INFORMATION -->
@@ -751,6 +784,141 @@ const employeeSummary = computed(() => {
 
   font-size: 8px;
   line-height: 1.5;
+}
+
+/* ==============================
+   REST DAY RADIO
+============================== */
+
+.rest-day-options {
+  display: grid;
+
+  grid-template-columns:
+    repeat(4, minmax(0, 1fr));
+
+  gap: 7px;
+}
+
+.rest-day-option {
+  position: relative;
+
+  display: flex;
+
+  min-height: 38px;
+
+  align-items: center;
+
+  gap: 8px;
+
+  padding: 0 10px;
+
+  border:
+    1px solid var(--border);
+
+  border-radius: 8px;
+
+  background:
+    var(--bg-card);
+
+  color:
+    var(--text-secondary);
+
+  font-size: 9px;
+
+  cursor: pointer;
+
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+.rest-day-option:hover {
+  border-color:
+    var(--primary);
+}
+
+.rest-day-option.selected {
+  border-color:
+    var(--primary);
+
+  background:
+    var(--primary-soft);
+
+  color:
+    var(--primary);
+}
+
+.rest-day-option input {
+  position: absolute;
+
+  width: 1px;
+  height: 1px;
+
+  opacity: 0;
+
+  pointer-events: none;
+}
+
+.radio-control {
+  position: relative;
+
+  width: 15px;
+  height: 15px;
+
+  flex-shrink: 0;
+
+  border:
+    1.5px solid var(--border);
+
+  border-radius: 50%;
+
+  background:
+    var(--bg-card);
+}
+
+.rest-day-option.selected
+.radio-control {
+  border-color:
+    var(--primary);
+}
+
+.rest-day-option.selected
+.radio-control::after {
+  position: absolute;
+
+  top: 50%;
+  left: 50%;
+
+  width: 7px;
+  height: 7px;
+
+  transform:
+    translate(-50%, -50%);
+
+  border-radius: 50%;
+
+  background:
+    var(--primary);
+
+  content: '';
+}
+
+.radio-label {
+  font-weight: 550;
+}
+
+@media (max-width: 1100px) {
+  .rest-day-options {
+    grid-template-columns:
+      repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 600px) {
+  .rest-day-options {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* RESPONSIVE */

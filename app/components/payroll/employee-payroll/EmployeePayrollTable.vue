@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import {
-  MoreHorizontal,
   UserRound,
   CreditCard,
   FileCheck2,
 } from 'lucide-vue-next'
+
+import EmployeePayrollActions from '~/components/payroll/employee-payroll/EmployeePayrollActions.vue'
 
 import type {
   EmployeePayroll,
@@ -15,6 +16,15 @@ defineProps<{
   payrolls:
     EmployeePayroll[]
 }>()
+
+const emit =
+  defineEmits<{
+    view: [payroll: EmployeePayroll]
+    employee: [payroll: EmployeePayroll]
+    timeLogs: [payroll: EmployeePayroll]
+    payslip: [payroll: EmployeePayroll]
+    source: [payroll: EmployeePayroll]
+  }>()
 
 const money = (
   value: number,
@@ -51,15 +61,13 @@ const paymentClass = (
     EmployeePayrollPaymentStatus,
 ) => {
   if (
-    status ===
-    'Paid'
+    status === 'Paid'
   ) {
     return 'paid'
   }
 
   if (
-    status ===
-    'Released'
+    status === 'Released'
   ) {
     return 'released'
   }
@@ -136,58 +144,40 @@ const paymentClass = (
             "
           >
 
-            <!-- PAYROLL -->
-
             <td>
 
               <strong class="payroll-number">
-                {{
-                  payroll.payrollNumber
-                }}
+                {{ payroll.payrollNumber }}
               </strong>
 
               <span class="subtext">
-                {{
-                  payroll.periodCode
-                }}
+                {{ payroll.periodCode }}
               </span>
 
             </td>
-
-            <!-- EMPLOYEE -->
 
             <td>
 
               <div class="employee-cell">
 
                 <div class="employee-icon">
-
                   <UserRound :size="15" />
-
                 </div>
 
                 <div>
 
                   <strong>
-                    {{
-                      payroll.employeeName
-                    }}
+                    {{ payroll.employeeName }}
                   </strong>
 
                   <span>
-                    {{
-                      payroll.employeeNumber
-                    }}
+                    {{ payroll.employeeNumber }}
                     ·
-                    {{
-                      payroll.department
-                    }}
+                    {{ payroll.department }}
                   </span>
 
                   <small>
-                    {{
-                      payroll.position
-                    }}
+                    {{ payroll.position }}
                   </small>
 
                 </div>
@@ -196,16 +186,12 @@ const paymentClass = (
 
             </td>
 
-            <!-- PERIOD -->
-
             <td>
 
               <div class="period-cell">
 
                 <strong>
-                  {{
-                    payroll.periodName
-                  }}
+                  {{ payroll.periodName }}
                 </strong>
 
                 <span>
@@ -226,91 +212,49 @@ const paymentClass = (
 
             </td>
 
-            <!-- BASIC -->
-
             <td>
 
               <strong class="basic-pay">
-                {{
-                  money(
-                    payroll.basicPay,
-                  )
-                }}
+                {{ money(payroll.basicPay) }}
               </strong>
 
             </td>
-
-            <!-- OT -->
 
             <td>
 
               <span class="ot-pay">
-                {{
-                  money(
-                    payroll.overtimePay,
-                  )
-                }}
+                {{ money(payroll.overtimePay) }}
               </span>
 
             </td>
-
-            <!-- ALLOWANCE -->
 
             <td>
-
-              <span>
-                {{
-                  money(
-                    payroll.allowances,
-                  )
-                }}
-              </span>
-
+              {{ money(payroll.allowances) }}
             </td>
-
-            <!-- GROSS -->
 
             <td>
 
               <strong class="gross">
-                {{
-                  money(
-                    payroll.grossPay,
-                  )
-                }}
+                {{ money(payroll.grossPay) }}
               </strong>
 
             </td>
-
-            <!-- DEDUCTION -->
 
             <td>
 
               <span class="deduction">
-                {{
-                  money(
-                    payroll.totalDeductions,
-                  )
-                }}
+                {{ money(payroll.totalDeductions) }}
               </span>
 
             </td>
 
-            <!-- NET -->
-
             <td>
 
               <strong class="net">
-                {{
-                  money(
-                    payroll.netPay,
-                  )
-                }}
+                {{ money(payroll.netPay) }}
               </strong>
 
             </td>
-
-            <!-- PAYROLL STATUS -->
 
             <td>
 
@@ -321,8 +265,6 @@ const paymentClass = (
               />
 
             </td>
-
-            <!-- PAYMENT -->
 
             <td>
 
@@ -337,15 +279,11 @@ const paymentClass = (
 
                 <CreditCard :size="11" />
 
-                {{
-                  payroll.paymentStatus
-                }}
+                {{ payroll.paymentStatus }}
 
               </span>
 
             </td>
-
-            <!-- REFERENCE -->
 
             <td>
 
@@ -356,14 +294,10 @@ const paymentClass = (
                 class="reference-cell"
               >
 
-                <FileCheck2
-                  :size="12"
-                />
+                <FileCheck2 :size="12" />
 
                 <span>
-                  {{
-                    payroll.referenceNumber
-                  }}
+                  {{ payroll.referenceNumber }}
                 </span>
 
               </div>
@@ -377,21 +311,41 @@ const paymentClass = (
 
             </td>
 
-            <!-- ACTION -->
-
             <td>
 
-              <button
-                type="button"
-                class="action-button"
-                title="Actions will be added later"
-              >
-
-                <MoreHorizontal
-                  :size="17"
-                />
-
-              </button>
+              <EmployeePayrollActions
+                :payroll="payroll"
+                @view="
+                  emit(
+                    'view',
+                    payroll,
+                  )
+                "
+                @employee="
+                  emit(
+                    'employee',
+                    payroll,
+                  )
+                "
+                @time-logs="
+                  emit(
+                    'timeLogs',
+                    payroll,
+                  )
+                "
+                @payslip="
+                  emit(
+                    'payslip',
+                    payroll,
+                  )
+                "
+                @source="
+                  emit(
+                    'source',
+                    payroll,
+                  )
+                "
+              />
 
             </td>
 
@@ -444,8 +398,7 @@ const paymentClass = (
     15px 16px;
 
   border-bottom:
-    1px solid
-    var(--border-soft);
+    1px solid var(--border-soft);
 }
 
 .table-heading h3 {
@@ -506,8 +459,7 @@ td {
     13px;
 
   border-top:
-    1px solid
-    var(--border-soft);
+    1px solid var(--border-soft);
 
   color:
     var(--text-secondary);
@@ -522,8 +474,6 @@ tbody tr:hover {
   background:
     var(--bg-card-soft);
 }
-
-/* PAYROLL */
 
 .payroll-number {
   display: block;
@@ -548,8 +498,6 @@ tbody tr:hover {
 
   white-space: nowrap;
 }
-
-/* EMPLOYEE */
 
 .employee-cell {
   display: flex;
@@ -612,8 +560,6 @@ tbody tr:hover {
   font-size: 8px;
 }
 
-/* PERIOD */
-
 .period-cell {
   min-width: 195px;
 }
@@ -640,8 +586,6 @@ tbody tr:hover {
 
   white-space: nowrap;
 }
-
-/* MONEY */
 
 .basic-pay,
 .gross {
@@ -673,8 +617,6 @@ tbody tr:hover {
 
   white-space: nowrap;
 }
-
-/* PAYMENT */
 
 .payment-badge {
   display: inline-flex;
@@ -726,8 +668,6 @@ tbody tr:hover {
     var(--primary);
 }
 
-/* REFERENCE */
-
 .reference-cell {
   display: flex;
 
@@ -754,44 +694,6 @@ tbody tr:hover {
   color:
     var(--text-muted);
 }
-
-/* ACTION */
-
-.action-button {
-  display: flex;
-
-  width: 31px;
-  height: 31px;
-
-  align-items: center;
-  justify-content: center;
-
-  border:
-    1px solid transparent;
-
-  border-radius: 7px;
-
-  background:
-    transparent;
-
-  color:
-    var(--text-secondary);
-
-  cursor: pointer;
-}
-
-.action-button:hover {
-  border-color:
-    var(--border);
-
-  background:
-    var(--bg-card-soft);
-
-  color:
-    var(--primary);
-}
-
-/* EMPTY */
 
 .empty-state {
   display: flex;

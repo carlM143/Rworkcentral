@@ -1,11 +1,14 @@
 <script setup lang="ts">
 import {
   Building2,
+  Eye,
   Mail,
   MapPin,
   MoreHorizontal,
+  Pencil,
   Phone,
   Store,
+  UserRoundCog,
   UsersRound,
 } from 'lucide-vue-next'
 
@@ -17,6 +20,97 @@ defineProps<{
   clients:
     ClientDirectoryRecord[]
 }>()
+
+const emit =
+  defineEmits<{
+    view: [
+      client:
+        ClientDirectoryRecord,
+    ]
+
+    edit: [
+      client:
+        ClientDirectoryRecord,
+    ]
+
+    assignments: [
+      client:
+        ClientDirectoryRecord,
+    ]
+  }>()
+
+const openMenuId =
+  ref<number | null>(
+    null,
+  )
+
+const toggleMenu = (
+  id: number,
+) => {
+  openMenuId.value =
+    openMenuId.value === id
+      ? null
+      : id
+}
+
+const closeMenu = () => {
+  openMenuId.value =
+    null
+}
+
+const handleView = (
+  client:
+    ClientDirectoryRecord,
+) => {
+  closeMenu()
+
+  emit(
+    'view',
+    client,
+  )
+}
+
+const handleEdit = (
+  client:
+    ClientDirectoryRecord,
+) => {
+  closeMenu()
+
+  emit(
+    'edit',
+    client,
+  )
+}
+
+const handleAssignments = (
+  client:
+    ClientDirectoryRecord,
+) => {
+  closeMenu()
+
+  emit(
+    'assignments',
+    client,
+  )
+}
+
+const handleWindowClick = () => {
+  closeMenu()
+}
+
+onMounted(() => {
+  window.addEventListener(
+    'click',
+    handleWindowClick,
+  )
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener(
+    'click',
+    handleWindowClick,
+  )
+})
 
 const formatDate = (
   value: string,
@@ -99,7 +193,7 @@ const contractClass = (
             <th>Contact Person</th>
             <th>Contact Details</th>
             <th>Location</th>
-            <th>Branches</th>
+            <th>Client Sites</th>
             <th>Employees</th>
             <th>Contract</th>
             <th>Client Status</th>
@@ -125,9 +219,7 @@ const contractClass = (
             <td>
 
               <strong class="client-code">
-                {{
-                  client.code
-                }}
+                {{ client.code }}
               </strong>
 
             </td>
@@ -149,19 +241,15 @@ const contractClass = (
                 <div>
 
                   <strong>
-                    {{
-                      client.name
-                    }}
+                    {{ client.name }}
                   </strong>
 
                   <span>
-                    {{
-                      client.branches
-                    }}
+                    {{ client.branches }}
                     {{
                       client.branches === 1
-                        ? 'branch'
-                        : 'branches'
+                        ? 'site'
+                        : 'sites'
                     }}
                   </span>
 
@@ -184,19 +272,17 @@ const contractClass = (
 
             </td>
 
-            <!-- CONTACT -->
+            <!-- CONTACT PERSON -->
 
             <td>
 
               <strong class="contact-person">
-                {{
-                  client.contactPerson
-                }}
+                {{ client.contactPerson }}
               </strong>
 
             </td>
 
-            <!-- CONTACT DETAILS -->
+            <!-- CONTACT -->
 
             <td>
 
@@ -210,9 +296,7 @@ const contractClass = (
 
                   <Mail :size="11" />
 
-                  {{
-                    client.email
-                  }}
+                  {{ client.email }}
 
                 </span>
 
@@ -224,9 +308,7 @@ const contractClass = (
 
                   <Phone :size="11" />
 
-                  {{
-                    client.phone
-                  }}
+                  {{ client.phone }}
 
                 </span>
 
@@ -253,7 +335,7 @@ const contractClass = (
 
             </td>
 
-            <!-- BRANCHES -->
+            <!-- SITES -->
 
             <td>
 
@@ -262,16 +344,14 @@ const contractClass = (
                 <Store :size="13" />
 
                 <strong>
-                  {{
-                    client.branches
-                  }}
+                  {{ client.branches }}
                 </strong>
 
               </div>
 
             </td>
 
-            <!-- ASSIGNED EMPLOYEES -->
+            <!-- EMPLOYEES -->
 
             <td>
 
@@ -303,11 +383,7 @@ const contractClass = (
                   )
                 "
               >
-
-                {{
-                  client.contractStatus
-                }}
-
+                {{ client.contractStatus }}
               </span>
 
             </td>
@@ -340,19 +416,118 @@ const contractClass = (
 
             <!-- ACTION -->
 
-            <td>
+            <td class="action-cell">
 
-              <button
-                type="button"
-                class="action-button"
-                title="Actions will be added later"
-              >
+              <div class="action-wrapper">
 
-                <MoreHorizontal
-                  :size="17"
-                />
+                <button
+                  type="button"
+                  class="action-button"
+                  title="Client actions"
+                  @click.stop="
+                    toggleMenu(
+                      client.id,
+                    )
+                  "
+                >
 
-              </button>
+                  <MoreHorizontal
+                    :size="17"
+                  />
+
+                </button>
+
+                <Transition name="menu-fade">
+
+                  <div
+                    v-if="
+                      openMenuId ===
+                      client.id
+                    "
+                    class="action-menu"
+                    @click.stop
+                  >
+
+                    <button
+                      type="button"
+                      @click="
+                        handleView(
+                          client,
+                        )
+                      "
+                    >
+
+                      <Eye :size="14" />
+
+                      <div>
+
+                        <strong>
+                          View Details
+                        </strong>
+
+                        <span>
+                          Review client information
+                        </span>
+
+                      </div>
+
+                    </button>
+
+                    <button
+                      type="button"
+                      @click="
+                        handleEdit(
+                          client,
+                        )
+                      "
+                    >
+
+                      <Pencil :size="14" />
+
+                      <div>
+
+                        <strong>
+                          Edit Client
+                        </strong>
+
+                        <span>
+                          Update client details
+                        </span>
+
+                      </div>
+
+                    </button>
+
+                    <button
+                      type="button"
+                      @click="
+                        handleAssignments(
+                          client,
+                        )
+                      "
+                    >
+
+                      <UserRoundCog :size="14" />
+
+                      <div>
+
+                        <strong>
+                          Employee Assignments
+                        </strong>
+
+                        <span>
+                          View deployed employees
+                        </span>
+
+                      </div>
+
+                    </button>
+
+                  </div>
+
+                </Transition>
+
+              </div>
 
             </td>
 
@@ -390,7 +565,7 @@ const contractClass = (
 
 <style scoped>
 .table-card {
-  overflow: hidden;
+  overflow: visible;
 
   border:
     1px solid var(--border);
@@ -409,8 +584,7 @@ const contractClass = (
     15px 16px;
 
   border-bottom:
-    1px solid
-    var(--border-soft);
+    1px solid var(--border-soft);
 }
 
 .table-heading h3 {
@@ -434,6 +608,8 @@ const contractClass = (
 
 .table-scroll {
   overflow-x: auto;
+
+  overflow-y: visible;
 }
 
 table {
@@ -471,8 +647,7 @@ td {
     13px;
 
   border-top:
-    1px solid
-    var(--border-soft);
+    1px solid var(--border-soft);
 
   color:
     var(--text-secondary);
@@ -487,8 +662,6 @@ tbody tr:hover {
     var(--bg-card-soft);
 }
 
-/* CLIENT CODE */
-
 .client-code {
   color:
     var(--primary);
@@ -497,8 +670,6 @@ tbody tr:hover {
 
   white-space: nowrap;
 }
-
-/* CLIENT */
 
 .client-cell {
   display: flex;
@@ -551,8 +722,6 @@ tbody tr:hover {
   font-size: 8px;
 }
 
-/* INDUSTRY */
-
 .industry-badge {
   display: inline-flex;
 
@@ -571,8 +740,6 @@ tbody tr:hover {
 
   white-space: nowrap;
 }
-
-/* CONTACT */
 
 .contact-person {
   color:
@@ -605,8 +772,6 @@ tbody tr:hover {
   white-space: nowrap;
 }
 
-/* LOCATION */
-
 .location-cell {
   display: flex;
 
@@ -626,8 +791,6 @@ tbody tr:hover {
   color:
     var(--text-muted);
 }
-
-/* COUNTS */
 
 .count-cell,
 .employees-cell {
@@ -652,8 +815,6 @@ tbody tr:hover {
 .employees-cell strong {
   font-size: 10px;
 }
-
-/* CONTRACT */
 
 .contract-badge {
   display: inline-flex;
@@ -693,8 +854,6 @@ tbody tr:hover {
     var(--red);
 }
 
-/* DATE */
-
 .date-value {
   color:
     var(--text-secondary);
@@ -703,6 +862,16 @@ tbody tr:hover {
 }
 
 /* ACTION */
+
+.action-cell {
+  position: relative;
+
+  width: 45px;
+}
+
+.action-wrapper {
+  position: relative;
+}
 
 .action-button {
   display: flex;
@@ -738,6 +907,96 @@ tbody tr:hover {
     var(--primary);
 }
 
+.action-menu {
+  position: absolute;
+
+  z-index: 200;
+
+  top: calc(100% + 5px);
+  right: 0;
+
+  width: 215px;
+
+  overflow: hidden;
+
+  padding: 5px;
+
+  border:
+    1px solid var(--border);
+
+  border-radius: 9px;
+
+  background:
+    var(--bg-card);
+
+  box-shadow:
+    0 16px 40px
+    rgba(0, 0, 0, 0.22);
+}
+
+.action-menu button {
+  display: flex;
+
+  width: 100%;
+
+  align-items: flex-start;
+
+  gap: 8px;
+
+  padding: 8px;
+
+  border: 0;
+  border-radius: 6px;
+
+  background:
+    transparent;
+
+  color:
+    var(--text-secondary);
+
+  font-family:
+    inherit;
+
+  text-align: left;
+
+  cursor: pointer;
+}
+
+.action-menu button:hover {
+  background:
+    var(--bg-card-soft);
+
+  color:
+    var(--primary);
+}
+
+.action-menu svg {
+  flex-shrink: 0;
+
+  margin-top: 2px;
+}
+
+.action-menu strong,
+.action-menu span {
+  display: block;
+}
+
+.action-menu strong {
+  color:
+    var(--text-primary);
+
+  font-size: 8px;
+}
+
+.action-menu span {
+  margin-top: 2px;
+
+  color:
+    var(--text-muted);
+
+  font-size: 7px;
+}
+
 /* EMPTY */
 
 .empty-state {
@@ -765,5 +1024,19 @@ tbody tr:hover {
 
 .empty-state span {
   font-size: 9px;
+}
+
+.menu-fade-enter-active,
+.menu-fade-leave-active {
+  transition:
+    0.12s ease;
+}
+
+.menu-fade-enter-from,
+.menu-fade-leave-to {
+  opacity: 0;
+
+  transform:
+    translateY(-3px);
 }
 </style>

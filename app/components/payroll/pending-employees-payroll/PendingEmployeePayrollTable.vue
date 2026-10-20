@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import {
-  MoreHorizontal,
   UserRound,
   Clock3,
   AlertTriangle,
 } from 'lucide-vue-next'
+
+import PendingEmployeePayrollActions from '~/components/payroll/pending-employees-payroll/PendingEmployeePayrollActions.vue'
 
 import type {
   PendingEmployeePayroll,
@@ -14,6 +15,17 @@ defineProps<{
   payrolls:
     PendingEmployeePayroll[]
 }>()
+
+const emit =
+  defineEmits<{
+    view: [payroll: PendingEmployeePayroll]
+    review: [payroll: PendingEmployeePayroll]
+    employee: [payroll: PendingEmployeePayroll]
+    timeLogs: [payroll: PendingEmployeePayroll]
+    issues: [payroll: PendingEmployeePayroll]
+    ready: [payroll: PendingEmployeePayroll]
+    finalize: [payroll: PendingEmployeePayroll]
+  }>()
 
 const money = (
   value: number,
@@ -108,25 +120,17 @@ const formatDate = (
             "
           >
 
-            <!-- PAYROLL -->
-
             <td>
 
               <strong class="payroll-number">
-                {{
-                  payroll.payrollNumber
-                }}
+                {{ payroll.payrollNumber }}
               </strong>
 
               <span class="subtext">
-                {{
-                  payroll.periodCode
-                }}
+                {{ payroll.periodCode }}
               </span>
 
             </td>
-
-            <!-- EMPLOYEE -->
 
             <td>
 
@@ -134,32 +138,26 @@ const formatDate = (
 
                 <div class="employee-icon">
 
-                  <UserRound :size="15" />
+                  <UserRound
+                    :size="15"
+                  />
 
                 </div>
 
                 <div>
 
                   <strong>
-                    {{
-                      payroll.employeeName
-                    }}
+                    {{ payroll.employeeName }}
                   </strong>
 
                   <span>
-                    {{
-                      payroll.employeeNumber
-                    }}
+                    {{ payroll.employeeNumber }}
                     ·
-                    {{
-                      payroll.department
-                    }}
+                    {{ payroll.department }}
                   </span>
 
                   <small>
-                    {{
-                      payroll.position
-                    }}
+                    {{ payroll.position }}
                   </small>
 
                 </div>
@@ -168,16 +166,12 @@ const formatDate = (
 
             </td>
 
-            <!-- PERIOD -->
-
             <td>
 
               <div class="period-cell">
 
                 <strong>
-                  {{
-                    payroll.periodName
-                  }}
+                  {{ payroll.periodName }}
                 </strong>
 
                 <span>
@@ -198,8 +192,6 @@ const formatDate = (
 
             </td>
 
-            <!-- ATTENDANCE -->
-
             <td>
 
               <div class="attendance-cell">
@@ -211,9 +203,7 @@ const formatDate = (
                   </span>
 
                   <strong>
-                    {{
-                      payroll.regularDays
-                    }}
+                    {{ payroll.regularDays }}
                   </strong>
 
                 </div>
@@ -225,24 +215,22 @@ const formatDate = (
                   </span>
 
                   <strong>
-                    {{
-                      payroll.overtimeHours
-                    }}h
+                    {{ payroll.overtimeHours }}h
                   </strong>
 
                 </div>
 
                 <div
                   v-if="
-                    payroll.lateMinutes >
-                      0 ||
-                    payroll.undertimeMinutes >
-                      0
+                    payroll.lateMinutes > 0 ||
+                    payroll.undertimeMinutes > 0
                   "
                   class="attendance-warning"
                 >
 
-                  <Clock3 :size="10" />
+                  <Clock3
+                    :size="10"
+                  />
 
                   {{
                     payroll.lateMinutes +
@@ -256,8 +244,6 @@ const formatDate = (
 
             </td>
 
-            <!-- BASIC -->
-
             <td>
 
               <strong class="money-normal">
@@ -269,8 +255,6 @@ const formatDate = (
               </strong>
 
             </td>
-
-            <!-- OT -->
 
             <td>
 
@@ -284,8 +268,6 @@ const formatDate = (
 
             </td>
 
-            <!-- HOLIDAY -->
-
             <td>
 
               <span class="money-blue">
@@ -298,21 +280,15 @@ const formatDate = (
 
             </td>
 
-            <!-- ALLOWANCES -->
-
             <td>
 
-              <span>
-                {{
-                  money(
-                    payroll.allowances,
-                  )
-                }}
-              </span>
+              {{
+                money(
+                  payroll.allowances,
+                )
+              }}
 
             </td>
-
-            <!-- GROSS -->
 
             <td>
 
@@ -326,8 +302,6 @@ const formatDate = (
 
             </td>
 
-            <!-- DEDUCTIONS -->
-
             <td>
 
               <span class="deduction">
@@ -340,8 +314,6 @@ const formatDate = (
 
             </td>
 
-            <!-- NET -->
-
             <td>
 
               <strong class="net">
@@ -353,8 +325,6 @@ const formatDate = (
               </strong>
 
             </td>
-
-            <!-- STATUS -->
 
             <td>
 
@@ -378,9 +348,7 @@ const formatDate = (
                     :size="11"
                   />
 
-                  {{
-                    payroll.issueCount
-                  }}
+                  {{ payroll.issueCount }}
 
                 </span>
 
@@ -388,21 +356,55 @@ const formatDate = (
 
             </td>
 
-            <!-- ACTION -->
-
             <td>
 
-              <button
-                type="button"
-                class="action-button"
-                title="Actions will be added later"
-              >
-
-                <MoreHorizontal
-                  :size="17"
-                />
-
-              </button>
+              <PendingEmployeePayrollActions
+                :payroll="
+                  payroll
+                "
+                @view="
+                  emit(
+                    'view',
+                    payroll,
+                  )
+                "
+                @review="
+                  emit(
+                    'review',
+                    payroll,
+                  )
+                "
+                @employee="
+                  emit(
+                    'employee',
+                    payroll,
+                  )
+                "
+                @time-logs="
+                  emit(
+                    'timeLogs',
+                    payroll,
+                  )
+                "
+                @issues="
+                  emit(
+                    'issues',
+                    payroll,
+                  )
+                "
+                @ready="
+                  emit(
+                    'ready',
+                    payroll,
+                  )
+                "
+                @finalize="
+                  emit(
+                    'finalize',
+                    payroll,
+                  )
+                "
+              />
 
             </td>
 
@@ -414,14 +416,14 @@ const formatDate = (
 
     </div>
 
-    <!-- EMPTY -->
-
     <div
       v-else
       class="empty-state"
     >
 
-      <UserRound :size="30" />
+      <UserRound
+        :size="30"
+      />
 
       <strong>
         No pending employee payroll found
@@ -457,8 +459,7 @@ const formatDate = (
     15px 16px;
 
   border-bottom:
-    1px solid
-    var(--border-soft);
+    1px solid var(--border-soft);
 }
 
 .table-heading h3 {
@@ -519,8 +520,7 @@ td {
     13px;
 
   border-top:
-    1px solid
-    var(--border-soft);
+    1px solid var(--border-soft);
 
   color:
     var(--text-secondary);
@@ -535,8 +535,6 @@ tbody tr:hover {
   background:
     var(--bg-card-soft);
 }
-
-/* PAYROLL */
 
 .payroll-number {
   display: block;
@@ -561,8 +559,6 @@ tbody tr:hover {
 
   white-space: nowrap;
 }
-
-/* EMPLOYEE */
 
 .employee-cell {
   display: flex;
@@ -625,8 +621,6 @@ tbody tr:hover {
   font-size: 8px;
 }
 
-/* PERIOD */
-
 .period-cell {
   min-width: 195px;
 }
@@ -654,8 +648,6 @@ tbody tr:hover {
   white-space: nowrap;
 }
 
-/* ATTENDANCE */
-
 .attendance-cell {
   display: flex;
 
@@ -666,7 +658,8 @@ tbody tr:hover {
   gap: 6px;
 }
 
-.attendance-cell > div:not(
+.attendance-cell >
+div:not(
   .attendance-warning
 ) {
   min-width: 42px;
@@ -724,8 +717,6 @@ tbody tr:hover {
   white-space: nowrap;
 }
 
-/* MONEY */
-
 .money-normal,
 .gross {
   color:
@@ -764,8 +755,6 @@ tbody tr:hover {
   white-space: nowrap;
 }
 
-/* STATUS */
-
 .status-cell {
   display: flex;
 
@@ -795,44 +784,6 @@ tbody tr:hover {
   font-size: 8px;
   font-weight: 700;
 }
-
-/* ACTION */
-
-.action-button {
-  display: flex;
-
-  width: 31px;
-  height: 31px;
-
-  align-items: center;
-  justify-content: center;
-
-  border:
-    1px solid transparent;
-
-  border-radius: 7px;
-
-  background:
-    transparent;
-
-  color:
-    var(--text-secondary);
-
-  cursor: pointer;
-}
-
-.action-button:hover {
-  border-color:
-    var(--border);
-
-  background:
-    var(--bg-card-soft);
-
-  color:
-    var(--primary);
-}
-
-/* EMPTY */
 
 .empty-state {
   display: flex;

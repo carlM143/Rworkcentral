@@ -3,7 +3,7 @@ import {
   CalendarClock,
   BadgeCheck,
   Users,
-  CalendarDays,
+  Clock3,
 } from 'lucide-vue-next'
 
 defineProps<{
@@ -11,7 +11,7 @@ defineProps<{
     total: number
     active: number
     employees: number
-    restDayConfigurations: number
+    flexible: number
   }
 }>()
 </script>
@@ -43,13 +43,13 @@ defineProps<{
       tone="purple"
     />
 
-    <StatCard
-      label="Rest Day Setup"
-      :value="stats.restDayConfigurations"
-      description="Schedules with rest days"
-      :icon="CalendarDays"
-      tone="orange"
-    />
+   <StatCard
+  label="Flexible Schedules"
+  :value="stats.flexible"
+  description="Schedules without fixed time in/out"
+  :icon="Clock3"
+  tone="orange"
+/>
 
   </div>
 </template>

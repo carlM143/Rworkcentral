@@ -17,6 +17,8 @@ import AddEditLoanModal from '~/components/payroll/loans/AddEditLoanModal.vue'
 import LoanDetailsModal from '~/components/payroll/loans/LoanDetailsModal.vue'
 import LoanPaymentHistoryModal from '~/components/payroll/loans/LoanPaymentHistoryModal.vue'
 
+import LoanExportModal from '~/components/payroll/loans/LoanExportModal.vue'
+
 import type {
   LoanFormData,
   LoanRecord,
@@ -471,12 +473,61 @@ const handleStatusSave = () => {
    EXPORT
 ========================================================= */
 
+const exportOpen =
+  ref(false)
+
 const handleExport = () => {
-  info(
-    'Export Loans',
-    'Loan report export will be connected later.',
-  )
+  exportOpen.value =
+    true
 }
+
+const handleExportSubmit = (
+  payload: {
+    format:
+      | 'Excel'
+      | 'PDF'
+      | 'CSV'
+
+    scope:
+      | 'Current Filters'
+      | 'All Loan Records'
+
+    includeLoanNumber:
+      boolean
+
+    includeEmployee:
+      boolean
+
+    includeDepartment:
+      boolean
+
+    includeLoanType:
+      boolean
+
+    includePrincipal:
+      boolean
+
+    includeMonthlyDeduction:
+      boolean
+
+    includeTotalPaid:
+      boolean
+
+    includeOutstanding:
+      boolean
+
+    includeDates:
+      boolean
+
+    includeStatus:
+      boolean
+  },
+) => {
+  info(
+    `Export ${payload.format}`,
+    `${filteredLoans.value.length} loan record(s) are ready for export. Actual file generation will be connected during backend integration.`,
+  )
+} 
 
 const handleBack = () => {
   router.push(
@@ -690,19 +741,51 @@ const handleBack = () => {
     />
 
     <LoanPaymentHistoryModal
-      :open="
-        historyOpen
-      "
-      :loan="
-        historyLoan
-      "
-      :payments="
-        historyPayments
-      "
-      @close="
-        historyOpen = false
-      "
-    />
+  :open="
+    historyOpen
+  "
+  :loan="
+    historyLoan
+  "
+  :payments="
+    historyPayments
+  "
+  @close="
+    historyOpen = false
+  "
+/>
+
+<!-- EXPORT -->
+
+  <LoanExportModal
+    :open="
+      exportOpen
+    "
+    :record-count="
+      filteredLoans.length
+    "
+    :loan-type="
+      loanType
+    "
+    :department="
+      department
+    "
+    :status="
+      status
+    "
+    :date-from="
+      dateFrom
+    "
+    :date-to="
+      dateTo
+    "
+    @close="
+      exportOpen = false
+    "
+    @export="
+      handleExportSubmit
+    "
+  />
 
     <!-- STATUS CONFIRMATION -->
 

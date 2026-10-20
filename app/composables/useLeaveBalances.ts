@@ -1,424 +1,473 @@
 import type {
   LeaveBalance,
   LeaveBalanceStatus,
+  LeaveCreditAdjustmentFormData,
+  LeaveCreditBreakdown,
+  LeaveCreditKey,
+  LeaveCreditType,
 } from '~/types/leaveBalance'
 
 export const useLeaveBalances = () => {
+  /* =========================================================
+     HELPERS
+  ========================================================= */
+
+  const credit = (
+    allocated: number,
+    used: number,
+  ): LeaveCreditBreakdown => {
+    return {
+      allocated,
+      used,
+      available:
+        Math.max(
+          0,
+          allocated - used,
+        ),
+    }
+  }
+
+  const getStatus = (
+    available: number,
+  ): LeaveBalanceStatus => {
+    if (
+      available <= 2
+    ) {
+      return 'Exhausted'
+    }
+
+    if (
+      available <= 12
+    ) {
+      return 'Low Balance'
+    }
+
+    return 'Healthy'
+  }
+
+  const buildBalance = (
+    data: {
+      id: number
+      employeeId: number
+      employeeNumber: string
+      employeeName: string
+      department: string
+      position: string
+
+      vacation: [
+        number,
+        number,
+      ]
+
+      sick: [
+        number,
+        number,
+      ]
+
+      emergency: [
+        number,
+        number,
+      ]
+
+      special: [
+        number,
+        number,
+      ]
+
+      lastUpdated: string
+    },
+  ): LeaveBalance => {
+    const vacationLeave =
+      credit(
+        ...data.vacation,
+      )
+
+    const sickLeave =
+      credit(
+        ...data.sick,
+      )
+
+    const emergencyLeave =
+      credit(
+        ...data.emergency,
+      )
+
+    const specialLeave =
+      credit(
+        ...data.special,
+      )
+
+    const credits = [
+      vacationLeave,
+      sickLeave,
+      emergencyLeave,
+      specialLeave,
+    ]
+
+    const totalAllocated =
+      credits.reduce(
+        (
+          total,
+          item,
+        ) =>
+          total +
+          item.allocated,
+        0,
+      )
+
+    const totalUsed =
+      credits.reduce(
+        (
+          total,
+          item,
+        ) =>
+          total +
+          item.used,
+        0,
+      )
+
+    const totalAvailable =
+      credits.reduce(
+        (
+          total,
+          item,
+        ) =>
+          total +
+          item.available,
+        0,
+      )
+
+    return {
+      id:
+        data.id,
+
+      employeeId:
+        data.employeeId,
+
+      employeeNumber:
+        data.employeeNumber,
+
+      employeeName:
+        data.employeeName,
+
+      department:
+        data.department,
+
+      position:
+        data.position,
+
+      vacationLeave,
+      sickLeave,
+      emergencyLeave,
+      specialLeave,
+
+      totalAllocated,
+      totalUsed,
+      totalAvailable,
+
+      status:
+        getStatus(
+          totalAvailable,
+        ),
+
+      lastUpdated:
+        data.lastUpdated,
+    }
+  }
+
+  /* =========================================================
+     DATA
+  ========================================================= */
+
   const balances =
     useState<LeaveBalance[]>(
       'leave-balances',
       () => [
-        {
+        buildBalance({
           id: 1,
           employeeId: 1,
-          employeeNumber: 'EMP-001',
-          employeeName: 'Juan Dela Cruz',
-          department: 'Operations',
-          position: 'Driver',
+          employeeNumber:
+            'EMP-001',
+          employeeName:
+            'Juan Dela Cruz',
+          department:
+            'Operations',
+          position:
+            'Driver',
 
-          vacationLeave: {
-            allocated: 15,
-            used: 6,
-            available: 9,
-          },
+          vacation:
+            [15, 6],
 
-          sickLeave: {
-            allocated: 15,
-            used: 2,
-            available: 13,
-          },
+          sick:
+            [15, 2],
 
-          emergencyLeave: {
-            allocated: 5,
-            used: 1,
-            available: 4,
-          },
+          emergency:
+            [5, 1],
 
-          specialLeave: {
-            allocated: 3,
-            used: 0,
-            available: 3,
-          },
+          special:
+            [3, 0],
 
-          totalAllocated: 38,
-          totalUsed: 9,
-          totalAvailable: 29,
+          lastUpdated:
+            '2026-10-05',
+        }),
 
-          status: 'Healthy',
-
-          lastUpdated: '2026-10-05',
-        },
-
-        {
+        buildBalance({
           id: 2,
           employeeId: 2,
-          employeeNumber: 'EMP-002',
-          employeeName: 'Maria Santos',
-          department: 'Human Resources',
-          position: 'HR Administrator',
+          employeeNumber:
+            'EMP-002',
+          employeeName:
+            'Maria Santos',
+          department:
+            'Human Resources',
+          position:
+            'HR Administrator',
 
-          vacationLeave: {
-            allocated: 15,
-            used: 8,
-            available: 7,
-          },
+          vacation:
+            [15, 8],
 
-          sickLeave: {
-            allocated: 15,
-            used: 3,
-            available: 12,
-          },
+          sick:
+            [15, 3],
 
-          emergencyLeave: {
-            allocated: 5,
-            used: 0,
-            available: 5,
-          },
+          emergency:
+            [5, 0],
 
-          specialLeave: {
-            allocated: 3,
-            used: 1,
-            available: 2,
-          },
+          special:
+            [3, 1],
 
-          totalAllocated: 38,
-          totalUsed: 12,
-          totalAvailable: 26,
+          lastUpdated:
+            '2026-10-04',
+        }),
 
-          status: 'Healthy',
-
-          lastUpdated: '2026-10-04',
-        },
-
-        {
+        buildBalance({
           id: 3,
           employeeId: 3,
-          employeeNumber: 'EMP-003',
-          employeeName: 'Pedro Reyes',
-          department: 'Finance',
-          position: 'Finance Staff',
+          employeeNumber:
+            'EMP-003',
+          employeeName:
+            'Pedro Reyes',
+          department:
+            'Finance',
+          position:
+            'Finance Staff',
 
-          vacationLeave: {
-            allocated: 15,
-            used: 13,
-            available: 2,
-          },
+          vacation:
+            [15, 13],
 
-          sickLeave: {
-            allocated: 15,
-            used: 11,
-            available: 4,
-          },
+          sick:
+            [15, 11],
 
-          emergencyLeave: {
-            allocated: 5,
-            used: 4,
-            available: 1,
-          },
+          emergency:
+            [5, 4],
 
-          specialLeave: {
-            allocated: 3,
-            used: 2,
-            available: 1,
-          },
+          special:
+            [3, 2],
 
-          totalAllocated: 38,
-          totalUsed: 30,
-          totalAvailable: 8,
+          lastUpdated:
+            '2026-10-06',
+        }),
 
-          status: 'Low Balance',
-
-          lastUpdated: '2026-10-06',
-        },
-
-        {
+        buildBalance({
           id: 4,
           employeeId: 4,
-          employeeNumber: 'EMP-004',
-          employeeName: 'Ana Garcia',
-          department: 'Operations',
-          position: 'Operations Staff',
+          employeeNumber:
+            'EMP-004',
+          employeeName:
+            'Ana Garcia',
+          department:
+            'Operations',
+          position:
+            'Operations Staff',
 
-          vacationLeave: {
-            allocated: 15,
-            used: 4,
-            available: 11,
-          },
+          vacation:
+            [15, 4],
 
-          sickLeave: {
-            allocated: 15,
-            used: 1,
-            available: 14,
-          },
+          sick:
+            [15, 1],
 
-          emergencyLeave: {
-            allocated: 5,
-            used: 1,
-            available: 4,
-          },
+          emergency:
+            [5, 1],
 
-          specialLeave: {
-            allocated: 3,
-            used: 0,
-            available: 3,
-          },
+          special:
+            [3, 0],
 
-          totalAllocated: 38,
-          totalUsed: 6,
-          totalAvailable: 32,
+          lastUpdated:
+            '2026-10-02',
+        }),
 
-          status: 'Healthy',
-
-          lastUpdated: '2026-10-02',
-        },
-
-        {
+        buildBalance({
           id: 5,
           employeeId: 5,
-          employeeNumber: 'EMP-005',
-          employeeName: 'Carlo Mendoza',
-          department: 'IT',
-          position: 'Developer',
+          employeeNumber:
+            'EMP-005',
+          employeeName:
+            'Carlo Mendoza',
+          department:
+            'IT',
+          position:
+            'Developer',
 
-          vacationLeave: {
-            allocated: 15,
-            used: 15,
-            available: 0,
-          },
+          vacation:
+            [15, 15],
 
-          sickLeave: {
-            allocated: 15,
-            used: 13,
-            available: 2,
-          },
+          sick:
+            [15, 13],
 
-          emergencyLeave: {
-            allocated: 5,
-            used: 5,
-            available: 0,
-          },
+          emergency:
+            [5, 5],
 
-          specialLeave: {
-            allocated: 3,
-            used: 3,
-            available: 0,
-          },
+          special:
+            [3, 3],
 
-          totalAllocated: 38,
-          totalUsed: 36,
-          totalAvailable: 2,
+          lastUpdated:
+            '2026-10-06',
+        }),
 
-          status: 'Exhausted',
-
-          lastUpdated: '2026-10-06',
-        },
-
-        {
+        buildBalance({
           id: 6,
           employeeId: 6,
-          employeeNumber: 'EMP-006',
-          employeeName: 'Angela Flores',
-          department: 'Billing',
-          position: 'Billing Staff',
+          employeeNumber:
+            'EMP-006',
+          employeeName:
+            'Angela Flores',
+          department:
+            'Finance',
+          position:
+            'Finance Staff',
 
-          vacationLeave: {
-            allocated: 15,
-            used: 7,
-            available: 8,
-          },
+          vacation:
+            [15, 7],
 
-          sickLeave: {
-            allocated: 15,
-            used: 4,
-            available: 11,
-          },
+          sick:
+            [15, 4],
 
-          emergencyLeave: {
-            allocated: 5,
-            used: 0,
-            available: 5,
-          },
+          emergency:
+            [5, 0],
 
-          specialLeave: {
-            allocated: 3,
-            used: 1,
-            available: 2,
-          },
+          special:
+            [3, 1],
 
-          totalAllocated: 38,
-          totalUsed: 12,
-          totalAvailable: 26,
+          lastUpdated:
+            '2026-10-01',
+        }),
 
-          status: 'Healthy',
-
-          lastUpdated: '2026-10-01',
-        },
-
-        {
+        buildBalance({
           id: 7,
           employeeId: 7,
-          employeeNumber: 'EMP-007',
-          employeeName: 'Mark Lopez',
-          department: 'IT',
-          position: 'IT Support',
+          employeeNumber:
+            'EMP-007',
+          employeeName:
+            'Mark Lopez',
+          department:
+            'IT',
+          position:
+            'IT Support',
 
-          vacationLeave: {
-            allocated: 15,
-            used: 12,
-            available: 3,
-          },
+          vacation:
+            [15, 12],
 
-          sickLeave: {
-            allocated: 15,
-            used: 9,
-            available: 6,
-          },
+          sick:
+            [15, 9],
 
-          emergencyLeave: {
-            allocated: 5,
-            used: 4,
-            available: 1,
-          },
+          emergency:
+            [5, 4],
 
-          specialLeave: {
-            allocated: 3,
-            used: 1,
-            available: 2,
-          },
+          special:
+            [3, 1],
 
-          totalAllocated: 38,
-          totalUsed: 26,
-          totalAvailable: 12,
+          lastUpdated:
+            '2026-10-03',
+        }),
 
-          status: 'Low Balance',
-
-          lastUpdated: '2026-10-03',
-        },
-
-        {
+        buildBalance({
           id: 8,
           employeeId: 8,
-          employeeNumber: 'EMP-008',
-          employeeName: 'Jenny Ramos',
-          department: 'Human Resources',
-          position: 'HR Staff',
+          employeeNumber:
+            'EMP-008',
+          employeeName:
+            'Jenny Ramos',
+          department:
+            'Human Resources',
+          position:
+            'HR Staff',
 
-          vacationLeave: {
-            allocated: 15,
-            used: 5,
-            available: 10,
-          },
+          vacation:
+            [15, 5],
 
-          sickLeave: {
-            allocated: 15,
-            used: 2,
-            available: 13,
-          },
+          sick:
+            [15, 2],
 
-          emergencyLeave: {
-            allocated: 5,
-            used: 1,
-            available: 4,
-          },
+          emergency:
+            [5, 1],
 
-          specialLeave: {
-            allocated: 3,
-            used: 1,
-            available: 2,
-          },
+          special:
+            [3, 1],
 
-          totalAllocated: 38,
-          totalUsed: 9,
-          totalAvailable: 29,
+          lastUpdated:
+            '2026-10-05',
+        }),
 
-          status: 'Healthy',
-
-          lastUpdated: '2026-10-05',
-        },
-
-        {
+        buildBalance({
           id: 9,
           employeeId: 9,
-          employeeNumber: 'EMP-009',
-          employeeName: 'Robert Castillo',
-          department: 'Finance',
-          position: 'Finance Officer',
+          employeeNumber:
+            'EMP-009',
+          employeeName:
+            'Robert Castillo',
+          department:
+            'Finance',
+          position:
+            'Finance Officer',
 
-          vacationLeave: {
-            allocated: 15,
-            used: 10,
-            available: 5,
-          },
+          vacation:
+            [15, 10],
 
-          sickLeave: {
-            allocated: 15,
-            used: 7,
-            available: 8,
-          },
+          sick:
+            [15, 7],
 
-          emergencyLeave: {
-            allocated: 5,
-            used: 2,
-            available: 3,
-          },
+          emergency:
+            [5, 2],
 
-          specialLeave: {
-            allocated: 3,
-            used: 1,
-            available: 2,
-          },
+          special:
+            [3, 1],
 
-          totalAllocated: 38,
-          totalUsed: 20,
-          totalAvailable: 18,
+          lastUpdated:
+            '2026-10-04',
+        }),
 
-          status: 'Healthy',
-
-          lastUpdated: '2026-10-04',
-        },
-
-        {
+        buildBalance({
           id: 10,
           employeeId: 10,
-          employeeNumber: 'EMP-010',
-          employeeName: 'Grace Navarro',
-          department: 'Human Resources',
-          position: 'HR Staff',
+          employeeNumber:
+            'EMP-010',
+          employeeName:
+            'Grace Navarro',
+          department:
+            'Human Resources',
+          position:
+            'HR Staff',
 
-          vacationLeave: {
-            allocated: 15,
-            used: 14,
-            available: 1,
-          },
+          vacation:
+            [15, 14],
 
-          sickLeave: {
-            allocated: 15,
-            used: 10,
-            available: 5,
-          },
+          sick:
+            [15, 10],
 
-          emergencyLeave: {
-            allocated: 5,
-            used: 4,
-            available: 1,
-          },
+          emergency:
+            [5, 4],
 
-          specialLeave: {
-            allocated: 3,
-            used: 2,
-            available: 1,
-          },
+          special:
+            [3, 2],
 
-          totalAllocated: 38,
-          totalUsed: 30,
-          totalAvailable: 8,
-
-          status: 'Low Balance',
-
-          lastUpdated: '2026-10-06',
-        },
+          lastUpdated:
+            '2026-10-06',
+        }),
       ],
     )
+
+  /* =========================================================
+     FILTERS
+  ========================================================= */
 
   const search =
     ref('')
@@ -494,6 +543,10 @@ export const useLeaveBalances = () => {
       )
     })
 
+  /* =========================================================
+     STATS
+  ========================================================= */
+
   const stats =
     computed(() => {
       const data =
@@ -530,6 +583,10 @@ export const useLeaveBalances = () => {
       }
     })
 
+  /* =========================================================
+     PAGINATION
+  ========================================================= */
+
   const totalPages =
     computed(() => {
       return Math.max(
@@ -563,8 +620,8 @@ export const useLeaveBalances = () => {
   const showingFrom =
     computed(() => {
       if (
-        filteredBalances
-          .value.length === 0
+        !filteredBalances
+          .value.length
       ) {
         return 0
       }
@@ -589,6 +646,209 @@ export const useLeaveBalances = () => {
           .value.length,
       )
     })
+
+  /* =========================================================
+     CREDIT HELPERS
+  ========================================================= */
+
+  const creditKeys:
+    Record<
+      LeaveCreditType,
+      LeaveCreditKey
+    > = {
+      'Vacation Leave':
+        'vacationLeave',
+
+      'Sick Leave':
+        'sickLeave',
+
+      'Emergency Leave':
+        'emergencyLeave',
+
+      'Special Leave':
+        'specialLeave',
+    }
+
+  const leaveTypeOptions:
+    LeaveCreditType[] = [
+      'Vacation Leave',
+      'Sick Leave',
+      'Emergency Leave',
+      'Special Leave',
+    ]
+
+  const getBalanceByEmployeeId = (
+    employeeId: number,
+  ) => {
+    return balances.value.find(
+      item =>
+        item.employeeId ===
+        Number(
+          employeeId,
+        ),
+    )
+  }
+
+  const recalculateBalance = (
+    balance:
+      LeaveBalance,
+  ) => {
+    const credits = [
+      balance.vacationLeave,
+      balance.sickLeave,
+      balance.emergencyLeave,
+      balance.specialLeave,
+    ]
+
+    balance.totalAllocated =
+      credits.reduce(
+        (
+          total,
+          item,
+        ) =>
+          total +
+          item.allocated,
+        0,
+      )
+
+    balance.totalUsed =
+      credits.reduce(
+        (
+          total,
+          item,
+        ) =>
+          total +
+          item.used,
+        0,
+      )
+
+    balance.totalAvailable =
+      credits.reduce(
+        (
+          total,
+          item,
+        ) =>
+          total +
+          item.available,
+        0,
+      )
+
+    balance.status =
+      getStatus(
+        balance.totalAvailable,
+      )
+
+    balance.lastUpdated =
+      new Date()
+        .toISOString()
+        .slice(
+          0,
+          10,
+        )
+  }
+
+  /* =========================================================
+     ADJUST CREDITS
+  ========================================================= */
+
+  const adjustCredits = (
+    data:
+      LeaveCreditAdjustmentFormData,
+  ) => {
+    const balance =
+      getBalanceByEmployeeId(
+        data.employeeId,
+      )
+
+    if (!balance) {
+      return {
+        success:
+          false,
+
+        message:
+          'Employee leave balance could not be found.',
+      }
+    }
+
+    const creditKey =
+      creditKeys[
+        data.leaveType
+      ]
+
+    const selectedCredit =
+      balance[
+        creditKey
+      ]
+
+    const adjustmentDays =
+      Math.max(
+        0,
+        Number(
+          data.days,
+        ),
+      )
+
+    if (
+      adjustmentDays <= 0
+    ) {
+      return {
+        success:
+          false,
+
+        message:
+          'Adjustment days must be greater than zero.',
+      }
+    }
+
+    if (
+      data.adjustmentType ===
+      'Add Credits'
+    ) {
+      selectedCredit.allocated +=
+        adjustmentDays
+    } else {
+      if (
+        adjustmentDays >
+        selectedCredit.available
+      ) {
+        return {
+          success:
+            false,
+
+          message:
+            `You can only deduct up to ${selectedCredit.available} available day(s).`,
+        }
+      }
+
+      selectedCredit.allocated -=
+        adjustmentDays
+    }
+
+    selectedCredit.available =
+      Math.max(
+        0,
+        selectedCredit.allocated -
+          selectedCredit.used,
+      )
+
+    recalculateBalance(
+      balance,
+    )
+
+    return {
+      success:
+        true,
+
+      balance,
+
+      message:
+        `${data.leaveType} successfully adjusted.`,
+    }
+  }
+
+  /* =========================================================
+     RESET
+  ========================================================= */
 
   const resetFilters = () => {
     search.value = ''
@@ -642,6 +902,10 @@ export const useLeaveBalances = () => {
 
     departmentOptions,
     statusOptions,
+    leaveTypeOptions,
+
+    getBalanceByEmployeeId,
+    adjustCredits,
 
     resetFilters,
   }

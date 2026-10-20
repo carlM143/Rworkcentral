@@ -35,3 +35,21 @@ export interface ClientEmployeeAssignment {
 
   remarks?: string
 }
+
+export interface ClientAssignmentFormData {
+  employeeId: number
+
+  clientId: number
+
+  assignmentDate: string
+
+  endDate?: string
+
+  assignmentType:
+    ClientAssignmentType
+
+  status:
+    ClientAssignmentStatus
+
+  remarks?: string
+}

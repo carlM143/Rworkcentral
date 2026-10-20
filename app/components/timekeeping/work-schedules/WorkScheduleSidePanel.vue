@@ -3,7 +3,6 @@ import {
   Clock3,
   Plus,
   Users,
-  CalendarDays,
 } from 'lucide-vue-next'
 
 defineProps<{
@@ -16,7 +15,6 @@ defineProps<{
 const emit = defineEmits<{
   add: []
   assign: []
-  restDays: []
 }>()
 </script>
 
@@ -99,14 +97,6 @@ const emit = defineEmits<{
         >
           <Users :size="15" />
           Assign Employees
-        </button>
-
-        <button
-          type="button"
-          @click="emit('restDays')"
-        >
-          <CalendarDays :size="15" />
-          Manage Rest Days
         </button>
 
       </div>

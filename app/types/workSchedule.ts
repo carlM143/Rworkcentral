@@ -24,8 +24,6 @@ export interface WorkSchedule {
   workHours: number
   gracePeriod: number
 
-  restDays: string[]
-
   employeeCount: number
 
   status: WorkScheduleStatus
@@ -44,8 +42,6 @@ export interface WorkScheduleFormData {
 
   workHours: number
   gracePeriod: number
-
-  restDays: string[]
 
   status: WorkScheduleStatus
 }

@@ -125,7 +125,7 @@ const menuItems = [
         to: '/trip-tickets',
       },
       {
-        label: 'Filed Leaves',
+        label: 'Field Leaves',
         to: '/filed-leaves',
       },
       {
@@ -219,32 +219,28 @@ const menuItems = [
   // LEAVE
   // =====================================================
   {
-    label: 'Leave Management',
-    key: 'leave',
-    icon: Umbrella,
-    children: [
-      {
+  label: 'Leave Management',
+  key: 'leave',
+  icon: Umbrella,
+  children: [
+    {
       label: 'Overview',
       to: '/leave-management',
-      },
-      {
-        label: 'Filed Leaves',
-        to: '/filed-leaves',
-      },
-      {
-        label: 'Leave Balance',
-        to: '/leave-balances',
-      },
-      {
-        label: 'Leave Types',
-        to: '/leave-types',
-      },
-      {
-        label: 'Leave Calendar',
-        to: '/leave-calendar',
-      },
-    ],
-  },
+    },
+    {
+      label: 'Leave Balances',
+      to: '/leave-balances',
+    },
+    {
+      label: 'Leave Types',
+      to: '/leave-types',
+    },
+    {
+      label: 'Leave Calendar',
+      to: '/leave-calendar',
+    },
+  ],
+},
 
   // =====================================================
   // OVERTIME

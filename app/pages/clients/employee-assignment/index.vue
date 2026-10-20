@@ -6,8 +6,21 @@ import {
 } from 'lucide-vue-next'
 
 import ClientAssignmentStats from '~/components/clients/employee-assignment/ClientAssignmentStats.vue'
+
 import ClientAssignmentFilters from '~/components/clients/employee-assignment/ClientAssignmentFilters.vue'
+
 import ClientAssignmentTable from '~/components/clients/employee-assignment/ClientAssignmentTable.vue'
+
+import ClientAssignmentFormModal from '~/components/clients/employee-assignment/ClientAssignmentFormModal.vue'
+
+import ClientAssignmentDetailsModal from '~/components/clients/employee-assignment/ClientAssignmentDetailsModal.vue'
+
+import ClientAssignmentExportModal from '~/components/clients/employee-assignment/ClientAssignmentExportModal.vue'
+
+import type {
+  ClientAssignmentFormData,
+  ClientEmployeeAssignment,
+} from '~/types/clientEmployeeAssignment'
 
 const router =
   useRouter()
@@ -16,6 +29,9 @@ const route =
   useRoute()
 
 const {
+  availableEmployees,
+  availableClients,
+
   search,
   client,
   department,
@@ -38,18 +54,21 @@ const {
   statusOptions,
   assignmentTypeOptions,
 
+  createAssignment,
+  updateAssignment,
+  activateAssignment,
+  endAssignment,
+
   resetFilters,
 } = useClientEmployeeAssignments()
 
 const {
   info,
+  success,
 } = useToast()
 
 /* =========================================================
    QUERY FILTER
-
-   Example:
-   /clients/employee-assignment?client=Davao Transport Services Inc.
 ========================================================= */
 
 watch(
@@ -71,22 +90,241 @@ watch(
 )
 
 /* =========================================================
-   UI ONLY ACTIONS
+   ADD / EDIT
 ========================================================= */
 
-const handleExport = () => {
-  info(
-    'Export Employee Assignments',
-    'Employee assignment export functionality will be connected later.',
+const formOpen =
+  ref(false)
+
+const editingAssignment =
+  ref<
+    ClientEmployeeAssignment |
+    null
+  >(null)
+
+const handleAssignEmployee = () => {
+  editingAssignment.value =
+    null
+
+  formOpen.value =
+    true
+}
+
+const handleEdit = (
+  assignment:
+    ClientEmployeeAssignment,
+) => {
+  editingAssignment.value =
+    assignment
+
+  formOpen.value =
+    true
+}
+
+const closeForm = () => {
+  formOpen.value =
+    false
+
+  editingAssignment.value =
+    null
+}
+
+/* =========================================================
+   SAVE
+========================================================= */
+
+const handleSave = (
+  data:
+    ClientAssignmentFormData,
+) => {
+  if (
+    editingAssignment.value
+  ) {
+    const updated =
+      updateAssignment(
+        editingAssignment.value.id,
+        data,
+      )
+
+    if (!updated) {
+      info(
+        'Unable to Update',
+        'Employee or client record could not be found.',
+      )
+
+      return
+    }
+
+    closeForm()
+
+    success(
+      'Assignment Updated',
+      `${updated.employeeName}'s client assignment has been updated.`,
+    )
+
+    return
+  }
+
+  const created =
+    createAssignment(
+      data,
+    )
+
+  if (!created) {
+    info(
+      'Unable to Assign',
+      'Employee or client record could not be found.',
+    )
+
+    return
+  }
+
+  closeForm()
+
+  success(
+    'Employee Assigned',
+    `${created.employeeName} has been assigned to ${created.clientName}.`,
   )
 }
 
-const handleAssignEmployee = () => {
-  info(
-    'Assign Employee',
-    'Employee assignment form will be added after all Client submenu UIs are completed.',
+/* =========================================================
+   DETAILS
+========================================================= */
+
+const detailsOpen =
+  ref(false)
+
+const selectedAssignment =
+  ref<
+    ClientEmployeeAssignment |
+    null
+  >(null)
+
+const handleView = (
+  assignment:
+    ClientEmployeeAssignment,
+) => {
+  selectedAssignment.value =
+    assignment
+
+  detailsOpen.value =
+    true
+}
+
+const closeDetails = () => {
+  detailsOpen.value =
+    false
+
+  selectedAssignment.value =
+    null
+}
+
+const handleEditFromDetails = (
+  assignment:
+    ClientEmployeeAssignment,
+) => {
+  closeDetails()
+
+  handleEdit(
+    assignment,
   )
 }
+
+/* =========================================================
+   VIEW EMPLOYEE
+========================================================= */
+
+const handleEmployee = (
+  assignment:
+    ClientEmployeeAssignment,
+) => {
+  closeDetails()
+
+  router.push(
+    `/employees/${assignment.employeeId}`,
+  )
+}
+
+/* =========================================================
+   ACTIVATE
+========================================================= */
+
+const handleActivate = (
+  assignment:
+    ClientEmployeeAssignment,
+) => {
+  const result =
+    activateAssignment(
+      assignment.id,
+    )
+
+  if (!result) {
+    return
+  }
+
+  closeDetails()
+
+  success(
+    'Assignment Activated',
+    `${result.employeeName}'s assignment to ${result.clientName} is now active.`,
+  )
+}
+
+/* =========================================================
+   END
+========================================================= */
+
+const handleEnd = (
+  assignment:
+    ClientEmployeeAssignment,
+) => {
+  const result =
+    endAssignment(
+      assignment.id,
+    )
+
+  if (!result) {
+    return
+  }
+
+  closeDetails()
+
+  success(
+    'Assignment Ended',
+    `${result.employeeName}'s assignment to ${result.clientName} has been ended.`,
+  )
+}
+
+/* =========================================================
+   EXPORT
+========================================================= */
+
+const exportOpen =
+  ref(false)
+
+const handleExport = () => {
+  exportOpen.value =
+    true
+}
+
+const handleExportSubmit = (
+  format:
+    'Excel' |
+    'PDF' |
+    'CSV',
+) => {
+  exportOpen.value =
+    false
+
+  info(
+    `Export ${format}`,
+    `${filteredAssignments.value.length} assignment record(s) are ready for export. Actual file generation will be connected during backend integration.`,
+  )
+}
+
+/* =========================================================
+   BACK
+========================================================= */
 
 const handleBack = () => {
   router.push(
@@ -108,15 +346,13 @@ const handleBack = () => {
       "
     >
 
-      <ArrowLeft
-        :size="15"
-      />
+      <ArrowLeft :size="15" />
 
       Back to Clients
 
     </button>
 
-    <!-- PAGE HEADER -->
+    <!-- HEADER -->
 
     <PageHeader
       title="Employee Assignment"
@@ -156,7 +392,7 @@ const handleBack = () => {
       "
     />
 
-    <!-- FILTERS -->
+    <!-- FILTER -->
 
     <ClientAssignmentFilters
       v-model:search="
@@ -197,6 +433,21 @@ const handleBack = () => {
       :assignments="
         paginatedAssignments
       "
+      @view="
+        handleView
+      "
+      @edit="
+        handleEdit
+      "
+      @employee="
+        handleEmployee
+      "
+      @activate="
+        handleActivate
+      "
+      @end="
+        handleEnd
+      "
     />
 
     <!-- PAGINATION -->
@@ -235,6 +486,85 @@ const handleBack = () => {
       />
 
     </div>
+
+    <!-- ADD / EDIT -->
+
+    <ClientAssignmentFormModal
+      :open="
+        formOpen
+      "
+      :assignment="
+        editingAssignment
+      "
+      :employees="
+        availableEmployees
+      "
+      :clients="
+        availableClients
+      "
+      @close="
+        closeForm
+      "
+      @save="
+        handleSave
+      "
+    />
+
+    <!-- DETAILS -->
+
+    <ClientAssignmentDetailsModal
+      :open="
+        detailsOpen
+      "
+      :assignment="
+        selectedAssignment
+      "
+      @close="
+        closeDetails
+      "
+      @edit="
+        handleEditFromDetails
+      "
+      @employee="
+        handleEmployee
+      "
+      @activate="
+        handleActivate
+      "
+      @end="
+        handleEnd
+      "
+    />
+
+    <!-- EXPORT -->
+
+    <ClientAssignmentExportModal
+      :open="
+        exportOpen
+      "
+      :record-count="
+        filteredAssignments.length
+      "
+      :client="
+        client
+      "
+      :department="
+        department
+      "
+      :status="
+        status
+      "
+      :assignment-type="
+        assignmentType
+      "
+      @close="
+        exportOpen =
+          false
+      "
+      @export="
+        handleExportSubmit
+      "
+    />
 
   </section>
 </template>
@@ -322,11 +652,9 @@ const handleBack = () => {
   .header-actions {
     width: 100%;
 
-    align-items:
-      stretch;
+    align-items: stretch;
 
-    flex-direction:
-      column;
+    flex-direction: column;
   }
 
   .table-footer {

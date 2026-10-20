@@ -4,7 +4,6 @@ import {
   Pencil,
   Clock3,
   Coffee,
-  CalendarDays,
   Save,
   Info,
 } from 'lucide-vue-next'
@@ -56,16 +55,6 @@ const statusOptions:
     'Inactive',
   ]
 
-const days = [
-  'Monday',
-  'Tuesday',
-  'Wednesday',
-  'Thursday',
-  'Friday',
-  'Saturday',
-  'Sunday',
-]
-
 /* =========================================================
    FORM
 ========================================================= */
@@ -89,10 +78,6 @@ const form =
     workHours: 8,
 
     gracePeriod: 5,
-
-    restDays: [
-      'Sunday',
-    ],
 
     status: 'Active',
   })
@@ -188,10 +173,6 @@ const loadSchedule = () => {
   form.gracePeriod =
     props.schedule.gracePeriod
 
-  form.restDays = [
-    ...props.schedule.restDays,
-  ]
-
   form.timeIn =
     convertToInputTime(
       props.schedule.timeIn,
@@ -236,37 +217,6 @@ watch(
   },
 )
 
-/* =========================================================
-   REST DAYS
-========================================================= */
-
-const isRestDay = (
-  day: string,
-) => {
-  return form.restDays.includes(
-    day,
-  )
-}
-
-const toggleRestDay = (
-  day: string,
-) => {
-  if (
-    form.restDays.includes(
-      day,
-    )
-  ) {
-    form.restDays =
-      form.restDays.filter(
-        item =>
-          item !== day,
-      )
-
-    return
-  }
-
-  form.restDays.push(day)
-}
 
 /* =========================================================
    CLOSE
@@ -326,17 +276,6 @@ const handleSave = () => {
     error(
       'Invalid Work Hours',
       'Required work hours must be greater than zero.',
-    )
-
-    return
-  }
-
-  if (
-    !form.restDays.length
-  ) {
-    error(
-      'Rest Day Required',
-      'Please select at least one rest day.',
     )
 
     return
@@ -420,10 +359,10 @@ const handleSave = () => {
                   Edit Work Schedule
                 </h2>
 
-                <p>
-                  Update schedule information,
-                  working hours, breaks and rest days.
-                </p>
+              <p>
+                Update schedule information,
+                working hours and break configuration.
+              </p>
               </div>
 
             </div>
@@ -745,82 +684,15 @@ const handleSave = () => {
 
             </section>
 
-            <!-- REST DAYS -->
-
-            <section class="form-section">
-
-              <div class="section-heading">
-
-                <div class="section-icon purple">
-                  <CalendarDays :size="16" />
-                </div>
-
-                <div>
-                  <h3>
-                    Rest Days
-                  </h3>
-
-                  <p>
-                    Configure the default
-                    rest days of this schedule.
-                  </p>
-                </div>
-
-              </div>
-
-              <div class="days-grid">
-
-                <button
-                  v-for="day in days"
-                  :key="day"
-                  type="button"
-                  class="day-card"
-                  :class="{
-                    selected:
-                      isRestDay(day),
-                  }"
-                  @click="
-                    toggleRestDay(day)
-                  "
-                >
-
-                  <span class="day-check">
-                    {{
-                      isRestDay(day)
-                        ? '✓'
-                        : ''
-                    }}
-                  </span>
-
-                  <div>
-                    <strong>
-                      {{ day }}
-                    </strong>
-
-                    <small>
-                      {{
-                        isRestDay(day)
-                          ? 'Rest Day'
-                          : 'Working Day'
-                      }}
-                    </small>
-                  </div>
-
-                </button>
-
-              </div>
-
-            </section>
-
           </div>
 
           <!-- FOOTER -->
 
           <div class="modal-footer">
 
-            <span class="footer-note">
-              Changes apply to the selected
-              work schedule.
+           <span class="footer-note">
+              Rest days are managed per employee,
+              not by the work schedule.
             </span>
 
             <div class="footer-actions">

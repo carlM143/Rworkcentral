@@ -16,7 +16,6 @@ export const useWorkSchedules = () => {
       breakEnd: '01:00 PM',
       workHours: 8,
       gracePeriod: 5,
-      restDays: ['Sunday'],
       employeeCount: 8,
       status: 'Active',
     },
@@ -32,7 +31,6 @@ export const useWorkSchedules = () => {
       breakEnd: '12:00 PM',
       workHours: 8,
       gracePeriod: 5,
-      restDays: ['Sunday'],
       employeeCount: 2,
       status: 'Active',
     },
@@ -48,7 +46,6 @@ export const useWorkSchedules = () => {
       breakEnd: '03:00 AM',
       workHours: 8,
       gracePeriod: 5,
-      restDays: ['Saturday'],
       employeeCount: 1,
       status: 'Active',
     },
@@ -60,7 +57,6 @@ export const useWorkSchedules = () => {
       type: 'Flexible',
       workHours: 8,
       gracePeriod: 0,
-      restDays: ['Saturday', 'Sunday'],
       employeeCount: 1,
       status: 'Active',
     },
@@ -122,11 +118,11 @@ export const useWorkSchedules = () => {
         0,
       ),
 
-    restDayConfigurations:
-      schedules.value.filter(
-        schedule =>
-          schedule.restDays.length,
-      ).length,
+      flexible:
+    schedules.value.filter(
+      schedule =>
+        schedule.type === 'Flexible',
+    ).length,
   }))
 
   const scheduleSummary = computed(() => {
@@ -168,7 +164,7 @@ export const useWorkSchedules = () => {
         title:
           'Night Shift Updated',
         description:
-          'Night shift rest day was updated.',
+          'Night shift working hours and break schedule were reviewed.',
         performedBy:
           'Leo Martinez',
         date:

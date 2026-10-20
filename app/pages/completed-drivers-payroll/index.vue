@@ -6,8 +6,22 @@ import {
 } from 'lucide-vue-next'
 
 import CompletedDriverPayrollStats from '~/components/payroll/completed-drivers-payroll/CompletedDriverPayrollStats.vue'
+
 import CompletedDriverPayrollFilters from '~/components/payroll/completed-drivers-payroll/CompletedDriverPayrollFilters.vue'
+
 import CompletedDriverPayrollTable from '~/components/payroll/completed-drivers-payroll/CompletedDriverPayrollTable.vue'
+
+import CompletedDriverPayrollDetailsModal from '~/components/payroll/completed-drivers-payroll/CompletedDriverPayrollDetailsModal.vue'
+
+import CompletedDriverPaymentModal from '~/components/payroll/completed-drivers-payroll/CompletedDriverPaymentModal.vue'
+
+import CompletedDriverPayrollExportModal from '~/components/payroll/completed-drivers-payroll/CompletedDriverPayrollExportModal.vue'
+
+import CompletedDriverPayrollReportModal from '~/components/payroll/completed-drivers-payroll/CompletedDriverPayrollReportModal.vue'
+
+import type {
+  CompletedDriverPayroll,
+} from '~/types/completedDriverPayroll'
 
 const router =
   useRouter()
@@ -43,14 +57,8 @@ const {
 
 const {
   info,
+  success,
 } = useToast()
-
-/* =========================================================
-   PERIOD QUERY
-
-   Example:
-   /completed-drivers-payroll?period=DRV-PP-2026-0831
-========================================================= */
 
 watch(
   () =>
@@ -71,22 +79,239 @@ watch(
 )
 
 /* =========================================================
-   UI ONLY ACTIONS
+   DETAILS
 ========================================================= */
 
-const handleExport = () => {
-  info(
-    'Export Completed Driver Payroll',
-    'Payroll export functionality will be connected later.',
+const detailsOpen =
+  ref(false)
+
+const selectedPayroll =
+  ref<
+    CompletedDriverPayroll |
+    null
+  >(null)
+
+const handleView = (
+  payroll:
+    CompletedDriverPayroll,
+) => {
+  selectedPayroll.value =
+    payroll
+
+  detailsOpen.value =
+    true
+}
+
+/* =========================================================
+   DRIVER
+========================================================= */
+
+const handleDriver = (
+  payroll:
+    CompletedDriverPayroll,
+) => {
+  router.push(
+    `/employees/${payroll.driverId}`,
   )
 }
 
-const handleReport = () => {
+/* =========================================================
+   TRIPS
+========================================================= */
+
+const handleTrips = (
+  payroll:
+    CompletedDriverPayroll,
+) => {
+  router.push({
+    path:
+      '/manage-trips',
+
+    query: {
+      employee:
+        payroll.employeeNumber,
+
+      period:
+        payroll.periodCode,
+    },
+  })
+}
+
+/* =========================================================
+   PAYSLIP
+========================================================= */
+
+const handlePayslip = (
+  payroll:
+    CompletedDriverPayroll,
+) => {
   info(
-    'Driver Payroll Report',
-    'Detailed payroll reporting will be connected after the payroll submenu UIs are completed.',
+    'Driver Payslip',
+    `${payroll.driverName}'s payslip preview/download UI can be connected next.`,
   )
 }
+
+/* =========================================================
+   PAYMENT
+========================================================= */
+
+const paymentOpen =
+  ref(false)
+
+const paymentPayroll =
+  ref<
+    CompletedDriverPayroll |
+    null
+  >(null)
+
+const paymentAction =
+  ref<
+    'view' |
+    'paid' |
+    'released'
+  >('view')
+
+const openPayment = (
+  payroll:
+    CompletedDriverPayroll,
+
+  action:
+    'view' |
+    'paid' |
+    'released',
+) => {
+  paymentPayroll.value =
+    payroll
+
+  paymentAction.value =
+    action
+
+  paymentOpen.value =
+    true
+}
+
+const handlePaymentConfirm = (
+  payload: {
+    action:
+      'paid' |
+      'released'
+
+    referenceNumber: string
+  },
+) => {
+  const payroll =
+    paymentPayroll.value
+
+  if (!payroll) {
+    return
+  }
+
+  if (
+    payload.action ===
+    'paid'
+  ) {
+    payroll.paymentStatus =
+      'Paid'
+
+    payroll.referenceNumber =
+      payload.referenceNumber ||
+      payroll.referenceNumber ||
+      `DRV-PMT-${Date.now()}`
+
+    payroll.paidBy =
+      'Maria Santos'
+
+    payroll.paidAt =
+      new Date()
+        .toISOString()
+
+    success(
+      'Payroll Marked as Paid',
+      `${payroll.driverName}'s payroll has been marked as paid.`,
+    )
+  }
+
+  if (
+    payload.action ===
+    'released'
+  ) {
+    payroll.paymentStatus =
+      'Released'
+
+    payroll.referenceNumber =
+      payload.referenceNumber ||
+      payroll.referenceNumber
+
+    success(
+      'Payroll Released',
+      `${payroll.driverName}'s payroll has been marked as released.`,
+    )
+  }
+
+  paymentOpen.value =
+    false
+
+  paymentPayroll.value =
+    null
+}
+
+/* =========================================================
+   EXPORT
+========================================================= */
+
+const exportOpen =
+  ref(false)
+
+const handleExport = () => {
+  exportOpen.value =
+    true
+}
+
+const handleExportSubmit = (
+  format:
+    | 'Excel'
+    | 'PDF'
+    | 'CSV',
+) => {
+  exportOpen.value =
+    false
+
+  info(
+    `Export ${format}`,
+    `${filteredPayrolls.value.length} completed driver payroll record(s) are ready for export. Actual file generation will be connected during backend integration.`,
+  )
+}
+
+/* =========================================================
+   REPORT
+========================================================= */
+
+const reportOpen =
+  ref(false)
+
+const handleReport = () => {
+  reportOpen.value =
+    true
+}
+
+const handleGenerateReport = (
+  type:
+    | 'Summary'
+    | 'Detailed Payroll'
+    | 'Payment Status',
+) => {
+  reportOpen.value =
+    false
+
+  info(
+    `${type} Report`,
+    `${filteredPayrolls.value.length} completed driver payroll record(s) will be included in the report.`,
+  )
+}
+
+/* =========================================================
+   BACK
+========================================================= */
 
 const handleBack = () => {
   router.push(
@@ -97,8 +322,6 @@ const handleBack = () => {
 
 <template>
   <section class="completed-driver-page">
-
-    <!-- BACK -->
 
     <button
       type="button"
@@ -113,8 +336,6 @@ const handleBack = () => {
       Back to Payroll
 
     </button>
-
-    <!-- PAGE HEADER -->
 
     <PageHeader
       title="Completed Drivers Payroll"
@@ -146,15 +367,11 @@ const handleBack = () => {
 
     </PageHeader>
 
-    <!-- STATS -->
-
     <CompletedDriverPayrollStats
       :stats="
         stats
       "
     />
-
-    <!-- FILTERS -->
 
     <CompletedDriverPayrollFilters
       v-model:search="
@@ -189,15 +406,44 @@ const handleBack = () => {
       "
     />
 
-    <!-- TABLE -->
-
     <CompletedDriverPayrollTable
       :payrolls="
         paginatedPayrolls
       "
+      @view="
+        handleView
+      "
+      @driver="
+        handleDriver
+      "
+      @trips="
+        handleTrips
+      "
+      @payment="
+        payroll =>
+          openPayment(
+            payroll,
+            'view',
+          )
+      "
+      @payslip="
+        handlePayslip
+      "
+      @paid="
+        payroll =>
+          openPayment(
+            payroll,
+            'paid',
+          )
+      "
+      @released="
+        payroll =>
+          openPayment(
+            payroll,
+            'released',
+          )
+      "
     />
-
-    <!-- PAGINATION -->
 
     <div class="table-footer">
 
@@ -233,6 +479,102 @@ const handleBack = () => {
       />
 
     </div>
+
+    <!-- DETAILS -->
+
+    <CompletedDriverPayrollDetailsModal
+      :open="
+        detailsOpen
+      "
+      :payroll="
+        selectedPayroll
+      "
+      @close="
+        detailsOpen =
+          false
+      "
+    />
+
+    <!-- PAYMENT -->
+
+    <CompletedDriverPaymentModal
+      :open="
+        paymentOpen
+      "
+      :payroll="
+        paymentPayroll
+      "
+      :action="
+        paymentAction
+      "
+      @close="
+        paymentOpen =
+          false
+      "
+      @confirm="
+        handlePaymentConfirm
+      "
+    />
+
+    <!-- EXPORT -->
+
+    <CompletedDriverPayrollExportModal
+      :open="
+        exportOpen
+      "
+      :record-count="
+        filteredPayrolls.length
+      "
+      :period="
+        period
+      "
+      :department="
+        department
+      "
+      :payment-status="
+        paymentStatus
+      "
+      :date-from="
+        dateFrom
+      "
+      :date-to="
+        dateTo
+      "
+      @close="
+        exportOpen =
+          false
+      "
+      @export="
+        handleExportSubmit
+      "
+    />
+
+    <!-- REPORT -->
+
+    <CompletedDriverPayrollReportModal
+      :open="
+        reportOpen
+      "
+      :record-count="
+        filteredPayrolls.length
+      "
+      :gross-pay="
+        stats.grossPay
+      "
+      :deductions="
+        stats.deductions
+      "
+      :net-pay="
+        stats.netPay
+      "
+      @close="
+        reportOpen =
+          false
+      "
+      @generate="
+        handleGenerateReport
+      "
+    />
 
   </section>
 </template>

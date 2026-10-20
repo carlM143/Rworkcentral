@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import {
-  MoreHorizontal,
   Truck,
   Route,
   AlertTriangle,
 } from 'lucide-vue-next'
+
+import PendingDriverPayrollActions from '~/components/payroll/pending-drivers-payroll/PendingDriverPayrollActions.vue'
 
 import type {
   PendingDriverPayroll,
@@ -14,6 +15,17 @@ defineProps<{
   payrolls:
     PendingDriverPayroll[]
 }>()
+
+const emit =
+  defineEmits<{
+    view: [payroll: PendingDriverPayroll]
+    review: [payroll: PendingDriverPayroll]
+    driver: [payroll: PendingDriverPayroll]
+    trips: [payroll: PendingDriverPayroll]
+    issues: [payroll: PendingDriverPayroll]
+    ready: [payroll: PendingDriverPayroll]
+    finalize: [payroll: PendingDriverPayroll]
+  }>()
 
 const money = (
   value: number,
@@ -67,16 +79,13 @@ const formatDate = (
     </div>
 
     <div
-      v-if="
-        payrolls.length
-      "
+      v-if="payrolls.length"
       class="table-scroll"
     >
 
       <table>
 
         <thead>
-
           <tr>
             <th>Payroll No.</th>
             <th>Driver</th>
@@ -92,67 +101,45 @@ const formatDate = (
             <th>Status</th>
             <th />
           </tr>
-
         </thead>
 
         <tbody>
 
           <tr
-            v-for="
-              payroll in
-              payrolls
-            "
-            :key="
-              payroll.id
-            "
+            v-for="payroll in payrolls"
+            :key="payroll.id"
           >
-
-            <!-- PAYROLL NO -->
 
             <td>
 
               <strong class="payroll-number">
-                {{
-                  payroll.payrollNumber
-                }}
+                {{ payroll.payrollNumber }}
               </strong>
 
               <span class="small-text">
-                {{
-                  payroll.periodCode
-                }}
+                {{ payroll.periodCode }}
               </span>
 
             </td>
-
-            <!-- DRIVER -->
 
             <td>
 
               <div class="driver-cell">
 
                 <div class="driver-avatar">
-
                   <Truck :size="15" />
-
                 </div>
 
                 <div>
 
                   <strong>
-                    {{
-                      payroll.driverName
-                    }}
+                    {{ payroll.driverName }}
                   </strong>
 
                   <span>
-                    {{
-                      payroll.employeeNumber
-                    }}
+                    {{ payroll.employeeNumber }}
                     ·
-                    {{
-                      payroll.department
-                    }}
+                    {{ payroll.department }}
                   </span>
 
                 </div>
@@ -161,37 +148,23 @@ const formatDate = (
 
             </td>
 
-            <!-- PERIOD -->
-
             <td>
 
               <div class="period-cell">
 
                 <strong>
-                  {{
-                    payroll.periodName
-                  }}
+                  {{ payroll.periodName }}
                 </strong>
 
                 <span>
-                  {{
-                    formatDate(
-                      payroll.periodStart,
-                    )
-                  }}
+                  {{ formatDate(payroll.periodStart) }}
                   →
-                  {{
-                    formatDate(
-                      payroll.periodEnd,
-                    )
-                  }}
+                  {{ formatDate(payroll.periodEnd) }}
                 </span>
 
               </div>
 
             </td>
-
-            <!-- TRIPS -->
 
             <td>
 
@@ -200,149 +173,117 @@ const formatDate = (
                 <Route :size="13" />
 
                 <strong>
-                  {{
-                    payroll.totalTrips
-                  }}
+                  {{ payroll.totalTrips }}
                 </strong>
 
               </div>
 
             </td>
 
-            <!-- PAY -->
-
             <td>
-              <span class="money-normal">
-                {{
-                  money(
-                    payroll.regularPay,
-                  )
-                }}
-              </span>
+              {{ money(payroll.regularPay) }}
+            </td>
+
+            <td class="blue">
+              {{ money(payroll.tripPay) }}
+            </td>
+
+            <td class="purple">
+              {{ money(payroll.overtimePay) }}
             </td>
 
             <td>
-              <span class="money-blue">
-                {{
-                  money(
-                    payroll.tripPay,
-                  )
-                }}
-              </span>
+              {{ money(payroll.allowance) }}
             </td>
 
             <td>
-              <span class="money-purple">
-                {{
-                  money(
-                    payroll.overtimePay,
-                  )
-                }}
-              </span>
-            </td>
-
-            <td>
-              {{
-                money(
-                  payroll.allowance,
-                )
-              }}
-            </td>
-
-            <!-- GROSS -->
-
-            <td>
-
               <strong class="gross">
-                {{
-                  money(
-                    payroll.grossPay,
-                  )
-                }}
+                {{ money(payroll.grossPay) }}
               </strong>
-
             </td>
 
-            <!-- DEDUCTIONS -->
-
             <td>
-
               <span class="deduction">
-                {{
-                  money(
-                    payroll.totalDeductions,
-                  )
-                }}
+                {{ money(payroll.totalDeductions) }}
               </span>
-
             </td>
-
-            <!-- NET -->
 
             <td>
-
               <strong class="net">
-                {{
-                  money(
-                    payroll.netPay,
-                  )
-                }}
+                {{ money(payroll.netPay) }}
               </strong>
-
             </td>
-
-            <!-- STATUS -->
 
             <td>
 
               <div class="status-cell">
 
                 <StatusBadge
-                  :status="
-                    payroll.status
-                  "
+                  :status="payroll.status"
                 />
 
                 <span
                   v-if="
-                    payroll.issueCount >
-                    0
+                    payroll.issueCount > 0
                   "
-                  class="issue-badge"
-                  :title="
-                    `${payroll.issueCount} issue(s)`
-                  "
+                  class="issue"
                 >
+                  <AlertTriangle :size="11" />
 
-                  <AlertTriangle
-                    :size="11"
-                  />
-
-                  {{
-                    payroll.issueCount
-                  }}
-
+                  {{ payroll.issueCount }}
                 </span>
 
               </div>
 
             </td>
 
-            <!-- ACTION -->
-
             <td>
 
-              <button
-                type="button"
-                class="action-button"
-                title="Actions will be added later"
-              >
-
-                <MoreHorizontal
-                  :size="17"
-                />
-
-              </button>
+              <PendingDriverPayrollActions
+                :payroll="payroll"
+                @view="
+                  emit(
+                    'view',
+                    payroll,
+                  )
+                "
+                @review="
+                  emit(
+                    'review',
+                    payroll,
+                  )
+                "
+                @driver="
+                  emit(
+                    'driver',
+                    payroll,
+                  )
+                "
+                @trips="
+                  emit(
+                    'trips',
+                    payroll,
+                  )
+                "
+                @issues="
+                  emit(
+                    'issues',
+                    payroll,
+                  )
+                "
+                @ready="
+                  emit(
+                    'ready',
+                    payroll,
+                  )
+                "
+                @finalize="
+                  emit(
+                    'finalize',
+                    payroll,
+                  )
+                "
+              />
 
             </td>
 
@@ -353,8 +294,6 @@ const formatDate = (
       </table>
 
     </div>
-
-    <!-- EMPTY -->
 
     <div
       v-else
@@ -379,44 +318,26 @@ const formatDate = (
 <style scoped>
 .table-card {
   overflow: hidden;
-
-  border:
-    1px solid var(--border);
-
+  border: 1px solid var(--border);
   border-radius: 11px;
-
-  background:
-    var(--bg-card);
-
-  box-shadow:
-    var(--shadow);
+  background: var(--bg-card);
+  box-shadow: var(--shadow);
 }
 
 .table-heading {
-  padding:
-    15px 16px;
-
-  border-bottom:
-    1px solid
-    var(--border-soft);
+  padding: 15px 16px;
+  border-bottom: 1px solid var(--border-soft);
 }
 
 .table-heading h3 {
   margin: 0;
-
-  color:
-    var(--text-primary);
-
+  color: var(--text-primary);
   font-size: 14px;
 }
 
 .table-heading p {
-  margin:
-    5px 0 0;
-
-  color:
-    var(--text-muted);
-
+  margin: 5px 0 0;
+  color: var(--text-muted);
   font-size: 9px;
 }
 
@@ -426,112 +347,63 @@ const formatDate = (
 
 table {
   width: 100%;
-
   min-width: 1900px;
-
-  border-collapse:
-    collapse;
+  border-collapse: collapse;
 }
 
 th {
-  padding:
-    12px 13px;
-
-  background:
-    var(--bg-card-soft);
-
-  color:
-    var(--text-secondary);
-
+  padding: 12px 13px;
+  background: var(--bg-card-soft);
+  color: var(--text-secondary);
   font-size: 9px;
   font-weight: 700;
-
   text-align: left;
-
-  text-transform:
-    uppercase;
-
+  text-transform: uppercase;
   white-space: nowrap;
 }
 
 td {
-  padding:
-    13px;
-
-  border-top:
-    1px solid
-    var(--border-soft);
-
-  color:
-    var(--text-secondary);
-
+  padding: 13px;
+  border-top: 1px solid var(--border-soft);
+  color: var(--text-secondary);
   font-size: 9px;
-
-  vertical-align:
-    middle;
+  vertical-align: middle;
 }
 
 tbody tr:hover {
-  background:
-    var(--bg-card-soft);
+  background: var(--bg-card-soft);
 }
-
-/* PAYROLL */
 
 .payroll-number {
   display: block;
-
-  color:
-    var(--primary);
-
-  font-size: 9px;
-
+  color: var(--primary);
   white-space: nowrap;
 }
 
 .small-text {
   display: block;
-
   margin-top: 3px;
-
-  color:
-    var(--text-muted);
-
+  color: var(--text-muted);
   font-size: 8px;
-
-  white-space: nowrap;
 }
-
-/* DRIVER */
 
 .driver-cell {
   display: flex;
-
   min-width: 190px;
-
   align-items: center;
-
   gap: 8px;
 }
 
 .driver-avatar {
   display: flex;
-
   width: 34px;
   height: 34px;
-
   flex-shrink: 0;
-
   align-items: center;
   justify-content: center;
-
   border-radius: 8px;
-
-  background:
-    var(--primary-soft);
-
-  color:
-    var(--primary);
+  background: var(--primary-soft);
+  color: var(--primary);
 }
 
 .driver-cell strong,
@@ -540,22 +412,15 @@ tbody tr:hover {
 }
 
 .driver-cell strong {
-  color:
-    var(--text-primary);
-
+  color: var(--text-primary);
   font-size: 10px;
 }
 
 .driver-cell span {
   margin-top: 3px;
-
-  color:
-    var(--text-muted);
-
+  color: var(--text-muted);
   font-size: 8px;
 }
-
-/* PERIOD */
 
 .period-cell {
   min-width: 180px;
@@ -567,170 +432,76 @@ tbody tr:hover {
 }
 
 .period-cell strong {
-  color:
-    var(--text-primary);
-
+  color: var(--text-primary);
   font-size: 9px;
 }
 
 .period-cell span {
   margin-top: 3px;
-
-  color:
-    var(--text-muted);
-
+  color: var(--text-muted);
   font-size: 8px;
 }
 
-/* TRIPS */
-
 .trip-cell {
   display: flex;
-
   align-items: center;
-
   gap: 5px;
-
-  color:
-    var(--primary);
+  color: var(--primary);
 }
 
-/* MONEY */
-
-.money-normal {
-  color:
-    var(--text-primary);
-
-  white-space: nowrap;
+.blue {
+  color: var(--primary);
 }
 
-.money-blue {
-  color:
-    var(--primary);
-
-  white-space: nowrap;
-}
-
-.money-purple {
-  color:
-    var(--purple);
-
-  white-space: nowrap;
+.purple {
+  color: var(--purple);
 }
 
 .gross {
-  color:
-    var(--text-primary);
-
+  color: var(--text-primary);
   white-space: nowrap;
 }
 
 .deduction {
-  color:
-    var(--red);
-
+  color: var(--red);
   white-space: nowrap;
 }
 
 .net {
-  color:
-    var(--green);
-
-  font-size: 10px;
-
+  color: var(--green);
   white-space: nowrap;
 }
 
-/* STATUS */
-
 .status-cell {
   display: flex;
-
   align-items: center;
-
   gap: 5px;
 }
 
-.issue-badge {
+.issue {
   display: inline-flex;
-
   align-items: center;
-
   gap: 3px;
-
-  padding:
-    4px 6px;
-
+  padding: 4px 6px;
   border-radius: 5px;
-
-  background:
-    var(--red-soft);
-
-  color:
-    var(--red);
-
+  background: var(--red-soft);
+  color: var(--red);
   font-size: 8px;
   font-weight: 700;
 }
 
-/* ACTION */
-
-.action-button {
-  display: flex;
-
-  width: 31px;
-  height: 31px;
-
-  align-items: center;
-  justify-content: center;
-
-  border:
-    1px solid transparent;
-
-  border-radius: 7px;
-
-  background:
-    transparent;
-
-  color:
-    var(--text-secondary);
-
-  cursor: pointer;
-}
-
-.action-button:hover {
-  border-color:
-    var(--border);
-
-  background:
-    var(--bg-card-soft);
-
-  color:
-    var(--primary);
-}
-
-/* EMPTY */
-
 .empty-state {
   display: flex;
-
   min-height: 240px;
-
   flex-direction: column;
-
   align-items: center;
   justify-content: center;
-
   gap: 7px;
-
-  color:
-    var(--text-muted);
+  color: var(--text-muted);
 }
 
 .empty-state strong {
-  color:
-    var(--text-primary);
-
+  color: var(--text-primary);
   font-size: 11px;
 }
 

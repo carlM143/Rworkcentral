@@ -1,10 +1,23 @@
 <script setup lang="ts">
 import {
   Download,
-  Plus,
 } from 'lucide-vue-next'
 
+import LeaveRecentRequests from '~/components/leave/LeaveRecentRequests.vue'
+
+// import FileLeaveModal from '~/components/leave/FileLeaveModal.vue'
+
+import LeaveExportModal from '~/components/leave/LeaveExportModal.vue'
+
+import type {
+  LeaveRequestFormData,
+} from '~/types/leave'
+
+const router =
+  useRouter()
+
 const {
+  leaveRequests,
   leaveBalances,
 
   stats,
@@ -19,35 +32,76 @@ const {
   info,
 } = useToast()
 
+
 /* =========================================================
-   ACTIONS
+   LEAVE REQUESTS
 ========================================================= */
 
-const handleExport = () => {
-  info(
-    'Export Leave Records',
-    'Leave export will be connected later.',
-  )
-}
+const handleViewAllRequests =
+  () => {
+    router.push(
+      '/leave-requests',
+    )
+  }
 
-const handleFileLeave = () => {
-  info(
-    'File Leave',
-    'Leave filing form will be implemented in the Filed Leaves module.',
-  )
-}
+/* =========================================================
+   QUICK ACTIONS
+========================================================= */
 
 const handleBalances = () => {
-  info(
-    'Leave Balances',
-    'Employee leave balances will be implemented next.',
+  router.push(
+    '/leave-balances',
   )
 }
 
 const handleCalendar = () => {
+  router.push(
+    '/leave-calendar',
+  )
+}
+
+/* =========================================================
+   EXPORT
+========================================================= */
+
+const exportOpen =
+  ref(false)
+
+const handleExport = () => {
+  exportOpen.value =
+    true
+}
+
+const approvedCount =
+  computed(() => {
+    return leaveRequests.value.filter(
+      request =>
+        request.status ===
+        'Approved',
+    ).length
+  })
+
+const rejectedCount =
+  computed(() => {
+    return leaveRequests.value.filter(
+      request =>
+        request.status ===
+        'Rejected',
+    ).length
+  })
+
+const handleExportSubmit = (
+  format:
+    'Excel' |
+    'PDF' |
+    'CSV',
+) => {
+  exportOpen.value =
+    false
+
   info(
-    'Leave Calendar',
-    'Leave calendar UI will be connected later.',
+    `Export ${format}`,
+    `${leaveRequests.value.length} leave record(s) are ready for export. Actual file generation will be connected during backend integration.`,
   )
 }
 </script>
@@ -55,58 +109,120 @@ const handleCalendar = () => {
 <template>
   <section class="leave-management-page">
 
-    <!-- HEADER -->
+    <!-- =====================================================
+         HEADER
+    ====================================================== -->
+
     <PageHeader
       title="Leave Management"
       description="Monitor leave requests, approvals, employee leave balances and employees currently on leave."
     >
-      <AppButton
-        variant="secondary"
-        :icon="Download"
-        @click="handleExport"
-      >
-        Export
-      </AppButton>
 
-      <AppButton
-        :icon="Plus"
-        @click="handleFileLeave"
-      >
-        File Leave
-      </AppButton>
+      <div class="header-actions">
+
+        <AppButton
+          variant="secondary"
+          :icon="Download"
+          @click="
+            handleExport
+          "
+        >
+          Export
+        </AppButton>
+
+      </div>
+
     </PageHeader>
 
-    <!-- STATS -->
+    <!-- =====================================================
+         STATS
+    ====================================================== -->
+
     <LeaveStats
-      :stats="stats"
+      :stats="
+        stats
+      "
     />
 
-    <!-- MAIN -->
+    <!-- =====================================================
+         MAIN CONTENT
+    ====================================================== -->
+
     <div class="leave-layout">
 
       <!-- LEFT -->
+
       <div class="leave-main">
 
-        <LeaveRequestsTable
-          :requests="recentRequests"
+        <!-- RECENT ONLY -->
+
+        <LeaveRecentRequests
+          :requests="
+            recentRequests
+          "
+          @view-all="
+            handleViewAllRequests
+          "
         />
 
+        <!-- BALANCE SUMMARY -->
+
         <LeaveBalanceSummary
-          :balances="leaveBalances"
+          :balances="
+            leaveBalances
+          "
         />
 
       </div>
 
-      <!-- RIGHT -->
+      <!-- RIGHT SIDE PANEL -->
+
       <LeaveSidePanel
-        :pending-requests="pendingRequests"
-        :employees-on-leave="employeesOnLeave"
-        @file-leave="handleFileLeave"
-        @balances="handleBalances"
-        @calendar="handleCalendar"
+        :pending-requests="
+          pendingRequests
+        "
+        :employees-on-leave="
+          employeesOnLeave
+        "
+        @balances="
+          handleBalances
+        "
+        @calendar="
+          handleCalendar
+        "
       />
 
     </div>
+
+
+    <!-- =====================================================
+         EXPORT
+    ====================================================== -->
+
+    <LeaveExportModal
+      :open="
+        exportOpen
+      "
+      :record-count="
+        leaveRequests.length
+      "
+      :pending-count="
+        pendingRequests.length
+      "
+      :approved-count="
+        approvedCount
+      "
+      :rejected-count="
+        rejectedCount
+      "
+      @close="
+        exportOpen =
+          false
+      "
+      @export="
+        handleExportSubmit
+      "
+    />
 
   </section>
 </template>
@@ -114,10 +230,28 @@ const handleCalendar = () => {
 <style scoped>
 .leave-management-page {
   width: 100%;
+
   max-width: 1660px;
 
-  margin: 0 auto;
+  margin:
+    0 auto;
 }
+
+/* =========================================================
+   HEADER
+========================================================= */
+
+.header-actions {
+  display: flex;
+
+  align-items: center;
+
+  gap: 8px;
+}
+
+/* =========================================================
+   CONTENT
+========================================================= */
 
 .leave-layout {
   display: grid;
@@ -131,6 +265,7 @@ const handleCalendar = () => {
 
 .leave-main {
   display: flex;
+
   min-width: 0;
 
   flex-direction: column;
@@ -138,9 +273,24 @@ const handleCalendar = () => {
   gap: 12px;
 }
 
+/* =========================================================
+   RESPONSIVE
+========================================================= */
+
 @media (max-width: 1100px) {
   .leave-layout {
-    grid-template-columns: 1fr;
+    grid-template-columns:
+      1fr;
+  }
+}
+
+@media (max-width: 650px) {
+  .header-actions {
+    width: 100%;
+
+    align-items: stretch;
+
+    flex-direction: column;
   }
 }
 </style>

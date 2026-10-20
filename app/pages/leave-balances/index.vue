@@ -6,13 +6,26 @@ import {
 } from 'lucide-vue-next'
 
 import LeaveBalanceStats from '~/components/leave/balances/LeaveBalanceStats.vue'
+
 import LeaveBalanceFilters from '~/components/leave/balances/LeaveBalanceFilters.vue'
+
 import LeaveBalanceTable from '~/components/leave/balances/LeaveBalanceTable.vue'
+
+import AdjustLeaveCreditsModal from '~/components/leave/balances/AdjustLeaveCreditsModal.vue'
+
+import LeaveBalanceExportModal from '~/components/leave/balances/LeaveBalanceExportModal.vue'
+
+import type {
+  LeaveBalance,
+  LeaveCreditAdjustmentFormData,
+} from '~/types/leaveBalance'
 
 const router =
   useRouter()
 
 const {
+  balances,
+
   search,
   department,
   status,
@@ -30,13 +43,21 @@ const {
 
   departmentOptions,
   statusOptions,
+  leaveTypeOptions,
+
+  adjustCredits,
 
   resetFilters,
 } = useLeaveBalances()
 
 const {
   info,
+  success,
 } = useToast()
+
+/* =========================================================
+   BACK
+========================================================= */
 
 const handleBack = () => {
   router.push(
@@ -44,17 +65,111 @@ const handleBack = () => {
   )
 }
 
+/* =========================================================
+   EXPORT
+========================================================= */
+
+const exportOpen =
+  ref(false)
+
 const handleExport = () => {
+  exportOpen.value =
+    true
+}
+
+const handleExportSubmit = (
+  format:
+    'Excel' |
+    'PDF' |
+    'CSV',
+) => {
+  exportOpen.value =
+    false
+
   info(
-    'Export Leave Balances',
-    'Leave balance export functionality will be connected later.',
+    `Export ${format}`,
+    `${filteredBalances.value.length} employee leave balance record(s) are ready for export. Actual file generation will be connected during backend integration.`,
   )
 }
 
+/* =========================================================
+   ADJUST CREDIT
+========================================================= */
+
+const adjustOpen =
+  ref(false)
+
+const selectedBalance =
+  ref<
+    LeaveBalance |
+    null
+  >(null)
+
 const handleAdjustCredits = () => {
-  info(
-    'Adjust Leave Credits',
-    'Manual leave credit adjustment workflow will be added later.',
+  selectedBalance.value =
+    null
+
+  adjustOpen.value =
+    true
+}
+
+const handleRowAdjust = (
+  balance:
+    LeaveBalance,
+) => {
+  selectedBalance.value =
+    balance
+
+  adjustOpen.value =
+    true
+}
+
+const closeAdjustModal = () => {
+  adjustOpen.value =
+    false
+
+  selectedBalance.value =
+    null
+}
+
+const handleSaveAdjustment = (
+  data:
+    LeaveCreditAdjustmentFormData,
+) => {
+  const result =
+    adjustCredits(
+      data,
+    )
+
+  if (
+    !result.success
+  ) {
+    info(
+      'Unable to Adjust Credits',
+      result.message,
+    )
+
+    return
+  }
+
+  closeAdjustModal()
+
+  success(
+    'Leave Credits Adjusted',
+    `${result.balance?.employeeName}'s ${data.leaveType} has been updated successfully.`,
+  )
+}
+
+/* =========================================================
+   VIEW EMPLOYEE
+========================================================= */
+
+const handleEmployee = (
+  balance:
+    LeaveBalance,
+) => {
+  router.push(
+    `/employees/${balance.employeeId}`,
   )
 }
 </script>
@@ -115,7 +230,9 @@ const handleAdjustCredits = () => {
     <!-- STATS -->
 
     <LeaveBalanceStats
-      :stats="stats"
+      :stats="
+        stats
+      "
     />
 
     <!-- FILTER -->
@@ -146,6 +263,12 @@ const handleAdjustCredits = () => {
     <LeaveBalanceTable
       :balances="
         paginatedBalances
+      "
+      @employee="
+        handleEmployee
+      "
+      @adjust="
+        handleRowAdjust
       "
     />
 
@@ -185,6 +308,56 @@ const handleAdjustCredits = () => {
       />
 
     </div>
+
+    <!-- ADJUST CREDITS -->
+
+    <AdjustLeaveCreditsModal
+      :open="
+        adjustOpen
+      "
+      :balances="
+        balances
+      "
+      :selected-balance="
+        selectedBalance
+      "
+      :leave-types="
+        leaveTypeOptions
+      "
+      @close="
+        closeAdjustModal
+      "
+      @save="
+        handleSaveAdjustment
+      "
+    />
+
+    <!-- EXPORT -->
+
+    <LeaveBalanceExportModal
+      :open="
+        exportOpen
+      "
+      :record-count="
+        filteredBalances.length
+      "
+      :available-credits="
+        stats.availableCredits
+      "
+      :low-balance-count="
+        stats.lowBalance
+      "
+      :exhausted-count="
+        stats.exhausted
+      "
+      @close="
+        exportOpen =
+          false
+      "
+      @export="
+        handleExportSubmit
+      "
+    />
 
   </section>
 </template>
@@ -275,9 +448,11 @@ const handleAdjustCredits = () => {
   }
 
   .table-footer {
-    align-items: flex-start;
+    align-items:
+      flex-start;
 
-    flex-direction: column;
+    flex-direction:
+      column;
   }
 }
 </style>

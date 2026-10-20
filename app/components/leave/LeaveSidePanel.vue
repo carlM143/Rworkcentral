@@ -177,15 +177,6 @@ const formatShortDate = (
 
         <button
           type="button"
-          @click="emit('fileLeave')"
-        >
-          <Plus :size="15" />
-
-          File Leave
-        </button>
-
-        <button
-          type="button"
           @click="emit('balances')"
         >
           <WalletCards :size="15" />

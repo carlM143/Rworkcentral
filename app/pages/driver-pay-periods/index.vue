@@ -11,6 +11,7 @@ import DriverPayPeriodTable from '~/components/payroll/driver-pay-periods/Driver
 import AddEditDriverPayPeriodModal from '~/components/payroll/driver-pay-periods/AddEditDriverPayPeriodModal.vue'
 import DriverPayPeriodDetailsModal from '~/components/payroll/driver-pay-periods/DriverPayPeriodDetailsModal.vue'
 import DriverPayPeriodStatusModal from '~/components/payroll/driver-pay-periods/DriverPayPeriodStatusModal.vue'
+import DriverPayPeriodExportModal from '~/components/payroll/driver-pay-periods/DriverPayPeriodExportModal.vue'
 
 import type {
   DriverPayPeriod,
@@ -372,14 +373,62 @@ const handleCompleted = (
   })
 }
 
-/* =========================================================
-   EXPORT
-========================================================= */
+const exportOpen =
+  ref(false)
 
 const handleExport = () => {
+  exportOpen.value =
+    true
+}
+
+const handleExportSubmit = (
+  payload: {
+    format:
+      | 'Excel'
+      | 'PDF'
+      | 'CSV'
+
+    scope:
+      | 'Current Filters'
+      | 'All Periods'
+
+    includePeriodCode:
+      boolean
+
+    includePeriodName:
+      boolean
+
+    includePayrollType:
+      boolean
+
+    includeDates:
+      boolean
+
+    includeCutoff:
+      boolean
+
+    includePayDate:
+      boolean
+
+    includeDriverCounts:
+      boolean
+
+    includeGross:
+      boolean
+
+    includeDeductions:
+      boolean
+
+    includeNet:
+      boolean
+
+    includeStatus:
+      boolean
+  },
+) => {
   info(
-    'Export Driver Pay Periods',
-    'Driver pay period export will be connected later.',
+    `Export ${payload.format}`,
+    `${filteredPeriods.value.length} driver pay period record(s) are ready for export. Actual file generation will be connected during backend integration.`,
   )
 }
 
@@ -604,22 +653,54 @@ const handleBack = () => {
     <!-- STATUS -->
 
     <DriverPayPeriodStatusModal
-      :open="
-        statusOpen
-      "
-      :period="
-        statusPeriod
-      "
-      :action="
-        statusAction
-      "
-      @close="
-        closeStatusModal
-      "
-      @save="
-        handleStatusSave
-      "
-    />
+  :open="
+    statusOpen
+  "
+  :period="
+    statusPeriod
+  "
+  :action="
+    statusAction
+  "
+  @close="
+    closeStatusModal
+  "
+  @save="
+    handleStatusSave
+  "
+/>
+
+<!-- EXPORT -->
+
+  <DriverPayPeriodExportModal
+    :open="
+      exportOpen
+    "
+    :record-count="
+      filteredPeriods.length
+    "
+    :status="
+      status
+    "
+    :year="
+      year
+    "
+    :month="
+      month
+    "
+    :date-from="
+      dateFrom
+    "
+    :date-to="
+      dateTo
+    "
+    @close="
+      exportOpen = false
+    "
+    @export="
+      handleExportSubmit
+    "
+  />
 
   </section>
 </template>

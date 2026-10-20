@@ -5,7 +5,6 @@ import {
   Save,
   Clock3,
   Coffee,
-  CalendarDays,
   Info,
 } from 'lucide-vue-next'
 
@@ -45,15 +44,6 @@ const statusOptions: WorkScheduleStatus[] = [
   'Inactive',
 ]
 
-const days = [
-  'Monday',
-  'Tuesday',
-  'Wednesday',
-  'Thursday',
-  'Friday',
-  'Saturday',
-  'Sunday',
-]
 
 /* =========================================================
    FORM
@@ -72,8 +62,6 @@ const form = reactive<WorkScheduleFormData>({
 
   workHours: 8,
   gracePeriod: 5,
-
-  restDays: ['Sunday'],
 
   status: 'Active',
 })
@@ -105,10 +93,6 @@ const resetForm = () => {
   form.workHours = 8
   form.gracePeriod = 5
 
-  form.restDays = [
-    'Sunday',
-  ]
-
   form.status = 'Active'
 }
 
@@ -124,28 +108,6 @@ watch(
     }
   },
 )
-
-/* =========================================================
-   REST DAY
-========================================================= */
-
-const toggleRestDay = (
-  day: string,
-) => {
-  if (
-    form.restDays.includes(day)
-  ) {
-    form.restDays =
-      form.restDays.filter(
-        item =>
-          item !== day,
-      )
-
-    return
-  }
-
-  form.restDays.push(day)
-}
 
 /* =========================================================
    ACTIONS
@@ -232,10 +194,6 @@ const handleSave = () => {
         form.gracePeriod,
       ),
 
-    restDays: [
-      ...form.restDays,
-    ],
-
     status:
       form.status,
   })
@@ -272,9 +230,9 @@ const handleSave = () => {
                   Add Work Schedule
                 </h2>
 
-                <p>
-                  Create a new employee work schedule,
-                  working hours and rest day configuration.
+               <p>
+                  Create a reusable employee shift with
+                  working hours and break configuration.
                 </p>
               </div>
 
@@ -544,56 +502,6 @@ const handleSave = () => {
 
             </div>
 
-            <!-- REST DAYS -->
-
-            <div class="form-section">
-
-              <div class="section-heading">
-
-                <div class="section-icon purple">
-                  <CalendarDays :size="16" />
-                </div>
-
-                <div>
-                  <h3>
-                    Rest Day Configuration
-                  </h3>
-
-                  <p>
-                    Select one or more default rest days.
-                  </p>
-                </div>
-
-              </div>
-
-              <div class="days-grid">
-
-                <button
-                  v-for="day in days"
-                  :key="day"
-                  type="button"
-                  class="day-button"
-                  :class="{
-                    selected:
-                      form.restDays.includes(
-                        day,
-                      ),
-                  }"
-                  @click="
-                    toggleRestDay(day)
-                  "
-                >
-                  <span class="day-check">
-                    ✓
-                  </span>
-
-                  {{ day }}
-                </button>
-
-              </div>
-
-            </div>
-
           </div>
 
           <!-- ================================
@@ -602,11 +510,11 @@ const handleSave = () => {
 
           <div class="modal-footer">
 
-            <div class="footer-note">
+           <div class="footer-note">
               <Info :size="14" />
 
-              Employee assignments can be added
-              after the schedule is created.
+              Rest days are assigned individually
+              from the employee's employment information.
             </div>
 
             <div class="footer-actions">

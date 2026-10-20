@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import {
-  MoreHorizontal,
   Truck,
   Route,
   CircleCheck,
   CreditCard,
 } from 'lucide-vue-next'
+
+import CompletedDriverPayrollActions from '~/components/payroll/completed-drivers-payroll/CompletedDriverPayrollActions.vue'
 
 import type {
   CompletedDriverPayroll,
@@ -16,6 +17,17 @@ defineProps<{
   payrolls:
     CompletedDriverPayroll[]
 }>()
+
+const emit =
+  defineEmits<{
+    view: [payroll: CompletedDriverPayroll]
+    driver: [payroll: CompletedDriverPayroll]
+    trips: [payroll: CompletedDriverPayroll]
+    payment: [payroll: CompletedDriverPayroll]
+    payslip: [payroll: CompletedDriverPayroll]
+    paid: [payroll: CompletedDriverPayroll]
+    released: [payroll: CompletedDriverPayroll]
+  }>()
 
 const money = (
   value: number,
@@ -69,15 +81,13 @@ const paymentClass = (
     DriverPayrollPaymentStatus,
 ) => {
   if (
-    status ===
-    'Paid'
+    status === 'Paid'
   ) {
     return 'paid'
   }
 
   if (
-    status ===
-    'Released'
+    status === 'Released'
   ) {
     return 'released'
   }
@@ -146,8 +156,6 @@ const paymentClass = (
             "
           >
 
-            <!-- PAYROLL -->
-
             <td>
 
               <strong class="payroll-number">
@@ -164,16 +172,12 @@ const paymentClass = (
 
             </td>
 
-            <!-- DRIVER -->
-
             <td>
 
               <div class="driver-cell">
 
                 <div class="driver-icon">
-
                   <Truck :size="15" />
-
                 </div>
 
                 <div>
@@ -199,8 +203,6 @@ const paymentClass = (
               </div>
 
             </td>
-
-            <!-- PERIOD -->
 
             <td>
 
@@ -230,8 +232,6 @@ const paymentClass = (
 
             </td>
 
-            <!-- TRIPS -->
-
             <td>
 
               <div class="trip-cell">
@@ -248,8 +248,6 @@ const paymentClass = (
 
             </td>
 
-            <!-- GROSS -->
-
             <td>
 
               <strong class="gross">
@@ -261,8 +259,6 @@ const paymentClass = (
               </strong>
 
             </td>
-
-            <!-- DEDUCTION -->
 
             <td>
 
@@ -276,8 +272,6 @@ const paymentClass = (
 
             </td>
 
-            <!-- NET -->
-
             <td>
 
               <strong class="net">
@@ -289,8 +283,6 @@ const paymentClass = (
               </strong>
 
             </td>
-
-            <!-- COMPLETED -->
 
             <td>
 
@@ -315,8 +307,6 @@ const paymentClass = (
 
             </td>
 
-            <!-- PAYMENT -->
-
             <td>
 
               <span
@@ -328,9 +318,7 @@ const paymentClass = (
                 "
               >
 
-                <CreditCard
-                  :size="11"
-                />
+                <CreditCard :size="11" />
 
                 {{
                   payroll.paymentStatus
@@ -339,8 +327,6 @@ const paymentClass = (
               </span>
 
             </td>
-
-            <!-- STATUS -->
 
             <td>
 
@@ -352,8 +338,6 @@ const paymentClass = (
 
             </td>
 
-            <!-- REFERENCE -->
-
             <td>
 
               <div
@@ -363,9 +347,7 @@ const paymentClass = (
                 class="reference-cell"
               >
 
-                <CircleCheck
-                  :size="12"
-                />
+                <CircleCheck :size="12" />
 
                 <span>
                   {{
@@ -384,21 +366,53 @@ const paymentClass = (
 
             </td>
 
-            <!-- ACTIONS -->
-
             <td>
 
-              <button
-                type="button"
-                class="action-button"
-                title="Actions will be added later"
-              >
-
-                <MoreHorizontal
-                  :size="17"
-                />
-
-              </button>
+              <CompletedDriverPayrollActions
+                :payroll="payroll"
+                @view="
+                  emit(
+                    'view',
+                    payroll,
+                  )
+                "
+                @driver="
+                  emit(
+                    'driver',
+                    payroll,
+                  )
+                "
+                @trips="
+                  emit(
+                    'trips',
+                    payroll,
+                  )
+                "
+                @payment="
+                  emit(
+                    'payment',
+                    payroll,
+                  )
+                "
+                @payslip="
+                  emit(
+                    'payslip',
+                    payroll,
+                  )
+                "
+                @paid="
+                  emit(
+                    'paid',
+                    payroll,
+                  )
+                "
+                @released="
+                  emit(
+                    'released',
+                    payroll,
+                  )
+                "
+              />
 
             </td>
 
@@ -409,8 +423,6 @@ const paymentClass = (
       </table>
 
     </div>
-
-    <!-- EMPTY -->
 
     <div
       v-else
@@ -532,8 +544,6 @@ tbody tr:hover {
     var(--bg-card-soft);
 }
 
-/* PAYROLL */
-
 .payroll-number {
   display: block;
 
@@ -554,11 +564,7 @@ tbody tr:hover {
     var(--text-muted);
 
   font-size: 8px;
-
-  white-space: nowrap;
 }
-
-/* DRIVER */
 
 .driver-cell {
   display: flex;
@@ -611,8 +617,6 @@ tbody tr:hover {
   font-size: 8px;
 }
 
-/* PERIOD */
-
 .period-cell {
   min-width: 190px;
 }
@@ -640,8 +644,6 @@ tbody tr:hover {
   white-space: nowrap;
 }
 
-/* TRIP */
-
 .trip-cell {
   display: flex;
 
@@ -652,8 +654,6 @@ tbody tr:hover {
   color:
     var(--primary);
 }
-
-/* MONEY */
 
 .gross {
   color:
@@ -677,8 +677,6 @@ tbody tr:hover {
 
   white-space: nowrap;
 }
-
-/* COMPLETED */
 
 .completed-cell {
   min-width: 145px;
@@ -706,8 +704,6 @@ tbody tr:hover {
 
   font-size: 8px;
 }
-
-/* PAYMENT */
 
 .payment-badge {
   display: inline-flex;
@@ -751,8 +747,6 @@ tbody tr:hover {
     var(--primary);
 }
 
-/* REFERENCE */
-
 .reference-cell {
   display: flex;
 
@@ -779,44 +773,6 @@ tbody tr:hover {
   color:
     var(--text-muted);
 }
-
-/* ACTION */
-
-.action-button {
-  display: flex;
-
-  width: 31px;
-  height: 31px;
-
-  align-items: center;
-  justify-content: center;
-
-  border:
-    1px solid transparent;
-
-  border-radius: 7px;
-
-  background:
-    transparent;
-
-  color:
-    var(--text-secondary);
-
-  cursor: pointer;
-}
-
-.action-button:hover {
-  border-color:
-    var(--border);
-
-  background:
-    var(--bg-card-soft);
-
-  color:
-    var(--primary);
-}
-
-/* EMPTY */
 
 .empty-state {
   display: flex;
