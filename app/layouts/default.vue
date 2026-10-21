@@ -42,13 +42,11 @@ const openMenus = reactive<Record<string, boolean>>({
   employees: false,
   timekeeping: false,
   payroll: false,
-  clients: false,
   leave: false,
   overtime: false,
   departments: false,
   approvals: false,
   documents: false,
-  performance: false,
   'employee-lifecycle': false,
   reports: false,
 })
@@ -193,29 +191,6 @@ const menuItems = [
   },
 
   // =====================================================
-  // CLIENTS
-  // =====================================================
- {
-  label: 'Clients',
-  key: 'clients',
-  icon: Building2,
-  children: [
-    {
-      label: 'Overview',
-      to: '/clients',
-    },
-    {
-      label: 'Client Directory',
-      to: '/clients/directory',
-    },
-    {
-      label: 'Employee Assignment',
-      to: '/clients/employee-assignment',
-    },
-  ],
-},
-
-  // =====================================================
   // LEAVE
   // =====================================================
   {
@@ -279,7 +254,7 @@ const menuItems = [
         to: '/departments',
       },
       {
-        label: 'Positions / Designations',
+        label: 'Positions',
         to: '/positions',
       },
       {
@@ -321,56 +296,14 @@ const menuItems = [
   ],
 },
 
-  {
-    label: 'Documents',
-    key: 'documents',
-    icon: FileText,
-    children: [
-      {
-        label: 'Employee Documents',
-        to: '/documents',
-      },
-      {
-        label: 'Document Categories',
-        to: '/document-categories',
-      },
-      {
-        label: 'Expiring Documents',
-        to: '/documents/expiring',
-      },
-      {
-        label: 'Company Policies',
-        to: '/company-policies',
-      },
-    ],
-  },
-
   // =====================================================
   // PERFORMANCE
   // =====================================================
   {
-  label: 'Performance',
-  key: 'performance',
-  icon: ClipboardCheck,
-  children: [
-    {
-      label: 'Overview',
-      to: '/performance',
-    },
-    {
-      label: 'Evaluation Cycles',
-      to: '/performance/cycles',
-    },
-    {
-      label: 'Employee Evaluations',
-      to: '/performance/evaluations',
-    },
-    {
-      label: 'Evaluation Templates',
-      to: '/performance/templates',
-    },
-  ],
-},
+    label: 'Evaluation Templates',
+    icon: ClipboardCheck,
+    to: '/performance/templates',
+  },
 
   {
   label: 'Employee Lifecycle',

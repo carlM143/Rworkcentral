@@ -902,8 +902,176 @@ export const useOnboarding = () => {
     },
   )
 
+  
+  /* =========================================
+     CREATE ONBOARDING
+  ========================================= */
+
+  type CreateOnboardingInput = Pick<
+    OnboardingEmployee,
+    | 'employeeId'
+    | 'employeeNumber'
+    | 'employeeName'
+    | 'email'
+    | 'department'
+    | 'position'
+    | 'employmentType'
+    | 'dateHired'
+    | 'onboardingStartDate'
+    | 'targetCompletionDate'
+    | 'remarks'
+  >
+
+  const createOnboarding = (
+    data: CreateOnboardingInput,
+  ): OnboardingEmployee | null => {
+    const alreadyExists = onboardingRecords.value.some(
+      item => item.employeeId === data.employeeId,
+    )
+
+    if (alreadyExists) {
+      return null
+    }
+
+    const nextId =
+      Math.max(
+        0,
+        ...onboardingRecords.value.map(item => item.id),
+      ) + 1
+
+    const year = new Date().getFullYear()
+
+    const onboardingNumber =
+      `ONB-${year}-${String(nextId).padStart(3, '0')}`
+
+    const now = new Date().toISOString()
+
+    const record: OnboardingEmployee = {
+      id: nextId,
+      onboardingNumber,
+
+      employeeId: data.employeeId,
+      employeeNumber: data.employeeNumber,
+      employeeName: data.employeeName,
+
+      email: data.email,
+      department: data.department,
+      position: data.position,
+
+      employmentType: data.employmentType,
+
+      dateHired: data.dateHired,
+      onboardingStartDate: data.onboardingStartDate,
+      targetCompletionDate: data.targetCompletionDate,
+
+      assignedHr: 'HR Administrator',
+
+      checklist: {
+        documents: false,
+        employeeProfile: false,
+        companyAccount: false,
+        orientation: false,
+        policyAcknowledgment: false,
+        departmentEndorsement: false,
+      },
+
+      completedTasks: 0,
+      totalTasks: 6,
+      progress: 0,
+
+      status: 'Not Started',
+
+      remarks: data.remarks || undefined,
+
+      createdAt: now,
+      updatedAt: now,
+    }
+
+    onboardingRecords.value.unshift(record)
+
+    currentPage.value = 1
+
+    return record
+  }
+
+  /* =========================================
+     EDIT ONBOARDING
+  ========================================= */
+
+  type UpdateOnboardingInput = Pick<
+    OnboardingEmployee,
+    | 'employmentType'
+    | 'dateHired'
+    | 'onboardingStartDate'
+    | 'targetCompletionDate'
+    | 'remarks'
+  >
+
+  const updateOnboarding = (
+    id: number,
+    data: UpdateOnboardingInput,
+  ): boolean => {
+    const index = onboardingRecords.value.findIndex(
+      item => item.id === id,
+    )
+
+    if (index === -1) {
+      return false
+    }
+
+    const current = onboardingRecords.value[index]
+
+    if (!current || current.status === 'Completed') {
+      return false
+    }
+
+    onboardingRecords.value[index] = {
+      ...current,
+      ...data,
+      updatedAt: new Date().toISOString(),
+    }
+
+    return true
+  }
+
+  /* =========================================
+     UPDATE STATUS
+  ========================================= */
+
+  const updateOnboardingStatus = (
+    id: number,
+    newStatus: OnboardingStatus,
+    remarks?: string,
+  ): boolean => {
+    const index = onboardingRecords.value.findIndex(
+      item => item.id === id,
+    )
+
+    if (index === -1) {
+      return false
+    }
+
+    const current = onboardingRecords.value[index]
+
+    if (!current || current.status === 'Completed') {
+      return false
+    }
+
+    onboardingRecords.value[index] = {
+      ...current,
+      status: newStatus,
+      remarks: remarks ?? current.remarks,
+      updatedAt: new Date().toISOString(),
+    }
+
+    return true
+  }
+
   return {
     onboardingRecords,
+    createOnboarding,
+    updateOnboarding,
+    updateOnboardingStatus,
 
     search,
     department,

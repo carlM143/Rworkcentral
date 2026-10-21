@@ -920,6 +920,287 @@ export const usePromotions = () => {
     },
   )
 
+  
+  /* =========================================
+     PROMOTION MANAGEMENT
+  ========================================= */
+
+  type CreatePromotionInput = Pick<
+    PromotionRecord,
+    | 'employeeId'
+    | 'employeeNumber'
+    | 'employeeName'
+    | 'department'
+    | 'currentPosition'
+    | 'newPosition'
+    | 'currentGrade'
+    | 'newGrade'
+    | 'currentSalary'
+    | 'newSalary'
+    | 'promotionType'
+    | 'recommendedBy'
+    | 'recommendationDate'
+    | 'effectiveDate'
+    | 'reason'
+    | 'remarks'
+  >
+
+  type UpdatePromotionInput = Partial<
+    Pick<
+      PromotionRecord,
+      | 'department'
+      | 'newPosition'
+      | 'newGrade'
+      | 'newSalary'
+      | 'promotionType'
+      | 'recommendedBy'
+      | 'recommendationDate'
+      | 'effectiveDate'
+      | 'reason'
+      | 'remarks'
+    >
+  >
+
+  /* =========================================
+     SALARY CALCULATION
+  ========================================= */
+
+  const calculateSalaryAdjustment = (
+    currentSalary: number,
+    newSalary: number,
+  ) => {
+    const salaryIncrease = newSalary - currentSalary
+
+    const increasePercentage =
+      currentSalary > 0
+        ? Number(
+            ((salaryIncrease / currentSalary) * 100).toFixed(2),
+          )
+        : 0
+
+    return {
+      salaryIncrease,
+      increasePercentage,
+    }
+  }
+
+  /* =========================================
+     CREATE PROMOTION
+  ========================================= */
+
+  const createPromotion = (
+    data: CreatePromotionInput,
+  ): PromotionRecord | null => {
+    if (
+      !data.employeeId ||
+      !data.newPosition.trim() ||
+      !data.newGrade.trim() ||
+      !data.recommendedBy.trim() ||
+      !data.reason.trim() ||
+      !data.recommendationDate ||
+      !data.effectiveDate
+    ) {
+      return null
+    }
+
+    if (
+      !Number.isFinite(data.currentSalary) ||
+      !Number.isFinite(data.newSalary) ||
+      data.currentSalary < 0 ||
+      data.newSalary < data.currentSalary ||
+      data.effectiveDate < data.recommendationDate
+    ) {
+      return null
+    }
+
+    const nextId = Math.max(
+      0,
+      ...records.value.map(item => item.id),
+    ) + 1
+
+    const year = new Date().getFullYear()
+
+    const promotionNumber = [
+      'PRO',
+      year,
+      String(nextId).padStart(3, '0'),
+    ].join('-')
+
+    const adjustment = calculateSalaryAdjustment(
+      data.currentSalary,
+      data.newSalary,
+    )
+
+    const now = new Date().toISOString()
+
+    const record: PromotionRecord = {
+      ...data,
+      ...adjustment,
+
+      id: nextId,
+      promotionNumber,
+
+      status: 'Draft',
+
+      createdAt: now,
+      updatedAt: now,
+    }
+
+    records.value.unshift(record)
+    currentPage.value = 1
+
+    return record
+  }
+
+  /* =========================================
+     UPDATE PROMOTION
+  ========================================= */
+
+  const updatePromotion = (
+    id: number,
+    changes: UpdatePromotionInput,
+  ): boolean => {
+    const index = records.value.findIndex(
+      item => item.id === id,
+    )
+
+    if (index === -1) return false
+
+    const current = records.value[index]
+
+    if (!current) return false
+
+    if (
+      ['Effective', 'Rejected', 'Cancelled'].includes(
+        current.status,
+      )
+    ) {
+      return false
+    }
+
+    const updated = {
+      ...current,
+      ...changes,
+    }
+
+    if (
+      !updated.newPosition.trim() ||
+      !updated.newGrade.trim() ||
+      !updated.reason.trim() ||
+      !updated.recommendedBy.trim() ||
+      !Number.isFinite(updated.newSalary) ||
+      updated.newSalary < updated.currentSalary ||
+      updated.effectiveDate < updated.recommendationDate
+    ) {
+      return false
+    }
+
+    const adjustment = calculateSalaryAdjustment(
+      updated.currentSalary,
+      updated.newSalary,
+    )
+
+    records.value[index] = {
+      ...updated,
+      ...adjustment,
+      updatedAt: new Date().toISOString(),
+    }
+
+    return true
+  }
+
+  /* =========================================
+     STATUS TRANSITIONS
+  ========================================= */
+
+  const changePromotionStatus = (
+    id: number,
+    newStatus: PromotionStatus,
+    remarks?: string,
+    approvedBy?: string,
+  ): boolean => {
+    const index = records.value.findIndex(
+      item => item.id === id,
+    )
+
+    if (index === -1) return false
+
+    const record = records.value[index]
+
+    if (!record) return false
+
+    const allowedTransitions: Record<
+      PromotionStatus,
+      PromotionStatus[]
+    > = {
+      Draft: [
+        'For Review',
+        'Cancelled',
+      ],
+
+      'For Review': [
+        'Pending Approval',
+        'Cancelled',
+      ],
+
+      'Pending Approval': [
+        'Approved',
+        'Rejected',
+        'Cancelled',
+      ],
+
+      Approved: [
+        'Scheduled',
+        'Effective',
+        'Cancelled',
+      ],
+
+      Scheduled: [
+        'Effective',
+        'Cancelled',
+      ],
+
+      Effective: [],
+      Rejected: [],
+      Cancelled: [],
+    }
+
+    if (!allowedTransitions[record.status].includes(newStatus)) {
+      return false
+    }
+
+    const approver = approvedBy?.trim() || record.approvedBy
+
+    if (
+      ['Approved', 'Scheduled', 'Effective'].includes(newStatus) &&
+      !approver
+    ) {
+      return false
+    }
+
+    if (
+      ['Rejected', 'Cancelled'].includes(newStatus) &&
+      !remarks?.trim()
+    ) {
+      return false
+    }
+
+    records.value[index] = {
+      ...record,
+
+      status: newStatus,
+
+      approvedBy: approver,
+
+      remarks: remarks?.trim() || record.remarks,
+
+      updatedAt: new Date().toISOString(),
+    }
+
+    return true
+  }
+
+  
   return {
     records,
 
@@ -929,6 +1210,7 @@ export const usePromotions = () => {
     status,
 
     currentPage,
+    perPage,
 
     filteredRecords,
     paginatedRecords,
@@ -942,6 +1224,10 @@ export const usePromotions = () => {
     departmentOptions,
     promotionTypeOptions,
     statusOptions,
+
+    createPromotion,
+    updatePromotion,
+    changePromotionStatus,
 
     resetFilters,
   }

@@ -4,7 +4,6 @@ import {
   BriefcaseBusiness,
   Building2,
   CalendarDays,
-  MoreHorizontal,
   UserRound,
 } from 'lucide-vue-next'
 
@@ -14,9 +13,13 @@ import type {
   EmployeeTransferType,
 } from '~/types/employeeTransfer'
 
-defineProps<{
-  transfers:
-    EmployeeTransfer[]
+defineProps<{ transfers: EmployeeTransfer[] }>()
+const emit = defineEmits<{
+  view: [transfer: EmployeeTransfer]
+  edit: [transfer: EmployeeTransfer]
+  review: [transfer: EmployeeTransfer]
+  cancel: [transfer: EmployeeTransfer]
+  complete: [transfer: EmployeeTransfer]
 }>()
 
 const formatDate = (
@@ -149,8 +152,8 @@ const statusClass = (
             <th>Status</th>
             <th>Requested By</th>
             <th>Reviewed By</th>
-            <th>Remarks</th>
-            <th />
+            <th class="remarks-column">Remarks</th>
+            <th class="sticky-action-column">Actions</th>
           </tr>
 
         </thead>
@@ -456,19 +459,16 @@ const statusClass = (
 
             <!-- ACTION -->
 
-            <td>
+            <td class="sticky-action-column">
 
-              <button
-                type="button"
-                class="action-button"
-                title="Actions will be added later"
-              >
-
-                <MoreHorizontal
-                  :size="18"
-                />
-
-              </button>
+              <EmployeeTransferActions
+                :transfer="item"
+                @view="emit('view', $event)"
+                @edit="emit('edit', $event)"
+                @review="emit('review', $event)"
+                @cancel="emit('cancel', $event)"
+                @complete="emit('complete', $event)"
+              />
 
             </td>
 
@@ -552,7 +552,7 @@ const statusClass = (
 table {
   width: 100%;
 
-  min-width: 2250px;
+  min-width: 2050px;
 
   border-collapse: collapse;
 }
@@ -934,7 +934,7 @@ tbody tr:hover {
 /* REMARKS */
 
 .remarks {
-  width: 190px;
+  width: 150px;
 
   margin: 0;
 
@@ -1011,5 +1011,28 @@ tbody tr:hover {
 
 .empty-state span {
   font-size: 10px;
+}
+/* The last column stays visible and sits beside Remarks at the far right. */
+
+/* ACTIONS COLUMN - NORMAL SCROLL */
+.sticky-action-column {
+  position: static;
+  width: 70px;
+  min-width: 70px;
+  padding: 9px 10px;
+  text-align: center;
+  white-space: nowrap;
+}
+
+thead .sticky-action-column {
+  background: var(--bg-card-soft);
+}
+
+tbody tr:hover .sticky-action-column {
+  background: transparent;
+}
+
+.remarks-column {
+  width: 165px;
 }
 </style>

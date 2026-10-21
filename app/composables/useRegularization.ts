@@ -859,8 +859,75 @@ export const useRegularization = () => {
     },
   )
 
+  
+  /* =========================================
+     UPDATE REGULARIZATION RECORD
+  ========================================= */
+
+  type RegularizationUpdateInput = Partial<
+    Pick<
+      RegularizationRecord,
+      | 'probationEndDate'
+      | 'targetRegularizationDate'
+      | 'probationMonths'
+      | 'evaluationStatus'
+      | 'recommendation'
+      | 'reviewedBy'
+      | 'approvedBy'
+      | 'approvalDate'
+      | 'effectiveDate'
+      | 'status'
+      | 'remarks'
+    >
+  >
+
+  const updateRegularization = (
+    id: number,
+    data: RegularizationUpdateInput,
+  ): boolean => {
+    const index = records.value.findIndex(
+      item => item.id === id,
+    )
+
+    if (index === -1) {
+      return false
+    }
+
+    const current = records.value[index]
+
+    if (!current || current.status === 'Regularized') {
+      return false
+    }
+
+    const updated: RegularizationRecord = {
+      ...current,
+      ...data,
+      updatedAt: new Date().toISOString(),
+    }
+
+    if (
+      updated.status === 'Regularized' &&
+      (
+        current.status !== 'Approved' ||
+        updated.recommendation !== 'For Regularization' ||
+        !updated.approvedBy ||
+        !updated.approvalDate ||
+        !updated.effectiveDate
+      )
+    ) {
+      return false
+    }
+
+    records.value[index] = updated
+
+    return true
+  }
+
+  
   return {
     records,
+
+    updateRegularization,
 
     search,
     department,

@@ -10,15 +10,27 @@ import {
   UserRound,
 } from 'lucide-vue-next'
 
+
+import WfhApprovalActions from '~/components/approvals/wfh/WfhApprovalActions.vue'
+
+
 import type {
   WfhApproval,
   WfhApprovalStatus,
   WfhRequestType,
 } from '~/types/wfhApproval'
 
-defineProps<{
-  requests:
-    WfhApproval[]
+
+
+const props = defineProps<{
+  requests: WfhApproval[]
+}>()
+
+const emit = defineEmits<{
+  view: [request: WfhApproval]
+  review: [request: WfhApproval]
+  approve: [request: WfhApproval]
+  reject: [request: WfhApproval]
 }>()
 
 const formatDate = (
@@ -481,23 +493,15 @@ const statusClass = (
             </td>
 
             <!-- ACTION -->
-
-            <td>
-
-              <button
-                type="button"
-                class="action-button"
-                title="Approval actions will be added later"
-              >
-
-                <MoreHorizontal
-                  :size="18"
-                />
-
-              </button>
-
+            <td class="action-column">
+              <WfhApprovalActions
+                :request="item"
+                @view="emit('view', $event)"
+                @review="emit('review', $event)"
+                @approve="emit('approve', $event)"
+                @reject="emit('reject', $event)"
+              />
             </td>
-
           </tr>
 
         </tbody>
@@ -1052,5 +1056,47 @@ tbody tr:hover {
 
 .empty-state span {
   font-size: 10px;
+}
+
+
+/* =========================================
+   ACTION COLUMN
+========================================= */
+
+.action-column {
+  width: 70px;
+  min-width: 70px;
+  max-width: 70px;
+
+  text-align: center;
+  vertical-align: middle;
+
+  position: static;
+}
+
+/* =========================================
+   NORMAL HORIZONTAL SCROLLING
+========================================= */
+
+.table-scroll {
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.table-card {
+  position: relative;
+}
+
+/* =========================================
+   NO STICKY ACTIONS
+========================================= */
+
+table th:last-child,
+table td:last-child {
+  position: static !important;
+  right: auto !important;
+  left: auto !important;
+  box-shadow: none !important;
 }
 </style>

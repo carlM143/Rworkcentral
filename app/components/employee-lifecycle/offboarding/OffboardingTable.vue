@@ -1,254 +1,335 @@
+
 <script setup lang="ts">
 import {
   CalendarDays,
-  Check,
-  Circle,
   ClipboardCheck,
+  Eye,
+  FilePenLine,
   MoreHorizontal,
+  Pencil,
+  PlayCircle,
+  Send,
   UserRound,
   WalletCards,
+  CheckCircle2,
+  CircleX,
 } from 'lucide-vue-next'
 
 import type {
-  FinalPayStatus,
   OffboardingRecord,
   OffboardingStatus,
-  OffboardingType,
 } from '~/types/offboarding'
 
-defineProps<{
-  records:
-    OffboardingRecord[]
+const props = defineProps<{
+  records: OffboardingRecord[]
 }>()
 
-const formatDate = (
-  value?: string,
-) => {
-  if (!value) {
-    return '—'
+type ActionName =
+  | 'view'
+  | 'edit'
+  | 'start'
+  | 'clearance'
+  | 'review'
+  | 'ready'
+  | 'complete'
+  | 'cancel'
+
+const emit = defineEmits<{
+  view: [record: OffboardingRecord]
+  edit: [record: OffboardingRecord]
+  start: [record: OffboardingRecord]
+  clearance: [record: OffboardingRecord]
+  review: [record: OffboardingRecord]
+  ready: [record: OffboardingRecord]
+  complete: [record: OffboardingRecord]
+  cancel: [record: OffboardingRecord]
+}>()
+
+/* =========================================
+   HELPERS
+========================================= */
+
+const formatDate = (value?: string) => {
+  if (!value) return '—'
+
+  return new Intl.DateTimeFormat('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  }).format(new Date(`${value}T00:00:00`))
+}
+
+const statusClass = (status: OffboardingStatus) => {
+  const classes: Record<OffboardingStatus, string> = {
+    Draft: 'draft',
+    'Pending Clearance': 'pending',
+    'Clearance In Progress': 'progress',
+    'For Review': 'review',
+    'Ready for Final Pay': 'final-pay',
+    Completed: 'completed',
+    Cancelled: 'cancelled',
   }
 
-  return new Intl.DateTimeFormat(
-    'en-US',
-    {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    },
-  ).format(
-    new Date(
-      `${value}T00:00:00`,
-    ),
+  return classes[status]
+}
+
+const typeClass = (type: string) => {
+  return type.toLowerCase().replace(/\s+/g, '-')
+}
+
+const finalPayClass = (status: string) => {
+  return status.toLowerCase().replace(/\s+/g, '-')
+}
+
+/* =========================================
+   ACTIONS MENU
+========================================= */
+
+const openId = ref<number | null>(null)
+const triggerRef = ref<HTMLElement | null>(null)
+const menuRef = ref<HTMLElement | null>(null)
+
+const menuStyle = ref({
+  top: '0px',
+  left: '0px',
+})
+
+const activeRecord = computed(() => {
+  return props.records.find(
+    record => record.id === openId.value,
   )
-}
+})
 
-const statusClass = (
-  status:
-    OffboardingStatus,
-) => {
-  if (
-    status ===
-    'Completed'
-  ) {
-    return 'completed'
-  }
+const menuActions = computed(() => {
+  const record = activeRecord.value
 
-  if (
-    status ===
-    'Ready for Final Pay'
-  ) {
-    return 'final-pay'
-  }
+  if (!record) return []
 
-  if (
-    status ===
-    'Clearance In Progress'
-  ) {
-    return 'progress'
-  }
-
-  if (
-    status ===
-    'Pending Clearance'
-  ) {
-    return 'pending'
-  }
-
-  if (
-    status ===
-    'For Review'
-  ) {
-    return 'review'
-  }
-
-  if (
-    status ===
-    'Cancelled'
-  ) {
-    return 'cancelled'
-  }
-
-  return 'draft'
-}
-
-const typeClass = (
-  type:
-    OffboardingType,
-) => {
-  if (
-    type ===
-    'Resignation'
-  ) {
-    return 'resignation'
-  }
-
-  if (
-    type ===
-    'End of Contract'
-  ) {
-    return 'contract'
-  }
-
-  if (
-    type ===
-    'Retirement'
-  ) {
-    return 'retirement'
-  }
-
-  if (
-    type ===
-    'Termination'
-  ) {
-    return 'termination'
-  }
-
-  return 'redundancy'
-}
-
-const finalPayClass = (
-  status:
-    FinalPayStatus,
-) => {
-  if (
-    status ===
-    'Released'
-  ) {
-    return 'released'
-  }
-
-  if (
-    status ===
-    'Ready for Release'
-  ) {
-    return 'ready'
-  }
-
-  if (
-    status ===
-      'For Processing' ||
-    status ===
-      'For Review'
-  ) {
-    return 'processing'
-  }
-
-  return 'not-started'
-}
-
-const checklistItems = (
-  item:
-    OffboardingRecord,
-) => {
-  return [
+  const actions: {
+    name: ActionName
+    label: string
+    icon: typeof Eye
+    danger?: boolean
+  }[] = [
     {
-      label: 'HR',
-      completed:
-        item.checklist.hrClearance,
-    },
-    {
-      label: 'Department',
-      completed:
-        item.checklist.departmentClearance,
-    },
-    {
-      label: 'Finance',
-      completed:
-        item.checklist.financeClearance,
-    },
-    {
-      label: 'IT',
-      completed:
-        item.checklist.itClearance,
-    },
-    {
-      label: 'Assets',
-      completed:
-        item.checklist.assetReturn,
-    },
-    {
-      label: 'Exit Interview',
-      completed:
-        item.checklist.exitInterview,
+      name: 'view',
+      label: 'View Offboarding',
+      icon: Eye,
     },
   ]
+
+  if (
+    record.status === 'Completed' ||
+    record.status === 'Cancelled'
+  ) {
+    return actions
+  }
+
+  actions.push({
+    name: 'edit',
+    label: 'Edit Offboarding',
+    icon: Pencil,
+  })
+
+  if (record.status === 'Draft') {
+    actions.push({
+      name: 'start',
+      label: 'Start Clearance',
+      icon: PlayCircle,
+    })
+  }
+
+  if (
+    record.status === 'Pending Clearance' ||
+    record.status === 'Clearance In Progress' ||
+    record.status === 'For Review'
+  ) {
+    actions.push({
+      name: 'clearance',
+      label: 'Manage Clearance',
+      icon: ClipboardCheck,
+    })
+  }
+
+  if (
+    record.status === 'Clearance In Progress' ||
+    record.status === 'Pending Clearance'
+  ) {
+    actions.push({
+      name: 'review',
+      label: 'Submit for Review',
+      icon: Send,
+    })
+  }
+
+  if (record.status === 'For Review') {
+    actions.push({
+      name: 'ready',
+      label: 'Mark Ready for Final Pay',
+      icon: WalletCards,
+    })
+  }
+
+  if (record.status === 'Ready for Final Pay') {
+    actions.push({
+      name: 'complete',
+      label: 'Complete Offboarding',
+      icon: CheckCircle2,
+    })
+  }
+
+  actions.push({
+    name: 'cancel',
+    label: 'Cancel Offboarding',
+    icon: CircleX,
+    danger: true,
+  })
+
+  return actions
+})
+
+const closeMenu = () => {
+  openId.value = null
 }
 
-const progressClass = (
-  progress: number,
+const toggleMenu = async (
+  id: number,
+  event: MouseEvent,
 ) => {
-  if (
-    progress === 100
-  ) {
-    return 'complete'
+  if (openId.value === id) {
+    closeMenu()
+    return
   }
 
-  if (
-    progress >= 70
-  ) {
-    return 'high'
-  }
+  triggerRef.value = event.currentTarget as HTMLElement
+  openId.value = id
 
-  if (
-    progress >= 40
-  ) {
-    return 'medium'
-  }
+  await nextTick()
 
-  return 'low'
+  if (!triggerRef.value) return
+
+  const rect = triggerRef.value.getBoundingClientRect()
+
+  const width = menuRef.value?.offsetWidth ?? 225
+  const height = menuRef.value?.offsetHeight ?? 220
+  const padding = 8
+
+  const spaceBelow = window.innerHeight - rect.bottom
+
+  let top = spaceBelow >= height + 6
+    ? rect.bottom + 6
+    : rect.top - height - 6
+
+  top = Math.max(
+    padding,
+    Math.min(top, window.innerHeight - height - padding),
+  )
+
+  const left = Math.max(
+    padding,
+    Math.min(
+      rect.right - width,
+      window.innerWidth - width - padding,
+    ),
+  )
+
+  menuStyle.value = {
+    top: `${top}px`,
+    left: `${left}px`,
+  }
 }
+
+const performAction = (action: ActionName) => {
+  const record = activeRecord.value
+
+  if (!record) return
+
+  if (!menuActions.value.some(item => item.name === action)) {
+    closeMenu()
+    return
+  }
+
+  closeMenu()
+
+  switch (action) {
+    case 'view':
+      emit('view', record)
+      break
+
+    case 'edit':
+      emit('edit', record)
+      break
+
+    case 'start':
+      emit('start', record)
+      break
+
+    case 'clearance':
+      emit('clearance', record)
+      break
+
+    case 'review':
+      emit('review', record)
+      break
+
+    case 'ready':
+      emit('ready', record)
+      break
+
+    case 'complete':
+      emit('complete', record)
+      break
+
+    case 'cancel':
+      emit('cancel', record)
+      break
+  }
+}
+
+/* =========================================
+   CLICK OUTSIDE
+========================================= */
+
+const handleOutside = (event: MouseEvent) => {
+  const target = event.target as Node
+
+  if (
+    triggerRef.value?.contains(target) ||
+    menuRef.value?.contains(target)
+  ) {
+    return
+  }
+
+  closeMenu()
+}
+
+onMounted(() => {
+  document.addEventListener('mousedown', handleOutside)
+  window.addEventListener('resize', closeMenu)
+  window.addEventListener('scroll', closeMenu, true)
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('mousedown', handleOutside)
+  window.removeEventListener('resize', closeMenu)
+  window.removeEventListener('scroll', closeMenu, true)
+})
 </script>
 
 <template>
   <article class="table-card">
-
     <div class="table-heading">
+      <h3>Employee Offboarding</h3>
 
-      <div>
-
-        <h3>
-          Employee Offboarding
-        </h3>
-
-        <p>
-          Monitor employee separation,
-          clearance, asset return, exit interview
-          and final pay readiness.
-        </p>
-
-      </div>
-
+      <p>
+        Monitor employee separation, exit interviews,
+        clearance status and final pay readiness.
+      </p>
     </div>
 
-    <div
-      v-if="records.length"
-      class="table-scroll"
-    >
-
-      <table>
-
+    <div v-if="records.length" class="table-scroll">
+      <table class="offboarding-table">
         <thead>
-
           <tr>
             <th>Offboarding No.</th>
             <th>Employee</th>
@@ -257,8 +338,6 @@ const progressClass = (
             <th>Notice Date</th>
             <th>Last Working Day</th>
             <th>Separation Date</th>
-            <th>Clearance Checklist</th>
-            <th>Progress</th>
             <th>Exit Interview</th>
             <th>Final Pay</th>
             <th>Initiated By</th>
@@ -266,549 +345,275 @@ const progressClass = (
             <th>Status</th>
             <th>Reason</th>
             <th>Remarks</th>
-            <th />
+            <th class="actions-column">Actions</th>
           </tr>
-
         </thead>
 
         <tbody>
-
           <tr
             v-for="item in records"
             :key="item.id"
           >
-
-            <!-- NUMBER -->
-
             <td>
-
               <strong class="record-number">
                 {{ item.offboardingNumber }}
               </strong>
-
             </td>
 
-            <!-- EMPLOYEE -->
-
             <td>
-
               <div class="employee-cell">
-
                 <div class="employee-avatar">
-
-                  <UserRound
-                    :size="17"
-                  />
-
+                  <UserRound :size="16" />
                 </div>
 
                 <div>
-
-                  <strong>
-                    {{ item.employeeName }}
-                  </strong>
-
-                  <span>
-                    {{ item.employeeNumber }}
-                  </span>
-
-                  <span>
-                    {{ item.position }}
-                  </span>
-
+                  <strong>{{ item.employeeName }}</strong>
+                  <span>{{ item.employeeNumber }}</span>
+                  <span>{{ item.position }}</span>
                 </div>
-
               </div>
-
             </td>
 
-            <!-- DEPARTMENT -->
-
             <td>
-
               <strong class="department">
                 {{ item.department }}
               </strong>
-
             </td>
 
-            <!-- TYPE -->
-
             <td>
-
               <span
                 class="type-badge"
-                :class="
-                  typeClass(
-                    item.offboardingType,
-                  )
-                "
+                :class="typeClass(item.offboardingType)"
               >
                 {{ item.offboardingType }}
               </span>
-
             </td>
 
-            <!-- NOTICE -->
-
             <td>
-
               <div class="date-cell">
-
-                <CalendarDays
-                  :size="13"
-                />
-
-                {{
-                  formatDate(
-                    item.noticeDate,
-                  )
-                }}
-
+                <CalendarDays :size="13" />
+                {{ formatDate(item.noticeDate) }}
               </div>
-
             </td>
 
-            <!-- LAST DAY -->
-
             <td>
-
               <div class="date-cell last-day">
-
-                <CalendarDays
-                  :size="13"
-                />
-
+                <CalendarDays :size="13" />
                 <strong>
-                  {{
-                    formatDate(
-                      item.lastWorkingDay,
-                    )
-                  }}
+                  {{ formatDate(item.lastWorkingDay) }}
                 </strong>
-
               </div>
-
             </td>
 
-            <!-- SEPARATION -->
-
             <td>
-
               <strong class="separation-date">
-                {{
-                  formatDate(
-                    item.separationDate,
-                  )
-                }}
+                {{ formatDate(item.separationDate) }}
               </strong>
-
             </td>
 
-            <!-- CHECKLIST -->
-
             <td>
-
-              <div class="checklist">
-
-                <div
-                  v-for="
-                    check in checklistItems(item)
-                  "
-                  :key="check.label"
-                  class="check-item"
-                  :class="{
-                    done:
-                      check.completed,
-                  }"
-                >
-
-                  <Check
-                    v-if="check.completed"
-                    :size="10"
-                  />
-
-                  <Circle
-                    v-else
-                    :size="9"
-                  />
-
-                  <span>
-                    {{ check.label }}
-                  </span>
-
-                </div>
-
-              </div>
-
-            </td>
-
-            <!-- PROGRESS -->
-
-            <td>
-
-              <div class="progress-cell">
-
-                <div class="progress-heading">
-
-                  <span>
-                    {{ item.completedTasks }}
-                    /
-                    {{ item.totalTasks }}
-                  </span>
-
-                  <strong>
-                    {{ item.clearanceProgress }}%
-                  </strong>
-
-                </div>
-
-                <div class="progress-track">
-
-                  <div
-                    class="progress-bar"
-                    :class="
-                      progressClass(
-                        item.clearanceProgress,
-                      )
-                    "
-                    :style="{
-                      width:
-                        `${item.clearanceProgress}%`,
-                    }"
-                  />
-
-                </div>
-
-              </div>
-
-            </td>
-
-            <!-- EXIT -->
-
-            <td>
-
               <div
-                v-if="
-                  item.exitInterviewDate
-                "
+                v-if="item.exitInterviewDate"
                 class="exit-date"
               >
-
-                <ClipboardCheck
-                  :size="13"
-                />
-
-                <strong>
-                  {{
-                    formatDate(
-                      item.exitInterviewDate,
-                    )
-                  }}
-                </strong>
-
+                <ClipboardCheck :size="13" />
+                {{ formatDate(item.exitInterviewDate) }}
               </div>
 
-              <span
-                v-else
-                class="pending-text"
-              >
+              <span v-else class="pending-text">
                 Not Scheduled
               </span>
-
             </td>
 
-            <!-- FINAL PAY -->
-
             <td>
-
               <span
                 class="final-pay-badge"
-                :class="
-                  finalPayClass(
-                    item.finalPayStatus,
-                  )
-                "
+                :class="finalPayClass(item.finalPayStatus)"
               >
-
-                <WalletCards
-                  :size="12"
-                />
-
-                {{
-                  item.finalPayStatus
-                }}
-
+                <WalletCards :size="12" />
+                {{ item.finalPayStatus }}
               </span>
-
             </td>
 
-            <!-- INITIATED -->
-
             <td>
-
               <strong class="person-name">
                 {{ item.initiatedBy }}
               </strong>
-
             </td>
 
-            <!-- APPROVED -->
-
             <td>
-
               <strong
                 v-if="item.approvedBy"
-                class="person-name approved-person"
+                class="approved-person"
               >
                 {{ item.approvedBy }}
               </strong>
 
-              <span
-                v-else
-                class="pending-text"
-              >
+              <span v-else class="pending-text">
                 Pending
               </span>
-
             </td>
 
-            <!-- STATUS -->
-
             <td>
-
               <span
                 class="status-badge"
-                :class="
-                  statusClass(
-                    item.status,
-                  )
-                "
+                :class="statusClass(item.status)"
               >
-
-                <span class="status-dot" />
-
+                <span class="status-dot"></span>
                 {{ item.status }}
-
               </span>
-
             </td>
 
-            <!-- REASON -->
-
             <td>
-
-              <p
-                class="reason-text"
-                :title="item.reason"
-              >
+              <p class="truncate-text" :title="item.reason">
                 {{ item.reason }}
               </p>
-
             </td>
 
-            <!-- REMARKS -->
-
             <td>
-
               <p
-                class="remarks"
-                :title="
-                  item.remarks ||
-                  'No remarks'
-                "
+                class="truncate-text remarks"
+                :title="item.remarks || 'No remarks'"
               >
-                {{
-                  item.remarks ||
-                  'No remarks'
-                }}
+                {{ item.remarks || 'No remarks' }}
               </p>
-
             </td>
 
-            <!-- ACTION -->
-
-            <td>
-
+            <td class="actions-column">
               <button
                 type="button"
                 class="action-button"
-                title="Offboarding actions will be added later"
+                aria-label="Offboarding actions"
+                :aria-expanded="openId === item.id"
+                @click.stop="toggleMenu(item.id, $event)"
               >
-
-                <MoreHorizontal
-                  :size="18"
-                />
-
+                <MoreHorizontal :size="18" />
               </button>
-
             </td>
-
           </tr>
-
         </tbody>
-
       </table>
-
     </div>
 
-    <div
-      v-else
-      class="empty-state"
-    >
+    <div v-else class="empty-state">
+      <UserRound :size="30" />
 
-      <UserRound
-        :size="36"
-      />
-
-      <strong>
-        No offboarding records found
-      </strong>
+      <strong>No offboarding records found</strong>
 
       <span>
         Try changing your offboarding filters.
       </span>
-
     </div>
 
+    <Teleport to="body">
+      <div
+        v-if="openId !== null"
+        ref="menuRef"
+        class="offboarding-actions-menu"
+        :style="menuStyle"
+      >
+        <button
+          v-for="action in menuActions"
+          :key="action.name"
+          type="button"
+          :class="{ danger: action.danger }"
+          @click="performAction(action.name)"
+        >
+          <component
+            :is="action.icon"
+            :size="15"
+          />
+
+          {{ action.label }}
+        </button>
+      </div>
+    </Teleport>
   </article>
 </template>
 
 <style scoped>
 .table-card {
   overflow: hidden;
-
-  border:
-    1px solid var(--border);
-
+  border: 1px solid var(--border);
   border-radius: 11px;
-
-  background:
-    var(--bg-card);
-
-  box-shadow:
-    var(--shadow);
+  background: var(--bg-card);
+  box-shadow: var(--shadow);
 }
 
 .table-heading {
-  padding:
-    16px 17px;
-
-  border-bottom:
-    1px solid var(--border-soft);
+  padding: 15px 17px;
+  border-bottom: 1px solid var(--border-soft);
 }
 
 .table-heading h3 {
   margin: 0;
-
-  color:
-    var(--text-primary);
-
-  font-size: 15px;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 700;
 }
 
 .table-heading p {
-  margin:
-    5px 0 0;
-
-  color:
-    var(--text-muted);
-
-  font-size: 11px;
+  margin: 4px 0 0;
+  color: var(--text-muted);
+  font-size: 10px;
 }
 
 .table-scroll {
+  width: 100%;
   overflow-x: auto;
 }
 
-table {
+.offboarding-table {
   width: 100%;
-
-  min-width: 2850px;
-
-  border-collapse:
-    collapse;
+  min-width: 2080px;
+  border-collapse: collapse;
 }
 
-th {
-  padding:
-    12px 13px;
-
-  background:
-    var(--bg-card-soft);
-
-  color:
-    var(--text-secondary);
-
-  font-size: 10px;
+.offboarding-table th {
+  padding: 11px 13px;
+  background: var(--bg-card-soft);
+  color: var(--text-secondary);
+  font-size: 9px;
   font-weight: 700;
-
   text-align: left;
-
-  text-transform:
-    uppercase;
-
+  text-transform: uppercase;
   white-space: nowrap;
 }
 
-td {
-  padding:
-    13px;
-
-  border-top:
-    1px solid var(--border-soft);
-
-  color:
-    var(--text-secondary);
-
-  font-size: 10.5px;
-
+.offboarding-table td {
+  padding: 12px 13px;
+  border-top: 1px solid var(--border-soft);
+  color: var(--text-secondary);
+  font-size: 10px;
   vertical-align: middle;
 }
 
-tbody tr:hover {
-  background:
-    var(--bg-card-soft);
+.offboarding-table tbody tr:hover {
+  background: var(--bg-card-soft);
 }
 
 .record-number {
-  color:
-    var(--primary);
-
-  white-space:
-    nowrap;
+  color: var(--primary);
+  white-space: nowrap;
 }
-
-/* EMPLOYEE */
 
 .employee-cell {
   display: flex;
-
-  min-width: 205px;
-
+  min-width: 190px;
   align-items: center;
-
   gap: 9px;
 }
 
 .employee-avatar {
   display: flex;
-
-  width: 36px;
-  height: 36px;
-
+  width: 35px;
+  height: 35px;
   flex-shrink: 0;
-
   align-items: center;
   justify-content: center;
-
-  border-radius: 9px;
-
-  background:
-    var(--red-soft);
-
-  color:
-    var(--red);
+  border-radius: 8px;
+  background: var(--red-soft);
+  color: var(--red);
 }
 
 .employee-cell strong,
@@ -817,480 +622,301 @@ tbody tr:hover {
 }
 
 .employee-cell strong {
-  color:
-    var(--text-primary);
-
-  font-size: 11px;
-}
-
-.employee-cell span {
-  margin-top: 2px;
-
-  color:
-    var(--text-muted);
-
-  font-size: 9.5px;
-}
-
-.department {
-  color:
-    var(--text-primary);
-
-  white-space: nowrap;
-}
-
-/* TYPE */
-
-.type-badge {
-  display: inline-flex;
-
-  padding:
-    5px 8px;
-
-  border-radius: 20px;
-
-  font-size: 9px;
-  font-weight: 650;
-
-  white-space: nowrap;
-}
-
-.type-badge.resignation {
-  background:
-    var(--primary-soft);
-
-  color:
-    var(--primary);
-}
-
-.type-badge.contract {
-  background:
-    var(--purple-soft);
-
-  color:
-    var(--purple);
-}
-
-.type-badge.retirement {
-  background:
-    var(--green-soft);
-
-  color:
-    var(--green);
-}
-
-.type-badge.termination {
-  background:
-    var(--red-soft);
-
-  color:
-    var(--red);
-}
-
-.type-badge.redundancy {
-  background:
-    var(--orange-soft);
-
-  color:
-    var(--orange);
-}
-
-/* DATES */
-
-.date-cell {
-  display: flex;
-
-  align-items: center;
-
-  gap: 5px;
-
-  white-space: nowrap;
-}
-
-.date-cell svg {
-  color:
-    var(--text-muted);
-}
-
-.last-day svg {
-  color:
-    var(--orange);
-}
-
-.last-day strong,
-.separation-date {
-  color:
-    var(--text-primary);
-
-  white-space: nowrap;
-}
-
-/* CHECKLIST */
-
-.checklist {
-  display: grid;
-
-  width: 230px;
-
-  grid-template-columns:
-    repeat(
-      2,
-      minmax(0, 1fr)
-    );
-
-  gap: 5px 8px;
-}
-
-.check-item {
-  display: flex;
-
-  align-items: center;
-
-  gap: 4px;
-
-  color:
-    var(--text-muted);
-
-  font-size: 9px;
-
-  white-space: nowrap;
-}
-
-.check-item.done {
-  color:
-    var(--green);
-}
-
-/* PROGRESS */
-
-.progress-cell {
-  width: 150px;
-}
-
-.progress-heading {
-  display: flex;
-
-  align-items: center;
-  justify-content: space-between;
-
-  margin-bottom: 6px;
-}
-
-.progress-heading span {
-  color:
-    var(--text-muted);
-
-  font-size: 9px;
-}
-
-.progress-heading strong {
-  color:
-    var(--text-primary);
-
+  color: var(--text-primary);
   font-size: 10px;
 }
 
-.progress-track {
-  overflow: hidden;
-
-  height: 6px;
-
-  border-radius: 100px;
-
-  background:
-    var(--border-soft);
-}
-
-.progress-bar {
-  height: 100%;
-
-  border-radius: inherit;
-}
-
-.progress-bar.low {
-  background:
-    var(--red);
-}
-
-.progress-bar.medium {
-  background:
-    var(--orange);
-}
-
-.progress-bar.high {
-  background:
-    var(--primary);
-}
-
-.progress-bar.complete {
-  background:
-    var(--green);
-}
-
-/* EXIT */
-
-.exit-date {
-  display: flex;
-
-  align-items: center;
-
-  gap: 5px;
-
-  white-space: nowrap;
-
-  color:
-    var(--purple);
-}
-
-.exit-date strong {
-  color:
-    var(--text-primary);
-}
-
-/* FINAL PAY */
-
-.final-pay-badge {
-  display: inline-flex;
-
-  align-items: center;
-
-  gap: 5px;
-
-  padding:
-    5px 8px;
-
-  border-radius: 20px;
-
+.employee-cell span {
+  margin-top: 3px;
+  color: var(--text-muted);
   font-size: 9px;
-  font-weight: 650;
-
-  white-space: nowrap;
 }
 
-.final-pay-badge.released {
-  background:
-    var(--green-soft);
-
-  color:
-    var(--green);
-}
-
-.final-pay-badge.ready {
-  background:
-    var(--purple-soft);
-
-  color:
-    var(--purple);
-}
-
-.final-pay-badge.processing {
-  background:
-    var(--orange-soft);
-
-  color:
-    var(--orange);
-}
-
-.final-pay-badge.not-started {
-  background:
-    var(--bg-card-soft);
-
-  color:
-    var(--text-muted);
-}
-
-/* PERSON */
-
+.department,
 .person-name {
-  color:
-    var(--text-primary);
-
+  color: var(--text-primary);
   white-space: nowrap;
 }
 
 .approved-person {
-  color:
-    var(--green);
-}
-
-.pending-text {
-  color:
-    var(--text-muted);
-
-  font-size: 9.5px;
-
-  font-style: italic;
-
+  color: var(--green);
   white-space: nowrap;
 }
 
-/* STATUS */
+/* =========================================
+   TYPE
+========================================= */
+
+.type-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 8px;
+  border-radius: 20px;
+  font-size: 9px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.type-badge.resignation {
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+
+.type-badge.end-of-contract {
+  background: var(--purple-soft);
+  color: var(--purple);
+}
+
+.type-badge.retirement {
+  background: var(--green-soft);
+  color: var(--green);
+}
+
+.type-badge.termination {
+  background: var(--red-soft);
+  color: var(--red);
+}
+
+.type-badge.redundancy {
+  background: var(--orange-soft);
+  color: var(--orange);
+}
+
+/* =========================================
+   DATES
+========================================= */
+
+.date-cell,
+.exit-date {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.date-cell svg {
+  color: var(--text-muted);
+}
+
+.last-day svg {
+  color: var(--orange);
+}
+
+.last-day strong,
+.separation-date {
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+.exit-date {
+  color: var(--purple);
+}
+
+.pending-text {
+  color: var(--text-muted);
+  font-style: italic;
+  white-space: nowrap;
+}
+
+/* =========================================
+   FINAL PAY
+========================================= */
+
+.final-pay-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 8px;
+  border-radius: 20px;
+  font-size: 9px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.final-pay-badge.not-started {
+  background: var(--bg-card-soft);
+  color: var(--text-muted);
+}
+
+.final-pay-badge.for-processing,
+.final-pay-badge.for-review {
+  background: var(--orange-soft);
+  color: var(--orange);
+}
+
+.final-pay-badge.ready-for-release {
+  background: var(--purple-soft);
+  color: var(--purple);
+}
+
+.final-pay-badge.released {
+  background: var(--green-soft);
+  color: var(--green);
+}
+
+/* =========================================
+   STATUS
+========================================= */
 
 .status-badge {
   display: inline-flex;
-
   align-items: center;
-
   gap: 5px;
-
-  padding:
-    5px 8px;
-
+  padding: 5px 8px;
   border-radius: 20px;
-
   font-size: 9px;
   font-weight: 650;
-
   white-space: nowrap;
 }
 
 .status-dot {
   width: 5px;
   height: 5px;
-
   border-radius: 50%;
-
-  background:
-    currentColor;
+  background: currentColor;
 }
 
-.status-badge.completed {
-  background:
-    var(--green-soft);
-
-  color:
-    var(--green);
-}
-
-.status-badge.final-pay {
-  background:
-    var(--purple-soft);
-
-  color:
-    var(--purple);
-}
-
-.status-badge.progress {
-  background:
-    var(--primary-soft);
-
-  color:
-    var(--primary);
+.status-badge.draft {
+  background: var(--bg-card-soft);
+  color: var(--text-muted);
 }
 
 .status-badge.pending,
 .status-badge.review {
-  background:
-    var(--orange-soft);
+  background: var(--orange-soft);
+  color: var(--orange);
+}
 
-  color:
-    var(--orange);
+.status-badge.progress {
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+
+.status-badge.final-pay {
+  background: var(--purple-soft);
+  color: var(--purple);
+}
+
+.status-badge.completed {
+  background: var(--green-soft);
+  color: var(--green);
 }
 
 .status-badge.cancelled {
-  background:
-    var(--red-soft);
-
-  color:
-    var(--red);
+  background: var(--red-soft);
+  color: var(--red);
 }
 
-.status-badge.draft {
-  background:
-    var(--bg-card-soft);
+/* =========================================
+   TEXT
+========================================= */
 
-  color:
-    var(--text-muted);
-}
-
-/* TEXT */
-
-.reason-text,
-.remarks {
-  width: 230px;
-
+.truncate-text {
+  width: 190px;
   margin: 0;
-
   overflow: hidden;
-
-  color:
-    var(--text-secondary);
-
-  font-size: 10px;
-
-  text-overflow:
-    ellipsis;
-
+  color: var(--text-secondary);
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.remarks {
-  width: 200px;
-
-  color:
-    var(--text-muted);
+.truncate-text.remarks {
+  width: 145px;
+  color: var(--text-muted);
 }
 
-/* ACTION */
+/* =========================================
+   ACTIONS
+========================================= */
+
+.actions-column {
+  position: static !important;
+  width: 70px;
+  text-align: center !important;
+}
 
 .action-button {
-  display: flex;
-
-  width: 32px;
-  height: 32px;
-
+  display: inline-flex;
+  width: 30px;
+  height: 30px;
   align-items: center;
   justify-content: center;
-
-  border:
-    1px solid transparent;
-
+  border: 1px solid transparent;
   border-radius: 7px;
-
-  background:
-    transparent;
-
-  color:
-    var(--text-secondary);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
 }
 
-.action-button:hover {
-  border-color:
-    var(--border);
-
-  background:
-    var(--bg-card-soft);
-
-  color:
-    var(--primary);
+.action-button:hover,
+.action-button[aria-expanded="true"] {
+  border-color: var(--border);
+  background: var(--bg-card-soft);
+  color: var(--primary);
 }
 
-/* EMPTY */
+/* =========================================
+   EMPTY
+========================================= */
 
 .empty-state {
   display: flex;
-
-  min-height: 280px;
-
+  min-height: 240px;
   flex-direction: column;
-
   align-items: center;
   justify-content: center;
-
-  gap: 8px;
-
-  color:
-    var(--text-muted);
+  gap: 9px;
+  color: var(--text-muted);
 }
 
 .empty-state strong {
-  color:
-    var(--text-primary);
-
-  font-size: 13px;
+  color: var(--text-primary);
+  font-size: 12px;
 }
 
 .empty-state span {
+  font-size: 10px;
+}
+</style>
+
+<style>
+.offboarding-actions-menu {
+  position: fixed;
+  z-index: 10020;
+  width: 225px;
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--bg-card);
+  box-shadow: 0 18px 45px rgba(0, 0, 0, 0.25);
+}
+
+.offboarding-actions-menu button {
+  display: flex;
+  width: 100%;
+  min-height: 36px;
+  align-items: center;
+  gap: 9px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
   font-size: 11px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.offboarding-actions-menu button:hover {
+  background: var(--bg-card-soft);
+  color: var(--text-primary);
+}
+
+.offboarding-actions-menu button.danger {
+  color: var(--red);
+}
+
+.offboarding-actions-menu button.danger:hover {
+  background: var(--red-soft);
 }
 </style>

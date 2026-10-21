@@ -1,3 +1,4 @@
+
 <script setup lang="ts">
 import {
   ArrowRight,
@@ -5,6 +6,8 @@ import {
   BriefcaseBusiness,
   CalendarDays,
   CircleCheck,
+  Copy,
+  Eye,
   FilePenLine,
   History,
   MoreHorizontal,
@@ -20,188 +23,199 @@ import type {
   LifecycleHistoryStatus,
 } from '~/types/lifecycleHistory'
 
-defineProps<{
-  records:
-    LifecycleHistoryRecord[]
+const props = defineProps<{
+  records: LifecycleHistoryRecord[]
 }>()
 
-const formatDate = (
-  value?: string,
-) => {
-  if (!value) {
-    return '—'
-  }
+const emit = defineEmits<{
+  view: [record: LifecycleHistoryRecord]
+  timeline: [record: LifecycleHistoryRecord]
+  copy: [record: LifecycleHistoryRecord]
+}>()
 
-  return new Intl.DateTimeFormat(
-    'en-US',
-    {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    },
-  ).format(
-    new Date(
-      `${value}T00:00:00`,
-    ),
+/* =========================================
+   HELPERS
+========================================= */
+
+const formatDate = (value?: string) => {
+  if (!value) return '—'
+
+  const date = new Date(
+    value.includes('T') ? value : `${value}T00:00:00`,
   )
+
+  if (Number.isNaN(date.getTime())) return '—'
+
+  return new Intl.DateTimeFormat('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  }).format(date)
 }
 
-const eventClass = (
-  type:
-    LifecycleEventType,
-) => {
-  if (
-    type ===
-    'Onboarding'
-  ) {
-    return 'onboarding'
-  }
-
-  if (
-    type ===
-    'Regularization'
-  ) {
-    return 'regularization'
-  }
-
-  if (
-    type ===
-    'Transfer'
-  ) {
-    return 'transfer'
-  }
-
-  if (
-    type ===
-    'Promotion'
-  ) {
-    return 'promotion'
-  }
-
-  if (
-    type ===
-    'Employment Change'
-  ) {
-    return 'change'
-  }
-
-  return 'offboarding'
+const eventClass = (type: LifecycleEventType) => {
+  return type.toLowerCase().replace(/\s+/g, '-')
 }
 
-const eventIcon = (
-  type:
-    LifecycleEventType,
-) => {
-  if (
-    type ===
-    'Onboarding'
-  ) {
-    return UserPlus
+const eventIcon = (type: LifecycleEventType) => {
+  const icons = {
+    Onboarding: UserPlus,
+    Regularization: BadgeCheck,
+    Transfer: BriefcaseBusiness,
+    Promotion: TrendingUp,
+    'Employment Change': FilePenLine,
+    Offboarding: UserMinus,
   }
 
-  if (
-    type ===
-    'Regularization'
-  ) {
-    return BadgeCheck
-  }
-
-  if (
-    type ===
-    'Transfer'
-  ) {
-    return BriefcaseBusiness
-  }
-
-  if (
-    type ===
-    'Promotion'
-  ) {
-    return TrendingUp
-  }
-
-  if (
-    type ===
-    'Employment Change'
-  ) {
-    return FilePenLine
-  }
-
-  return UserMinus
+  return icons[type]
 }
 
-const statusClass = (
-  status:
-    LifecycleHistoryStatus,
-) => {
-  if (
-    status ===
-      'Completed' ||
-    status ===
-      'Effective'
-  ) {
+const statusClass = (value: LifecycleHistoryStatus) => {
+  if (value === 'Completed' || value === 'Effective') {
     return 'success'
   }
 
-  if (
-    status ===
-    'Approved'
-  ) {
-    return 'approved'
-  }
-
-  if (
-    status ===
-    'Scheduled'
-  ) {
-    return 'scheduled'
-  }
-
-  if (
-    status ===
-    'In Progress'
-  ) {
-    return 'progress'
-  }
+  if (value === 'Approved') return 'approved'
+  if (value === 'Scheduled') return 'scheduled'
+  if (value === 'In Progress') return 'progress'
 
   return 'cancelled'
 }
+
+/* =========================================
+   THREE-DOTS MENU
+========================================= */
+
+const openId = ref<number | null>(null)
+const triggerRef = ref<HTMLElement | null>(null)
+const menuRef = ref<HTMLElement | null>(null)
+
+const menuStyle = ref({
+  top: '0px',
+  left: '0px',
+})
+
+const closeMenu = () => {
+  openId.value = null
+  triggerRef.value = null
+}
+
+const toggleMenu = async (
+  id: number,
+  event: MouseEvent,
+) => {
+  if (openId.value === id) {
+    closeMenu()
+    return
+  }
+
+  triggerRef.value = event.currentTarget as HTMLElement
+  openId.value = id
+
+  await nextTick()
+
+  if (!triggerRef.value) return
+
+  const rect = triggerRef.value.getBoundingClientRect()
+
+  const width = menuRef.value?.offsetWidth ?? 205
+  const height = menuRef.value?.offsetHeight ?? 150
+
+  const padding = 8
+  const gap = 6
+
+  const left = Math.max(
+    padding,
+    Math.min(
+      rect.right - width,
+      window.innerWidth - width - padding,
+    ),
+  )
+
+  const spaceBelow = window.innerHeight - rect.bottom
+
+  const preferredTop = spaceBelow >= height + gap
+    ? rect.bottom + gap
+    : rect.top - height - gap
+
+  const top = Math.max(
+    padding,
+    Math.min(
+      preferredTop,
+      window.innerHeight - height - padding,
+    ),
+  )
+
+  menuStyle.value = {
+    top: `${top}px`,
+    left: `${left}px`,
+  }
+}
+
+const runAction = (
+  action: 'view' | 'timeline' | 'copy',
+) => {
+  const record = props.records.find(
+    item => item.id === openId.value,
+  )
+
+  closeMenu()
+
+  if (!record) return
+
+  emit(action, record)
+}
+
+const handleOutside = (event: MouseEvent) => {
+  const target = event.target as Node
+
+  if (
+    triggerRef.value?.contains(target) ||
+    menuRef.value?.contains(target)
+  ) {
+    return
+  }
+
+  closeMenu()
+}
+
+onMounted(() => {
+  document.addEventListener('mousedown', handleOutside)
+  window.addEventListener('scroll', closeMenu, true)
+  window.addEventListener('resize', closeMenu)
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('mousedown', handleOutside)
+  window.removeEventListener('scroll', closeMenu, true)
+  window.removeEventListener('resize', closeMenu)
+})
+
+watch(
+  () => props.records,
+  closeMenu,
+)
 </script>
 
 <template>
   <article class="history-card">
-
-    <!-- HEADER -->
-
     <div class="table-heading">
-
       <div>
-
-        <h3>
-          Employee Lifecycle History
-        </h3>
+        <h3>Employee Lifecycle History</h3>
 
         <p>
-          Consolidated historical record of employee
-          onboarding, movements, employment changes
-          and separation events.
+          Consolidated historical record of employee onboarding,
+          movements, employment changes and separation events.
         </p>
-
       </div>
-
     </div>
-
-    <!-- TABLE -->
 
     <div
       v-if="records.length"
       class="table-scroll"
     >
-
-      <table>
-
+      <table class="history-table">
         <thead>
-
           <tr>
             <th>Reference</th>
             <th>Employee</th>
@@ -214,244 +228,116 @@ const statusClass = (
             <th>Status</th>
             <th>Description</th>
             <th>Remarks</th>
-            <th />
+            <th class="action-column">Actions</th>
           </tr>
-
         </thead>
 
         <tbody>
-
           <tr
             v-for="item in records"
             :key="item.id"
           >
-
-            <!-- REFERENCE -->
-
             <td>
-
               <strong class="reference">
                 {{ item.referenceNumber }}
               </strong>
-
             </td>
 
-            <!-- EMPLOYEE -->
-
             <td>
-
               <div class="employee-cell">
-
                 <div class="employee-avatar">
-
-                  <UserRound
-                    :size="17"
-                  />
-
+                  <UserRound :size="16" />
                 </div>
 
-                <div>
-
-                  <strong>
-                    {{ item.employeeName }}
-                  </strong>
-
+                <div class="employee-information">
+                  <strong>{{ item.employeeName }}</strong>
+                  <span>{{ item.employeeNumber }}</span>
                   <span>
-                    {{ item.employeeNumber }}
+                    {{ item.department }} · {{ item.position }}
                   </span>
-
-                  <span>
-                    {{ item.department }}
-                    ·
-                    {{ item.position }}
-                  </span>
-
                 </div>
-
               </div>
-
             </td>
 
-            <!-- EVENT TYPE -->
-
             <td>
-
-              <div
+              <span
                 class="event-type"
-                :class="
-                  eventClass(
-                    item.eventType,
-                  )
-                "
+                :class="eventClass(item.eventType)"
               >
-
                 <component
-                  :is="
-                    eventIcon(
-                      item.eventType,
-                    )
-                  "
-                  :size="14"
-                />
-
-                <span>
-                  {{ item.eventType }}
-                </span>
-
-              </div>
-
-            </td>
-
-            <!-- EVENT -->
-
-            <td>
-
-              <div class="event-title">
-
-                <History
+                  :is="eventIcon(item.eventType)"
                   :size="13"
                 />
 
-                <strong>
-                  {{ item.eventTitle }}
-                </strong>
-
-              </div>
-
+                {{ item.eventType }}
+              </span>
             </td>
 
-            <!-- CHANGE -->
+            <td>
+              <div class="event-title">
+                <History :size="13" />
+                <strong>{{ item.eventTitle }}</strong>
+              </div>
+            </td>
 
             <td>
-
               <div
-                v-if="
-                  item.previousValue ||
-                  item.newValue
-                "
+                v-if="item.previousValue || item.newValue"
                 class="change-display"
               >
-
                 <div class="change-value old">
-
-                  <span>
-                    Previous
-                  </span>
-
-                  <strong>
-                    {{
-                      item.previousValue ||
-                      '—'
-                    }}
-                  </strong>
-
+                  <small>Previous</small>
+                  <strong>{{ item.previousValue || '—' }}</strong>
                 </div>
 
-                <div class="change-arrow">
-
-                  <ArrowRight
-                    :size="15"
-                  />
-
-                </div>
+                <span class="change-arrow">
+                  <ArrowRight :size="14" />
+                </span>
 
                 <div class="change-value new">
-
-                  <span>
-                    New
-                  </span>
-
-                  <strong>
-                    {{
-                      item.newValue ||
-                      '—'
-                    }}
-                  </strong>
-
+                  <small>New</small>
+                  <strong>{{ item.newValue || '—' }}</strong>
                 </div>
-
               </div>
 
-              <span
-                v-else
-                class="not-applicable"
-              >
-                —
-              </span>
-
+              <span v-else class="muted">—</span>
             </td>
 
-            <!-- EFFECTIVE -->
-
             <td>
-
               <div class="date-cell">
-
-                <CalendarDays
-                  :size="13"
-                />
-
-                <strong>
-                  {{
-                    formatDate(
-                      item.effectiveDate,
-                    )
-                  }}
-                </strong>
-
+                <CalendarDays :size="13" />
+                <strong>{{ formatDate(item.effectiveDate) }}</strong>
               </div>
-
             </td>
 
-            <!-- PROCESSED -->
-
             <td>
-
               <strong class="person-name">
                 {{ item.processedBy }}
               </strong>
-
             </td>
 
-            <!-- APPROVED -->
-
             <td>
-
               <strong
                 v-if="item.approvedBy"
-                class="person-name approved"
+                class="approved-name"
               >
                 {{ item.approvedBy }}
               </strong>
 
-              <span
-                v-else
-                class="pending-text"
-              >
+              <span v-else class="muted">
                 Pending
               </span>
-
             </td>
 
-            <!-- STATUS -->
-
             <td>
-
               <span
                 class="status-badge"
-                :class="
-                  statusClass(
-                    item.status,
-                  )
-                "
+                :class="statusClass(item.status)"
               >
-
                 <CircleCheck
                   v-if="
-                    item.status ===
-                      'Completed' ||
-                    item.status ===
-                      'Effective'
+                    item.status === 'Completed' ||
+                    item.status === 'Effective'
                   "
                   :size="11"
                 />
@@ -462,647 +348,470 @@ const statusClass = (
                 />
 
                 {{ item.status }}
-
               </span>
-
             </td>
 
-            <!-- DESCRIPTION -->
-
             <td>
-
               <p
-                class="description"
-                :title="
-                  item.description
-                "
+                class="truncate-text"
+                :title="item.description"
               >
                 {{ item.description }}
               </p>
-
             </td>
 
-            <!-- REMARKS -->
-
             <td>
-
               <p
-                class="remarks"
-                :title="
-                  item.remarks ||
-                  'No remarks'
-                "
+                class="truncate-text remarks"
+                :title="item.remarks || 'No remarks'"
               >
-                {{
-                  item.remarks ||
-                  'No remarks'
-                }}
+                {{ item.remarks || 'No remarks' }}
               </p>
-
             </td>
 
-            <!-- ACTION -->
-
-            <td>
-
+            <td class="action-column">
               <button
                 type="button"
-                class="action-button"
-                title="Lifecycle history details will be added later"
+                class="action-trigger"
+                :aria-expanded="openId === item.id"
+                :aria-label="`Actions for ${item.referenceNumber}`"
+                @click.stop="toggleMenu(item.id, $event)"
               >
-
-                <MoreHorizontal
-                  :size="18"
-                />
-
+                <MoreHorizontal :size="18" />
               </button>
-
             </td>
-
           </tr>
-
         </tbody>
-
       </table>
-
     </div>
-
-    <!-- EMPTY -->
 
     <div
       v-else
       class="empty-state"
     >
+      <History :size="30" />
 
-      <History
-        :size="36"
-      />
-
-      <strong>
-        No lifecycle history found
-      </strong>
+      <strong>No lifecycle history found</strong>
 
       <span>
         Try changing your lifecycle history filters.
       </span>
-
     </div>
 
+    <!-- TELEPORTED ACTION MENU -->
+
+    <Teleport to="body">
+      <div
+        v-if="openId !== null"
+        ref="menuRef"
+        class="lifecycle-history-actions-menu"
+        :style="menuStyle"
+      >
+        <button
+          type="button"
+          @click="runAction('view')"
+        >
+          <Eye :size="15" />
+          View Event Details
+        </button>
+
+        <button
+          type="button"
+          @click="runAction('timeline')"
+        >
+          <History :size="15" />
+          Employee Timeline
+        </button>
+
+        <div class="menu-divider"></div>
+
+        <button
+          type="button"
+          @click="runAction('copy')"
+        >
+          <Copy :size="15" />
+          Copy Reference
+        </button>
+      </div>
+    </Teleport>
   </article>
 </template>
 
 <style scoped>
 .history-card {
   overflow: hidden;
-
-  border:
-    1px solid var(--border);
-
+  border: 1px solid var(--border);
   border-radius: 11px;
-
-  background:
-    var(--bg-card);
-
-  box-shadow:
-    var(--shadow);
+  background: var(--bg-card);
+  box-shadow: var(--shadow);
 }
 
 .table-heading {
-  padding:
-    16px 17px;
-
-  border-bottom:
-    1px solid var(--border-soft);
+  padding: 15px 17px;
+  border-bottom: 1px solid var(--border-soft);
 }
 
 .table-heading h3 {
   margin: 0;
-
-  color:
-    var(--text-primary);
-
-  font-size: 15px;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 700;
 }
 
 .table-heading p {
-  margin:
-    5px 0 0;
-
-  color:
-    var(--text-muted);
-
-  font-size: 11px;
+  margin: 5px 0 0;
+  color: var(--text-muted);
+  font-size: 10px;
 }
 
 .table-scroll {
+  width: 100%;
   overflow-x: auto;
 }
 
-table {
+.history-table {
   width: 100%;
-
-  min-width: 2550px;
-
-  border-collapse:
-    collapse;
+  min-width: 2250px;
+  border-collapse: collapse;
 }
 
-th {
-  padding:
-    12px 13px;
-
-  background:
-    var(--bg-card-soft);
-
-  color:
-    var(--text-secondary);
-
-  font-size: 10px;
+.history-table th {
+  padding: 12px 13px;
+  background: var(--bg-card-soft);
+  color: var(--text-secondary);
+  font-size: 9px;
   font-weight: 700;
-
   text-align: left;
-
-  text-transform:
-    uppercase;
-
-  white-space:
-    nowrap;
+  text-transform: uppercase;
+  white-space: nowrap;
 }
 
-td {
-  padding:
-    13px;
-
-  border-top:
-    1px solid var(--border-soft);
-
-  color:
-    var(--text-secondary);
-
-  font-size: 10.5px;
-
-  vertical-align:
-    middle;
+.history-table td {
+  padding: 12px 13px;
+  border-top: 1px solid var(--border-soft);
+  color: var(--text-secondary);
+  font-size: 10px;
+  vertical-align: middle;
 }
 
-tbody tr:hover {
-  background:
-    var(--bg-card-soft);
+.history-table tbody tr:hover {
+  background: var(--bg-card-soft);
 }
-
-/* REFERENCE */
 
 .reference {
-  color:
-    var(--primary);
-
-  white-space:
-    nowrap;
+  color: var(--primary);
+  font-size: 10px;
+  white-space: nowrap;
 }
-
-/* EMPLOYEE */
 
 .employee-cell {
   display: flex;
-
-  min-width: 225px;
-
   align-items: center;
-
   gap: 9px;
+  min-width: 200px;
 }
 
 .employee-avatar {
   display: flex;
-
-  width: 37px;
-  height: 37px;
-
+  width: 35px;
+  height: 35px;
   flex-shrink: 0;
-
   align-items: center;
   justify-content: center;
-
-  border-radius: 9px;
-
-  background:
-    var(--primary-soft);
-
-  color:
-    var(--primary);
+  border-radius: 8px;
+  background: var(--primary-soft);
+  color: var(--primary);
 }
 
-.employee-cell strong,
-.employee-cell span {
+.employee-information strong,
+.employee-information span {
   display: block;
 }
 
-.employee-cell strong {
-  color:
-    var(--text-primary);
-
-  font-size: 11px;
+.employee-information strong {
+  color: var(--text-primary);
+  font-size: 10px;
 }
 
-.employee-cell span {
-  margin-top: 2px;
-
-  color:
-    var(--text-muted);
-
-  font-size: 9.5px;
+.employee-information span {
+  margin-top: 3px;
+  color: var(--text-muted);
+  font-size: 9px;
 }
-
-/* EVENT TYPE */
 
 .event-type {
   display: inline-flex;
-
   align-items: center;
-
   gap: 5px;
-
-  padding:
-    6px 8px;
-
-  border-radius: 8px;
-
+  padding: 6px 9px;
+  border-radius: 20px;
   font-size: 9px;
   font-weight: 650;
-
-  white-space:
-    nowrap;
+  white-space: nowrap;
 }
 
-.event-type.onboarding {
-  background:
-    var(--primary-soft);
-
-  color:
-    var(--primary);
+.event-type.onboarding,
+.event-type.employment-change {
+  background: var(--primary-soft);
+  color: var(--primary);
 }
 
 .event-type.regularization {
-  background:
-    var(--green-soft);
-
-  color:
-    var(--green);
+  background: var(--green-soft);
+  color: var(--green);
 }
 
 .event-type.transfer {
-  background:
-    var(--purple-soft);
-
-  color:
-    var(--purple);
+  background: var(--purple-soft);
+  color: var(--purple);
 }
 
 .event-type.promotion {
-  background:
-    var(--orange-soft);
-
-  color:
-    var(--orange);
-}
-
-.event-type.change {
-  background:
-    var(--primary-soft);
-
-  color:
-    var(--primary);
+  background: var(--orange-soft);
+  color: var(--orange);
 }
 
 .event-type.offboarding {
-  background:
-    var(--red-soft);
-
-  color:
-    var(--red);
+  background: var(--red-soft);
+  color: var(--red);
 }
-
-/* EVENT TITLE */
 
 .event-title {
   display: flex;
-
-  min-width: 180px;
-
   align-items: center;
-
   gap: 6px;
+  min-width: 170px;
 }
 
 .event-title svg {
-  color:
-    var(--text-muted);
+  color: var(--text-muted);
 }
 
-.event-title strong {
-  color:
-    var(--text-primary);
-
-  font-size: 10.5px;
+.event-title strong,
+.person-name {
+  color: var(--text-primary);
+  font-size: 10px;
 }
-
-/* CHANGE */
 
 .change-display {
   display: flex;
-
-  min-width: 410px;
-
   align-items: center;
-
-  gap: 8px;
+  gap: 7px;
+  min-width: 330px;
 }
 
 .change-value {
-  width: 165px;
-
-  padding:
-    8px 9px;
-
-  border:
-    1px solid var(--border-soft);
-
-  border-radius: 8px;
-
-  background:
-    var(--bg-card-soft);
+  width: 140px;
+  min-height: 43px;
+  padding: 7px 9px;
+  border: 1px solid var(--border-soft);
+  border-radius: 7px;
+  background: var(--bg-card-soft);
 }
 
 .change-value.new {
-  border-color:
-    color-mix(
-      in srgb,
-      var(--green) 22%,
-      var(--border)
-    );
-
-  background:
-    var(--green-soft);
+  border-color: color-mix(
+    in srgb,
+    var(--green) 25%,
+    var(--border)
+  );
+  background: var(--green-soft);
 }
 
-.change-value span,
+.change-value small,
 .change-value strong {
   display: block;
 }
 
-.change-value span {
-  color:
-    var(--text-muted);
-
+.change-value small {
+  color: var(--text-muted);
   font-size: 8px;
-
-  font-weight: 600;
-
-  text-transform:
-    uppercase;
+  text-transform: uppercase;
 }
 
 .change-value strong {
-  margin-top: 3px;
-
-  color:
-    var(--text-primary);
-
-  font-size: 9.5px;
-
-  line-height: 1.4;
+  margin-top: 4px;
+  color: var(--text-primary);
+  font-size: 9px;
 }
 
 .change-arrow {
   display: flex;
-
-  width: 27px;
-  height: 27px;
-
+  width: 25px;
+  height: 25px;
   flex-shrink: 0;
-
   align-items: center;
   justify-content: center;
-
   border-radius: 50%;
-
-  background:
-    var(--primary-soft);
-
-  color:
-    var(--primary);
+  background: var(--primary-soft);
+  color: var(--primary);
 }
-
-.not-applicable {
-  color:
-    var(--text-muted);
-}
-
-/* DATE */
 
 .date-cell {
   display: flex;
-
   align-items: center;
-
-  gap: 5px;
-
-  color:
-    var(--green);
-
+  gap: 6px;
   white-space: nowrap;
+}
+
+.date-cell svg,
+.approved-name {
+  color: var(--green);
 }
 
 .date-cell strong {
-  color:
-    var(--text-primary);
+  color: var(--text-primary);
 }
 
-/* PEOPLE */
-
-.person-name {
-  color:
-    var(--text-primary);
-
+.person-name,
+.approved-name {
   white-space: nowrap;
 }
 
-.person-name.approved {
-  color:
-    var(--green);
+.muted {
+  color: var(--text-muted);
 }
-
-.pending-text {
-  color:
-    var(--text-muted);
-
-  font-size: 9.5px;
-
-  font-style:
-    italic;
-}
-
-/* STATUS */
 
 .status-badge {
   display: inline-flex;
-
   align-items: center;
-
   gap: 5px;
-
-  padding:
-    5px 8px;
-
+  padding: 5px 8px;
   border-radius: 20px;
-
   font-size: 9px;
   font-weight: 650;
-
-  white-space:
-    nowrap;
+  white-space: nowrap;
 }
 
 .status-dot {
   width: 5px;
   height: 5px;
-
-  border-radius:
-    50%;
-
-  background:
-    currentColor;
+  border-radius: 50%;
+  background: currentColor;
 }
 
 .status-badge.success {
-  background:
-    var(--green-soft);
-
-  color:
-    var(--green);
+  background: var(--green-soft);
+  color: var(--green);
 }
 
 .status-badge.approved {
-  background:
-    var(--primary-soft);
-
-  color:
-    var(--primary);
+  background: var(--primary-soft);
+  color: var(--primary);
 }
 
 .status-badge.scheduled {
-  background:
-    var(--purple-soft);
-
-  color:
-    var(--purple);
+  background: var(--purple-soft);
+  color: var(--purple);
 }
 
 .status-badge.progress {
-  background:
-    var(--orange-soft);
-
-  color:
-    var(--orange);
+  background: var(--orange-soft);
+  color: var(--orange);
 }
 
 .status-badge.cancelled {
-  background:
-    var(--red-soft);
-
-  color:
-    var(--red);
+  background: var(--red-soft);
+  color: var(--red);
 }
 
-/* TEXT */
-
-.description,
-.remarks {
-  width: 235px;
-
+.truncate-text {
+  width: 210px;
   margin: 0;
-
   overflow: hidden;
-
-  color:
-    var(--text-secondary);
-
   font-size: 10px;
-
-  text-overflow:
-    ellipsis;
-
-  white-space:
-    nowrap;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
-.remarks {
-  width: 190px;
-
-  color:
-    var(--text-muted);
+.truncate-text.remarks {
+  width: 170px;
+  color: var(--text-muted);
 }
 
-/* ACTION */
+/* ACTIONS - NOT STICKY */
 
-.action-button {
-  display: flex;
+.action-column {
+  width: 65px;
+  text-align: center !important;
+  position: static;
+}
 
-  width: 32px;
-  height: 32px;
-
+.action-trigger {
+  display: inline-flex;
+  width: 30px;
+  height: 30px;
   align-items: center;
   justify-content: center;
-
-  border:
-    1px solid transparent;
-
+  border: 1px solid transparent;
   border-radius: 7px;
-
-  background:
-    transparent;
-
-  color:
-    var(--text-secondary);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
 }
 
-.action-button:hover {
-  border-color:
-    var(--border);
-
-  background:
-    var(--bg-card-soft);
-
-  color:
-    var(--primary);
+.action-trigger:hover,
+.action-trigger[aria-expanded="true"] {
+  border-color: var(--border);
+  background: var(--bg-card-soft);
+  color: var(--primary);
 }
-
-/* EMPTY */
 
 .empty-state {
   display: flex;
-
-  min-height: 280px;
-
+  min-height: 250px;
   flex-direction: column;
-
   align-items: center;
   justify-content: center;
-
-  gap: 8px;
-
-  color:
-    var(--text-muted);
+  gap: 9px;
+  color: var(--text-muted);
 }
 
 .empty-state strong {
-  color:
-    var(--text-primary);
-
+  color: var(--text-primary);
   font-size: 13px;
 }
 
 .empty-state span {
+  font-size: 10px;
+}
+</style>
+
+<style>
+.lifecycle-history-actions-menu {
+  position: fixed;
+  z-index: 10030;
+  width: 205px;
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--bg-card);
+  box-shadow: 0 18px 45px rgba(0, 0, 0, 0.25);
+}
+
+.lifecycle-history-actions-menu button {
+  display: flex;
+  width: 100%;
+  min-height: 36px;
+  align-items: center;
+  gap: 9px;
+  padding: 0 10px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
   font-size: 11px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.lifecycle-history-actions-menu button:hover {
+  background: var(--bg-card-soft);
+  color: var(--text-primary);
+}
+
+.lifecycle-history-actions-menu .menu-divider {
+  margin: 5px 4px;
+  border-top: 1px solid var(--border-soft);
 }
 </style>

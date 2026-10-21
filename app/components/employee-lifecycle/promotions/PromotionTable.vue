@@ -1,3 +1,4 @@
+
 <script setup lang="ts">
 import {
   ArrowRight,
@@ -6,6 +7,14 @@ import {
   MoreHorizontal,
   TrendingUp,
   UserRound,
+  Eye,
+  Pencil,
+  Send,
+  CheckCircle2,
+  CalendarCheck,
+  BadgeCheck,
+  CircleX,
+  X,
 } from 'lucide-vue-next'
 
 import type {
@@ -14,161 +23,292 @@ import type {
   PromotionType,
 } from '~/types/promotion'
 
-defineProps<{
-  records:
-    PromotionRecord[]
+const props = defineProps<{
+  records: PromotionRecord[]
 }>()
 
-const formatDate = (
-  value?: string,
-) => {
-  if (!value) {
-    return '—'
+type PromotionAction =
+  | 'view'
+  | 'edit'
+  | 'submit'
+  | 'approve'
+  | 'schedule'
+  | 'effective'
+  | 'reject'
+  | 'cancel'
+
+const emit = defineEmits<{
+  view: [record: PromotionRecord]
+  edit: [record: PromotionRecord]
+  submit: [record: PromotionRecord]
+  approve: [record: PromotionRecord]
+  schedule: [record: PromotionRecord]
+  effective: [record: PromotionRecord]
+  reject: [record: PromotionRecord]
+  cancel: [record: PromotionRecord]
+}>()
+
+/* =========================================
+   FORMAT HELPERS
+========================================= */
+
+const formatDate = (value?: string) => {
+  if (!value) return '—'
+
+  return new Intl.DateTimeFormat('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  }).format(new Date(`${value}T00:00:00`))
+}
+
+const formatMoney = (value: number) => {
+  return new Intl.NumberFormat('en-PH', {
+    style: 'currency',
+    currency: 'PHP',
+    maximumFractionDigits: 0,
+  }).format(value)
+}
+
+const statusClass = (value: PromotionStatus) => {
+  return value.toLowerCase().replace(/\s+/g, '-')
+}
+
+const typeClass = (value: PromotionType) => {
+  return value.toLowerCase().replace(/\s+/g, '-')
+}
+
+/* =========================================
+   ACTION MENU STATE
+========================================= */
+
+const openId = ref<number | null>(null)
+const triggerRef = ref<HTMLElement | null>(null)
+const menuRef = ref<HTMLElement | null>(null)
+
+const menuStyle = ref({
+  top: '0px',
+  left: '0px',
+})
+
+const activeRecord = computed(() => {
+  return props.records.find(
+    record => record.id === openId.value,
+  )
+})
+
+const isFinal = (status: PromotionStatus) => {
+  return ['Effective', 'Rejected', 'Cancelled'].includes(status)
+}
+
+const actions = computed(() => {
+  const record = activeRecord.value
+
+  if (!record) return []
+
+  const items: {
+    name: PromotionAction
+    label: string
+    icon: typeof Eye
+    tone?: string
+  }[] = [
+    {
+      name: 'view',
+      label: 'View Promotion',
+      icon: Eye,
+    },
+  ]
+
+  if (isFinal(record.status)) return items
+
+  items.push({
+    name: 'edit',
+    label: 'Edit Promotion',
+    icon: Pencil,
+  })
+
+  if (record.status === 'Draft') {
+    items.push({
+      name: 'submit',
+      label: 'Submit for Review',
+      icon: Send,
+    })
   }
 
-  return new Intl.DateTimeFormat(
-    'en-US',
-    {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    },
-  ).format(
-    new Date(
-      `${value}T00:00:00`,
+  if (record.status === 'For Review') {
+    items.push({
+      name: 'submit',
+      label: 'Submit for Approval',
+      icon: Send,
+    })
+  }
+
+  if (record.status === 'Pending Approval') {
+    items.push({
+      name: 'approve',
+      label: 'Approve Promotion',
+      icon: CheckCircle2,
+      tone: 'success',
+    })
+
+    items.push({
+      name: 'reject',
+      label: 'Reject Promotion',
+      icon: X,
+      tone: 'danger',
+    })
+  }
+
+  if (record.status === 'Approved') {
+    items.push({
+      name: 'schedule',
+      label: 'Schedule Promotion',
+      icon: CalendarCheck,
+    })
+
+    items.push({
+      name: 'effective',
+      label: 'Mark as Effective',
+      icon: BadgeCheck,
+      tone: 'success',
+    })
+  }
+
+  if (record.status === 'Scheduled') {
+    items.push({
+      name: 'effective',
+      label: 'Mark as Effective',
+      icon: BadgeCheck,
+      tone: 'success',
+    })
+  }
+
+  items.push({
+    name: 'cancel',
+    label: 'Cancel Promotion',
+    icon: CircleX,
+    tone: 'danger',
+  })
+
+  return items
+})
+
+/* =========================================
+   DROPDOWN POSITION
+========================================= */
+
+const closeMenu = () => {
+  openId.value = null
+}
+
+const toggleMenu = async (id: number, event: MouseEvent) => {
+  if (openId.value === id) {
+    closeMenu()
+    return
+  }
+
+  triggerRef.value = event.currentTarget as HTMLElement
+  openId.value = id
+
+  await nextTick()
+
+  if (!triggerRef.value) return
+
+  const rect = triggerRef.value.getBoundingClientRect()
+  const width = menuRef.value?.offsetWidth ?? 205
+  const height = menuRef.value?.offsetHeight ?? 200
+  const gap = 6
+  const padding = 8
+
+  const availableBelow = window.innerHeight - rect.bottom
+
+  let top = availableBelow >= height + gap
+    ? rect.bottom + gap
+    : rect.top - height - gap
+
+  top = Math.max(
+    padding,
+    Math.min(top, window.innerHeight - height - padding),
+  )
+
+  const left = Math.max(
+    padding,
+    Math.min(
+      rect.right - width,
+      window.innerWidth - width - padding,
     ),
   )
+
+  menuStyle.value = {
+    top: `${top}px`,
+    left: `${left}px`,
+  }
 }
 
-const formatMoney = (
-  value: number,
-) => {
-  return new Intl.NumberFormat(
-    'en-PH',
-    {
-      style: 'currency',
-      currency: 'PHP',
-      maximumFractionDigits: 0,
-    },
-  ).format(value)
+const performAction = (action: PromotionAction) => {
+  const record = activeRecord.value
+
+  if (!record) return
+
+  if (!actions.value.some(item => item.name === action)) {
+    closeMenu()
+    return
+  }
+
+  closeMenu()
+  emit(action, record)
 }
 
-const statusClass = (
-  status:
-    PromotionStatus,
-) => {
-  if (
-    status ===
-    'Effective'
-  ) {
-    return 'effective'
-  }
+/* =========================================
+   LIFECYCLE
+========================================= */
+
+const handleOutside = (event: MouseEvent) => {
+  const target = event.target as Node
 
   if (
-    status ===
-    'Approved'
+    triggerRef.value?.contains(target) ||
+    menuRef.value?.contains(target)
   ) {
-    return 'approved'
+    return
   }
 
-  if (
-    status ===
-    'Scheduled'
-  ) {
-    return 'scheduled'
-  }
-
-  if (
-    status ===
-    'Pending Approval'
-  ) {
-    return 'pending'
-  }
-
-  if (
-    status ===
-    'For Review'
-  ) {
-    return 'review'
-  }
-
-  if (
-    status ===
-      'Rejected' ||
-    status ===
-      'Cancelled'
-  ) {
-    return 'rejected'
-  }
-
-  return 'draft'
+  closeMenu()
 }
 
-const typeClass = (
-  type:
-    PromotionType,
-) => {
-  if (
-    type ===
-    'Position Promotion'
-  ) {
-    return 'position'
-  }
+onMounted(() => {
+  document.addEventListener('mousedown', handleOutside)
+  window.addEventListener('resize', closeMenu)
+  window.addEventListener('scroll', closeMenu, true)
+})
 
-  if (
-    type ===
-    'Grade Promotion'
-  ) {
-    return 'grade'
-  }
-
-  if (
-    type ===
-    'Salary Promotion'
-  ) {
-    return 'salary'
-  }
-
-  return 'leadership'
-}
+onBeforeUnmount(() => {
+  document.removeEventListener('mousedown', handleOutside)
+  window.removeEventListener('resize', closeMenu)
+  window.removeEventListener('scroll', closeMenu, true)
+})
 </script>
 
 <template>
-  <article class="table-card">
-
+  <article class="promotion-card">
     <div class="table-heading">
-
-      <div>
-
-        <h3>
-          Employee Promotions
-        </h3>
-
-        <p>
-          Track employee position, grade and salary
-          advancement throughout the employee lifecycle.
-        </p>
-
-      </div>
-
+      <h3>Employee Promotions</h3>
+      <p>
+        Track employee position, grade and salary advancement
+        throughout the employee lifecycle.
+      </p>
     </div>
 
-    <div
-      v-if="records.length"
-      class="table-scroll"
-    >
-
-      <table>
-
+    <div v-if="records.length" class="table-scroll">
+      <table class="promotion-table">
         <thead>
-
           <tr>
             <th>Promotion No.</th>
             <th>Employee</th>
             <th>Department</th>
             <th>Promotion Type</th>
             <th>Current Position</th>
-            <th />
+            <th></th>
             <th>New Position</th>
             <th>Grade</th>
             <th>Current Salary</th>
@@ -180,935 +320,538 @@ const typeClass = (
             <th>Effective Date</th>
             <th>Status</th>
             <th>Reason</th>
-            <th />
+            <th class="actions-col">Actions</th>
           </tr>
-
         </thead>
 
         <tbody>
-
           <tr
             v-for="item in records"
             :key="item.id"
           >
-
-            <!-- NO -->
-
             <td>
-
               <strong class="record-number">
                 {{ item.promotionNumber }}
               </strong>
-
             </td>
 
-            <!-- EMPLOYEE -->
-
             <td>
-
               <div class="employee-cell">
-
-                <div class="employee-avatar">
-
-                  <UserRound
-                    :size="17"
-                  />
-
-                </div>
+                <span class="employee-icon">
+                  <UserRound :size="16" />
+                </span>
 
                 <div>
-
-                  <strong>
-                    {{ item.employeeName }}
-                  </strong>
-
-                  <span>
-                    {{ item.employeeNumber }}
-                  </span>
-
+                  <strong>{{ item.employeeName }}</strong>
+                  <small>{{ item.employeeNumber }}</small>
                 </div>
-
               </div>
-
             </td>
 
-            <!-- DEPARTMENT -->
-
             <td>
-
-              <strong class="department-name">
+              <strong class="normal-strong">
                 {{ item.department }}
               </strong>
-
             </td>
 
-            <!-- TYPE -->
-
             <td>
-
               <span
                 class="type-badge"
-                :class="
-                  typeClass(
-                    item.promotionType,
-                  )
-                "
+                :class="typeClass(item.promotionType)"
               >
                 {{ item.promotionType }}
               </span>
-
             </td>
 
-            <!-- CURRENT POSITION -->
-
             <td>
-
-              <div class="position-card current">
-
-                <span>
-                  Current
-                </span>
-
-                <strong>
-                  {{ item.currentPosition }}
-                </strong>
-
+              <div class="position-card">
+                <small>Current</small>
+                <strong>{{ item.currentPosition }}</strong>
               </div>
-
             </td>
 
-            <!-- ARROW -->
-
             <td>
-
-              <div class="promotion-arrow">
-
-                <ArrowRight
-                  :size="18"
-                />
-
-              </div>
-
-            </td>
-
-            <!-- NEW POSITION -->
-
-            <td>
-
-              <div class="position-card promoted">
-
-                <span>
-                  Promoted To
-                </span>
-
-                <strong>
-                  {{ item.newPosition }}
-                </strong>
-
-              </div>
-
-            </td>
-
-            <!-- GRADE -->
-
-            <td>
-
-              <div class="grade-change">
-
-                <span>
-                  {{ item.currentGrade }}
-                </span>
-
-                <ArrowRight
-                  :size="12"
-                />
-
-                <strong>
-                  {{ item.newGrade }}
-                </strong>
-
-              </div>
-
-            </td>
-
-            <!-- CURRENT SALARY -->
-
-            <td>
-
-              <span class="old-salary">
-                {{
-                  formatMoney(
-                    item.currentSalary,
-                  )
-                }}
+              <span class="arrow-icon">
+                <ArrowRight :size="16" />
               </span>
-
             </td>
 
-            <!-- NEW SALARY -->
+            <td>
+              <div class="position-card promoted">
+                <small>Promoted To</small>
+                <strong>{{ item.newPosition }}</strong>
+              </div>
+            </td>
 
             <td>
+              <div class="grade-cell">
+                <span>{{ item.currentGrade }}</span>
+                <ArrowRight :size="13" />
+                <strong>{{ item.newGrade }}</strong>
+              </div>
+            </td>
 
-              <strong class="new-salary">
-                {{
-                  formatMoney(
-                    item.newSalary,
-                  )
-                }}
+            <td class="muted-money">
+              {{ formatMoney(item.currentSalary) }}
+            </td>
+
+            <td>
+              <strong class="normal-strong">
+                {{ formatMoney(item.newSalary) }}
               </strong>
-
             </td>
 
-            <!-- INCREASE -->
-
             <td>
-
-              <div class="salary-increase">
-
-                <CircleDollarSign
-                  :size="13"
-                />
+              <div
+                class="increase-cell"
+                :class="{ negative: item.salaryIncrease < 0 }"
+              >
+                <CircleDollarSign :size="14" />
 
                 <div>
-
                   <strong>
-                    +
-                    {{
-                      formatMoney(
-                        item.salaryIncrease,
-                      )
-                    }}
+                    {{ item.salaryIncrease >= 0 ? '+' : '−' }}
+                    {{ formatMoney(Math.abs(item.salaryIncrease)) }}
                   </strong>
 
-                  <span>
-                    +
-                    {{
-                      item.increasePercentage.toFixed(
-                        2,
-                      )
-                    }}%
-                  </span>
-
+                  <small>
+                    {{ item.increasePercentage >= 0 ? '+' : '' }}
+                    {{ item.increasePercentage.toFixed(2) }}%
+                  </small>
                 </div>
-
               </div>
-
             </td>
 
-            <!-- RECOMMENDED -->
-
             <td>
-
-              <strong class="person-name">
+              <strong class="normal-strong">
                 {{ item.recommendedBy }}
               </strong>
-
             </td>
 
-            <!-- APPROVED -->
-
             <td>
-
               <strong
                 v-if="item.approvedBy"
-                class="person-name approved-person"
+                class="approved-person"
               >
                 {{ item.approvedBy }}
               </strong>
 
-              <span
-                v-else
-                class="pending-text"
-              >
+              <span v-else class="muted-money">
                 Pending
               </span>
-
             </td>
 
-            <!-- RECOMMEND DATE -->
-
             <td>
-
               <div class="date-cell">
-
-                <CalendarDays
-                  :size="13"
-                />
-
-                {{
-                  formatDate(
-                    item.recommendationDate,
-                  )
-                }}
-
+                <CalendarDays :size="13" />
+                {{ formatDate(item.recommendationDate) }}
               </div>
-
             </td>
 
-            <!-- EFFECTIVE -->
-
             <td>
-
               <div class="date-cell effective-date">
-
-                <CalendarDays
-                  :size="13"
-                />
-
-                <strong>
-                  {{
-                    formatDate(
-                      item.effectiveDate,
-                    )
-                  }}
-                </strong>
-
+                <CalendarDays :size="13" />
+                <strong>{{ formatDate(item.effectiveDate) }}</strong>
               </div>
-
             </td>
 
-            <!-- STATUS -->
-
             <td>
-
               <span
                 class="status-badge"
-                :class="
-                  statusClass(
-                    item.status,
-                  )
-                "
+                :class="statusClass(item.status)"
               >
-
-                <span class="status-dot" />
-
+                <span class="status-dot"></span>
                 {{ item.status }}
-
               </span>
-
             </td>
 
-            <!-- REASON -->
-
             <td>
-
-              <p
-                class="reason-text"
-                :title="item.reason"
-              >
+              <p class="reason-text" :title="item.reason">
                 {{ item.reason }}
               </p>
-
             </td>
 
-            <!-- ACTION -->
-
-            <td>
-
+            <td class="actions-col">
               <button
                 type="button"
-                class="action-button"
-                title="Promotion actions will be added later"
+                class="actions-trigger"
+                aria-label="Promotion actions"
+                :aria-expanded="openId === item.id"
+                @click.stop="toggleMenu(item.id, $event)"
               >
-
-                <MoreHorizontal
-                  :size="18"
-                />
-
+                <MoreHorizontal :size="18" />
               </button>
-
             </td>
-
           </tr>
-
         </tbody>
-
       </table>
-
     </div>
 
-    <div
-      v-else
-      class="empty-state"
-    >
-
-      <TrendingUp
-        :size="36"
-      />
-
-      <strong>
-        No promotion records found
-      </strong>
-
-      <span>
-        Try changing your promotion filters.
-      </span>
-
+    <div v-else class="empty-state">
+      <TrendingUp :size="28" />
+      <strong>No promotion records found</strong>
+      <span>Try changing your promotion filters.</span>
     </div>
 
+    <Teleport to="body">
+      <div
+        v-if="openId !== null"
+        ref="menuRef"
+        class="promotion-actions-menu"
+        :style="menuStyle"
+      >
+        <template v-for="action in actions" :key="action.name">
+          <button
+            type="button"
+            :class="action.tone"
+            @click="performAction(action.name)"
+          >
+            <component :is="action.icon" :size="15" />
+            {{ action.label }}
+          </button>
+        </template>
+      </div>
+    </Teleport>
   </article>
 </template>
 
 <style scoped>
-.table-card {
+.promotion-card {
   overflow: hidden;
-
-  border:
-    1px solid var(--border);
-
+  border: 1px solid var(--border);
   border-radius: 11px;
-
-  background:
-    var(--bg-card);
-
-  box-shadow:
-    var(--shadow);
+  background: var(--bg-card);
+  box-shadow: var(--shadow);
 }
 
 .table-heading {
-  padding:
-    16px 17px;
-
-  border-bottom:
-    1px solid var(--border-soft);
+  padding: 15px 17px;
+  border-bottom: 1px solid var(--border-soft);
 }
 
 .table-heading h3 {
   margin: 0;
-
-  color:
-    var(--text-primary);
-
-  font-size: 15px;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 700;
 }
 
 .table-heading p {
-  margin:
-    5px 0 0;
-
-  color:
-    var(--text-muted);
-
-  font-size: 11px;
+  margin: 4px 0 0;
+  color: var(--text-muted);
+  font-size: 10px;
 }
 
 .table-scroll {
+  width: 100%;
   overflow-x: auto;
 }
 
-table {
+.promotion-table {
   width: 100%;
-
-  min-width: 2850px;
-
+  min-width: 2600px;
   border-collapse: collapse;
 }
 
-th {
-  padding:
-    12px 13px;
-
-  background:
-    var(--bg-card-soft);
-
-  color:
-    var(--text-secondary);
-
-  font-size: 10px;
+.promotion-table th {
+  padding: 11px 12px;
+  background: var(--bg-card-soft);
+  color: var(--text-secondary);
+  font-size: 9px;
   font-weight: 700;
-
   text-align: left;
-
   text-transform: uppercase;
-
   white-space: nowrap;
 }
 
-td {
-  padding:
-    13px;
-
-  border-top:
-    1px solid var(--border-soft);
-
-  color:
-    var(--text-secondary);
-
-  font-size: 10.5px;
-
+.promotion-table td {
+  padding: 12px;
+  border-top: 1px solid var(--border-soft);
+  color: var(--text-secondary);
+  font-size: 10px;
   vertical-align: middle;
 }
 
-tbody tr:hover {
-  background:
-    var(--bg-card-soft);
+.promotion-table tbody tr:hover {
+  background: var(--bg-card-soft);
 }
 
 .record-number {
-  color:
-    var(--primary);
-
+  color: var(--primary);
   white-space: nowrap;
 }
-
-/* EMPLOYEE */
 
 .employee-cell {
   display: flex;
-
-  min-width: 180px;
-
+  min-width: 170px;
   align-items: center;
-
   gap: 9px;
 }
 
-.employee-avatar {
+.employee-icon {
   display: flex;
-
-  width: 36px;
-  height: 36px;
-
+  width: 34px;
+  height: 34px;
   flex-shrink: 0;
-
   align-items: center;
   justify-content: center;
-
-  border-radius: 9px;
-
-  background:
-    var(--primary-soft);
-
-  color:
-    var(--primary);
+  border-radius: 8px;
+  background: var(--primary-soft);
+  color: var(--primary);
 }
 
 .employee-cell strong,
-.employee-cell span {
+.employee-cell small {
   display: block;
 }
 
-.employee-cell strong {
-  color:
-    var(--text-primary);
-
-  font-size: 11px;
-}
-
-.employee-cell span {
-  margin-top: 3px;
-
-  color:
-    var(--text-muted);
-
-  font-size: 9.5px;
-}
-
-.department-name {
-  color:
-    var(--text-primary);
-
-  white-space: nowrap;
-}
-
-/* TYPE */
-
-.type-badge {
-  display: inline-flex;
-
-  padding:
-    5px 8px;
-
-  border-radius: 20px;
-
-  font-size: 9px;
-  font-weight: 650;
-
-  white-space: nowrap;
-}
-
-.type-badge.position {
-  background:
-    var(--primary-soft);
-
-  color:
-    var(--primary);
-}
-
-.type-badge.grade {
-  background:
-    var(--purple-soft);
-
-  color:
-    var(--purple);
-}
-
-.type-badge.salary {
-  background:
-    var(--green-soft);
-
-  color:
-    var(--green);
-}
-
-.type-badge.leadership {
-  background:
-    var(--orange-soft);
-
-  color:
-    var(--orange);
-}
-
-/* POSITIONS */
-
-.position-card {
-  width: 190px;
-
-  padding:
-    8px 10px;
-
-  border:
-    1px solid var(--border-soft);
-
-  border-radius: 8px;
-
-  background:
-    var(--bg-card-soft);
-}
-
-.position-card.promoted {
-  border-color:
-    color-mix(
-      in srgb,
-      var(--green) 25%,
-      var(--border)
-    );
-
-  background:
-    var(--green-soft);
-}
-
-.position-card span,
-.position-card strong {
-  display: block;
-}
-
-.position-card span {
-  color:
-    var(--text-muted);
-
-  font-size: 8.5px;
-
-  text-transform:
-    uppercase;
-}
-
-.position-card strong {
-  margin-top: 3px;
-
-  color:
-    var(--text-primary);
-
+.employee-cell strong,
+.normal-strong {
+  color: var(--text-primary);
   font-size: 10px;
-}
-
-/* ARROW */
-
-.promotion-arrow {
-  display: flex;
-
-  width: 32px;
-  height: 32px;
-
-  align-items: center;
-  justify-content: center;
-
-  border-radius: 50%;
-
-  background:
-    var(--green-soft);
-
-  color:
-    var(--green);
-}
-
-/* GRADE */
-
-.grade-change {
-  display: flex;
-
-  align-items: center;
-
-  gap: 6px;
-
   white-space: nowrap;
 }
 
-.grade-change span {
-  color:
-    var(--text-muted);
-}
-
-.grade-change svg {
-  color:
-    var(--primary);
-}
-
-.grade-change strong {
-  color:
-    var(--primary);
-}
-
-/* SALARY */
-
-.old-salary {
-  color:
-    var(--text-muted);
-
-  white-space: nowrap;
-}
-
-.new-salary {
-  color:
-    var(--text-primary);
-
-  white-space: nowrap;
-}
-
-.salary-increase {
-  display: flex;
-
-  align-items: center;
-
-  gap: 6px;
-
-  min-width: 105px;
-
-  color:
-    var(--green);
-}
-
-.salary-increase strong,
-.salary-increase span {
-  display: block;
-}
-
-.salary-increase strong {
-  font-size: 10px;
-}
-
-.salary-increase span {
-  margin-top: 2px;
-
+.employee-cell small {
+  margin-top: 3px;
+  color: var(--text-muted);
   font-size: 9px;
 }
 
-/* PEOPLE */
-
-.person-name {
-  color:
-    var(--text-primary);
-
-  white-space: nowrap;
-}
-
-.approved-person {
-  color:
-    var(--green);
-}
-
-.pending-text {
-  color:
-    var(--text-muted);
-
-  font-style: italic;
-}
-
-/* DATE */
-
-.date-cell {
-  display: flex;
-
-  align-items: center;
-
-  gap: 5px;
-
-  white-space: nowrap;
-}
-
-.date-cell svg {
-  color:
-    var(--text-muted);
-}
-
-.effective-date svg {
-  color:
-    var(--green);
-}
-
-.effective-date strong {
-  color:
-    var(--text-primary);
-}
-
-/* STATUS */
-
+.type-badge,
 .status-badge {
   display: inline-flex;
-
   align-items: center;
-
-  gap: 5px;
-
-  padding:
-    5px 8px;
-
+  gap: 6px;
+  padding: 5px 9px;
   border-radius: 20px;
-
   font-size: 9px;
   font-weight: 650;
-
   white-space: nowrap;
+}
+
+.type-badge.position-promotion,
+.status-badge.approved {
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+
+.type-badge.grade-promotion,
+.status-badge.scheduled {
+  background: var(--purple-soft);
+  color: var(--purple);
+}
+
+.type-badge.salary-promotion,
+.status-badge.effective {
+  background: var(--green-soft);
+  color: var(--green);
+}
+
+.type-badge.leadership-promotion,
+.status-badge.for-review,
+.status-badge.pending-approval {
+  background: var(--orange-soft);
+  color: var(--orange);
+}
+
+.status-badge.rejected,
+.status-badge.cancelled {
+  background: var(--red-soft);
+  color: var(--red);
+}
+
+.status-badge.draft {
+  background: var(--bg-card-soft);
+  color: var(--text-muted);
 }
 
 .status-dot {
   width: 5px;
   height: 5px;
-
   border-radius: 50%;
-
-  background:
-    currentColor;
+  background: currentColor;
 }
 
-.status-badge.effective {
-  background:
-    var(--green-soft);
-
-  color:
-    var(--green);
+.position-card {
+  width: 175px;
+  padding: 9px;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: var(--bg-card-soft);
 }
 
-.status-badge.approved {
-  background:
-    var(--primary-soft);
-
-  color:
-    var(--primary);
+.position-card.promoted {
+  background: var(--green-soft);
 }
 
-.status-badge.scheduled {
-  background:
-    var(--purple-soft);
-
-  color:
-    var(--purple);
+.position-card small,
+.position-card strong {
+  display: block;
 }
 
-.status-badge.pending,
-.status-badge.review {
-  background:
-    var(--orange-soft);
-
-  color:
-    var(--orange);
+.position-card small {
+  color: var(--text-muted);
+  font-size: 8px;
 }
 
-.status-badge.rejected {
-  background:
-    var(--red-soft);
-
-  color:
-    var(--red);
-}
-
-.status-badge.draft {
-  background:
-    var(--bg-card-soft);
-
-  color:
-    var(--text-muted);
-}
-
-/* REASON */
-
-.reason-text {
-  width: 240px;
-
-  margin: 0;
-
-  overflow: hidden;
-
-  color:
-    var(--text-secondary);
-
+.position-card strong {
+  margin-top: 4px;
+  color: var(--text-primary);
   font-size: 10px;
+}
 
-  text-overflow: ellipsis;
+.arrow-icon {
+  display: flex;
+  width: 28px;
+  height: 28px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--green-soft);
+  color: var(--green);
+}
 
+.grade-cell,
+.date-cell,
+.increase-cell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   white-space: nowrap;
 }
 
-/* ACTION */
+.grade-cell strong {
+  color: var(--primary);
+}
 
-.action-button {
-  display: flex;
+.muted-money {
+  color: var(--text-muted);
+  white-space: nowrap;
+}
 
-  width: 32px;
-  height: 32px;
+.increase-cell,
+.approved-person {
+  color: var(--green);
+}
 
+.increase-cell.negative {
+  color: var(--red);
+}
+
+.increase-cell strong,
+.increase-cell small {
+  display: block;
+}
+
+.increase-cell small {
+  margin-top: 3px;
+}
+
+.date-cell svg {
+  color: var(--text-muted);
+}
+
+.effective-date svg {
+  color: var(--green);
+}
+
+.effective-date strong {
+  color: var(--text-primary);
+}
+
+.reason-text {
+  width: 210px;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.actions-col {
+  position: static !important;
+  width: 65px;
+  text-align: center !important;
+}
+
+.actions-trigger {
+  display: inline-flex;
+  width: 30px;
+  height: 30px;
   align-items: center;
   justify-content: center;
-
-  border:
-    1px solid transparent;
-
+  border: 1px solid transparent;
   border-radius: 7px;
-
-  background:
-    transparent;
-
-  color:
-    var(--text-secondary);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
 }
 
-.action-button:hover {
-  border-color:
-    var(--border);
-
-  background:
-    var(--bg-card-soft);
-
-  color:
-    var(--primary);
+.actions-trigger:hover,
+.actions-trigger[aria-expanded="true"] {
+  border-color: var(--border);
+  background: var(--bg-card-soft);
+  color: var(--primary);
 }
-
-/* EMPTY */
 
 .empty-state {
   display: flex;
-
-  min-height: 280px;
-
+  min-height: 240px;
   flex-direction: column;
-
   align-items: center;
   justify-content: center;
-
-  gap: 8px;
-
-  color:
-    var(--text-muted);
+  gap: 9px;
+  color: var(--text-muted);
 }
 
 .empty-state strong {
-  color:
-    var(--text-primary);
-
-  font-size: 13px;
+  color: var(--text-primary);
+  font-size: 12px;
 }
 
 .empty-state span {
+  font-size: 10px;
+}
+</style>
+
+<style>
+.promotion-actions-menu {
+  position: fixed;
+  z-index: 10020;
+  width: 210px;
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--bg-card);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.25);
+}
+
+.promotion-actions-menu button {
+  display: flex;
+  width: 100%;
+  min-height: 36px;
+  align-items: center;
+  gap: 9px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
   font-size: 11px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.promotion-actions-menu button:hover {
+  background: var(--bg-card-soft);
+  color: var(--text-primary);
+}
+
+.promotion-actions-menu button.success {
+  color: var(--green);
+}
+
+.promotion-actions-menu button.danger {
+  color: var(--red);
 }
 </style>

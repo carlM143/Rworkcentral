@@ -812,6 +812,274 @@ export const useEmploymentChanges = () => {
     },
   )
 
+  
+  /* =========================================
+     CREATE EMPLOYMENT CHANGE
+  ========================================= */
+
+  type CreateEmploymentChangeInput = Pick<
+    EmploymentChangeRecord,
+    | 'employeeId'
+    | 'employeeNumber'
+    | 'employeeName'
+    | 'department'
+    | 'position'
+    | 'changeType'
+    | 'currentValue'
+    | 'newValue'
+    | 'requestedDate'
+    | 'effectiveDate'
+    | 'requestedBy'
+    | 'reason'
+    | 'remarks'
+  >
+
+  type UpdateEmploymentChangeInput = Partial<
+    Pick<
+      EmploymentChangeRecord,
+      | 'changeType'
+      | 'currentValue'
+      | 'newValue'
+      | 'requestedDate'
+      | 'effectiveDate'
+      | 'requestedBy'
+      | 'reason'
+      | 'remarks'
+    >
+  >
+
+  const createEmploymentChange = (
+    data: CreateEmploymentChangeInput,
+  ): EmploymentChangeRecord | null => {
+    if (
+      !data.employeeId ||
+      !data.employeeName.trim() ||
+      !data.currentValue.trim() ||
+      !data.newValue.trim() ||
+      !data.requestedBy.trim() ||
+      !data.reason.trim()
+    ) {
+      return null
+    }
+
+    if (
+      data.currentValue.trim() === data.newValue.trim() ||
+      !data.requestedDate ||
+      !data.effectiveDate ||
+      data.effectiveDate < data.requestedDate
+    ) {
+      return null
+    }
+
+    const nextId = Math.max(
+      0,
+      ...records.value.map(item => item.id),
+    ) + 1
+
+    const year = new Date().getFullYear()
+
+    const changeNumber = [
+      'ECH',
+      year,
+      String(nextId).padStart(3, '0'),
+    ].join('-')
+
+    const now = new Date().toISOString()
+
+    const record: EmploymentChangeRecord = {
+      ...data,
+
+      id: nextId,
+      changeNumber,
+
+      status: 'Draft',
+
+      createdAt: now,
+      updatedAt: now,
+    }
+
+    records.value.unshift(record)
+    currentPage.value = 1
+
+    return record
+  }
+
+  /* =========================================
+     UPDATE EMPLOYMENT CHANGE
+  ========================================= */
+
+  const updateEmploymentChange = (
+    id: number,
+    changes: UpdateEmploymentChangeInput,
+  ): boolean => {
+    const index = records.value.findIndex(
+      item => item.id === id,
+    )
+
+    if (index === -1) return false
+
+    const current = records.value[index]
+
+    if (!current) return false
+
+    const finalStatuses: EmploymentChangeStatus[] = [
+      'Effective',
+      'Rejected',
+      'Cancelled',
+    ]
+
+    if (finalStatuses.includes(current.status)) {
+      return false
+    }
+
+    const updated: EmploymentChangeRecord = {
+      ...current,
+      ...changes,
+      updatedAt: new Date().toISOString(),
+    }
+
+    if (
+      !updated.currentValue.trim() ||
+      !updated.newValue.trim() ||
+      !updated.requestedBy.trim() ||
+      !updated.reason.trim() ||
+      updated.currentValue.trim() === updated.newValue.trim() ||
+      updated.effectiveDate < updated.requestedDate
+    ) {
+      return false
+    }
+
+    records.value[index] = updated
+
+    return true
+  }
+
+  /* =========================================
+     EMPLOYMENT CHANGE STATUS
+  ========================================= */
+
+  const changeEmploymentStatus = (
+    id: number,
+    newStatus: EmploymentChangeStatus,
+    details?: {
+      approvedBy?: string
+      remarks?: string
+      effectiveDate?: string
+    },
+  ): boolean => {
+    const index = records.value.findIndex(
+      item => item.id === id,
+    )
+
+    if (index === -1) return false
+
+    const record = records.value[index]
+
+    if (!record) return false
+
+    const allowedTransitions: Record<
+      EmploymentChangeStatus,
+      EmploymentChangeStatus[]
+    > = {
+      Draft: [
+        'For Review',
+        'Cancelled',
+      ],
+
+      'For Review': [
+        'Pending Approval',
+        'Cancelled',
+      ],
+
+      'Pending Approval': [
+        'Approved',
+        'Rejected',
+        'Cancelled',
+      ],
+
+      Approved: [
+        'Scheduled',
+        'Effective',
+        'Cancelled',
+      ],
+
+      Scheduled: [
+        'Effective',
+        'Cancelled',
+      ],
+
+      Effective: [],
+      Rejected: [],
+      Cancelled: [],
+    }
+
+    if (
+      !allowedTransitions[record.status].includes(newStatus)
+    ) {
+      return false
+    }
+
+    const approver =
+      details?.approvedBy?.trim() ||
+      record.approvedBy
+
+    if (
+      ['Approved', 'Scheduled', 'Effective'].includes(newStatus) &&
+      !approver
+    ) {
+      return false
+    }
+
+    if (
+      ['Rejected', 'Cancelled'].includes(newStatus) &&
+      !details?.remarks?.trim()
+    ) {
+      return false
+    }
+
+    const effectiveDate =
+      details?.effectiveDate ||
+      record.effectiveDate
+
+    if (
+      effectiveDate < record.requestedDate
+    ) {
+      return false
+    }
+
+    if (newStatus === 'Effective') {
+      const now = new Date()
+      const today = [
+        now.getFullYear(),
+        String(now.getMonth() + 1).padStart(2, '0'),
+        String(now.getDate()).padStart(2, '0'),
+      ].join('-')
+
+      if (effectiveDate > today) {
+        return false
+      }
+    }
+
+    records.value[index] = {
+      ...record,
+
+      status: newStatus,
+
+      approvedBy: approver,
+
+      effectiveDate,
+
+      remarks:
+        details?.remarks?.trim() ||
+        record.remarks,
+
+      updatedAt: new Date().toISOString(),
+    }
+
+    return true
+  }
+
+  
   return {
     records,
 
@@ -821,6 +1089,7 @@ export const useEmploymentChanges = () => {
     status,
 
     currentPage,
+    perPage,
 
     filteredRecords,
     paginatedRecords,
@@ -834,6 +1103,10 @@ export const useEmploymentChanges = () => {
     changeTypeOptions,
     departmentOptions,
     statusOptions,
+
+    createEmploymentChange,
+    updateEmploymentChange,
+    changeEmploymentStatus,
 
     resetFilters,
   }

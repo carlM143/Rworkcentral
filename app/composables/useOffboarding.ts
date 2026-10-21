@@ -1,5 +1,6 @@
 import type {
   FinalPayStatus,
+  OffboardingChecklist,
   OffboardingRecord,
   OffboardingStatus,
   OffboardingType,
@@ -971,6 +972,401 @@ export const useOffboarding = () => {
     },
   )
 
+  
+  /* =========================================
+     CREATE / UPDATE / STATUS HELPERS
+  ========================================= */
+
+  type OffboardingInput = Pick<
+    OffboardingRecord,
+    | 'employeeId'
+    | 'employeeNumber'
+    | 'employeeName'
+    | 'department'
+    | 'position'
+    | 'offboardingType'
+    | 'noticeDate'
+    | 'lastWorkingDay'
+    | 'separationDate'
+    | 'initiatedBy'
+    | 'reason'
+    | 'remarks'
+  >
+
+  type OffboardingUpdate = Partial<
+    Pick<
+      OffboardingRecord,
+      | 'offboardingType'
+      | 'noticeDate'
+      | 'lastWorkingDay'
+      | 'separationDate'
+      | 'initiatedBy'
+      | 'reason'
+      | 'remarks'
+      | 'exitInterviewDate'
+    >
+  >
+
+  const checklistKeys: (keyof OffboardingChecklist)[] = [
+    'hrClearance',
+    'departmentClearance',
+    'financeClearance',
+    'itClearance',
+    'assetReturn',
+    'exitInterview',
+  ]
+
+  const emptyChecklist = (): OffboardingChecklist => ({
+    hrClearance: false,
+    departmentClearance: false,
+    financeClearance: false,
+    itClearance: false,
+    assetReturn: false,
+    exitInterview: false,
+  })
+
+  const getChecklistTotals = (
+    checklist: OffboardingChecklist,
+  ) => {
+    const totalTasks = checklistKeys.length
+
+    const completedTasks = checklistKeys.filter(
+      key => checklist[key],
+    ).length
+
+    return {
+      completedTasks,
+      totalTasks,
+      clearanceProgress: Math.round(
+        (completedTasks / totalTasks) * 100,
+      ),
+    }
+  }
+
+  const validateOffboardingDates = (
+    noticeDate: string,
+    lastWorkingDay: string,
+    separationDate: string,
+  ) => {
+    return Boolean(
+      noticeDate &&
+      lastWorkingDay &&
+      separationDate &&
+      noticeDate <= lastWorkingDay &&
+      lastWorkingDay <= separationDate,
+    )
+  }
+
+  const createOffboarding = (
+    data: OffboardingInput,
+  ): OffboardingRecord | null => {
+    if (
+      !data.employeeId ||
+      !data.employeeName.trim() ||
+      !data.initiatedBy.trim() ||
+      !data.reason.trim() ||
+      !validateOffboardingDates(
+        data.noticeDate,
+        data.lastWorkingDay,
+        data.separationDate,
+      )
+    ) {
+      return null
+    }
+
+    const year = new Date().getFullYear()
+
+    const sequence = Math.max(
+      0,
+      ...records.value
+        .map(item => {
+          const match = item.offboardingNumber.match(
+            new RegExp(`^OFF-${year}-(\\d+)$`),
+          )
+
+          return match ? Number(match[1]) : 0
+        }),
+    ) + 1
+
+    const id = Math.max(
+      0,
+      ...records.value.map(item => item.id),
+    ) + 1
+
+    const now = new Date().toISOString()
+    const checklist = emptyChecklist()
+
+    const record: OffboardingRecord = {
+      ...data,
+      id,
+      offboardingNumber:
+        `OFF-${year}-${String(sequence).padStart(3, '0')}`,
+      checklist,
+      ...getChecklistTotals(checklist),
+      finalPayStatus: 'Not Started',
+      status: 'Draft',
+      createdAt: now,
+      updatedAt: now,
+    }
+
+    records.value.unshift(record)
+    currentPage.value = 1
+
+    return record
+  }
+
+  /* =========================================
+     EDIT OFFBOARDING
+  ========================================= */
+
+  const updateOffboarding = (
+    id: number,
+    changes: OffboardingUpdate,
+  ): boolean => {
+    const index = records.value.findIndex(
+      item => item.id === id,
+    )
+
+    if (index === -1) return false
+
+    const current = records.value[index]
+
+    if (!current) return false
+
+    if (
+      ['Completed', 'Cancelled'].includes(current.status)
+    ) {
+      return false
+    }
+
+    const updated: OffboardingRecord = {
+      ...current,
+      ...changes,
+      updatedAt: new Date().toISOString(),
+    }
+
+    if (
+      !updated.reason.trim() ||
+      !updated.initiatedBy.trim() ||
+      !validateOffboardingDates(
+        updated.noticeDate,
+        updated.lastWorkingDay,
+        updated.separationDate,
+      )
+    ) {
+      return false
+    }
+
+    records.value[index] = updated
+    return true
+  }
+
+  /* =========================================
+     UPDATE CLEARANCE
+  ========================================= */
+
+  const updateOffboardingClearance = (
+    id: number,
+    checklist: OffboardingChecklist,
+  ): boolean => {
+    const index = records.value.findIndex(
+      item => item.id === id,
+    )
+
+    if (index === -1) return false
+
+    const record = records.value[index]
+
+    if (!record) return false
+
+    if (
+      ![
+        'Pending Clearance',
+        'Clearance In Progress',
+        'For Review',
+      ].includes(record.status)
+    ) {
+      return false
+    }
+
+    const copiedChecklist = { ...checklist }
+
+    const totals = getChecklistTotals(copiedChecklist)
+
+    records.value[index] = {
+      ...record,
+      checklist: copiedChecklist,
+      ...totals,
+      status: totals.completedTasks === 0
+        ? 'Pending Clearance'
+        : totals.completedTasks === totals.totalTasks
+          ? 'For Review'
+          : 'Clearance In Progress',
+      updatedAt: new Date().toISOString(),
+    }
+
+    return true
+  }
+
+  /* =========================================
+     UPDATE FINAL PAY TRACKING
+  ========================================= */
+
+  const updateOffboardingFinalPay = (
+    id: number,
+    finalPayStatus: FinalPayStatus,
+  ): boolean => {
+    const index = records.value.findIndex(
+      item => item.id === id,
+    )
+
+    if (index === -1) return false
+
+    const record = records.value[index]
+
+    if (!record) return false
+
+    if (
+      record.status !== 'Ready for Final Pay'
+    ) {
+      return false
+    }
+
+    const allowed: Record<
+      FinalPayStatus,
+      FinalPayStatus[]
+    > = {
+      'Not Started': [
+        'For Processing',
+      ],
+      'For Processing': [
+        'For Review',
+      ],
+      'For Review': [
+        'Ready for Release',
+      ],
+      'Ready for Release': [
+        'Released',
+      ],
+      Released: [],
+    }
+
+    if (
+      !allowed[record.finalPayStatus].includes(finalPayStatus)
+    ) {
+      return false
+    }
+
+    records.value[index] = {
+      ...record,
+      finalPayStatus,
+      updatedAt: new Date().toISOString(),
+    }
+
+    return true
+  }
+
+  /* =========================================
+     STATUS TRANSITIONS
+  ========================================= */
+
+  const changeOffboardingStatus = (
+    id: number,
+    nextStatus: OffboardingStatus,
+    details?: {
+      approvedBy?: string
+      remarks?: string
+    },
+  ): boolean => {
+    const index = records.value.findIndex(
+      item => item.id === id,
+    )
+
+    if (index === -1) return false
+
+    const record = records.value[index]
+
+    if (!record) return false
+
+    const transitions: Record<
+      OffboardingStatus,
+      OffboardingStatus[]
+    > = {
+      Draft: [
+        'Pending Clearance',
+        'Cancelled',
+      ],
+      'Pending Clearance': [
+        'Clearance In Progress',
+        'For Review',
+        'Cancelled',
+      ],
+      'Clearance In Progress': [
+        'For Review',
+        'Cancelled',
+      ],
+      'For Review': [
+        'Ready for Final Pay',
+        'Cancelled',
+      ],
+      'Ready for Final Pay': [
+        'Completed',
+        'Cancelled',
+      ],
+      Completed: [],
+      Cancelled: [],
+    }
+
+    if (
+      !transitions[record.status].includes(nextStatus)
+    ) {
+      return false
+    }
+
+    if (
+      ['For Review', 'Ready for Final Pay', 'Completed']
+        .includes(nextStatus) &&
+      record.completedTasks !== record.totalTasks
+    ) {
+      return false
+    }
+
+    if (
+      nextStatus === 'Ready for Final Pay' &&
+      !(details?.approvedBy?.trim() || record.approvedBy)
+    ) {
+      return false
+    }
+
+    if (
+      nextStatus === 'Completed' &&
+      record.finalPayStatus !== 'Released'
+    ) {
+      return false
+    }
+
+    if (
+      nextStatus === 'Cancelled' &&
+      !details?.remarks?.trim()
+    ) {
+      return false
+    }
+
+    records.value[index] = {
+      ...record,
+      status: nextStatus,
+      approvedBy:
+        details?.approvedBy?.trim() ||
+        record.approvedBy,
+      remarks:
+        details?.remarks?.trim() ||
+        record.remarks,
+      updatedAt: new Date().toISOString(),
+    }
+
+    return true
+  }
+
   return {
     records,
 
@@ -994,6 +1390,12 @@ export const useOffboarding = () => {
     departmentOptions,
     statusOptions,
     finalPayStatusOptions,
+
+    createOffboarding,
+    updateOffboarding,
+    updateOffboardingClearance,
+    updateOffboardingFinalPay,
+    changeOffboardingStatus,
 
     resetFilters,
   }

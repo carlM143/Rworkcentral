@@ -2,7 +2,6 @@
 import {
   Building2,
   CalendarDays,
-  MoreHorizontal,
   UserRound,
   Users,
 } from 'lucide-vue-next'
@@ -14,8 +13,13 @@ import type {
 } from '~/types/departmentAssignment'
 
 defineProps<{
-  assignments:
-    DepartmentAssignment[]
+  assignments: DepartmentAssignment[]
+}>()
+
+const emit = defineEmits<{
+  view: [assignment: DepartmentAssignment]
+  edit: [assignment: DepartmentAssignment]
+  end: [assignment: DepartmentAssignment]
 }>()
 
 const formatDate = (
@@ -141,8 +145,8 @@ const statusClass = (
             <th>Status</th>
             <th>Assigned By</th>
             <th>Last Assigned</th>
-            <th>Remarks</th>
-            <th />
+            <th class="sticky-remarks-column">Remarks</th>
+            <th class="sticky-action-column">Actions</th>
           </tr>
 
         </thead>
@@ -360,7 +364,7 @@ const statusClass = (
 
             <!-- REMARKS -->
 
-            <td>
+            <td class="sticky-remarks-column">
 
               <p class="remarks">
                 {{
@@ -373,19 +377,14 @@ const statusClass = (
 
             <!-- ACTION -->
 
-            <td>
+            <td class="sticky-action-column">
 
-              <button
-                type="button"
-                class="action-button"
-                title="Actions will be added later"
-              >
-
-                <MoreHorizontal
-                  :size="18"
-                />
-
-              </button>
+              <DepartmentAssignmentActions
+                :assignment="item"
+                @view="emit('view', $event)"
+                @edit="emit('edit', $event)"
+                @end="emit('end', $event)"
+              />
 
             </td>
 
@@ -769,40 +768,6 @@ tbody tr:hover {
   white-space: nowrap;
 }
 
-/* ACTION */
-
-.action-button {
-  display: flex;
-
-  width: 32px;
-  height: 32px;
-
-  align-items: center;
-  justify-content: center;
-
-  border:
-    1px solid transparent;
-
-  border-radius: 7px;
-
-  background:
-    transparent;
-
-  color:
-    var(--text-secondary);
-}
-
-.action-button:hover {
-  border-color:
-    var(--border);
-
-  background:
-    var(--bg-card-soft);
-
-  color:
-    var(--primary);
-}
-
 /* EMPTY */
 
 .empty-state {
@@ -831,4 +796,60 @@ tbody tr:hover {
 .empty-state span {
   font-size: 10px;
 }
+
+/* Keep Remarks and Actions adjacent while scrolling horizontally. */
+.table-scroll table {
+  min-width: 1850px;
+  table-layout: auto;
+}
+
+.table-scroll th.sticky-remarks-column,
+.table-scroll td.sticky-remarks-column {
+  position: sticky;
+  right: 72px;
+  z-index: 2;
+  box-sizing: border-box;
+  width: 172px;
+  min-width: 172px;
+  max-width: 172px;
+  padding: 10px 12px;
+  background: var(--bg-card);
+  box-shadow: -1px 0 0 var(--border-soft);
+}
+
+.table-scroll th.sticky-action-column,
+.table-scroll td.sticky-action-column {
+  position: sticky;
+  right: 0;
+  z-index: 3;
+  box-sizing: border-box;
+  width: 72px;
+  min-width: 72px;
+  max-width: 72px;
+  padding: 10px 12px;
+  text-align: center;
+  background: var(--bg-card);
+}
+
+.table-scroll thead th.sticky-remarks-column,
+.table-scroll thead th.sticky-action-column {
+  z-index: 5;
+  background: var(--bg-card-soft);
+}
+
+.table-scroll tbody tr:hover td.sticky-remarks-column,
+.table-scroll tbody tr:hover td.sticky-action-column {
+  background: var(--bg-card-soft);
+}
+
+.table-scroll td.sticky-action-column :deep(.actions-holder) {
+  justify-content: center;
+}
+
+.table-scroll td.sticky-remarks-column .remarks {
+  width: 145px;
+  max-width: 145px;
+  margin: 0;
+}
+
 </style>

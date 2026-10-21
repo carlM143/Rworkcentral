@@ -814,9 +814,84 @@ export const useWfhApprovals = () => {
     },
   )
 
+  
+  /* =========================================
+     APPROVAL ACTIONS
+  ========================================= */
+
+  const approveRequest = (
+    request: WfhApproval,
+    remarks = '',
+  ): boolean => {
+    const index = requests.value.findIndex(
+      item => item.id === request.id,
+    )
+
+    if (index === -1) return false
+
+    const current = requests.value[index]
+
+    if (
+      !current ||
+      !['Pending', 'For Review'].includes(current.status)
+    ) {
+      return false
+    }
+
+    requests.value[index] = {
+      ...current,
+      status: 'Approved',
+      reviewedBy: 'Maria Santos',
+      reviewedAt: new Date().toISOString(),
+      remarks: remarks || 'WFH request approved.',
+    }
+
+    return true
+  }
+
+  const rejectRequest = (
+    request: WfhApproval,
+    remarks: string,
+  ): boolean => {
+    if (!remarks.trim()) return false
+
+    const index = requests.value.findIndex(
+      item => item.id === request.id,
+    )
+
+    if (index === -1) return false
+
+    const current = requests.value[index]
+
+    if (
+      !current ||
+      !['Pending', 'For Review'].includes(current.status)
+    ) {
+      return false
+    }
+
+    requests.value[index] = {
+      ...current,
+      status: 'Rejected',
+      reviewedBy: 'Maria Santos',
+      reviewedAt: new Date().toISOString(),
+      remarks: remarks.trim(),
+    }
+
+    return true
+  }
+
+  const getApprovedRequests = computed(() => {
+    return requests.value.filter(
+      item => item.status === 'Approved',
+    )
+  })
+
   return {
     requests,
-
+    approveRequest,
+    rejectRequest,
+    getApprovedRequests,
     search,
     department,
     requestType,

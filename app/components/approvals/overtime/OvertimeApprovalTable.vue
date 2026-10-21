@@ -3,11 +3,12 @@ import {
   CalendarDays,
   CheckCircle2,
   Clock3,
-  MoreHorizontal,
   ShieldCheck,
   Timer,
   UserRound,
 } from 'lucide-vue-next'
+
+import OvertimeApprovalActions from '~/components/approvals/overtime/OvertimeApprovalActions.vue'
 
 import type {
   OvertimeApproval,
@@ -18,6 +19,13 @@ import type {
 defineProps<{
   requests:
     OvertimeApproval[]
+}>()
+
+const emit = defineEmits<{
+  view: [request: OvertimeApproval]
+  approve: [request: OvertimeApproval]
+  reject: [request: OvertimeApproval]
+  review: [request: OvertimeApproval]
 }>()
 
 const formatDate = (
@@ -186,7 +194,7 @@ const statusClass = (
             <th>Status</th>
             <th>Reviewed By</th>
             <th>Remarks</th>
-            <th />
+            <th class="actions-column">Actions</th>
           </tr>
 
         </thead>
@@ -502,22 +510,15 @@ const statusClass = (
 
             </td>
 
-            <!-- ACTION -->
-
-            <td>
-
-              <button
-                type="button"
-                class="action-button"
-                title="Approval actions will be added later"
-              >
-
-                <MoreHorizontal
-                  :size="18"
-                />
-
-              </button>
-
+            <!-- ACTIONS: normal horizontal scrolling -->
+            <td class="actions-column">
+              <OvertimeApprovalActions
+                :request="item"
+                @view="emit('view', $event)"
+                @approve="emit('approve', $event)"
+                @reject="emit('reject', $event)"
+                @review="emit('review', $event)"
+              />
             </td>
 
           </tr>
@@ -1054,5 +1055,11 @@ tbody tr:hover {
 
 .empty-state span {
   font-size: 10px;
+}
+.actions-column {
+  width: 80px;
+  min-width: 80px;
+  text-align: center;
+  white-space: nowrap;
 }
 </style>

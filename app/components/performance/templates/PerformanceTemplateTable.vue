@@ -1,491 +1,217 @@
 <script setup lang="ts">
 import {
-  ClipboardList,
-  Layers3,
-  ListChecks,
+  Building2,
+  BriefcaseBusiness,
+  Download,
+  Eye,
+  FileText,
   MoreHorizontal,
-  Star,
+  Pencil,
+  Trash2,
   Users,
 } from 'lucide-vue-next'
+import type { PerformanceTemplate } from '~/types/performanceTemplate'
 
-import type {
-  PerformanceTemplate,
-  PerformanceTemplateStatus,
-  PerformanceTemplateType,
-} from '~/types/performanceTemplate'
-
-defineProps<{
-  templates:
-    PerformanceTemplate[]
+const props = defineProps<{
+  templates: PerformanceTemplate[]
 }>()
 
-const formatDate = (
-  value: string,
-) => {
-  return new Intl.DateTimeFormat(
-    'en-US',
-    {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    },
-  ).format(
-    new Date(value),
-  )
+const emit = defineEmits<{
+  view: [item: PerformanceTemplate]
+  edit: [item: PerformanceTemplate]
+  delete: [item: PerformanceTemplate]
+  download: [item: PerformanceTemplate]
+}>()
+
+const openId = ref<number | null>(null)
+const triggerRef = ref<HTMLElement | null>(null)
+const menuRef = ref<HTMLElement | null>(null)
+const menuStyle = ref({ top: '0px', left: '0px' })
+
+const closeMenu = () => {
+  openId.value = null
 }
 
-const typeClass = (
-  type:
-    PerformanceTemplateType,
-) => {
-  if (
-    type ===
-    'General Review'
-  ) {
-    return 'general'
+const toggleMenu = async (id: number, event: MouseEvent) => {
+  if (openId.value === id) {
+    closeMenu()
+    return
   }
 
-  if (
-    type ===
-    'Probationary Review'
-  ) {
-    return 'probationary'
-  }
+  triggerRef.value = event.currentTarget as HTMLElement
+  openId.value = id
+  await nextTick()
 
-  if (
-    type ===
-    'Leadership Review'
-  ) {
-    return 'leadership'
-  }
+  if (!triggerRef.value) return
 
-  if (
-    type ===
-    'Technical Review'
-  ) {
-    return 'technical'
-  }
+  const rect = triggerRef.value.getBoundingClientRect()
+  const width = menuRef.value?.offsetWidth ?? 190
+  const height = menuRef.value?.offsetHeight ?? 170
+  const gap = 6
+  const top = rect.bottom + height + gap <= window.innerHeight
+    ? rect.bottom + gap
+    : rect.top - height - gap
 
-  return 'driver'
+  menuStyle.value = {
+    top: `${Math.max(8, Math.min(top, window.innerHeight - height - 8))}px`,
+    left: `${Math.max(8, Math.min(rect.right - width, window.innerWidth - width - 8))}px`,
+  }
 }
 
-const statusClass = (
-  status:
-    PerformanceTemplateStatus,
-) => {
-  if (
-    status ===
-    'Active'
-  ) {
-    return 'active'
-  }
-
-  if (
-    status ===
-    'Draft'
-  ) {
-    return 'draft'
-  }
-
-  if (
-    status ===
-    'Inactive'
-  ) {
-    return 'inactive'
-  }
-
-  return 'archived'
+const handleAction = (action: 'view' | 'edit' | 'delete' | 'download') => {
+  const item = props.templates.find(row => row.id === openId.value)
+  closeMenu()
+  if (item) emit(action, item)
 }
+
+const handleOutside = (event: MouseEvent) => {
+  const target = event.target as Node
+  const inTrigger = triggerRef.value?.contains(target)
+  const inMenu = menuRef.value?.contains(target)
+
+  if (!inTrigger && !inMenu) closeMenu()
+}
+
+onMounted(() => {
+  document.addEventListener('mousedown', handleOutside)
+  window.addEventListener('resize', closeMenu)
+  window.addEventListener('scroll', closeMenu, true)
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('mousedown', handleOutside)
+  window.removeEventListener('resize', closeMenu)
+  window.removeEventListener('scroll', closeMenu, true)
+})
 </script>
 
 <template>
   <article class="table-card">
-
-    <!-- HEADER -->
-
-    <div class="table-heading">
-
-      <div>
-
-        <h3>
-          Evaluation Templates
-        </h3>
-
-        <p>
-          Manage reusable performance evaluation
-          forms, criteria, scoring rules and
-          employee applicability.
-        </p>
-
-      </div>
-
+    <div class="table-title">
+      <h3>Evaluation Templates</h3>
+      <p>Company, department, position and attached evaluation document.</p>
     </div>
 
-    <!-- TABLE -->
-
-    <div
-      v-if="templates.length"
-      class="table-scroll"
-    >
-
+    <div v-if="templates.length" class="table-scroll">
       <table>
-
         <thead>
-
           <tr>
-            <th>Template</th>
-            <th>Template Type</th>
-            <th>Employee Scope</th>
-            <th>Description</th>
-            <th>Sections</th>
-            <th>Criteria</th>
-            <th>Scoring Scale</th>
-            <th>Passing Score</th>
-            <th>Total Weight</th>
-            <th>Usage</th>
-            <th>Status</th>
-            <th>Created By</th>
-            <th>Last Updated</th>
-            <th />
+            <th>Company</th>
+            <th>Department</th>
+            <th>Position</th>
+            <th>Document</th>
+            <th class="action-column">Actions</th>
           </tr>
-
         </thead>
 
         <tbody>
-
-          <tr
-            v-for="item in templates"
-            :key="item.id"
-          >
-
-            <!-- TEMPLATE -->
+          <tr v-for="item in templates" :key="item.id">
+            <td>
+              <div class="cell">
+                <Building2 :size="15" />
+                <strong>{{ item.company }}</strong>
+              </div>
+            </td>
 
             <td>
+              <div class="cell">
+                <Users :size="15" />
+                {{ item.department }}
+              </div>
+            </td>
 
-              <div class="template-cell">
+            <td>
+              <div class="cell">
+                <BriefcaseBusiness :size="15" />
+                {{ item.position }}
+              </div>
+            </td>
 
-                <div class="template-icon">
-
-                  <ClipboardList
-                    :size="16"
-                  />
-
+            <td>
+              <div class="document-cell">
+                <div class="document-icon">
+                  <FileText :size="17" />
                 </div>
-
                 <div>
-
-                  <strong>
-                    {{ item.name }}
-                  </strong>
-
-                  <span>
-                    {{ item.templateCode }}
-                  </span>
-
+                  <strong>{{ item.documentName }}</strong>
+                  <small>
+                    {{ item.documentUrl ? 'Uploaded file' : 'Sample record — no file attached' }}
+                  </small>
                 </div>
-
               </div>
-
             </td>
 
-            <!-- TYPE -->
-
-            <td>
-
-              <span
-                class="type-badge"
-                :class="
-                  typeClass(
-                    item.type,
-                  )
-                "
-              >
-                {{ item.type }}
-              </span>
-
-            </td>
-
-            <!-- SCOPE -->
-
-            <td>
-
-              <div class="scope-cell">
-
-                <Users
-                  :size="13"
-                />
-
-                <strong>
-                  {{ item.scope }}
-                </strong>
-
-              </div>
-
-            </td>
-
-            <!-- DESCRIPTION -->
-
-            <td>
-
-              <p class="description">
-                {{ item.description }}
-              </p>
-
-            </td>
-
-            <!-- SECTIONS -->
-
-            <td>
-
-              <div class="count-cell">
-
-                <Layers3
-                  :size="13"
-                />
-
-                <strong>
-                  {{ item.sectionCount }}
-                </strong>
-
-                <span>
-                  sections
-                </span>
-
-              </div>
-
-            </td>
-
-            <!-- CRITERIA -->
-
-            <td>
-
-              <div class="count-cell">
-
-                <ListChecks
-                  :size="13"
-                />
-
-                <strong>
-                  {{ item.criteriaCount }}
-                </strong>
-
-                <span>
-                  criteria
-                </span>
-
-              </div>
-
-            </td>
-
-            <!-- SCALE -->
-
-            <td>
-
-              <span class="score-scale">
-
-                <Star
-                  :size="12"
-                />
-
-                {{ item.scoringScale }}
-
-              </span>
-
-            </td>
-
-            <!-- PASSING -->
-
-            <td>
-
-              <strong class="passing-score">
-                {{ item.passingScore }} / 5
-              </strong>
-
-            </td>
-
-            <!-- WEIGHT -->
-
-            <td>
-
-              <div class="weight-cell">
-
-                <strong>
-                  {{ item.totalWeight }}%
-                </strong>
-
-                <div class="weight-track">
-
-                  <div
-                    class="weight-bar"
-                    :style="{
-                      width:
-                        `${Math.min(
-                          item.totalWeight,
-                          100,
-                        )}%`,
-                    }"
-                  />
-
-                </div>
-
-              </div>
-
-            </td>
-
-            <!-- USAGE -->
-
-            <td>
-
-              <div class="usage-cell">
-
-                <strong>
-                  {{ item.usageCount }}
-                </strong>
-
-                <span>
-                  evaluations
-                </span>
-
-              </div>
-
-            </td>
-
-            <!-- STATUS -->
-
-            <td>
-
-              <span
-                class="status-badge"
-                :class="
-                  statusClass(
-                    item.status,
-                  )
-                "
-              >
-
-                <span class="status-dot" />
-
-                {{ item.status }}
-
-              </span>
-
-            </td>
-
-            <!-- CREATED BY -->
-
-            <td>
-
-              <strong class="created-by">
-                {{ item.createdBy }}
-              </strong>
-
-            </td>
-
-            <!-- UPDATED -->
-
-            <td>
-
-              <span class="updated-date">
-                {{
-                  formatDate(
-                    item.updatedAt,
-                  )
-                }}
-              </span>
-
-            </td>
-
-            <!-- ACTION -->
-
-            <td>
-
+            <td class="action-column">
               <button
                 type="button"
-                class="action-button"
-                title="Template actions will be added later"
+                class="action-trigger"
+                aria-label="Template actions"
+                :aria-expanded="openId === item.id"
+                @click.stop="toggleMenu(item.id, $event)"
               >
-
-                <MoreHorizontal
-                  :size="18"
-                />
-
+                <MoreHorizontal :size="18" />
               </button>
-
             </td>
-
           </tr>
-
         </tbody>
-
       </table>
-
     </div>
 
-    <!-- EMPTY -->
-
-    <div
-      v-else
-      class="empty-state"
-    >
-
-      <ClipboardList
-        :size="34"
-      />
-
-      <strong>
-        No evaluation templates found
-      </strong>
-
-      <span>
-        Try changing your template filters.
-      </span>
-
+    <div v-else class="empty-state">
+      <FileText :size="27" />
+      <strong>No evaluation templates found</strong>
+      <span>Try changing the search or create a new template.</span>
     </div>
 
+    <Teleport to="body">
+      <div
+        v-if="openId !== null"
+        ref="menuRef"
+        class="template-actions-menu"
+        :style="menuStyle"
+      >
+        <button type="button" @click="handleAction('view')">
+          <Eye :size="15" /> View Template
+        </button>
+        <button type="button" @click="handleAction('edit')">
+          <Pencil :size="15" /> Edit Template
+        </button>
+        <button type="button" @click="handleAction('download')">
+          <Download :size="15" /> Download Document
+        </button>
+        <div class="menu-divider" />
+        <button type="button" class="danger" @click="handleAction('delete')">
+          <Trash2 :size="15" /> Delete Template
+        </button>
+      </div>
+    </Teleport>
   </article>
 </template>
 
 <style scoped>
 .table-card {
   overflow: hidden;
-
-  border:
-    1px solid var(--border);
-
+  border: 1px solid var(--border);
   border-radius: 11px;
-
-  background:
-    var(--bg-card);
-
-  box-shadow:
-    var(--shadow);
+  background: var(--bg-card);
+  box-shadow: var(--shadow);
 }
 
-.table-heading {
-  padding:
-    16px 17px;
-
-  border-bottom:
-    1px solid var(--border-soft);
+.table-title {
+  padding: 15px 17px;
+  border-bottom: 1px solid var(--border-soft);
 }
 
-.table-heading h3 {
+.table-title h3 {
   margin: 0;
-
-  color:
-    var(--text-primary);
-
-  font-size: 15px;
+  color: var(--text-primary);
+  font-size: 13px;
 }
 
-.table-heading p {
-  margin:
-    5px 0 0;
-
-  color:
-    var(--text-muted);
-
-  font-size: 10px;
+.table-title p {
+  margin: 4px 0 0;
+  color: var(--text-muted);
+  font-size: 9px;
 }
 
 .table-scroll {
@@ -494,468 +220,164 @@ const statusClass = (
 
 table {
   width: 100%;
-
-  min-width: 2250px;
-
+  min-width: 760px;
   border-collapse: collapse;
 }
 
 th {
-  padding:
-    12px 13px;
-
-  background:
-    var(--bg-card-soft);
-
-  color:
-    var(--text-secondary);
-
+  padding: 12px 15px;
+  background: var(--bg-card-soft);
+  color: var(--text-secondary);
   font-size: 10px;
-  font-weight: 700;
-
+  font-weight: 650;
   text-align: left;
-
   text-transform: uppercase;
-
-  white-space: nowrap;
 }
 
 td {
-  padding:
-    13px;
-
-  border-top:
-    1px solid var(--border-soft);
-
-  color:
-    var(--text-secondary);
-
-  font-size: 10px;
-
-  vertical-align: middle;
+  padding: 13px 15px;
+  border-top: 1px solid var(--border-soft);
+  color: var(--text-secondary);
+  font-size: 11px;
 }
 
 tbody tr:hover {
-  background:
-    var(--bg-card-soft);
+  background: var(--bg-card-soft);
 }
 
-/* TEMPLATE */
-
-.template-cell {
+.cell {
   display: flex;
-
-  min-width: 250px;
-
   align-items: center;
+  gap: 9px;
+  white-space: nowrap;
+}
 
+.cell svg {
+  flex-shrink: 0;
+  color: var(--primary);
+}
+
+.cell strong,
+.document-cell strong {
+  color: var(--text-primary);
+}
+
+.document-cell {
+  display: flex;
+  min-width: 215px;
+  align-items: center;
   gap: 9px;
 }
 
-.template-icon {
+.document-icon {
   display: flex;
-
-  width: 36px;
-  height: 36px;
-
+  width: 34px;
+  height: 34px;
   flex-shrink: 0;
-
   align-items: center;
   justify-content: center;
-
   border-radius: 8px;
-
-  background:
-    var(--primary-soft);
-
-  color:
-    var(--primary);
+  background: var(--primary-soft);
+  color: var(--primary);
 }
 
-.template-cell strong,
-.template-cell span {
+.document-cell strong,
+.document-cell small {
   display: block;
 }
 
-.template-cell strong {
-  color:
-    var(--text-primary);
-
+.document-cell strong {
   font-size: 10px;
 }
 
-.template-cell span {
+.document-cell small {
   margin-top: 3px;
-
-  color:
-    var(--primary);
-
+  color: var(--text-muted);
   font-size: 9px;
-  font-weight: 650;
 }
 
-/* TYPE */
+.action-column {
+  position: static;
+  width: 75px;
+  text-align: center;
+}
 
-.type-badge {
+.action-trigger {
   display: inline-flex;
-
-  padding:
-    5px 9px;
-
-  border-radius: 20px;
-
-  font-size: 9px;
-  font-weight: 650;
-
-  white-space: nowrap;
-}
-
-.type-badge.general {
-  background:
-    var(--primary-soft);
-
-  color:
-    var(--primary);
-}
-
-.type-badge.probationary {
-  background:
-    var(--orange-soft);
-
-  color:
-    var(--orange);
-}
-
-.type-badge.leadership {
-  background:
-    var(--purple-soft);
-
-  color:
-    var(--purple);
-}
-
-.type-badge.technical {
-  background:
-    var(--green-soft);
-
-  color:
-    var(--green);
-}
-
-.type-badge.driver {
-  background:
-    var(--bg-card-soft);
-
-  color:
-    var(--text-primary);
-}
-
-/* SCOPE */
-
-.scope-cell {
-  display: flex;
-
-  min-width: 125px;
-
-  align-items: center;
-
-  gap: 5px;
-
-  color:
-    var(--text-primary);
-}
-
-.scope-cell svg {
-  color:
-    var(--primary);
-}
-
-/* DESCRIPTION */
-
-.description {
-  width: 285px;
-
-  margin: 0;
-
-  color:
-    var(--text-secondary);
-
-  font-size: 10px;
-
-  line-height: 1.45;
-}
-
-/* COUNTS */
-
-.count-cell {
-  display: flex;
-
-  min-width: 95px;
-
-  align-items: center;
-
-  gap: 4px;
-
-  white-space: nowrap;
-}
-
-.count-cell svg {
-  color:
-    var(--primary);
-}
-
-.count-cell strong {
-  color:
-    var(--text-primary);
-
-  font-size: 11px;
-}
-
-.count-cell span {
-  color:
-    var(--text-muted);
-
-  font-size: 9px;
-}
-
-/* SCORE */
-
-.score-scale {
-  display: inline-flex;
-
-  align-items: center;
-
-  gap: 5px;
-
-  padding:
-    5px 8px;
-
-  border:
-    1px solid var(--border);
-
-  border-radius: 6px;
-
-  background:
-    var(--bg-card-soft);
-
-  color:
-    var(--text-primary);
-
-  font-size: 9px;
-  font-weight: 650;
-
-  white-space: nowrap;
-}
-
-.score-scale svg {
-  color:
-    var(--orange);
-}
-
-.passing-score {
-  color:
-    var(--text-primary);
-
-  white-space: nowrap;
-}
-
-/* WEIGHT */
-
-.weight-cell {
-  width: 120px;
-}
-
-.weight-cell strong {
-  display: block;
-
-  margin-bottom: 5px;
-
-  color:
-    var(--text-primary);
-
-  font-size: 10px;
-}
-
-.weight-track {
-  overflow: hidden;
-
-  height: 5px;
-
-  border-radius: 20px;
-
-  background:
-    var(--border-soft);
-}
-
-.weight-bar {
-  height: 100%;
-
-  border-radius: inherit;
-
-  background:
-    var(--green);
-}
-
-/* USAGE */
-
-.usage-cell {
-  min-width: 85px;
-}
-
-.usage-cell strong,
-.usage-cell span {
-  display: block;
-}
-
-.usage-cell strong {
-  color:
-    var(--text-primary);
-
-  font-size: 11px;
-}
-
-.usage-cell span {
-  margin-top: 2px;
-
-  color:
-    var(--text-muted);
-
-  font-size: 9px;
-}
-
-/* STATUS */
-
-.status-badge {
-  display: inline-flex;
-
-  align-items: center;
-
-  gap: 5px;
-
-  padding:
-    5px 8px;
-
-  border-radius: 20px;
-
-  font-size: 9px;
-  font-weight: 650;
-
-  white-space: nowrap;
-}
-
-.status-dot {
-  width: 5px;
-  height: 5px;
-
-  border-radius: 50%;
-
-  background:
-    currentColor;
-}
-
-.status-badge.active {
-  background:
-    var(--green-soft);
-
-  color:
-    var(--green);
-}
-
-.status-badge.draft {
-  background:
-    var(--orange-soft);
-
-  color:
-    var(--orange);
-}
-
-.status-badge.inactive {
-  background:
-    var(--red-soft);
-
-  color:
-    var(--red);
-}
-
-.status-badge.archived {
-  background:
-    var(--bg-card-soft);
-
-  color:
-    var(--text-muted);
-}
-
-.created-by {
-  color:
-    var(--text-primary);
-
-  white-space: nowrap;
-}
-
-.updated-date {
-  white-space: nowrap;
-}
-
-/* ACTION */
-
-.action-button {
-  display: flex;
-
-  width: 32px;
-  height: 32px;
-
+  width: 30px;
+  height: 30px;
   align-items: center;
   justify-content: center;
-
-  border:
-    1px solid transparent;
-
+  border: 1px solid var(--border);
   border-radius: 7px;
-
-  background:
-    transparent;
-
-  color:
-    var(--text-secondary);
+  background: transparent;
+  color: var(--text-secondary);
 }
 
-.action-button:hover {
-  border-color:
-    var(--border);
-
-  background:
-    var(--bg-card-soft);
-
-  color:
-    var(--primary);
+.action-trigger:hover {
+  background: var(--primary-soft);
+  color: var(--primary);
 }
-
-/* EMPTY */
 
 .empty-state {
   display: flex;
-
-  min-height: 260px;
-
+  min-height: 220px;
   flex-direction: column;
-
   align-items: center;
   justify-content: center;
-
-  gap: 8px;
-
-  color:
-    var(--text-muted);
+  gap: 9px;
+  color: var(--text-muted);
+  font-size: 10px;
 }
 
 .empty-state strong {
-  color:
-    var(--text-primary);
-
+  color: var(--text-primary);
   font-size: 12px;
 }
+</style>
 
-.empty-state span {
-  font-size: 10px;
+<style>
+.template-actions-menu {
+  position: fixed;
+  z-index: 10020;
+  width: 195px;
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--bg-card);
+  box-shadow: 0 18px 45px rgba(0, 0, 0, 0.24);
+}
+
+.template-actions-menu button {
+  display: flex;
+  width: 100%;
+  min-height: 36px;
+  align-items: center;
+  gap: 9px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 11px;
+  text-align: left;
+}
+
+.template-actions-menu button:hover {
+  background: var(--bg-card-soft);
+  color: var(--text-primary);
+}
+
+.template-actions-menu button.danger {
+  color: var(--red);
+}
+
+.template-actions-menu button.danger:hover {
+  background: var(--red-soft);
+}
+
+.template-actions-menu .menu-divider {
+  margin: 5px 4px;
+  border-top: 1px solid var(--border-soft);
 }
 </style>

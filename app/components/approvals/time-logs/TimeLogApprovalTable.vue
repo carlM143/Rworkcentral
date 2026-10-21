@@ -2,10 +2,11 @@
 import {
   CalendarDays,
   Clock3,
-  MoreHorizontal,
   ShieldCheck,
   UserRound,
 } from 'lucide-vue-next'
+
+import TimeLogApprovalActions from '~/components/approvals/time-logs/TimeLogApprovalActions.vue'
 
 import type {
   TimeLogApproval,
@@ -15,6 +16,13 @@ import type {
 defineProps<{
   requests:
     TimeLogApproval[]
+}>()
+
+const emit = defineEmits<{
+  view: [request: TimeLogApproval]
+  approve: [request: TimeLogApproval]
+  reject: [request: TimeLogApproval]
+  review: [request: TimeLogApproval]
 }>()
 
 const formatDate = (
@@ -172,7 +180,7 @@ const statusClass = (
             <th>Status</th>
             <th>Reviewed By</th>
             <th>Remarks</th>
-            <th />
+            <th class="actions-column">Actions</th>
           </tr>
 
         </thead>
@@ -503,19 +511,15 @@ const statusClass = (
 
             <!-- ACTION -->
 
-            <td>
+            <td class="actions-column">
 
-              <button
-                type="button"
-                class="action-button"
-                title="Approval actions will be added later"
-              >
-
-                <MoreHorizontal
-                  :size="18"
-                />
-
-              </button>
+              <TimeLogApprovalActions
+                :request="item"
+                @view="emit('view', $event)"
+                @approve="emit('approve', $event)"
+                @reject="emit('reject', $event)"
+                @review="emit('review', $event)"
+              />
 
             </td>
 
@@ -1070,4 +1074,5 @@ tbody tr:hover {
 .empty-state span {
   font-size: 10px;
 }
+.actions-column { width: 72px; min-width: 72px; text-align: center; white-space: nowrap; position: static; }
 </style>

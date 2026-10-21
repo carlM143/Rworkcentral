@@ -2,11 +2,12 @@
 import {
   CalendarDays,
   Clock3,
-  MoreHorizontal,
   ShieldCheck,
   UserRound,
   WalletCards,
 } from 'lucide-vue-next'
+
+import LeaveApprovalActions from '~/components/approvals/leaves/LeaveApprovalActions.vue'
 
 import type {
   LeaveApproval,
@@ -16,6 +17,13 @@ import type {
 defineProps<{
   requests:
     LeaveApproval[]
+}>()
+
+const emit = defineEmits<{
+  view: [request: LeaveApproval]
+  approve: [request: LeaveApproval]
+  reject: [request: LeaveApproval]
+  review: [request: LeaveApproval]
 }>()
 
 const formatDate = (
@@ -153,7 +161,7 @@ const balanceClass = (
             <th>Status</th>
             <th>Reviewed By</th>
             <th>Remarks</th>
-            <th />
+            <th class="actions-column">Actions</th>
           </tr>
 
         </thead>
@@ -452,22 +460,15 @@ const balanceClass = (
 
             </td>
 
-            <!-- ACTION -->
-
-            <td>
-
-              <button
-                type="button"
-                class="action-button"
-                title="Approval actions will be added later"
-              >
-
-                <MoreHorizontal
-                  :size="18"
-                />
-
-              </button>
-
+            <!-- ACTIONS: normal horizontal scroll (not sticky) -->
+            <td class="actions-column">
+              <LeaveApprovalActions
+                :request="item"
+                @view="emit('view', $event)"
+                @approve="emit('approve', $event)"
+                @reject="emit('reject', $event)"
+                @review="emit('review', $event)"
+              />
             </td>
 
           </tr>
@@ -1008,4 +1009,5 @@ tbody tr:hover {
 .empty-state span {
   font-size: 10px;
 }
+.actions-column { width: 72px; min-width: 72px; text-align: center; white-space: nowrap; }
 </style>

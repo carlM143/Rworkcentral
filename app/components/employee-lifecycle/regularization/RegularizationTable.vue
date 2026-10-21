@@ -1,12 +1,14 @@
+
 <script setup lang="ts">
 import {
   CalendarDays,
   CheckCircle2,
-  FileCheck2,
+  ClipboardCheck,
+  Eye,
   MoreHorizontal,
-  Star,
+  Pencil,
+  RefreshCw,
   UserRound,
-  XCircle,
 } from 'lucide-vue-next'
 
 import type {
@@ -15,167 +17,196 @@ import type {
   RegularizationStatus,
 } from '~/types/regularization'
 
-defineProps<{
-  records:
-    RegularizationRecord[]
+const props = defineProps<{
+  records: RegularizationRecord[]
 }>()
 
-const formatDate = (
-  value?: string,
-) => {
-  if (!value) {
-    return '—'
-  }
+const emit = defineEmits<{
+  view: [record: RegularizationRecord]
+  edit: [record: RegularizationRecord]
+  status: [record: RegularizationRecord]
+  recommendation: [record: RegularizationRecord]
+  complete: [record: RegularizationRecord]
+}>()
 
-  return new Intl.DateTimeFormat(
-    'en-US',
-    {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    },
-  ).format(
-    new Date(
-      `${value}T00:00:00`,
-    ),
-  )
+const openId = ref<number | null>(null)
+const triggerRef = ref<HTMLElement | null>(null)
+const menuRef = ref<HTMLElement | null>(null)
+
+const menuStyle = ref({
+  top: '0px',
+  left: '0px',
+})
+
+const activeRecord = computed(() => {
+  return props.records.find(item => item.id === openId.value)
+})
+
+const formatDate = (value?: string) => {
+  if (!value) return '—'
+
+  return new Intl.DateTimeFormat('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  }).format(new Date(`${value}T00:00:00`))
 }
 
-const statusClass = (
-  status:
-    RegularizationStatus,
-) => {
-  if (
-    status ===
-    'Regularized'
-  ) {
-    return 'regularized'
-  }
-
-  if (
-    status ===
-    'Approved'
-  ) {
-    return 'approved'
-  }
-
-  if (
-    status ===
-    'Recommended'
-  ) {
-    return 'recommended'
-  }
-
-  if (
-    status ===
-    'For Review'
-  ) {
-    return 'review'
-  }
-
-  if (
-    status ===
-    'For Evaluation'
-  ) {
-    return 'evaluation'
-  }
-
-  if (
-    status ===
-    'Extended'
-  ) {
-    return 'extended'
-  }
-
-  return 'not-recommended'
+const statusClass = (value: RegularizationStatus) => {
+  return value.toLowerCase().replace(/\s+/g, '-')
 }
 
-const recommendationClass = (
-  recommendation:
-    Recommendation,
-) => {
-  if (
-    recommendation ===
-    'For Regularization'
-  ) {
-    return 'positive'
-  }
-
-  if (
-    recommendation ===
-    'Extend Probation'
-  ) {
-    return 'extended'
-  }
-
-  if (
-    recommendation ===
-    'Not Recommended'
-  ) {
-    return 'negative'
-  }
+const recommendationClass = (value: Recommendation) => {
+  if (value === 'For Regularization') return 'positive'
+  if (value === 'Extend Probation') return 'extended'
+  if (value === 'Not Recommended') return 'negative'
 
   return 'pending'
 }
 
-const scoreClass = (
-  score?: number,
-) => {
-  if (
-    score === undefined
-  ) {
-    return 'none'
-  }
+/* =========================================
+   ACTION MENU
+========================================= */
 
-  if (score >= 4.5) {
-    return 'excellent'
-  }
-
-  if (score >= 4) {
-    return 'good'
-  }
-
-  if (score >= 3) {
-    return 'average'
-  }
-
-  return 'low'
+const closeMenu = () => {
+  openId.value = null
 }
+
+const toggleMenu = async (
+  id: number,
+  event: MouseEvent,
+) => {
+  if (openId.value === id) {
+    closeMenu()
+    return
+  }
+
+  triggerRef.value = event.currentTarget as HTMLElement
+  openId.value = id
+
+  await nextTick()
+
+  if (!triggerRef.value) return
+
+  const rect = triggerRef.value.getBoundingClientRect()
+  const width = menuRef.value?.offsetWidth ?? 210
+  const height = menuRef.value?.offsetHeight ?? 210
+
+  const gap = 6
+  const padding = 8
+
+  let top = rect.bottom + gap
+
+  if (top + height > window.innerHeight - padding) {
+    top = rect.top - height - gap
+  }
+
+  top = Math.max(
+    padding,
+    Math.min(top, window.innerHeight - height - padding),
+  )
+
+  const left = Math.max(
+    padding,
+    Math.min(
+      rect.right - width,
+      window.innerWidth - width - padding,
+    ),
+  )
+
+  menuStyle.value = {
+    top: `${top}px`,
+    left: `${left}px`,
+  }
+}
+
+type ActionName =
+  | 'view'
+  | 'edit'
+  | 'status'
+  | 'recommendation'
+  | 'complete'
+
+const handleAction = (action: ActionName) => {
+  const record = activeRecord.value
+
+  closeMenu()
+
+  if (!record) return
+
+  if (record.status === 'Regularized' && action !== 'view') {
+    return
+  }
+
+  if (action === 'complete' && record.status !== 'Approved') {
+    return
+  }
+
+  switch (action) {
+    case 'view':
+      emit('view', record)
+      break
+
+    case 'edit':
+      emit('edit', record)
+      break
+
+    case 'status':
+      emit('status', record)
+      break
+
+    case 'recommendation':
+      emit('recommendation', record)
+      break
+
+    case 'complete':
+      emit('complete', record)
+      break
+  }
+}
+
+const handleOutsideClick = (event: MouseEvent) => {
+  const target = event.target as Node
+
+  if (
+    triggerRef.value?.contains(target) ||
+    menuRef.value?.contains(target)
+  ) {
+    return
+  }
+
+  closeMenu()
+}
+
+onMounted(() => {
+  document.addEventListener('mousedown', handleOutsideClick)
+  window.addEventListener('resize', closeMenu)
+  window.addEventListener('scroll', closeMenu, true)
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('mousedown', handleOutsideClick)
+  window.removeEventListener('resize', closeMenu)
+  window.removeEventListener('scroll', closeMenu, true)
+})
 </script>
 
 <template>
   <article class="table-card">
-
     <!-- HEADER -->
-
     <div class="table-heading">
+      <h3>Employee Regularization</h3>
 
-      <div>
-
-        <h3>
-          Employee Regularization
-        </h3>
-
-        <p>
-          Track probationary employee evaluation,
-          recommendation, approval and regularization.
-        </p>
-
-      </div>
-
+      <p>
+        Track probationary employees, review status,
+        HR recommendations and regularization decisions.
+      </p>
     </div>
 
     <!-- TABLE -->
-
-    <div
-      v-if="records.length"
-      class="table-scroll"
-    >
-
-      <table>
-
+    <div v-if="records.length" class="table-scroll">
+      <table class="regularization-table">
         <thead>
-
           <tr>
             <th>Regularization No.</th>
             <th>Employee</th>
@@ -184,601 +215,377 @@ const scoreClass = (
             <th>Probation End</th>
             <th>Target Regularization</th>
             <th>Evaluation</th>
-            <th>Score</th>
             <th>Recommendation</th>
-            <th>Documents</th>
             <th>Reviewed By</th>
             <th>Approved By</th>
             <th>Effective Date</th>
             <th>Status</th>
             <th>Remarks</th>
-            <th />
+            <th class="action-column">Actions</th>
           </tr>
-
         </thead>
 
         <tbody>
-
           <tr
             v-for="item in records"
             :key="item.id"
           >
-
-            <!-- NUMBER -->
-
+            <!-- REFERENCE -->
             <td>
-
               <strong class="record-number">
-                {{
-                  item.regularizationNumber
-                }}
+                {{ item.regularizationNumber }}
               </strong>
-
             </td>
 
             <!-- EMPLOYEE -->
-
             <td>
-
               <div class="employee-cell">
-
                 <div class="employee-avatar">
-
-                  <UserRound
-                    :size="17"
-                  />
-
+                  <UserRound :size="16" />
                 </div>
 
-                <div>
-
-                  <strong>
-                    {{ item.employeeName }}
-                  </strong>
+                <div class="employee-info">
+                  <strong>{{ item.employeeName }}</strong>
 
                   <span>
-                    {{ item.employeeNumber }}
-                    ·
-                    {{ item.position }}
+                    {{ item.employeeNumber }} · {{ item.position }}
                   </span>
-
                 </div>
-
               </div>
-
             </td>
 
             <!-- DEPARTMENT -->
-
             <td>
-
               <strong class="department">
                 {{ item.department }}
               </strong>
-
             </td>
 
             <!-- DATE HIRED -->
-
             <td>
-
               <div class="date-cell">
-
-                <CalendarDays
-                  :size="13"
-                />
-
-                {{
-                  formatDate(
-                    item.dateHired,
-                  )
-                }}
-
+                <CalendarDays :size="13" />
+                {{ formatDate(item.dateHired) }}
               </div>
-
             </td>
 
             <!-- PROBATION END -->
-
             <td>
-
               <div class="date-cell probation-date">
-
-                <CalendarDays
-                  :size="13"
-                />
+                <CalendarDays :size="13" />
 
                 <div>
-
                   <strong>
-                    {{
-                      formatDate(
-                        item.probationEndDate,
-                      )
-                    }}
+                    {{ formatDate(item.probationEndDate) }}
                   </strong>
 
                   <span>
-                    {{
-                      item.probationMonths
-                    }}
-                    months
+                    {{ item.probationMonths }} months
                   </span>
-
                 </div>
-
               </div>
-
             </td>
 
             <!-- TARGET -->
-
             <td>
-
               <strong class="target-date">
-                {{
-                  formatDate(
-                    item.targetRegularizationDate,
-                  )
-                }}
+                {{ formatDate(item.targetRegularizationDate) }}
               </strong>
-
             </td>
 
             <!-- EVALUATION -->
-
             <td>
-
               <span
                 class="evaluation-badge"
-                :class="
-                  item.evaluationStatus
-                    .toLowerCase()
-                    .replace(
-                      ' ',
-                      '-',
-                    )
-                "
+                :class="statusClass(item.evaluationStatus)"
               >
-                {{
-                  item.evaluationStatus
-                }}
+                {{ item.evaluationStatus }}
               </span>
-
-            </td>
-
-            <!-- SCORE -->
-
-            <td>
-
-              <div
-                class="score-badge"
-                :class="
-                  scoreClass(
-                    item.evaluationScore,
-                  )
-                "
-              >
-
-                <Star
-                  :size="12"
-                />
-
-                <strong>
-                  {{
-                    item.evaluationScore !==
-                    undefined
-                      ? `${item.evaluationScore} / 5`
-                      : 'Not Rated'
-                  }}
-                </strong>
-
-              </div>
-
             </td>
 
             <!-- RECOMMENDATION -->
-
             <td>
-
               <span
                 class="recommendation-badge"
-                :class="
-                  recommendationClass(
-                    item.recommendation,
-                  )
-                "
+                :class="recommendationClass(item.recommendation)"
               >
-                {{
-                  item.recommendation
-                }}
+                {{ item.recommendation }}
               </span>
-
             </td>
 
-            <!-- DOCUMENTS -->
-
+            <!-- REVIEWED BY -->
             <td>
-
-              <div
-                class="document-status"
-                :class="{
-                  complete:
-                    item.documentsComplete,
-                  incomplete:
-                    !item.documentsComplete,
-                }"
-              >
-
-                <FileCheck2
-                  v-if="
-                    item.documentsComplete
-                  "
-                  :size="14"
-                />
-
-                <XCircle
-                  v-else
-                  :size="14"
-                />
-
-                <span>
-                  {{
-                    item.documentsComplete
-                      ? 'Complete'
-                      : 'Incomplete'
-                  }}
-                </span>
-
-              </div>
-
-            </td>
-
-            <!-- REVIEWED -->
-
-            <td>
-
               <strong class="person-name">
-                {{
-                  item.reviewedBy ||
-                  'Not assigned'
-                }}
+                {{ item.reviewedBy || 'Not assigned' }}
               </strong>
-
             </td>
 
-            <!-- APPROVED -->
-
+            <!-- APPROVED BY -->
             <td>
-
               <div
                 v-if="item.approvedBy"
                 class="approval-cell"
               >
-
-                <CheckCircle2
-                  :size="13"
-                />
+                <CheckCircle2 :size="13" />
 
                 <div>
-
-                  <strong>
-                    {{
-                      item.approvedBy
-                    }}
-                  </strong>
+                  <strong>{{ item.approvedBy }}</strong>
 
                   <span>
-                    {{
-                      formatDate(
-                        item.approvalDate,
-                      )
-                    }}
+                    {{ formatDate(item.approvalDate) }}
                   </span>
-
                 </div>
-
               </div>
 
-              <span
-                v-else
-                class="muted-text"
-              >
+              <span v-else class="muted-text">
                 Pending
               </span>
-
             </td>
 
-            <!-- EFFECTIVE -->
-
+            <!-- EFFECTIVE DATE -->
             <td>
-
               <strong class="effective-date">
-                {{
-                  formatDate(
-                    item.effectiveDate,
-                  )
-                }}
+                {{ formatDate(item.effectiveDate) }}
               </strong>
-
             </td>
 
             <!-- STATUS -->
-
             <td>
-
               <span
                 class="status-badge"
-                :class="
-                  statusClass(
-                    item.status,
-                  )
-                "
+                :class="statusClass(item.status)"
               >
-
                 <span class="status-dot" />
-
                 {{ item.status }}
-
               </span>
-
             </td>
 
             <!-- REMARKS -->
-
             <td>
-
-              <p class="remarks">
-                {{
-                  item.remarks ||
-                  'No remarks'
-                }}
+              <p
+                class="remarks"
+                :title="item.remarks || 'No remarks'"
+              >
+                {{ item.remarks || 'No remarks' }}
               </p>
-
             </td>
 
-            <!-- ACTION -->
-
-            <td>
-
+            <!-- ACTIONS -->
+            <td class="action-column">
               <button
                 type="button"
-                class="action-button"
-                title="Regularization actions will be added later"
+                class="action-trigger"
+                aria-label="Regularization actions"
+                :aria-expanded="openId === item.id"
+                @click.stop="toggleMenu(item.id, $event)"
               >
-
-                <MoreHorizontal
-                  :size="18"
-                />
-
+                <MoreHorizontal :size="18" />
               </button>
-
             </td>
-
           </tr>
-
         </tbody>
-
       </table>
-
     </div>
 
-    <!-- EMPTY -->
+    <!-- EMPTY STATE -->
+    <div v-else class="empty-state">
+      <ClipboardCheck :size="29" />
 
-    <div
-      v-else
-      class="empty-state"
-    >
-
-      <CheckCircle2
-        :size="36"
-      />
-
-      <strong>
-        No regularization records found
-      </strong>
+      <strong>No regularization records found</strong>
 
       <span>
-        Try changing your regularization filters.
+        Try changing the filters or process a new regularization.
       </span>
-
     </div>
 
+    <!-- TELEPORTED ACTIONS -->
+    <Teleport to="body">
+      <div
+        v-if="openId !== null"
+        ref="menuRef"
+        class="regularization-action-menu"
+        :style="menuStyle"
+      >
+        <button
+          type="button"
+          @click="handleAction('view')"
+        >
+          <Eye :size="15" />
+          View Regularization
+        </button>
+
+        <template v-if="activeRecord?.status !== 'Regularized'">
+          <button
+            type="button"
+            @click="handleAction('edit')"
+          >
+            <Pencil :size="15" />
+            Edit Regularization
+          </button>
+
+          <button
+            type="button"
+            @click="handleAction('status')"
+          >
+            <RefreshCw :size="15" />
+            Update Status
+          </button>
+
+          <button
+            type="button"
+            @click="handleAction('recommendation')"
+          >
+            <ClipboardCheck :size="15" />
+            Record Recommendation
+          </button>
+
+          <template v-if="activeRecord?.status === 'Approved'">
+            <div class="menu-divider" />
+
+            <button
+              type="button"
+              class="complete-action"
+              @click="handleAction('complete')"
+            >
+              <CheckCircle2 :size="15" />
+              Complete Regularization
+            </button>
+          </template>
+        </template>
+      </div>
+    </Teleport>
   </article>
 </template>
 
 <style scoped>
 .table-card {
   overflow: hidden;
-
-  border:
-    1px solid var(--border);
-
+  border: 1px solid var(--border);
   border-radius: 11px;
-
-  background:
-    var(--bg-card);
-
-  box-shadow:
-    var(--shadow);
+  background: var(--bg-card);
+  box-shadow: var(--shadow);
 }
 
 .table-heading {
-  padding:
-    16px 17px;
-
-  border-bottom:
-    1px solid var(--border-soft);
+  padding: 15px 17px;
+  border-bottom: 1px solid var(--border-soft);
 }
 
 .table-heading h3 {
   margin: 0;
-
-  color:
-    var(--text-primary);
-
-  font-size: 15px;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 700;
 }
 
 .table-heading p {
-  margin:
-    5px 0 0;
-
-  color:
-    var(--text-muted);
-
-  font-size: 11px;
+  margin: 4px 0 0;
+  color: var(--text-muted);
+  font-size: 10px;
 }
 
 .table-scroll {
+  width: 100%;
   overflow-x: auto;
 }
 
-table {
+.regularization-table {
   width: 100%;
-
-  min-width: 2600px;
-
-  border-collapse:
-    collapse;
+  min-width: 1900px;
+  border-collapse: collapse;
 }
 
-th {
-  padding:
-    12px 13px;
-
-  background:
-    var(--bg-card-soft);
-
-  color:
-    var(--text-secondary);
-
-  font-size: 10px;
+.regularization-table th {
+  padding: 12px 13px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-card-soft);
+  color: var(--text-secondary);
+  font-size: 9px;
   font-weight: 700;
-
   text-align: left;
-
-  text-transform:
-    uppercase;
-
+  text-transform: uppercase;
   white-space: nowrap;
 }
 
-td {
-  padding:
-    13px;
-
-  border-top:
-    1px solid var(--border-soft);
-
-  color:
-    var(--text-secondary);
-
-  font-size: 10.5px;
-
+.regularization-table td {
+  padding: 12px 13px;
+  border-bottom: 1px solid var(--border-soft);
+  color: var(--text-secondary);
+  font-size: 10px;
   vertical-align: middle;
 }
 
-tbody tr:hover {
-  background:
-    var(--bg-card-soft);
+.regularization-table tbody tr:last-child td {
+  border-bottom: 0;
 }
 
-/* NUMBER */
+.regularization-table tbody tr:hover {
+  background: var(--bg-card-soft);
+}
 
 .record-number {
-  color:
-    var(--primary);
-
+  color: var(--primary);
+  font-size: 10px;
   white-space: nowrap;
 }
 
-/* EMPLOYEE */
-
 .employee-cell {
   display: flex;
-
-  min-width: 230px;
-
+  min-width: 195px;
   align-items: center;
-
   gap: 9px;
 }
 
 .employee-avatar {
   display: flex;
-
-  width: 37px;
-  height: 37px;
-
+  width: 34px;
+  height: 34px;
   flex-shrink: 0;
-
   align-items: center;
   justify-content: center;
-
-  border-radius: 9px;
-
-  background:
-    var(--primary-soft);
-
-  color:
-    var(--primary);
+  border-radius: 8px;
+  background: var(--primary-soft);
+  color: var(--primary);
 }
 
-.employee-cell strong,
-.employee-cell span {
+.employee-info strong,
+.employee-info span {
   display: block;
 }
 
-.employee-cell strong {
-  color:
-    var(--text-primary);
-
-  font-size: 11px;
+.employee-info strong {
+  color: var(--text-primary);
+  font-size: 10px;
 }
 
-.employee-cell span {
+.employee-info span {
   margin-top: 3px;
-
-  color:
-    var(--text-muted);
-
-  font-size: 9.5px;
+  color: var(--text-muted);
+  font-size: 9px;
 }
 
-.department {
-  color:
-    var(--text-primary);
-
+.department,
+.person-name,
+.target-date,
+.effective-date {
+  color: var(--text-primary);
   white-space: nowrap;
 }
 
-/* DATES */
-
 .date-cell {
   display: flex;
-
   align-items: center;
-
   gap: 6px;
-
   white-space: nowrap;
 }
 
 .date-cell svg {
-  color:
-    var(--text-muted);
-}
-
-.probation-date {
-  align-items: flex-start;
+  flex-shrink: 0;
+  color: var(--text-muted);
 }
 
 .probation-date svg {
-  margin-top: 2px;
-
-  color:
-    var(--orange);
+  color: var(--orange);
 }
 
 .probation-date strong,
@@ -787,225 +594,83 @@ tbody tr:hover {
 }
 
 .probation-date strong {
-  color:
-    var(--text-primary);
+  color: var(--text-primary);
 }
 
 .probation-date span {
-  margin-top: 2px;
-
-  color:
-    var(--text-muted);
-
+  margin-top: 3px;
+  color: var(--text-muted);
   font-size: 9px;
 }
 
-.target-date,
-.effective-date {
-  color:
-    var(--text-primary);
-
-  white-space: nowrap;
-}
-
-/* EVALUATION */
-
-.evaluation-badge {
+.evaluation-badge,
+.recommendation-badge,
+.status-badge {
   display: inline-flex;
-
-  padding:
-    5px 8px;
-
-  border-radius: 20px;
-
-  font-size: 9px;
-  font-weight: 650;
-
-  white-space: nowrap;
-}
-
-.evaluation-badge.completed {
-  background:
-    var(--green-soft);
-
-  color:
-    var(--green);
-}
-
-.evaluation-badge.in-progress {
-  background:
-    var(--primary-soft);
-
-  color:
-    var(--primary);
-}
-
-.evaluation-badge.pending {
-  background:
-    var(--orange-soft);
-
-  color:
-    var(--orange);
-}
-
-/* SCORE */
-
-.score-badge {
-  display: inline-flex;
-
   align-items: center;
-
-  gap: 5px;
-
-  padding:
-    6px 8px;
-
-  border-radius: 7px;
-
-  white-space: nowrap;
-}
-
-.score-badge svg {
-  color:
-    currentColor;
-}
-
-.score-badge.excellent {
-  background:
-    var(--green-soft);
-
-  color:
-    var(--green);
-}
-
-.score-badge.good {
-  background:
-    var(--primary-soft);
-
-  color:
-    var(--primary);
-}
-
-.score-badge.average {
-  background:
-    var(--orange-soft);
-
-  color:
-    var(--orange);
-}
-
-.score-badge.low {
-  background:
-    var(--red-soft);
-
-  color:
-    var(--red);
-}
-
-.score-badge.none {
-  background:
-    var(--bg-card-soft);
-
-  color:
-    var(--text-muted);
-}
-
-/* RECOMMENDATION */
-
-.recommendation-badge {
-  display: inline-flex;
-
-  padding:
-    5px 8px;
-
+  gap: 6px;
+  padding: 5px 9px;
   border-radius: 20px;
-
   font-size: 9px;
   font-weight: 650;
-
   white-space: nowrap;
 }
 
-.recommendation-badge.positive {
-  background:
-    var(--green-soft);
-
-  color:
-    var(--green);
+.evaluation-badge.completed,
+.recommendation-badge.positive,
+.status-badge.regularized {
+  background: var(--green-soft);
+  color: var(--green);
 }
 
+.evaluation-badge.in-progress,
+.status-badge.approved,
+.status-badge.for-review {
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+
+.evaluation-badge.pending,
+.status-badge.for-evaluation,
+.status-badge.extended,
 .recommendation-badge.extended {
-  background:
-    var(--orange-soft);
-
-  color:
-    var(--orange);
+  background: var(--orange-soft);
+  color: var(--orange);
 }
 
-.recommendation-badge.negative {
-  background:
-    var(--red-soft);
+.status-badge.recommended {
+  background: var(--purple-soft);
+  color: var(--purple);
+}
 
-  color:
-    var(--red);
+.status-badge.not-recommended,
+.recommendation-badge.negative {
+  background: var(--red-soft);
+  color: var(--red);
 }
 
 .recommendation-badge.pending {
-  background:
-    var(--bg-card-soft);
-
-  color:
-    var(--text-muted);
+  background: var(--bg-card-soft);
+  color: var(--text-muted);
 }
 
-/* DOCUMENT */
-
-.document-status {
-  display: inline-flex;
-
-  align-items: center;
-
-  gap: 5px;
-
-  font-weight: 650;
-
-  white-space: nowrap;
-}
-
-.document-status.complete {
-  color:
-    var(--green);
-}
-
-.document-status.incomplete {
-  color:
-    var(--red);
-}
-
-/* PEOPLE */
-
-.person-name {
-  color:
-    var(--text-primary);
-
-  white-space: nowrap;
+.status-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
 }
 
 .approval-cell {
   display: flex;
-
   min-width: 125px;
-
   align-items: flex-start;
-
   gap: 6px;
 }
 
 .approval-cell svg {
-  margin-top: 1px;
-
-  color:
-    var(--green);
+  flex-shrink: 0;
+  color: var(--green);
 }
 
 .approval-cell strong,
@@ -1014,191 +679,123 @@ tbody tr:hover {
 }
 
 .approval-cell strong {
-  color:
-    var(--text-primary);
-
+  color: var(--text-primary);
   font-size: 10px;
 }
 
 .approval-cell span {
-  margin-top: 2px;
-
-  color:
-    var(--text-muted);
-
+  margin-top: 3px;
+  color: var(--text-muted);
   font-size: 9px;
 }
 
 .muted-text {
-  color:
-    var(--text-muted);
+  color: var(--text-muted);
 }
 
-/* STATUS */
-
-.status-badge {
-  display: inline-flex;
-
-  align-items: center;
-
-  gap: 5px;
-
-  padding:
-    5px 8px;
-
-  border-radius: 20px;
-
-  font-size: 9px;
-  font-weight: 650;
-
+.remarks {
+  width: 185px;
+  margin: 0;
+  overflow: hidden;
+  color: var(--text-secondary);
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.status-dot {
-  width: 5px;
-  height: 5px;
-
-  border-radius: 50%;
-
-  background:
-    currentColor;
+.action-column {
+  width: 55px;
+  text-align: center !important;
+  position: static !important;
+  right: auto !important;
+  left: auto !important;
 }
 
-.status-badge.regularized {
-  background:
-    var(--green-soft);
+/* BORDERLESS UNTIL HOVER */
 
-  color:
-    var(--green);
-}
-
-.status-badge.approved {
-  background:
-    var(--primary-soft);
-
-  color:
-    var(--primary);
-}
-
-.status-badge.recommended {
-  background:
-    var(--purple-soft);
-
-  color:
-    var(--purple);
-}
-
-.status-badge.review {
-  background:
-    var(--primary-soft);
-
-  color:
-    var(--primary);
-}
-
-.status-badge.evaluation {
-  background:
-    var(--orange-soft);
-
-  color:
-    var(--orange);
-}
-
-.status-badge.extended {
-  background:
-    var(--orange-soft);
-
-  color:
-    var(--orange);
-}
-
-.status-badge.not-recommended {
-  background:
-    var(--red-soft);
-
-  color:
-    var(--red);
-}
-
-/* REMARKS */
-
-.remarks {
-  width: 235px;
-
-  margin: 0;
-
-  overflow: hidden;
-
-  color:
-    var(--text-secondary);
-
-  text-overflow:
-    ellipsis;
-
-  white-space:
-    nowrap;
-}
-
-/* ACTION */
-
-.action-button {
-  display: flex;
-
-  width: 32px;
-  height: 32px;
-
+.action-trigger {
+  display: inline-flex;
+  width: 30px;
+  height: 30px;
   align-items: center;
   justify-content: center;
-
-  border:
-    1px solid transparent;
-
+  border: 1px solid transparent;
   border-radius: 7px;
-
-  background:
-    transparent;
-
-  color:
-    var(--text-secondary);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease,
+    color 0.15s ease;
 }
 
-.action-button:hover {
-  border-color:
-    var(--border);
-
-  background:
-    var(--bg-card-soft);
-
-  color:
-    var(--primary);
+.action-trigger:hover,
+.action-trigger[aria-expanded="true"] {
+  border-color: var(--border);
+  background: var(--bg-card-soft);
+  color: var(--primary);
 }
-
-/* EMPTY */
 
 .empty-state {
   display: flex;
-
-  min-height: 280px;
-
+  min-height: 230px;
   flex-direction: column;
-
   align-items: center;
   justify-content: center;
-
-  gap: 8px;
-
-  color:
-    var(--text-muted);
+  gap: 9px;
+  padding: 20px;
+  color: var(--text-muted);
 }
 
 .empty-state strong {
-  color:
-    var(--text-primary);
-
-  font-size: 13px;
+  color: var(--text-primary);
+  font-size: 12px;
 }
 
 .empty-state span {
+  font-size: 10px;
+}
+</style>
+
+<style>
+.regularization-action-menu {
+  position: fixed;
+  z-index: 10020;
+  width: 210px;
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--bg-card);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.25);
+}
+
+.regularization-action-menu button {
+  display: flex;
+  width: 100%;
+  min-height: 36px;
+  align-items: center;
+  gap: 9px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
   font-size: 11px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.regularization-action-menu button:hover {
+  background: var(--bg-card-soft);
+  color: var(--text-primary);
+}
+
+.regularization-action-menu button.complete-action {
+  color: var(--green);
+}
+
+.regularization-action-menu .menu-divider {
+  margin: 5px 4px;
+  border-top: 1px solid var(--border-soft);
 }
 </style>

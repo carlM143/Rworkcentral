@@ -2,7 +2,6 @@
 import {
   BriefcaseBusiness,
   Building2,
-  MoreHorizontal,
   Users,
 } from 'lucide-vue-next'
 
@@ -13,9 +12,10 @@ import type {
 } from '~/types/position'
 
 defineProps<{
-  positions:
-    Position[]
+  positions: Position[]
 }>()
+
+const emit = defineEmits<{ edit: [position: Position] }>()
 
 const formatCurrency = (
   value?: number,
@@ -400,17 +400,7 @@ const vacancyCount = (
 
             <td>
 
-              <button
-                type="button"
-                class="action-button"
-                title="Actions will be added later"
-              >
-
-                <MoreHorizontal
-                  :size="18"
-                />
-
-              </button>
+              <PositionActions :position="item" @edit="emit('edit', $event)" />
 
             </td>
 
