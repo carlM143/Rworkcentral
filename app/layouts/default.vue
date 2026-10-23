@@ -457,6 +457,13 @@ const goToCompanySettings = async () => {
   )
 }
 
+
+const handleMyAccount = async () => {
+  closeCompanyMenu()
+  await router.push('/settings/my-account')
+}
+
+
 const handleAdminLogout = async () => {
   closeCompanyMenu()
 
@@ -951,33 +958,19 @@ onBeforeUnmount(() => {
 
         <div class="dropdown-divider" />
 
-        <!-- ACCOUNT -->
+      <!-- ACCOUNT -->
+      <button
+        type="button"
+        class="dropdown-item"
+        @click="handleMyAccount"
+      >
+        <UserRound :size="16" />
 
-        <button
-          type="button"
-          class="dropdown-item"
-          @click="
-            closeCompanyMenu
-          "
-        >
-
-          <UserRound
-            :size="16"
-          />
-
-          <div>
-
-            <strong>
-              My Account
-            </strong>
-
-            <span>
-              Administrator profile
-            </span>
-
-          </div>
-
-        </button>
+        <div>
+          <strong>My Account</strong>
+          <span>Manage administrator profile</span>
+        </div>
+      </button>
 
         <!-- COMPANY SETTINGS -->
 
@@ -1002,43 +995,8 @@ onBeforeUnmount(() => {
             <span>
               Company information
             </span>
-
           </div>
-
         </button>
-
-        <!-- CURRENT BRANCH -->
-
-        <button
-          type="button"
-          class="dropdown-item"
-          @click="
-            closeCompanyMenu
-          "
-        >
-
-          <MapPin
-            :size="16"
-          />
-
-          <div>
-
-            <strong>
-              Main Branch
-            </strong>
-
-            <span>
-              Current branch
-            </span>
-
-          </div>
-
-          <span class="current-badge">
-            Current
-          </span>
-
-        </button>
-
         <div class="dropdown-divider" />
 
         <!-- LOGOUT -->
