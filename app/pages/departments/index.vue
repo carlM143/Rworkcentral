@@ -1,52 +1,5 @@
 
 <script setup lang="ts">
-<<<<<<< Updated upstream
-import {
-  Plus,
-  Download,
-} from 'lucide-vue-next'
-
-const {
-  search,
-  status,
-
-  currentPage,
-
-  paginatedDepartments,
-  filteredDepartments,
-
-  totalPages,
-
-  showingFrom,
-  showingTo,
-
-  stats,
-  statusOptions,
-
-  getEmployeeCount,
-  getPositionCount,
-
-  resetFilters,
-} = useDepartments()
-
-const {
-  info,
-} = useToast()
-
-const handleAddDepartment = () => {
-  info(
-    'Add Department',
-    'Add Department form will be implemented next.',
-  )
-}
-
-const handleExport = () => {
-  info(
-    'Export Departments',
-    'Department export will be connected later.',
-  )
-}
-=======
 import { Plus, Download, X, Building2, FileSpreadsheet, FileText, Table2, Save } from 'lucide-vue-next'
 import type { Department, DepartmentFormData } from '~/types/department'
 import { useDepartments } from '~/composables/departments/useDepartments'
@@ -160,39 +113,10 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => window.removeEventListener('keydown', onEscape))
->>>>>>> Stashed changes
 </script>
 
 <template>
   <section class="departments-page">
-<<<<<<< Updated upstream
-
-    <!-- HEADER -->
-    <PageHeader
-      title="Departments"
-      description="Manage organizational departments, department heads and workforce assignments."
-    >
-      <AppButton
-        variant="secondary"
-        :icon="Download"
-        @click="handleExport"
-      >
-        Export
-      </AppButton>
-
-      <AppButton
-        :icon="Plus"
-        @click="handleAddDepartment"
-      >
-        Add Department
-      </AppButton>
-    </PageHeader>
-
-    <!-- STATS -->
-    <DepartmentStats
-      :stats="stats"
-    />
-=======
 
     <!-- PAGE HEADER -->
     <PageHeader title="Departments" description="Manage organizational departments, department codes and workforce assignments.">
@@ -211,7 +135,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onEscape))
 
     <!-- STATISTICS -->
     <DepartmentStats :stats="stats" />
->>>>>>> Stashed changes
 
     <!-- FILTERS -->
     <DepartmentFilters
@@ -221,39 +144,6 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onEscape))
       @reset="resetFilters"
     />
 
-<<<<<<< Updated upstream
-    <!-- TABLE -->
-    <DepartmentTable
-      :departments="paginatedDepartments"
-      :get-employee-count="getEmployeeCount"
-      :get-position-count="getPositionCount"
-    />
-
-    <!-- FOOTER -->
-    <div class="table-footer">
-      <p>
-        Showing
-
-        <strong>
-          {{ showingFrom }}–{{ showingTo }}
-        </strong>
-
-        of
-
-        <strong>
-          {{ filteredDepartments.length }}
-        </strong>
-
-        departments
-      </p>
-
-      <AppPagination
-        v-model="currentPage"
-        :total-pages="totalPages"
-      />
-    </div>
-
-=======
     <!-- DEPARTMENT TABLE -->
     <DepartmentTable :departments="paginatedDepartments" @edit="openEdit" @delete="handleDelete" />
 
@@ -389,52 +279,10 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onEscape))
       </Transition>
     </Teleport>
 
->>>>>>> Stashed changes
   </section>
 </template>
 
 <style scoped>
-<<<<<<< Updated upstream
-.departments-page {
-  width: 100%;
-  max-width: 1660px;
-
-  margin: 0 auto;
-}
-
-.table-footer {
-  display: flex;
-
-  align-items: center;
-  justify-content: space-between;
-
-  gap: 20px;
-
-  padding: 13px 3px 0;
-}
-
-.table-footer p {
-  margin: 0;
-
-  color: var(--text-muted);
-
-  font-size: 10px;
-}
-
-.table-footer strong {
-  color: var(--text-primary);
-
-  font-weight: 600;
-}
-
-@media (max-width: 650px) {
-  .table-footer {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-}
-</style>
-=======
 /* PAGE */
 .departments-page { width: 100%; max-width: 1660px; margin: 0 auto; }
 
@@ -506,4 +354,3 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onEscape))
   .dept-summary-grid { grid-template-columns: repeat(2,1fr); }
 }
 </style>
->>>>>>> Stashed changes

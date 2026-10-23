@@ -3,6 +3,7 @@
 import { BriefcaseBusiness, Building2, UserRound, CalendarDays, Clock3, BadgeCheck } from 'lucide-vue-next'
 import { useDepartmentApi, type DepartmentApiRecord } from '~/composables/departments/useDepartmentApi'
 import { usePositionApi, type PositionApiRecord } from '~/composables/departments/positions/usePositionApi'
+import { useWorkSchedules } from '~/composables/employeeSchedule/useWorkSchedules'
 
 const { form } = useEmployeeForm()
 const { $api } = useNuxtApp()
@@ -41,28 +42,6 @@ const positionOptions = computed(() =>
     .sort((a, b) => a.position.localeCompare(b.position))
 )
 
-<<<<<<< Updated upstream
-const workSchedules = [
-  '8:00 AM - 5:00 PM',
-  '7:00 AM - 4:00 PM',
-  '9:00 AM - 6:00 PM',
-  '6:00 AM - 3:00 PM',
-  '2:00 PM - 11:00 PM',
-  '10:00 PM - 7:00 AM',
-  'Flexible Schedule',
-]
-
-const restDays = [
-  'Sunday',
-  'Monday',
-  'Tuesday',
-  'Wednesday',
-  'Thursday',
-  'Friday',
-  'Saturday',
-  'Saturday & Sunday',
-]
-=======
 const {
   schedules,
   loading: loadingWorkSchedules,
@@ -89,7 +68,6 @@ const loadAvailableWorkSchedules = async () => {
     )
   }
 }
->>>>>>> Stashed changes
 
 const employeeSummary = computed(() => {
   const name = [form.value.firstName, form.value.middleName, form.value.lastName].filter(Boolean).join(' ')
@@ -385,19 +363,6 @@ onMounted(() => {
             <small class="field-hint">Used as basis for attendance, late and undertime calculations.</small>
           </div>
 
-<<<<<<< Updated upstream
-          <!-- REST DAY -->
-          <div class="form-field">
-            <label class="field-label">
-              Rest Day
-            </label>
-
-            <AppSelect
-              v-model="form.restDay"
-              :options="restDays"
-              placeholder="Select rest day"
-            />
-=======
           <div class="form-field">
             <label class="field-label">Rest Day</label>
             <div class="rest-day-options">
@@ -420,7 +385,6 @@ onMounted(() => {
             </div>
             <small v-if="loadingRestDays" class="field-hint">Loading rest days...</small>
             <small class="field-hint">Select the employee's default weekly rest day.</small>
->>>>>>> Stashed changes
           </div>
         </div>
 
@@ -437,7 +401,6 @@ onMounted(() => {
 </template>
 
 <style scoped>
-<<<<<<< Updated upstream
 .employment-layout {
   display: grid;
 
@@ -775,48 +738,12 @@ onMounted(() => {
     grid-template-columns: 1fr;
   }
 }
-</style>
-=======
-.employment-layout{display:grid;grid-template-columns:230px minmax(0,1fr);gap:24px}
-.summary-column{padding-right:22px;border-right:1px solid var(--border-soft)}
-.employee-summary{display:flex;flex-direction:column;align-items:center;padding-bottom:18px;text-align:center}
-.summary-avatar{display:flex;width:72px;height:72px;align-items:center;justify-content:center;margin-bottom:10px;border-radius:50%;background:var(--primary-soft);color:var(--primary)}
-.employee-summary strong{max-width:190px;overflow:hidden;color:var(--text-primary);font-size:12px;font-weight:700;white-space:nowrap;text-overflow:ellipsis}
-.summary-box{overflow:hidden;border:1px solid var(--border);border-radius:10px;background:var(--bg-card-soft)}
-.summary-item{display:flex;align-items:center;gap:9px;padding:11px;border-bottom:1px solid var(--border-soft)}
-.summary-item:last-child{border-bottom:0}
-.summary-icon{display:flex;width:30px;height:30px;flex-shrink:0;align-items:center;justify-content:center;border-radius:8px;background:var(--primary-soft);color:var(--primary)}
-.summary-item span,.summary-item strong{display:block}
-.summary-item span{color:var(--text-muted);font-size:8px}
-.summary-item strong{margin-top:2px;color:var(--text-primary);font-size:9px;font-weight:600}
-.summary-note{margin-top:13px;padding:10px;border-radius:8px;background:var(--primary-soft);color:var(--text-secondary);font-size:8px;line-height:1.55}
-.employment-form{min-width:0}
-.section-title{display:flex;align-items:center;gap:9px;margin-bottom:14px}
-.section-title-icon{display:flex;width:31px;height:31px;flex-shrink:0;align-items:center;justify-content:center;border-radius:8px;background:var(--primary-soft);color:var(--primary)}
-.section-title-icon.green{background:var(--green-soft);color:var(--green)}
-.section-title-icon.orange{background:var(--orange-soft);color:var(--orange)}
-.section-title strong,.section-title span{display:block}
-.section-title strong{color:var(--text-primary);font-size:11px;font-weight:650}
-.section-title span{margin-top:2px;color:var(--text-muted);font-size:8px}
-.form-grid{display:grid;gap:14px}
-.two-column{grid-template-columns:repeat(2,minmax(0,1fr))}
-.form-row{margin-top:16px}
-.form-field{min-width:0}
-.field-label{display:block;margin-bottom:7px;color:var(--text-secondary);font-size:10px;font-weight:600}
-.field-label span{color:var(--red)}
-.field-hint{display:block;margin-top:5px;color:var(--text-muted);font-size:8px}
 .lookup-select{width:100%;height:40px;padding:0 34px 0 12px;border:1px solid var(--border);border-radius:8px;outline:0;background:var(--bg-card);color:var(--text-primary);font-size:12px;font-family:inherit;cursor:pointer;transition:border-color .18s ease,box-shadow .18s ease}
 .lookup-select:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(36,107,253,.08)}
 .lookup-select:disabled{opacity:.6;cursor:not-allowed}
 .lookup-select option{background:var(--bg-card);color:var(--text-primary)}
 .organization-error{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:12px;padding:10px;border:1px solid var(--red);border-radius:8px;color:var(--red);font-size:10px}
 .organization-error button{padding:6px 11px;border:1px solid var(--border);border-radius:6px;background:var(--bg-card);color:var(--text-primary);cursor:pointer}
-.section-divider{height:1px;margin:24px 0 18px;background:var(--border-soft)}
-.integration-note{display:flex;align-items:flex-start;gap:10px;margin-top:22px;padding:12px;border:1px solid color-mix(in srgb,var(--primary) 20%,var(--border));border-radius:9px;background:color-mix(in srgb,var(--primary-soft) 55%,var(--bg-card));color:var(--primary)}
-.integration-note svg{flex-shrink:0}
-.integration-note strong,.integration-note span{display:block}
-.integration-note strong{color:var(--text-primary);font-size:9px}
-.integration-note span{margin-top:3px;color:var(--text-secondary);font-size:8px;line-height:1.5}
 .rest-day-options{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px}
 .rest-day-option{position:relative;display:flex;min-height:38px;align-items:center;gap:8px;padding:0 10px;border:1px solid var(--border);border-radius:8px;background:var(--bg-card);color:var(--text-secondary);font-size:9px;cursor:pointer;transition:border-color .15s ease,background .15s ease,color .15s ease}
 .rest-day-option:hover{border-color:var(--primary)}
@@ -827,7 +754,5 @@ onMounted(() => {
 .rest-day-option.selected .radio-control::after{position:absolute;top:50%;left:50%;width:7px;height:7px;transform:translate(-50%,-50%);border-radius:50%;background:var(--primary);content:''}
 .radio-label{font-weight:550}
 @media(max-width:1100px){.rest-day-options{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media(max-width:900px){.employment-layout{grid-template-columns:1fr}.summary-column{width:100%;max-width:450px;margin:0 auto;padding-right:0;padding-bottom:20px;border-right:0;border-bottom:1px solid var(--border-soft)}}
-@media(max-width:600px){.two-column{grid-template-columns:1fr}.rest-day-options{grid-template-columns:1fr}}
+@media(max-width:600px){.rest-day-options{grid-template-columns:1fr}}
 </style>
->>>>>>> Stashed changes

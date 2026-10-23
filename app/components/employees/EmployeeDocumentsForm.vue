@@ -15,7 +15,6 @@ const {
   removeDocument,
 } = useEmployeeForm()
 
-<<<<<<< Updated upstream
 const documentTypes = [
   'Employment Contract',
   'Valid ID',
@@ -29,94 +28,6 @@ const documentTypes = [
   'Medical Certificate',
   'Diploma / Transcript',
   'Other',
-=======
-interface DocumentRequirement {
-  id: string
-  label: string
-  category: string
-  description: string
-}
-
-const requirements: DocumentRequirement[] = [
-  {
-    id: 'tin',
-    label: 'Tax Identification Number (TIN)',
-    category: 'Government',
-    description: 'TIN verification or an applicable BIR document.',
-  },
-  {
-    id: 'sss',
-    label: 'SSS Number',
-    category: 'Government',
-    description: 'SSS number verification or supporting document.',
-  },
-  {
-    id: 'philhealth',
-    label: 'PhilHealth Number',
-    category: 'Government',
-    description: 'PhilHealth membership or number verification.',
-  },
-  {
-    id: 'pagibig',
-    label: 'Pag-IBIG (HDMF) Number',
-    category: 'Government',
-    description: 'Pag-IBIG or HDMF membership number verification.',
-  },
-  {
-    id: 'nbi-clearance',
-    label: 'NBI Clearance',
-    category: 'Clearance',
-    description: 'Valid NBI clearance submitted by the employee.',
-  },
-  {
-    id: 'police-clearance',
-    label: 'Police Clearance',
-    category: 'Clearance',
-    description: 'Valid police clearance submitted by the employee.',
-  },
-  {
-    id: 'psa-birth-certificate',
-    label: 'PSA Birth Certificate',
-    category: 'Personal',
-    description: 'Official birth certificate issued by the Philippine Statistics Authority.',
-  },
-  {
-    id: 'valid-government-id',
-    label: 'Valid Government ID',
-    category: 'Identification',
-    description: 'A current government-issued photo identification document.',
-  },
-  {
-    id: 'transcript-of-records',
-    label: 'Transcript of Records',
-    category: 'Education',
-    description: 'Official academic transcript from the employee’s school or university.',
-  },
-  {
-    id: 'diploma',
-    label: 'Diploma',
-    category: 'Education',
-    description: 'Diploma supporting the employee’s declared educational attainment.',
-  },
-  {
-    id: 'certificate-of-employment',
-    label: 'Certificate of Employment (COE)',
-    category: 'Employment',
-    description: 'Certificate from previous employers, when applicable, proving the employee’s work history.',
-  },
-  {
-    id: 'previous-employer-clearance',
-    label: 'Clearance from Previous Employer',
-    category: 'Employment',
-    description: 'Confirms that the employee has no outstanding liabilities with a previous employer.',
-  },
-  {
-    id: 'pre-employment-medical-examination',
-    label: 'Pre-Employment Medical Examination (PEME)',
-    category: 'Medical',
-    description: 'Medical examination from a company-accredited clinic, typically including a chest X-ray, urine test, and physical exam.',
-  },
->>>>>>> Stashed changes
 ]
 
 const selectedType = ref('')
@@ -208,13 +119,8 @@ const uploadedCount = computed(
 
 <template>
   <FormSection
-<<<<<<< Updated upstream
     title="Employee Documents"
     description="Upload and organize the employee's required employment and compliance documents."
-=======
-    title="Employment Documents"
-    description="Mark the employment and compliance requirements already submitted by the employee."
->>>>>>> Stashed changes
     :icon="Files"
   >
     <div class="documents-layout">
@@ -354,7 +260,6 @@ const uploadedCount = computed(
           </div>
         </div>
 
-<<<<<<< Updated upstream
         <div class="section-divider" />
 
         <!-- ====================================
@@ -449,8 +354,6 @@ const uploadedCount = computed(
           </div>
         </div>
 
-=======
->>>>>>> Stashed changes
         <!-- INFO -->
         <div class="information-card">
           <div class="information-icon">
@@ -932,250 +835,8 @@ const uploadedCount = computed(
 
   border-radius: 8px;
 
-<<<<<<< Updated upstream
   background: var(--primary-soft);
   color: var(--primary);
-=======
-  background:
-    var(--primary-soft);
-
-  color:
-    var(--primary);
-}
-
-.section-title strong,
-.section-title span {
-  display: block;
-}
-
-.section-title strong {
-  color:
-    var(--text-primary);
-
-  font-size: 10px;
-}
-
-.section-title span {
-  margin-top: 2px;
-
-  color:
-    var(--text-muted);
-
-  font-size: 7.5px;
-}
-
-/* CHECKLIST */
-
-.requirements-grid {
-  display: grid;
-
-  grid-template-columns:
-    repeat(
-      2,
-      minmax(0, 1fr)
-    );
-
-  gap: 8px;
-}
-
-.requirement-card {
-  position: relative;
-
-  display: grid;
-
-  grid-template-columns:
-    auto auto minmax(0, 1fr);
-
-  align-items: flex-start;
-
-  gap: 9px;
-
-  min-height: 100px;
-
-  padding: 11px;
-
-  border:
-    1px solid var(--border);
-
-  border-radius: 9px;
-
-  background:
-    var(--bg-card-soft);
-
-  cursor: pointer;
-
-  transition:
-    border-color 0.18s ease,
-    background 0.18s ease,
-    transform 0.18s ease;
-}
-
-.requirement-card:hover {
-  border-color:
-    var(--primary);
-
-  transform:
-    translateY(-1px);
-}
-
-.requirement-card.selected {
-  border-color:
-    var(--primary);
-
-  background:
-    var(--primary-soft);
-}
-
-.checkbox-wrap {
-  padding-top: 2px;
-}
-
-.checkbox-wrap input {
-  width: 15px;
-  height: 15px;
-
-  margin: 0;
-
-  accent-color:
-    var(--primary);
-
-  cursor: pointer;
-}
-
-.requirement-icon {
-  display: flex;
-
-  width: 32px;
-  height: 32px;
-
-  align-items: center;
-  justify-content: center;
-
-  border-radius: 8px;
-
-  background:
-    var(--bg-card);
-
-  color:
-    var(--text-muted);
-}
-
-.requirement-icon.selected {
-  background:
-    var(--green-soft);
-
-  color:
-    var(--green);
-}
-
-.requirement-info {
-  min-width: 0;
-}
-
-.requirement-top {
-  display: flex;
-
-  align-items: center;
-  justify-content: space-between;
-
-  gap: 7px;
-}
-
-.requirement-top strong {
-  color:
-    var(--text-primary);
-
-  font-size: 8.5px;
-}
-
-.status-badge {
-  flex-shrink: 0;
-
-  padding:
-    3px 6px;
-
-  border-radius: 20px;
-
-  background:
-    var(--orange-soft);
-
-  color:
-    var(--orange);
-
-  font-size: 6.5px;
-  font-weight: 700;
-}
-
-.status-badge.submitted {
-  background:
-    var(--green-soft);
-
-  color:
-    var(--green);
-}
-
-.category {
-  display: block;
-
-  margin-top: 3px;
-
-  color:
-    var(--primary);
-
-  font-size: 6.5px;
-  font-weight: 600;
-}
-
-.requirement-info p {
-  margin:
-    5px 0 0;
-
-  color:
-    var(--text-muted);
-
-  font-size: 7px;
-
-  line-height: 1.45;
-}
-
-/* INFO */
-
-.information-card {
-  display: flex;
-
-  align-items: flex-start;
-
-  gap: 9px;
-
-  margin-top: 15px;
-
-  padding: 10px;
-
-  border-radius: 8px;
-
-  background:
-    var(--primary-soft);
-}
-
-.information-icon {
-  display: flex;
-
-  width: 31px;
-  height: 31px;
-
-  flex-shrink: 0;
-
-  align-items: center;
-  justify-content: center;
-
-  border-radius: 7px;
-
-  background:
-    var(--bg-card);
-
-  color:
-    var(--primary);
->>>>>>> Stashed changes
 }
 
 .information-card strong {

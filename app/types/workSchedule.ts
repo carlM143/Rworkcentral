@@ -16,12 +16,9 @@ export interface WorkSchedule {
 
   workHours: number
   gracePeriod: number
-<<<<<<< Updated upstream
 
   restDays: string[]
 
-=======
->>>>>>> Stashed changes
   employeeCount: number
 
   status: WorkScheduleStatus
@@ -39,11 +36,8 @@ export interface WorkScheduleFormData {
 
   workHours: number
   gracePeriod: number
-<<<<<<< Updated upstream
 
   restDays: string[]
 
-=======
->>>>>>> Stashed changes
   status: WorkScheduleStatus
 }
