@@ -70,6 +70,13 @@ const formatDate = (
     new Date(`${date}T00:00:00`),
   )
 }
+
+const emit = defineEmits<{
+  statusChanged: [payload: { id: number; status: 'Active' | 'Inactive' }]
+}>()
+
+
+
 </script>
 
 <template>
@@ -173,6 +180,7 @@ const formatDate = (
               <EmployeeActions
                 :employee="employee"
                 :mode="mode"
+                @status-changed="emit('statusChanged', $event)"
               />
             </td>
           </tr>

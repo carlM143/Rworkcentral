@@ -1,9 +1,96 @@
 import type { Employee } from '~/types/employee'
 
+interface EmployeeIndexRecord {
+  id: number
+  emp_id: number | string
+  firstname: string
+  middlename?: string | null
+  lastname: string
+  birthday?: string | null
+  gender?: string | null
+  civil_status?: string | null
+  profile_photo?: string | null
+  status: boolean | number | string
+  department?: {
+    department_name?: string | null
+  } | null
+  contact_information?: {
+    email?: string | null
+    mobile?: string | null
+    residential_address?: string | null
+  } | null
+  employments?: Array<{
+    id: number
+    date_hired?: string | null
+    employment_type?: {
+      name?: string | null
+    } | null
+    department?: {
+      department_name?: string | null
+    } | null
+    position?: {
+      position?: string | null
+    } | null
+    work_schedule?: {
+      schedule_name?: string | null
+    } | null
+    restday?: {
+      rest_day?: string | null
+    } | null
+  }>
+}
+
+interface EmployeeIndexResponse {
+  success: boolean
+  message: string
+  data: EmployeeIndexRecord[]
+}
+
+const dateOnly = (value?: string | null) => value?.slice(0, 10) ?? ''
+
+const mapEmployeeRecord = (record: EmployeeIndexRecord): Employee => {
+  const employments = [...(record.employments ?? [])]
+    .sort((first, second) => first.id - second.id)
+  const employment = employments[employments.length - 1]
+  const isActive = record.status === true
+    || record.status === 1
+    || record.status === '1'
+    || record.status === 'true'
+
+  return {
+    id: record.id,
+    employeeNumber: String(record.emp_id),
+    firstName: record.firstname,
+    middleName: record.middlename ?? undefined,
+    lastName: record.lastname,
+    email: record.contact_information?.email ?? 'Not provided',
+    phone: record.contact_information?.mobile ?? undefined,
+    avatar: record.profile_photo ?? undefined,
+    birthDate: dateOnly(record.birthday),
+    gender: record.gender ?? undefined,
+    civilStatus: record.civil_status ?? undefined,
+    address: record.contact_information?.residential_address ?? undefined,
+    department: employment?.department?.department_name
+      ?? record.department?.department_name
+      ?? 'Not assigned',
+    position: employment?.position?.position ?? 'Not assigned',
+    employmentType: (employment?.employment_type?.name ?? 'Not assigned') as Employee['employmentType'],
+    status: isActive ? 'Active' : 'Inactive',
+    dateHired: dateOnly(employment?.date_hired),
+    workSchedule: employment?.work_schedule?.schedule_name ?? undefined,
+    restDay: employment?.restday?.rest_day ?? undefined,
+  }
+}
+
 export const useEmployees = (
   statusFilter: 'Active' | 'Inactive' = 'Active',
+  loadFromApi = false,
 ) => {
-  const employees = ref<Employee[]>([
+  const { $api } = useNuxtApp()
+  const loading = ref(loadFromApi)
+  const loadError = ref('')
+
+  const employees = ref<Employee[]>(loadFromApi ? [] : [
     {
   id: 1,
   employeeNumber: 'EMP-001',
@@ -283,6 +370,40 @@ export const useEmployees = (
    },
   ])
 
+  const loadEmployees = async () => {
+    if (!loadFromApi) return
+
+    loading.value = true
+    loadError.value = ''
+
+    try {
+      const response = await $api<EmployeeIndexResponse>('/admin/employees', {
+        method: 'GET',
+        query: {
+          status: statusFilter === 'Active' ? 1 : 0,
+        },
+      })
+
+      employees.value = response.data.map(mapEmployeeRecord)
+    } catch (problem: any) {
+      employees.value = []
+      loadError.value = problem?.data?.message
+        ?? problem?.response?._data?.message
+        ?? problem?.message
+        ?? 'Unable to load employees from the backend.'
+
+      console.error('Employee Index API Error:', problem)
+    } finally {
+      loading.value = false
+    }
+  }
+
+  if (loadFromApi) {
+    onMounted(() => {
+      void loadEmployees()
+    })
+  }
+
   const search = ref('')
   const department = ref('')
   const position = ref('')
@@ -482,6 +603,9 @@ export const useEmployees = (
 
   return {
     employees,
+    loading,
+    loadError,
+    loadEmployees,
 
     search,
     department,

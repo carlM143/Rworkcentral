@@ -3,7 +3,7 @@ import {
   Building2,
   BadgeCheck,
   Users,
-  UserRoundX,
+  Ban,
 } from 'lucide-vue-next'
 
 defineProps<{
@@ -11,13 +11,14 @@ defineProps<{
     total: number
     active: number
     employees: number
-    vacantHeads: number
+    inactive: number
   }
 }>()
 </script>
 
 <template>
   <div class="department-stats">
+
     <StatCard
       label="Total Departments"
       :value="stats.total"
@@ -37,18 +38,19 @@ defineProps<{
     <StatCard
       label="Assigned Employees"
       :value="stats.employees"
-      description="Active workforce assigned"
+      description="Employment records assigned"
       :icon="Users"
       tone="purple"
     />
 
     <StatCard
-      label="Vacant Department Heads"
-      :value="stats.vacantHeads"
-      description="Requires assignment"
-      :icon="UserRoundX"
+      label="Inactive Departments"
+      :value="stats.inactive"
+      description="Currently inactive departments"
+      :icon="Ban"
       tone="orange"
     />
+
   </div>
 </template>
 

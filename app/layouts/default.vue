@@ -3,6 +3,8 @@ import {
   LayoutDashboard,
   Users,
   Clock3,
+  CalendarClock,
+  ListChecks,
   Umbrella,
   TimerReset,
   WalletCards,
@@ -71,7 +73,7 @@ const menuItems = [
     children: [
       {
         label: 'Add New Employee',
-        to: '/create-employee',
+        to: '/employees/create-employee',
       },
       {
         label: 'Active Employees',
@@ -95,10 +97,6 @@ const menuItems = [
       {
         label: 'Overview',
         to: '/timekeeping',
-      },
-      {
-        label: 'Work Schedules',
-        to: '/timekeeping/work-schedules',
       },
       {
         label: 'Overtime Requests',
@@ -140,6 +138,12 @@ const menuItems = [
   },
 
   {
+    label: 'Work Schedules',
+    icon: CalendarClock,
+    to: '/work-schedules',
+  },
+
+  {
     label: 'Payroll',
     key: 'payroll',
     icon: WalletCards,
@@ -167,8 +171,8 @@ const menuItems = [
         to: '/driver-pay-periods',
       },
       {
-        label: 'Employee Pay Periods',
-        to: '/employee-pay-periods',
+        label: 'Payroll Periods',
+        to: '/payroll/payroll-period',
       },
 
       // OLD SYSTEM PAYROLL SUBMENU
@@ -572,13 +576,18 @@ const handleAdminLogout = async () => {
   closeCompanyMenu()
 
   if (import.meta.client) {
-    sessionStorage.removeItem(
-      'rworkcentral-auth',
-    )
+    for (const storage of [
+      sessionStorage,
+      localStorage,
+    ]) {
+      storage.removeItem('rworkcentral-auth')
+      storage.removeItem('rworkcentral-token')
+      storage.removeItem('rworkcentral-user')
+    }
   }
 
   await router.replace(
-    '/admin/login',
+    '/auth/login',
   )
 }
 

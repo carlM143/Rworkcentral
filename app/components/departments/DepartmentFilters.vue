@@ -7,15 +7,13 @@ defineProps<{
   statusOptions: string[]
 }>()
 
-const search =
-  defineModel<string>('search', {
-    default: '',
-  })
+const search = defineModel<string>('search', {
+  default: '',
+})
 
-const status =
-  defineModel<string>('status', {
-    default: '',
-  })
+const status = defineModel<string>('status', {
+  default: '',
+})
 
 defineEmits<{
   reset: []
@@ -30,7 +28,7 @@ defineEmits<{
         v-model="search"
         searchable
         clearable
-        placeholder="Search department, code or department head..."
+        placeholder="Search department name or code..."
       />
     </div>
 
@@ -71,7 +69,6 @@ defineEmits<{
   border-radius: 10px;
 
   background: var(--bg-card);
-
   box-shadow: var(--shadow);
 }
 

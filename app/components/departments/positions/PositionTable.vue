@@ -1,17 +1,22 @@
 <script setup lang="ts">
+<<<<<<< Updated upstream
 import {
   BriefcaseBusiness,
   Building2,
   MoreHorizontal,
   Users,
 } from 'lucide-vue-next'
+=======
+import { BriefcaseBusiness, Building2 } from 'lucide-vue-next'
+import BaseDataTable from '~/components/shared-table/BaseDataTable.vue'
+import PositionActions from '~/components/departments/positions/PositionActions.vue'
+import type { Position } from '~/types/position'
+>>>>>>> Stashed changes
 
-import type {
-  Position,
-  PositionLevel,
-  PositionStatus,
-} from '~/types/position'
+defineProps<{ positions: Position[] }>()
+const emit = defineEmits<{ edit: [position: Position]; delete: [position: Position] }>()
 
+<<<<<<< Updated upstream
 defineProps<{
   positions:
     Position[]
@@ -107,28 +112,71 @@ const vacancyCount = (
       item.currentHeadcount,
   )
 }
+=======
+const formatDate = (value: string) => value
+  ? new Date(value).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+  : '—'
+>>>>>>> Stashed changes
 </script>
 
 <template>
-  <article class="table-card">
+  <BaseDataTable
+    title="Positions & Designations"
+    description="Manage job positions, their departments, descriptions and availability."
+    :has-rows="positions.length > 0"
+    min-width="950px"
+    empty-title="No positions found"
+    empty-description="Try changing your position filters."
+  >
+    <template #headers>
+      <th>Position</th>
+      <th>Department</th>
+      <th>Description</th>
+      <th>Status</th>
+      <th>Last Updated</th>
+      <th class="action-column" />
+    </template>
 
-    <!-- HEADER -->
+    <template #rows>
+      <tr v-for="item in positions" :key="item.id">
+        <td>
+          <div class="position-cell">
+            <div class="position-info">
+              <strong>{{ item.name }}</strong>
+            </div>
+          </div>
+        </td>
 
-    <div class="table-heading">
+        <td>
+          <div class="department-cell">
+            <Building2 :size="13" />
+            <strong>{{ item.department }}</strong>
+          </div>
+        </td>
 
-      <div>
+        <td><p class="description">{{ item.description }}</p></td>
 
-        <h3>
-          Positions & Designations
-        </h3>
+        <td>
+          <span class="status-badge" :class="item.status === 'Active' ? 'active' : 'inactive'">
+            <span class="status-dot" />{{ item.status }}
+          </span>
+        </td>
 
-        <p>
-          Manage company job positions,
-          department assignments, approved
-          headcount and vacancies.
-        </p>
+        <td><span class="updated-date">{{ formatDate(item.updatedAt) }}</span></td>
 
+        <td class="action-column">
+          <PositionActions :position="item" @edit="emit('edit', $event)" @delete="emit('delete', $event)" />
+        </td>
+      </tr>
+    </template>
+
+    <template #empty>
+      <div class="position-empty">
+        <BriefcaseBusiness :size="34" />
+        <strong>No positions found</strong>
+        <span>Try changing your position filters.</span>
       </div>
+<<<<<<< Updated upstream
 
     </div>
 
@@ -444,459 +492,29 @@ const vacancyCount = (
     </div>
 
   </article>
+=======
+    </template>
+  </BaseDataTable>
+>>>>>>> Stashed changes
 </template>
 
 <style scoped>
-.table-card {
-  overflow: hidden;
-
-  border:
-    1px solid var(--border);
-
-  border-radius: 11px;
-
-  background:
-    var(--bg-card);
-
-  box-shadow:
-    var(--shadow);
-}
-
-.table-heading {
-  padding:
-    16px 17px;
-
-  border-bottom:
-    1px solid var(--border-soft);
-}
-
-.table-heading h3 {
-  margin: 0;
-
-  color:
-    var(--text-primary);
-
-  font-size: 15px;
-}
-
-.table-heading p {
-  margin:
-    5px 0 0;
-
-  color:
-    var(--text-muted);
-
-  font-size: 10px;
-}
-
-.table-scroll {
-  overflow-x: auto;
-}
-
-table {
-  width: 100%;
-
-  min-width: 1800px;
-
-  border-collapse:
-    collapse;
-}
-
-th {
-  padding:
-    12px 13px;
-
-  background:
-    var(--bg-card-soft);
-
-  color:
-    var(--text-secondary);
-
-  font-size: 10px;
-  font-weight: 700;
-
-  text-align: left;
-
-  text-transform:
-    uppercase;
-
-  white-space: nowrap;
-}
-
-td {
-  padding:
-    13px;
-
-  border-top:
-    1px solid var(--border-soft);
-
-  color:
-    var(--text-secondary);
-
-  font-size: 10px;
-
-  vertical-align:
-    middle;
-}
-
-tbody tr:hover {
-  background:
-    var(--bg-card-soft);
-}
-
-/* POSITION */
-
-.position-cell {
-  display: flex;
-
-  min-width: 215px;
-
-  align-items: center;
-
-  gap: 9px;
-}
-
-.position-icon {
-  display: flex;
-
-  width: 35px;
-  height: 35px;
-
-  flex-shrink: 0;
-
-  align-items: center;
-  justify-content: center;
-
-  border-radius: 8px;
-
-  background:
-    var(--primary-soft);
-
-  color:
-    var(--primary);
-}
-
-.position-cell strong,
-.position-cell span {
-  display: block;
-}
-
-.position-cell strong {
-  color:
-    var(--text-primary);
-
-  font-size: 10px;
-}
-
-.position-cell span {
-  margin-top: 3px;
-
-  color:
-    var(--primary);
-
-  font-size: 9px;
-  font-weight: 600;
-}
-
-/* DEPARTMENT */
-
-.department-cell {
-  display: flex;
-
-  align-items: center;
-
-  gap: 6px;
-
-  min-width: 145px;
-
-  color:
-    var(--text-primary);
-}
-
-.department-cell svg {
-  color:
-    var(--text-muted);
-}
-
-/* LEVEL */
-
-.level-badge {
-  display: inline-flex;
-
-  padding:
-    5px 8px;
-
-  border-radius: 20px;
-
-  font-size: 9px;
-  font-weight: 650;
-
-  white-space: nowrap;
-}
-
-.level-badge.entry {
-  background:
-    var(--bg-card-soft);
-
-  color:
-    var(--text-secondary);
-}
-
-.level-badge.staff {
-  background:
-    var(--primary-soft);
-
-  color:
-    var(--primary);
-}
-
-.level-badge.senior {
-  background:
-    var(--green-soft);
-
-  color:
-    var(--green);
-}
-
-.level-badge.supervisor {
-  background:
-    var(--orange-soft);
-
-  color:
-    var(--orange);
-}
-
-.level-badge.manager {
-  background:
-    var(--purple-soft);
-
-  color:
-    var(--purple);
-}
-
-/* DESCRIPTION */
-
-.description {
-  width: 270px;
-
-  margin: 0;
-
-  color:
-    var(--text-secondary);
-
-  font-size: 10px;
-
-  line-height: 1.5;
-}
-
-/* HEADCOUNT */
-
-.headcount-cell {
-  display: flex;
-
-  align-items: center;
-
-  gap: 5px;
-
-  white-space: nowrap;
-}
-
-.headcount-cell svg {
-  color:
-    var(--primary);
-}
-
-.headcount-cell strong {
-  color:
-    var(--text-primary);
-
-  font-size: 11px;
-}
-
-.headcount-cell span {
-  color:
-    var(--text-muted);
-
-  font-size: 9px;
-}
-
-.approved-headcount {
-  color:
-    var(--text-primary);
-
-  font-size: 11px;
-}
-
-/* VACANCY */
-
-.vacancy-badge {
-  display: inline-flex;
-
-  padding:
-    5px 8px;
-
-  border-radius: 20px;
-
-  font-size: 9px;
-  font-weight: 650;
-
-  white-space: nowrap;
-}
-
-.vacancy-badge.available {
-  background:
-    var(--orange-soft);
-
-  color:
-    var(--orange);
-}
-
-.vacancy-badge.full {
-  background:
-    var(--green-soft);
-
-  color:
-    var(--green);
-}
-
-/* SALARY */
-
-.salary-cell {
-  min-width: 145px;
-}
-
-.salary-cell strong,
-.salary-cell span {
-  display: block;
-}
-
-.salary-cell strong {
-  color:
-    var(--text-primary);
-
-  font-size: 10px;
-}
-
-.salary-cell span {
-  margin:
-    2px 0;
-
-  color:
-    var(--text-muted);
-
-  font-size: 9px;
-}
-
-/* STATUS */
-
-.status-badge {
-  display: inline-flex;
-
-  align-items: center;
-
-  gap: 5px;
-
-  padding:
-    5px 8px;
-
-  border-radius: 20px;
-
-  font-size: 9px;
-  font-weight: 650;
-
-  white-space: nowrap;
-}
-
-.status-dot {
-  width: 5px;
-  height: 5px;
-
-  border-radius: 50%;
-
-  background:
-    currentColor;
-}
-
-.status-badge.active {
-  background:
-    var(--green-soft);
-
-  color:
-    var(--green);
-}
-
-.status-badge.inactive {
-  background:
-    var(--red-soft);
-
-  color:
-    var(--red);
-}
-
-.updated-date {
-  white-space: nowrap;
-}
-
-/* ACTION */
-
-.action-button {
-  display: flex;
-
-  width: 32px;
-  height: 32px;
-
-  align-items: center;
-  justify-content: center;
-
-  border:
-    1px solid transparent;
-
-  border-radius: 7px;
-
-  background:
-    transparent;
-
-  color:
-    var(--text-secondary);
-}
-
-.action-button:hover {
-  border-color:
-    var(--border);
-
-  background:
-    var(--bg-card-soft);
-
-  color:
-    var(--primary);
-}
-
-/* EMPTY */
-
-.empty-state {
-  display: flex;
-
-  min-height: 260px;
-
-  flex-direction: column;
-
-  align-items: center;
-  justify-content: center;
-
-  gap: 8px;
-
-  color:
-    var(--text-muted);
-}
-
-.empty-state strong {
-  color:
-    var(--text-primary);
-
-  font-size: 12px;
-}
-
-.empty-state span {
-  font-size: 10px;
-}
+.position-cell{display:flex;min-width:190px;align-items:center;gap:9px}
+.position-icon{display:flex;width:35px;height:35px;flex-shrink:0;align-items:center;justify-content:center;border-radius:8px;background:var(--primary-soft);color:var(--primary)}
+.position-info{min-width:0}
+.position-info strong,.position-info span{display:block}
+.position-info strong{color:var(--text-primary);font-size:10px}
+.position-info span{margin-top:3px;color:var(--primary);font-size:9px;font-weight:600}
+.department-cell{display:flex;align-items:center;gap:6px;min-width:145px;color:var(--text-primary)}
+.department-cell svg{color:var(--text-muted)}
+.description{max-width:460px;margin:0;color:var(--text-secondary);font-size:10px;line-height:1.5}
+.status-badge{display:inline-flex;align-items:center;gap:5px;padding:5px 8px;border-radius:20px;font-size:9px;font-weight:650;white-space:nowrap}
+.status-dot{width:5px;height:5px;border-radius:50%;background:currentColor}
+.status-badge.active{background:var(--green-soft);color:var(--green)}
+.status-badge.inactive{background:var(--red-soft);color:var(--red)}
+.updated-date{white-space:nowrap;font-size:10px}
+.action-column{width:65px;text-align:right!important}
+.position-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;color:var(--text-muted)}
+.position-empty strong{color:var(--text-primary);font-size:12px}
+.position-empty span{font-size:10px}
 </style>

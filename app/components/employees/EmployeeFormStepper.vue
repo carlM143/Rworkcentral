@@ -51,8 +51,8 @@ const steps = [
   },
   {
     number: 6,
-    title: 'Documents',
-    description: 'Employee files',
+    title: 'Employment Documents',
+    description: 'Employment requirements',
     icon: Files,
   },
   {

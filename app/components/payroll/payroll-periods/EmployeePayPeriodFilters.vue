@@ -73,7 +73,7 @@ const emit =
         v-model="search"
         searchable
         clearable
-        placeholder="Search period code or name..."
+        placeholder="Search payroll period name or ID..."
       />
 
       <AppSelect

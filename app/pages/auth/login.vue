@@ -13,6 +13,18 @@ definePageMeta({
 })
 
 const router = useRouter()
+const { $api } = useNuxtApp()
+
+interface LoginResponse {
+  token?: string
+  access_token?: string
+  user?: unknown
+  data?: {
+    token?: string
+    access_token?: string
+    user?: unknown
+  }
+}
 
 const email = ref('')
 const password = ref('')
@@ -39,21 +51,71 @@ const handleLogin = async () => {
 
   isSubmitting.value = true
 
-  await new Promise(
-    resolve =>
-      setTimeout(resolve, 500),
-  )
-
-  isSubmitting.value = false
-
-  if (import.meta.client) {
-    sessionStorage.setItem(
-      'rworkcentral-auth',
-      '1',
+  try {
+    const response = await $api<LoginResponse>(
+      '/login',
+      {
+        method: 'POST',
+        body: {
+          email: email.value.trim(),
+          password: password.value,
+          remember: rememberMe.value,
+        },
+      },
     )
-  }
 
-  await router.push('/')
+    if (import.meta.client) {
+      const storage = rememberMe.value
+        ? localStorage
+        : sessionStorage
+      const otherStorage = rememberMe.value
+        ? sessionStorage
+        : localStorage
+      const token =
+        response.token
+        ?? response.access_token
+        ?? response.data?.token
+        ?? response.data?.access_token
+      const user =
+        response.user
+        ?? response.data?.user
+
+      otherStorage.removeItem('rworkcentral-auth')
+      otherStorage.removeItem('rworkcentral-token')
+      otherStorage.removeItem('rworkcentral-user')
+      storage.setItem('rworkcentral-auth', '1')
+
+      if (token) {
+        storage.setItem('rworkcentral-token', token)
+      }
+
+      if (user) {
+        storage.setItem(
+          'rworkcentral-user',
+          JSON.stringify(user),
+        )
+      }
+    }
+
+    await router.push('/')
+  } catch (error: unknown) {
+    const apiError = error as {
+      data?: {
+        message?: string
+        errors?: Record<string, string[]>
+      }
+    }
+    const validationMessage = apiError.data?.errors
+      ? Object.values(apiError.data.errors)[0]?.[0]
+      : undefined
+
+    errorMessage.value =
+      validationMessage
+      ?? apiError.data?.message
+      ?? 'Unable to sign in. Please check your credentials and try again.'
+  } finally {
+    isSubmitting.value = false
+  }
 }
 </script>
 

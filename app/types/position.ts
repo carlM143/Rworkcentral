@@ -1,35 +1,19 @@
-export type PositionStatus =
-  | 'Active'
-  | 'Inactive'
-
-export type PositionLevel =
-  | 'Entry Level'
-  | 'Staff'
-  | 'Senior'
-  | 'Supervisor'
-  | 'Manager'
-  | 'Executive'
+export type PositionStatus = 'Active' | 'Inactive'
 
 export interface Position {
   id: number
-
-  code: string
-  name: string
-
+  departmentId: number | null
   department: string
-
-  level: PositionLevel
-
+  name: string
   description: string
-
-  currentHeadcount: number
-  approvedHeadcount: number
-
-  minimumSalary?: number
-  maximumSalary?: number
-
   status: PositionStatus
-
   createdAt: string
   updatedAt: string
+}
+
+export interface PositionFormData {
+  departmentId: number | null
+  name: string
+  description: string
+  status: PositionStatus
 }

@@ -259,6 +259,7 @@ const contactSummary = computed(() => {
 
             <label>
               Contact Address
+              <span>*</span>
             </label>
           </div>
 
@@ -624,6 +625,10 @@ const contactSummary = computed(() => {
 .address-label label {
   font-size: 10px;
   font-weight: 600;
+}
+
+.address-label span {
+  color: var(--red);
 }
 
 /* =========================

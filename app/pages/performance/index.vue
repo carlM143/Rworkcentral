@@ -153,7 +153,7 @@ const handleTemplates = () => {
 
       <div class="performance-main">
 
-        <PerformanceEvaluationTable
+        <PerformanceOverviewEvaluationTable
           :evaluations="
             paginatedEvaluations
           "

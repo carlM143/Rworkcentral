@@ -137,12 +137,6 @@ const finalDescription = computed(() => {
             {{ fullName || 'New Employee' }}
           </strong>
 
-          <span>
-            {{
-              form.employeeNumber ||
-              'Employee ID not assigned'
-            }}
-          </span>
         </div>
 
         <div class="summary-status">
@@ -183,14 +177,6 @@ const finalDescription = computed(() => {
 
             <strong>
               {{ displayValue(form.employmentType) }}
-            </strong>
-          </div>
-
-          <div class="summary-item">
-            <span>Status</span>
-
-            <strong>
-              {{ displayValue(form.employmentStatus) }}
             </strong>
           </div>
 
@@ -332,13 +318,6 @@ const finalDescription = computed(() => {
 
           <div class="details-grid">
             <div class="detail-item">
-              <span>Employee ID</span>
-              <strong>
-                {{ displayValue(form.employeeNumber) }}
-              </strong>
-            </div>
-
-            <div class="detail-item">
               <span>Date Hired</span>
               <strong>
                 {{ displayValue(form.dateHired) }}
@@ -363,27 +342,6 @@ const finalDescription = computed(() => {
               <span>Employment Type</span>
               <strong>
                 {{ displayValue(form.employmentType) }}
-              </strong>
-            </div>
-
-            <div class="detail-item">
-              <span>Employment Status</span>
-              <strong>
-                {{ displayValue(form.employmentStatus) }}
-              </strong>
-            </div>
-
-            <div class="detail-item">
-              <span>Supervisor</span>
-              <strong>
-                {{ displayValue(form.supervisor) }}
-              </strong>
-            </div>
-
-            <div class="detail-item">
-              <span>Branch / Work Location</span>
-              <strong>
-                {{ displayValue(form.branch) }}
               </strong>
             </div>
 
@@ -645,7 +603,7 @@ const finalDescription = computed(() => {
 
               <div>
                 <strong>
-                  Employee Documents
+                  Employment Documents
                 </strong>
 
                 <span>

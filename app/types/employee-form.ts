@@ -1,3 +1,4 @@
+
 export interface EmployeeDocument {
   id: string
   type: string
@@ -6,7 +7,7 @@ export interface EmployeeDocument {
 }
 
 export interface EmployeeForm {
-  // PERSONAL INFORMATION
+  // PERSONAL
   firstName: string
   middleName: string
   lastName: string
@@ -19,25 +20,28 @@ export interface EmployeeForm {
   address: string
   profilePhoto: File | null
 
-  // EMPLOYMENT INFORMATION
+  // EMPLOYMENT
   employeeNumber: string
   dateHired: string
+  departmentId: number | null
   department: string
+  positionId: number | null
   position: string
-  supervisor: string
+  employmentTypeId: number | null
   employmentType: string
-  employmentStatus: string
-  branch: string
+  workScheduleId: number | null
   workSchedule: string
+  restDayId: number | null
   restDay: string
 
-  // GOVERNMENT INFORMATION
+  // GOVERNMENT
   sssNumber: string
   philHealthNumber: string
   pagIbigNumber: string
   tinNumber: string
 
-  // PAYROLL INFORMATION
+  // PAYROLL
+  salaryTypeId: number | null
   salaryType: string
   basicSalary: string
   dailyRate: string
@@ -46,7 +50,9 @@ export interface EmployeeForm {
   bankName: string
   accountName: string
   accountNumber: string
+  payrollGroupId: number | null
   payrollGroup: string
+  payrollPeriodId: number | null
 
   // EMERGENCY CONTACT
   emergencyContactName: string
