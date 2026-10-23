@@ -8,7 +8,7 @@ import {
   Umbrella,
   TimerReset,
   WalletCards,
-  ReceiptText,
+  // ReceiptText,
   Building2,
   BarChart3,
   Settings,
@@ -44,14 +44,11 @@ const openMenus = reactive<Record<string, boolean>>({
   employees: false,
   timekeeping: false,
   payroll: false,
-  clients: false,
-  billing: false,
   leave: false,
   overtime: false,
   departments: false,
   approvals: false,
   documents: false,
-  performance: false,
   'employee-lifecycle': false,
   reports: false,
 })
@@ -63,9 +60,6 @@ const menuItems = [
     to: '/',
   },
 
-  // =====================================================
-  // EMPLOYEES
-  // =====================================================
   {
     label: 'Employees',
     key: 'employees',
@@ -98,6 +92,10 @@ const menuItems = [
         label: 'Overview',
         to: '/timekeeping',
       },
+       {
+        label: 'Time Logs',
+        to: '/time-logs',
+      },
       {
         label: 'Overtime Requests',
         to: '/timekeeping/overtime-requests',
@@ -109,10 +107,6 @@ const menuItems = [
       {
         label: 'Late Adjustment',
         to: '/late-adjustment',
-      },
-      {
-        label: 'Time Logs',
-        to: '/time-logs',
       },
       {
         label: 'Manual Time In / Out',
@@ -127,7 +121,7 @@ const menuItems = [
         to: '/trip-tickets',
       },
       {
-        label: 'Filed Leaves',
+        label: 'Field Leaves',
         to: '/filed-leaves',
       },
       {
@@ -201,94 +195,31 @@ const menuItems = [
   },
 
   // =====================================================
-  // CLIENTS
-  // =====================================================
-  {
-  label: 'Clients',
-  key: 'clients',
-  icon: Building2,
-  children: [
-    {
-      label: 'Overview',
-      to: '/clients',
-    },
-    {
-      label: 'Client Directory',
-      to: '/clients/directory',
-    },
-    {
-      label: 'Employee Assignment',
-      to: '/clients/employee-assignment',
-    },
-    {
-      label: 'Billing Rates',
-      to: '/clients/billing-rates',
-    },
-  ],
-},
-
-  {
-    label: 'Billing',
-    key: 'billing',
-    icon: ReceiptText,
-    children: [
-      // {
-      // label: 'Overview',
-      // to: '/billing',
-      // },
-      {
-        label: 'Billing Dashboard',
-        to: '/billing',
-      },
-      {
-        label: 'Billing Records',
-        to: '/billing/records',
-      },
-      {
-        label: 'Billing Rates',
-        to: '/billing-rates',
-      },
-      {
-        label: 'Billing Adjustments',
-        to: '/billing-adjustments',
-      },
-      {
-        label: 'Completed Billing',
-        to: '/completed-billing',
-      },
-    ],
-  },
-
-  // =====================================================
   // LEAVE
   // =====================================================
   {
-    label: 'Leave Management',
-    key: 'leave',
-    icon: Umbrella,
-    children: [
-      {
+  label: 'Leave Management',
+  key: 'leave',
+  icon: Umbrella,
+  children: [
+    {
       label: 'Overview',
       to: '/leave-management',
-      },
-      {
-        label: 'Filed Leaves',
-        to: '/filed-leaves',
-      },
-      {
-        label: 'Leave Balance',
-        to: '/leave-balances',
-      },
-      {
-        label: 'Leave Types',
-        to: '/leave-types',
-      },
-      {
-        label: 'Leave Calendar',
-        to: '/leave-calendar',
-      },
-    ],
-  },
+    },
+    {
+      label: 'Leave Balances',
+      to: '/leave-balances',
+    },
+    {
+      label: 'Leave Types',
+      to: '/leave-types',
+    },
+    {
+      label: 'Leave Calendar',
+      to: '/leave-calendar',
+    },
+  ],
+},
 
   // =====================================================
   // OVERTIME
@@ -327,7 +258,7 @@ const menuItems = [
         to: '/departments',
       },
       {
-        label: 'Positions / Designations',
+        label: 'Positions',
         to: '/positions',
       },
       {
@@ -369,56 +300,14 @@ const menuItems = [
   ],
 },
 
-  {
-    label: 'Documents',
-    key: 'documents',
-    icon: FileText,
-    children: [
-      {
-        label: 'Employee Documents',
-        to: '/documents',
-      },
-      {
-        label: 'Document Categories',
-        to: '/document-categories',
-      },
-      {
-        label: 'Expiring Documents',
-        to: '/documents/expiring',
-      },
-      {
-        label: 'Company Policies',
-        to: '/company-policies',
-      },
-    ],
-  },
-
   // =====================================================
   // PERFORMANCE
   // =====================================================
   {
-  label: 'Performance',
-  key: 'performance',
-  icon: ClipboardCheck,
-  children: [
-    {
-      label: 'Overview',
-      to: '/performance',
-    },
-    {
-      label: 'Evaluation Cycles',
-      to: '/performance/cycles',
-    },
-    {
-      label: 'Employee Evaluations',
-      to: '/performance/evaluations',
-    },
-    {
-      label: 'Evaluation Templates',
-      to: '/performance/templates',
-    },
-  ],
-},
+    label: 'Evaluation Templates',
+    icon: ClipboardCheck,
+    to: '/performance/templates',
+  },
 
   {
   label: 'Employee Lifecycle',
@@ -483,10 +372,6 @@ const menuItems = [
       {
         label: 'Payroll Reports',
         to: '/reports/payroll',
-      },
-      {
-        label: 'Billing Reports',
-        to: '/reports/billing',
       },
       {
         label: '13th Month Pay',

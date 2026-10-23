@@ -5,226 +5,6 @@ import {
   Pencil,
   Users,
   BriefcaseBusiness,
-<<<<<<< Updated upstream
-} from 'lucide-vue-next'
-
-import type {
-  Department,
-} from '~/types/department'
-
-const props = defineProps<{
-  department: Department
-}>()
-
-const router = useRouter()
-
-const {
-  info,
-} = useToast()
-
-const open = ref(false)
-
-const triggerRef =
-  ref<HTMLElement | null>(null)
-
-const menuRef =
-  ref<HTMLElement | null>(null)
-
-const menuStyle = ref({
-  top: '0px',
-  left: '0px',
-})
-
-/* =========================================================
-   POSITION DROPDOWN
-========================================================= */
-
-const updateMenuPosition = async () => {
-  if (
-    !import.meta.client ||
-    !triggerRef.value
-  ) {
-    return
-  }
-
-  const triggerRect =
-    triggerRef.value.getBoundingClientRect()
-
-  await nextTick()
-
-  const menuWidth =
-    menuRef.value?.offsetWidth ?? 200
-
-  const menuHeight =
-    menuRef.value?.offsetHeight ?? 170
-
-  const gap = 6
-  const screenPadding = 10
-
-  /* ==============================
-     HORIZONTAL
-  ============================== */
-
-  let left =
-    triggerRect.right - menuWidth
-
-  if (left < screenPadding) {
-    left = screenPadding
-  }
-
-  if (
-    left + menuWidth >
-    window.innerWidth - screenPadding
-  ) {
-    left =
-      window.innerWidth -
-      menuWidth -
-      screenPadding
-  }
-
-  /* ==============================
-     VERTICAL
-  ============================== */
-
-  const spaceBelow =
-    window.innerHeight -
-    triggerRect.bottom
-
-  const spaceAbove =
-    triggerRect.top
-
-  let top =
-    triggerRect.bottom + gap
-
-  /*
-   * Kung walang enough space sa baba,
-   * automatic bubukas pataas.
-   */
-  if (
-    spaceBelow <
-      menuHeight + gap &&
-    spaceAbove >
-      menuHeight + gap
-  ) {
-    top =
-      triggerRect.top -
-      menuHeight -
-      gap
-  }
-
-  /*
-   * Safety para hindi lumabas
-   * sa viewport.
-   */
-  if (top < screenPadding) {
-    top = screenPadding
-  }
-
-  if (
-    top + menuHeight >
-    window.innerHeight -
-      screenPadding
-  ) {
-    top =
-      window.innerHeight -
-      menuHeight -
-      screenPadding
-  }
-
-  menuStyle.value = {
-    top: `${top}px`,
-    left: `${left}px`,
-  }
-}
-
-/* =========================================================
-   OPEN / CLOSE
-========================================================= */
-
-const toggleMenu = async () => {
-  if (open.value) {
-    open.value = false
-    return
-  }
-
-  open.value = true
-
-  await nextTick()
-
-  updateMenuPosition()
-}
-
-const close = () => {
-  open.value = false
-}
-
-/* =========================================================
-   ACTIONS
-========================================================= */
-
-const viewDepartment = () => {
-  close()
-
-  router.push(
-    `/departments/${props.department.id}`,
-  )
-}
-
-const editDepartment = () => {
-  close()
-
-  info(
-    'Edit Department',
-    'Department editing UI will be implemented after the department directory.',
-  )
-}
-
-const managePositions = () => {
-  close()
-
-  info(
-    'Manage Positions',
-    `Positions under ${props.department.name} will be managed from the Positions module.`,
-  )
-}
-
-const viewEmployees = () => {
-  close()
-
-  info(
-    'Department Employees',
-    `Employee assignment for ${props.department.name} will be available in the assignment module.`,
-  )
-}
-
-/* =========================================================
-   CLICK OUTSIDE
-========================================================= */
-
-const handleOutsideClick = (
-  event: MouseEvent,
-) => {
-  if (!open.value) {
-    return
-  }
-
-  const target =
-    event.target as Node
-
-  if (
-    triggerRef.value?.contains(target) ||
-    menuRef.value?.contains(target)
-  ) {
-    return
-  }
-
-  close()
-}
-
-/* =========================================================
-   LIFECYCLE
-========================================================= */
-=======
   X,
   Building2,
   Trash2,
@@ -364,81 +144,40 @@ const onEscape = (event: KeyboardEvent) => {
     showView.value = false
   }
 }
->>>>>>> Stashed changes
 
 onMounted(() => {
-  document.addEventListener(
-    'mousedown',
-    handleOutsideClick,
-  )
-
-  window.addEventListener(
-    'resize',
-    close,
-  )
-
-  window.addEventListener(
-    'scroll',
-    close,
-    true,
-  )
+  document.addEventListener('mousedown', onOutside)
+  window.addEventListener('keydown', onEscape)
+  window.addEventListener('resize', closeMenu)
+  window.addEventListener('scroll', closeMenu, true)
 })
 
 onBeforeUnmount(() => {
-  document.removeEventListener(
-    'mousedown',
-    handleOutsideClick,
-  )
-
-  window.removeEventListener(
-    'resize',
-    close,
-  )
-
-  window.removeEventListener(
-    'scroll',
-    close,
-    true,
-  )
+  document.removeEventListener('mousedown', onOutside)
+  window.removeEventListener('keydown', onEscape)
+  window.removeEventListener('resize', closeMenu)
+  window.removeEventListener('scroll', closeMenu, true)
 })
 </script>
 
 <template>
   <div class="actions-wrapper">
 
-<<<<<<< Updated upstream
-    <!-- TRIGGER -->
-=======
     <!-- ACTION TRIGGER -->
->>>>>>> Stashed changes
     <button
       ref="triggerRef"
       type="button"
       class="actions-trigger"
-<<<<<<< Updated upstream
-      @click.stop="toggleMenu"
-=======
       aria-label="Department actions"
       :aria-expanded="open"
       @click.stop="toggle"
->>>>>>> Stashed changes
     >
       <MoreHorizontal :size="18" />
     </button>
 
-<<<<<<< Updated upstream
-    <!--
-      TELEPORT:
-      Nilalabas natin ang dropdown sa table
-      para hindi ma-clip ng overflow.
-    -->
-    <Teleport to="body">
-
-=======
     <Teleport to="body">
 
       <!-- DROPDOWN -->
->>>>>>> Stashed changes
       <div
         v-if="open"
         ref="menuRef"
@@ -446,31 +185,6 @@ onBeforeUnmount(() => {
         :style="menuStyle"
       >
 
-<<<<<<< Updated upstream
-        <!-- VIEW -->
-        <button
-          type="button"
-          class="action-item"
-          @click="viewDepartment"
-        >
-          <Eye :size="15" />
-
-          View Department
-        </button>
-
-        <!-- EDIT -->
-        <button
-          type="button"
-          class="action-item"
-          @click="editDepartment"
-        >
-          <Pencil :size="15" />
-
-          Edit Department
-        </button>
-
-        <!-- POSITIONS -->
-=======
         <button
           type="button"
           class="action-item"
@@ -491,39 +205,21 @@ onBeforeUnmount(() => {
 
         <div class="menu-divider" />
 
->>>>>>> Stashed changes
         <button
           type="button"
           class="action-item"
           @click="managePositions"
         >
-<<<<<<< Updated upstream
-          <BriefcaseBusiness
-            :size="15"
-          />
-
-          Manage Positions
-        </button>
-
-        <!-- EMPLOYEES -->
-=======
           <BriefcaseBusiness :size="15" />
           Manage Positions
         </button>
 
->>>>>>> Stashed changes
         <button
           type="button"
           class="action-item"
           @click="viewEmployees"
         >
           <Users :size="15" />
-<<<<<<< Updated upstream
-
-          View Employees
-        </button>
-
-=======
           View Employees
         </button>
 
@@ -672,7 +368,6 @@ onBeforeUnmount(() => {
           </div>
 
         </div>
->>>>>>> Stashed changes
       </div>
 
     </Teleport>
@@ -683,37 +378,6 @@ onBeforeUnmount(() => {
 <style scoped>
 .actions-wrapper {
   position: relative;
-<<<<<<< Updated upstream
-
-  display: inline-flex;
-}
-
-/* ==============================
-   TRIGGER
-============================== */
-
-.actions-trigger {
-  display: flex;
-
-  width: 32px;
-  height: 32px;
-
-  align-items: center;
-  justify-content: center;
-
-  border:
-    1px solid transparent;
-
-  border-radius: 7px;
-
-  background: transparent;
-  color: var(--text-secondary);
-
-  transition:
-    background 0.15s ease,
-    border-color 0.15s ease,
-    color 0.15s ease;
-=======
   display: inline-flex;
 }
 
@@ -728,90 +392,10 @@ onBeforeUnmount(() => {
   background: transparent;
   color: var(--text-secondary);
   cursor: pointer;
->>>>>>> Stashed changes
 }
 
 .actions-trigger:hover {
   border-color: var(--border);
-<<<<<<< Updated upstream
-
-  background:
-    var(--bg-card-soft);
-
-  color:
-    var(--text-primary);
-}
-
-/* ==============================
-   TELEPORTED MENU
-============================== */
-
-.department-actions-menu {
-  position: fixed;
-
-  z-index: 9999;
-
-  width: 200px;
-
-  padding: 6px;
-
-  border:
-    1px solid var(--border);
-
-  border-radius: 9px;
-
-  background:
-    var(--bg-card);
-
-  box-shadow:
-    0 16px 40px
-    rgba(0, 0, 0, 0.22);
-}
-
-/* ==============================
-   ACTION ITEM
-============================== */
-
-.action-item {
-  display: flex;
-
-  width: 100%;
-  min-height: 36px;
-
-  align-items: center;
-  gap: 9px;
-
-  padding: 0 10px;
-
-  border: 0;
-  border-radius: 6px;
-
-  background: transparent;
-
-  color:
-    var(--text-secondary);
-
-  font-size: 11px;
-  font-weight: 500;
-
-  text-align: left;
-
-  transition:
-    background 0.15s ease,
-    color 0.15s ease;
-}
-
-.action-item:hover {
-  background:
-    var(--bg-card-soft);
-
-  color:
-    var(--text-primary);
-}
-
-.action-item svg {
-  flex-shrink: 0;
-=======
   background: var(--bg-card-soft);
   color: var(--primary);
 }
@@ -1063,6 +647,5 @@ onBeforeUnmount(() => {
   .detail-grid {
     grid-template-columns: 1fr;
   }
->>>>>>> Stashed changes
 }
 </style>

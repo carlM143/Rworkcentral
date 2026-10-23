@@ -1,56 +1,4 @@
 <script setup lang="ts">
-<<<<<<< Updated upstream
-import {
-  Download,
-  Plus,
-} from 'lucide-vue-next'
-
-import PositionStats from '~/components/departments/positions/PositionStats.vue'
-import PositionFilters from '~/components/departments/positions/PositionFilters.vue'
-import PositionTable from '~/components/departments/positions/PositionTable.vue'
-
-const {
-  search,
-  department,
-  level,
-  status,
-
-  currentPage,
-
-  filteredPositions,
-  paginatedPositions,
-
-  totalPages,
-  showingFrom,
-  showingTo,
-
-  stats,
-
-  departmentOptions,
-  levelOptions,
-  statusOptions,
-
-  resetFilters,
-} = usePositions()
-
-const {
-  info,
-} = useToast()
-
-const handleExport = () => {
-  info(
-    'Export Positions',
-    'Position export functionality will be connected later.',
-  )
-}
-
-const handleAddPosition = () => {
-  info(
-    'Add Position',
-    'Position creation form will be added later.',
-  )
-}
-=======
 import { Download, Plus, X, BriefcaseBusiness, FileSpreadsheet, FileText, Table2, Save } from 'lucide-vue-next'
 import type { Position, PositionFormData } from '~/types/position'
 import { usePositions } from '../../composables/departments/positions/usePositions'
@@ -164,135 +112,19 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => window.removeEventListener('keydown', onEscape))
->>>>>>> Stashed changes
 </script>
 
 <template>
   <section class="positions-page">
 
     <!-- HEADER -->
-<<<<<<< Updated upstream
-
-    <PageHeader
-      title="Positions & Designations"
-      description="Manage company positions, department assignments, position levels, approved headcount and available vacancies."
-    >
-
-      <div class="header-actions">
-
-        <AppButton
-          variant="secondary"
-          :icon="Download"
-          @click="
-            handleExport
-          "
-        >
-          Export
-        </AppButton>
-
-        <AppButton
-          :icon="Plus"
-          @click="
-            handleAddPosition
-          "
-        >
-          Add Position
-        </AppButton>
-
-=======
     <PageHeader title="Positions & Designations" description="Manage company job positions, department assignments, descriptions and status.">
       <div class="header-actions">
         <AppButton variant="secondary" :icon="Download" @click="exportFormat = 'excel'; showExport = true">Export</AppButton>
         <AppButton :icon="Plus" :disabled="loading || saving" @click="openAdd">Add Position</AppButton>
->>>>>>> Stashed changes
       </div>
-
     </PageHeader>
 
-<<<<<<< Updated upstream
-    <!-- STATS -->
-
-    <PositionStats
-      :stats="
-        stats
-      "
-    />
-
-    <!-- FILTERS -->
-
-    <PositionFilters
-      v-model:search="
-        search
-      "
-      v-model:department="
-        department
-      "
-      v-model:level="
-        level
-      "
-      v-model:status="
-        status
-      "
-      :departments="
-        departmentOptions
-      "
-      :levels="
-        levelOptions
-      "
-      :statuses="
-        statusOptions
-      "
-      @reset="
-        resetFilters
-      "
-    />
-
-    <!-- TABLE -->
-
-    <PositionTable
-      :positions="
-        paginatedPositions
-      "
-    />
-
-    <!-- PAGINATION -->
-
-    <div class="table-footer">
-
-      <p>
-        Showing
-
-        <strong>
-          {{
-            showingFrom
-          }}–{{
-            showingTo
-          }}
-        </strong>
-
-        of
-
-        <strong>
-          {{
-            filteredPositions.length
-          }}
-        </strong>
-
-        positions
-      </p>
-
-      <AppPagination
-        v-model="
-          currentPage
-        "
-        :total-pages="
-          totalPages
-        "
-      />
-
-    </div>
-
-=======
     <!-- LOADING / ERROR -->
     <p v-if="loading" class="pm-note" role="status">Loading positions...</p>
 
@@ -450,73 +282,10 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onEscape))
       </Transition>
     </Teleport>
 
->>>>>>> Stashed changes
   </section>
 </template>
 
 <style scoped>
-<<<<<<< Updated upstream
-.positions-page {
-  width: 100%;
-
-  max-width: 1660px;
-
-  margin:
-    0 auto;
-}
-
-.header-actions {
-  display: flex;
-
-  align-items: center;
-
-  gap: 8px;
-}
-
-.table-footer {
-  display: flex;
-
-  align-items: center;
-  justify-content: space-between;
-
-  gap: 20px;
-
-  padding:
-    14px 3px 0;
-}
-
-.table-footer p {
-  margin: 0;
-
-  color:
-    var(--text-muted);
-
-  font-size: 11px;
-}
-
-.table-footer strong {
-  color:
-    var(--text-primary);
-
-  font-weight: 650;
-}
-
-@media (max-width: 650px) {
-  .header-actions {
-    width: 100%;
-
-    align-items: stretch;
-
-    flex-direction: column;
-  }
-
-  .table-footer {
-    align-items: flex-start;
-
-    flex-direction: column;
-  }
-}
-=======
 .positions-page{width:100%;max-width:1660px;margin:0 auto}
 .header-actions{display:flex;align-items:center;gap:8px}
 .page-error{display:flex;align-items:center;justify-content:space-between;gap:15px;margin-bottom:14px;padding:12px;border:1px solid var(--red);border-radius:8px;background:var(--bg-card);color:var(--red);font-size:11px}
@@ -562,5 +331,4 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onEscape))
 .pm-fade-enter-active,.pm-fade-leave-active{transition:opacity .2s}
 .pm-fade-enter-from,.pm-fade-leave-to{opacity:0}
 @media(max-width:650px){.header-actions{flex-direction:column;align-items:stretch}.pm-grid,.pm-formats{grid-template-columns:1fr}.pm-stats{grid-template-columns:repeat(2,1fr)}}
->>>>>>> Stashed changes
 </style>
