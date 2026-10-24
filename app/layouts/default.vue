@@ -445,6 +445,11 @@ const closeCompanyMenu = () => {
     false
 }
 
+const handleMyAccount = async () => {
+  closeCompanyMenu()
+  await navigateTo('/settings/my-account')
+}
+
 const goToCompanySettings = async () => {
   closeCompanyMenu()
 
@@ -944,30 +949,17 @@ onBeforeUnmount(() => {
 
         <!-- ACCOUNT -->
 
-        <button
+       <button
           type="button"
           class="dropdown-item"
-          @click="
-            closeCompanyMenu
-          "
+          @click="handleMyAccount"
         >
-
-          <UserRound
-            :size="16"
-          />
+          <UserRound :size="16" />
 
           <div>
-
-            <strong>
-              My Account
-            </strong>
-
-            <span>
-              Administrator profile
-            </span>
-
+            <strong>My Account</strong>
+            <span>Administrator profile</span>
           </div>
-
         </button>
 
         <!-- COMPANY SETTINGS -->
