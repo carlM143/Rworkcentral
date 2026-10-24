@@ -14,15 +14,16 @@ definePageMeta({
 
 const router = useRouter()
 const { $api } = useNuxtApp()
+const auth = useAuth()
 
 interface LoginResponse {
   token?: string
   access_token?: string
-  user?: unknown
+  user?: AuthUser
   data?: {
     token?: string
     access_token?: string
-    user?: unknown
+    user?: AuthUser
   }
 }
 
@@ -64,40 +65,30 @@ const handleLogin = async () => {
       },
     )
 
-    if (import.meta.client) {
-      const storage = rememberMe.value
-        ? localStorage
-        : sessionStorage
-      const otherStorage = rememberMe.value
-        ? sessionStorage
-        : localStorage
-      const token =
-        response.token
-        ?? response.access_token
-        ?? response.data?.token
-        ?? response.data?.access_token
-      const user =
-        response.user
-        ?? response.data?.user
+    const token =
+      response.token
+      ?? response.access_token
+      ?? response.data?.token
+      ?? response.data?.access_token
+    const user = response.user ?? response.data?.user
 
-      otherStorage.removeItem('rworkcentral-auth')
-      otherStorage.removeItem('rworkcentral-token')
-      otherStorage.removeItem('rworkcentral-user')
-      storage.setItem('rworkcentral-auth', '1')
-
-      if (token) {
-        storage.setItem('rworkcentral-token', token)
-      }
-
-      if (user) {
-        storage.setItem(
-          'rworkcentral-user',
-          JSON.stringify(user),
-        )
-      }
+    if (!token || !user) {
+      throw new Error('The login response did not include a user and access token.')
     }
 
-    await router.push('/')
+    auth.setSession({
+      token,
+      user,
+      remember: rememberMe.value,
+    })
+
+    if (!auth.homePath.value) {
+      auth.clearSession()
+      errorMessage.value = 'Your account does not have a supported portal role.'
+      return
+    }
+
+    await router.push(auth.homePath.value)
   } catch (error: unknown) {
     const apiError = error as {
       data?: {
@@ -245,7 +236,7 @@ const handleLogin = async () => {
         <div class="login-header">
 
           <span class="admin-label">
-            ADMIN PORTAL
+            SYSTEM PORTAL
           </span>
 
           <h2>
@@ -254,7 +245,7 @@ const handleLogin = async () => {
 
           <p>
             Sign in to continue to your
-            RWorkCentral administrator account.
+            RWorkCentral account.
           </p>
 
         </div>
@@ -411,7 +402,7 @@ const handleLogin = async () => {
 
           <span>
             This portal is intended for authorized
-            RWorkCentral administrators only.
+            RWorkCentral users only.
           </span>
 
         </div>

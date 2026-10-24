@@ -3,9 +3,8 @@ export default defineNuxtRouteMiddleware((to) => {
     return
   }
 
-  const isAuthenticated =
-    sessionStorage.getItem('rworkcentral-auth') === '1'
-    || localStorage.getItem('rworkcentral-auth') === '1'
+  const auth = useAuth()
+  auth.hydrate()
 
   const publicRoutes = [
     '/auth/login',
@@ -13,11 +12,15 @@ export default defineNuxtRouteMiddleware((to) => {
 
   const isPublicRoute = publicRoutes.includes(to.path)
 
-  if (!isAuthenticated && !isPublicRoute) {
+  if (!auth.isAuthenticated.value && !isPublicRoute) {
     return navigateTo('/auth/login')
   }
 
-  if (isAuthenticated && to.path === '/auth/login') {
-    return navigateTo('/')
+  if (
+    auth.isAuthenticated.value
+    && to.path === '/auth/login'
+    && auth.homePath.value
+  ) {
+    return navigateTo(auth.homePath.value)
   }
 })
