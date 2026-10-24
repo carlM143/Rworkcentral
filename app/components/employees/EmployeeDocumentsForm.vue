@@ -21,98 +21,75 @@ const {
 
 interface DocumentRequirement {
   id: string
+  code?: string
   label: string
   category: string
   description: string
 }
 
-const requirements: DocumentRequirement[] = [
-  {
-    id: 'tin',
-    label: 'Tax Identification Number (TIN)',
-    category: 'Government',
-    description: 'TIN verification or an applicable BIR document.',
-  },
-  {
-    id: 'sss',
-    label: 'SSS Number',
-    category: 'Government',
-    description: 'SSS number verification or supporting document.',
-  },
-  {
-    id: 'philhealth',
-    label: 'PhilHealth Number',
-    category: 'Government',
-    description: 'PhilHealth membership or number verification.',
-  },
-  {
-    id: 'pagibig',
-    label: 'Pag-IBIG (HDMF) Number',
-    category: 'Government',
-    description: 'Pag-IBIG or HDMF membership number verification.',
-  },
-  {
-    id: 'nbi-clearance',
-    label: 'NBI Clearance',
-    category: 'Clearance',
-    description: 'Valid NBI clearance submitted by the employee.',
-  },
-  {
-    id: 'police-clearance',
-    label: 'Police Clearance',
-    category: 'Clearance',
-    description: 'Valid police clearance submitted by the employee.',
-  },
-  {
-    id: 'psa-birth-certificate',
-    label: 'PSA Birth Certificate',
-    category: 'Personal',
-    description: 'Official birth certificate issued by the Philippine Statistics Authority.',
-  },
-  {
-    id: 'valid-government-id',
-    label: 'Valid Government ID',
-    category: 'Identification',
-    description: 'A current government-issued photo identification document.',
-  },
-  {
-    id: 'transcript-of-records',
-    label: 'Transcript of Records',
-    category: 'Education',
-    description: 'Official academic transcript from the employee’s school or university.',
-  },
-  {
-    id: 'diploma',
-    label: 'Diploma',
-    category: 'Education',
-    description: 'Diploma supporting the employee’s declared educational attainment.',
-  },
-  {
-    id: 'certificate-of-employment',
-    label: 'Certificate of Employment (COE)',
-    category: 'Employment',
-    description: 'Certificate from previous employers, when applicable, proving the employee’s work history.',
-  },
-  {
-    id: 'previous-employer-clearance',
-    label: 'Clearance from Previous Employer',
-    category: 'Employment',
-    description: 'Confirms that the employee has no outstanding liabilities with a previous employer.',
-  },
-  {
-    id: 'pre-employment-medical-examination',
-    label: 'Pre-Employment Medical Examination (PEME)',
-    category: 'Medical',
-    description: 'Medical examination from a company-accredited clinic, typically including a chest X-ray, urine test, and physical exam.',
-  },
-]
+const requirements = ref<DocumentRequirement[]>([])
+
+interface EmploymentDocumentRecord {
+  id: number
+  document_code: string
+  document_name: string
+  category: string
+  description: string | null
+  sort_order: number
+}
+
+interface ApiResponse<T> {
+  success: boolean
+  message: string
+  data: T
+}
+
+const { $api } = useNuxtApp()
+const loadingRequirements = ref(true)
+const requirementsError = ref('')
+
+const loadRequirements = async () => {
+  loadingRequirements.value = true
+  requirementsError.value = ''
+
+  try {
+    const response = await $api<ApiResponse<EmploymentDocumentRecord[]>>(
+      '/admin/employment-documents',
+      { method: 'GET' },
+    )
+
+    requirements.value = response.data.map(document => ({
+      id: `requirement-${document.id}`,
+      code: document.document_code,
+      label: document.document_name,
+      category: document.category,
+      description: document.description ?? '',
+    }))
+  } catch (problem: any) {
+    requirements.value = []
+    requirementsError.value = problem?.data?.message
+      ?? problem?.response?._data?.message
+      ?? problem?.message
+      ?? 'Unable to load employment documents.'
+
+    console.error('Employment Documents API Error:', problem)
+  } finally {
+    loadingRequirements.value = false
+  }
+}
+
+onMounted(() => {
+  void loadRequirements()
+})
 
 const isSubmitted = (
   requirement: DocumentRequirement,
 ) => {
   return form.value.documents.some(
     document =>
-      document.id === requirement.id,
+      document.id === requirement.id
+      || document.type === requirement.label
+      || document.name === requirement.label,
   )
 }
 
@@ -127,30 +104,35 @@ const toggleRequirement = (
 
     addDocument({
       id: requirement.id,
+      employmentDocumentId: Number(requirement.id.replace('requirement-', '')),
       type: requirement.label,
-      name: 'Submitted requirement',
+      name: requirement.label,
       file: null,
     })
 
     return
   }
 
-  removeDocument(
-    requirement.id,
-  )
+  form.value.documents
+    .filter(document => (
+      document.id === requirement.id
+      || document.type === requirement.label
+      || document.name === requirement.label
+    ))
+    .forEach(document => removeDocument(document.id))
 }
 
 const submittedCount =
   computed(
     () =>
-      form.value.documents.length,
+      requirements.value.filter(requirement => isSubmitted(requirement)).length,
   )
 
 const pendingCount =
   computed(
     () =>
       Math.max(
-        requirements.length -
+        requirements.value.length -
         submittedCount.value,
         0,
       ),
@@ -158,14 +140,14 @@ const pendingCount =
 
 const completionPercentage =
   computed(() => {
-    if (!requirements.length) {
+    if (!requirements.value.length) {
       return 0
     }
 
     return Math.round(
       (
         submittedCount.value /
-        requirements.length
+        requirements.value.length
       ) * 100,
     )
   })
@@ -349,7 +331,39 @@ const requirementIcon = (
 
         <!-- CHECKLIST -->
 
-        <div class="requirements-grid">
+        <div
+          v-if="loadingRequirements"
+          class="requirements-state"
+        >
+          Loading employment documents...
+        </div>
+
+        <div
+          v-else-if="requirementsError"
+          class="requirements-state error-state"
+          role="alert"
+        >
+          <span>{{ requirementsError }}</span>
+
+          <button
+            type="button"
+            @click="loadRequirements"
+          >
+            Retry
+          </button>
+        </div>
+
+        <div
+          v-else-if="!requirements.length"
+          class="requirements-state"
+        >
+          No employment document requirements found.
+        </div>
+
+        <div
+          v-else
+          class="requirements-grid"
+        >
 
           <label
             v-for="requirement in requirements"
@@ -818,6 +832,45 @@ const requirementIcon = (
     );
 
   gap: 8px;
+}
+
+.requirements-state {
+  display: flex;
+  min-height: 150px;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+
+  padding: 20px;
+
+  border: 1px solid var(--border);
+  border-radius: 9px;
+
+  background: var(--bg-card-soft);
+  color: var(--text-muted);
+
+  font-size: 9px;
+  text-align: center;
+}
+
+.error-state {
+  border-color: color-mix(in srgb, var(--red) 35%, var(--border));
+  background: color-mix(in srgb, var(--red) 8%, var(--bg-card));
+  color: var(--red);
+}
+
+.error-state button {
+  padding: 6px 10px;
+
+  border: 1px solid var(--border);
+  border-radius: 6px;
+
+  background: var(--bg-card);
+  color: var(--primary);
+
+  font-size: 8px;
+  font-weight: 700;
+  cursor: pointer;
 }
 
 .requirement-card {

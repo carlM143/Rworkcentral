@@ -18,7 +18,7 @@ export interface SystemUser {
   name: string
   email: string
 
-  role: SystemUserRole
+  role: SystemUserRole | '-'
 
   department?: string
 

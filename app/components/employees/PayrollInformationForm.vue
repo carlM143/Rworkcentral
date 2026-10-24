@@ -55,14 +55,59 @@ const formatMoney = (value: string) => Number(value).toLocaleString('en-PH', {
   maximumFractionDigits: 2,
 })
 
+const normalizedSalaryType = computed(() =>
+  form.value.salaryType.trim().toLowerCase().replace(/[\s_]+/g, '-'),
+)
+
+const primaryRate = computed({
+  get: () => {
+    if (normalizedSalaryType.value === 'daily') return form.value.dailyRate
+    if (normalizedSalaryType.value === 'hourly') return form.value.hourlyRate
+    return form.value.basicSalary
+  },
+  set: (value: string) => {
+    if (normalizedSalaryType.value === 'daily') {
+      form.value.dailyRate = value
+      return
+    }
+
+    if (normalizedSalaryType.value === 'hourly') {
+      form.value.hourlyRate = value
+      return
+    }
+
+    form.value.basicSalary = value
+  },
+})
+
+const rateLabel = computed(() => {
+  if (normalizedSalaryType.value === 'monthly') return 'Basic Monthly Salary'
+  if (normalizedSalaryType.value === 'semi-monthly') return 'Semi-Monthly Rate'
+  if (normalizedSalaryType.value === 'daily') return 'Daily Rate'
+  if (normalizedSalaryType.value === 'hourly') return 'Hourly Rate'
+  return 'Salary Rate'
+})
+
+const rateHint = computed(() => {
+  if (normalizedSalaryType.value === 'monthly') return "Employee's standard monthly basic salary before deductions."
+  if (normalizedSalaryType.value === 'semi-monthly') return 'Standard compensation for one semi-monthly payroll period.'
+  if (normalizedSalaryType.value === 'daily') return 'Standard compensation for one regular working day.'
+  if (normalizedSalaryType.value === 'hourly') return 'Standard compensation for one working hour.'
+  return "Employee's primary salary rate."
+})
+
 const salaryDisplay = computed(() => {
-  if (form.value.salaryType === 'Monthly' && form.value.basicSalary)
-    return `₱${formatMoney(form.value.basicSalary)}`
-  if (form.value.salaryType === 'Daily' && form.value.dailyRate)
-    return `₱${formatMoney(form.value.dailyRate)} / day`
-  if (form.value.salaryType === 'Hourly' && form.value.hourlyRate)
-    return `₱${formatMoney(form.value.hourlyRate)} / hour`
-  return 'Not provided'
+  if (!primaryRate.value) return 'Not provided'
+
+  const suffix = normalizedSalaryType.value === 'daily'
+    ? ' / day'
+    : normalizedSalaryType.value === 'hourly'
+      ? ' / hour'
+      : normalizedSalaryType.value === 'semi-monthly'
+        ? ' / semi-month'
+        : ''
+
+  return `₱${formatMoney(primaryRate.value)}${suffix}`
 })
 
 const allowanceDisplay = computed(() => form.value.allowance
@@ -141,41 +186,13 @@ const allowanceDisplay = computed(() => form.value.allowance
             <small v-else class="field-hint">Determines which rate will be used as the employee's primary pay basis.</small>
           </div>
 
-        </div>
-
-        <!-- MONTHLY RATE -->
-        <div v-if="form.salaryType === 'Monthly'" class="rate-container">
-          <div class="form-field">
-            <label class="field-label">Basic Monthly Salary</label>
+          <div v-if="form.salaryType" class="form-field">
+            <label class="field-label">{{ rateLabel }}</label>
             <div class="money-field">
               <span class="currency">₱</span>
-              <AppInput v-model="form.basicSalary" placeholder="0.00" />
+              <AppInput v-model="primaryRate" placeholder="0.00" />
             </div>
-            <small class="field-hint">Employee's standard monthly basic salary before deductions.</small>
-          </div>
-        </div>
-
-        <!-- DAILY RATE -->
-        <div v-else-if="form.salaryType === 'Daily'" class="rate-container">
-          <div class="form-field">
-            <label class="field-label">Daily Rate</label>
-            <div class="money-field">
-              <span class="currency">₱</span>
-              <AppInput v-model="form.dailyRate" placeholder="0.00" />
-            </div>
-            <small class="field-hint">Standard compensation for one regular working day.</small>
-          </div>
-        </div>
-
-        <!-- HOURLY RATE -->
-        <div v-else-if="form.salaryType === 'Hourly'" class="rate-container">
-          <div class="form-field">
-            <label class="field-label">Hourly Rate</label>
-            <div class="money-field">
-              <span class="currency">₱</span>
-              <AppInput v-model="form.hourlyRate" placeholder="0.00" />
-            </div>
-            <small class="field-hint">Standard compensation for one working hour.</small>
+            <small class="field-hint">{{ rateHint }}</small>
           </div>
         </div>
 
@@ -271,7 +288,6 @@ const allowanceDisplay = computed(() => form.value.allowance
 .field-hint{display:block;margin-top:5px;color:var(--text-muted);font-size:8px}
 .error-hint{color:var(--red)}
 .error-hint button{margin-left:5px;padding:0;border:0;background:transparent;color:var(--primary);font-size:inherit;font-weight:700;cursor:pointer}
-.rate-container{max-width:calc(50% - 7px);margin-top:16px}
 .money-field{position:relative}
 .currency{position:absolute;top:50%;left:13px;z-index:2;transform:translateY(-50%);color:var(--text-muted);font-size:11px;font-weight:600;pointer-events:none}
 .money-field :deep(input){padding-left:30px}
@@ -281,5 +297,5 @@ const allowanceDisplay = computed(() => form.value.allowance
 .payroll-info strong{display:block;color:var(--text-primary);font-size:10px}
 .payroll-info p{margin:4px 0 0;color:var(--text-secondary);font-size:8px;line-height:1.55}
 @media(max-width:900px){.payroll-layout{grid-template-columns:1fr}.summary-column{max-width:450px;width:100%;margin:0 auto;padding-right:0;padding-bottom:20px;border-right:0;border-bottom:1px solid var(--border-soft)}}
-@media(max-width:650px){.two-column{grid-template-columns:1fr}.rate-container{max-width:none}.empty-column{display:none}}
+@media(max-width:650px){.two-column{grid-template-columns:1fr}.empty-column{display:none}}
 </style>

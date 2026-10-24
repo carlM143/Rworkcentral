@@ -1,6 +1,7 @@
 
 export interface EmployeeDocument {
   id: string
+  employmentDocumentId?: number
   type: string
   name: string
   file: File | null

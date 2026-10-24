@@ -41,17 +41,21 @@ const fullName = computed(() => {
 })
 
 const salaryDisplay = computed(() => {
-  if (form.value.salaryType === 'Monthly') {
-    return formatCurrency(form.value.basicSalary)
-  }
+  const salaryType = form.value.salaryType.trim().toLowerCase().replace(/[\s_]+/g, '-')
 
-  if (form.value.salaryType === 'Daily') {
+  if (salaryType === 'daily') {
     return `${formatCurrency(form.value.dailyRate)} / day`
   }
 
-  if (form.value.salaryType === 'Hourly') {
+  if (salaryType === 'hourly') {
     return `${formatCurrency(form.value.hourlyRate)} / hour`
   }
+
+  if (salaryType === 'semi-monthly') {
+    return `${formatCurrency(form.value.basicSalary)} / semi-month`
+  }
+
+  if (form.value.salaryType) return formatCurrency(form.value.basicSalary)
 
   return 'Not provided'
 })

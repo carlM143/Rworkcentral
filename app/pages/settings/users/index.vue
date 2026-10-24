@@ -25,15 +25,14 @@ const {
 
   stats,
 
-  roleSummary,
-  securityIssues,
-
-  recentActivity,
-
   roleOptions,
   statusOptions,
 
   resetFilters,
+
+  loading,
+  loadError,
+  loadUsers,
 } = useUsersAccess()
 
 const router =
@@ -74,17 +73,6 @@ const handleEdit = (
   )
 }
 
-const handleRoles = () => {
-  router.push(
-    '/settings/roles',
-  )
-}
-
-const handlePermissionMatrix = () => {
-  router.push(
-    '/settings/roles',
-  )
-}
 </script>
 
 <template>
@@ -158,13 +146,43 @@ const handlePermissionMatrix = () => {
 
       <div class="access-main">
 
+        <div
+          v-if="loading"
+          class="users-message"
+        >
+          Loading system users...
+        </div>
+
+        <div
+          v-else-if="loadError"
+          class="users-message error-message"
+          role="alert"
+        >
+          <div>
+            <strong>System users could not be loaded</strong>
+            <p>{{ loadError }}</p>
+          </div>
+
+          <AppButton
+            variant="secondary"
+            size="sm"
+            @click="loadUsers"
+          >
+            Retry
+          </AppButton>
+        </div>
+
         <SystemUsersTable
+          v-else
           :users="paginatedUsers"
           @view="handleView"
           @edit="handleEdit"
         />
 
-        <div class="table-footer">
+        <div
+          v-if="!loading && !loadError"
+          class="table-footer"
+        >
 
           <p>
             Showing
@@ -189,21 +207,7 @@ const handlePermissionMatrix = () => {
 
         </div>
 
-        <RecentAccessActivity
-          :activities="recentActivity"
-        />
-
       </div>
-
-      <UsersAccessSidePanel
-        :role-summary="roleSummary"
-        :security-issues="securityIssues"
-        @add-user="handleAddUser"
-        @manage-roles="handleRoles"
-        @permission-matrix="
-          handlePermissionMatrix
-        "
-      />
 
     </div>
 
@@ -283,13 +287,7 @@ const handlePermissionMatrix = () => {
 /* MAIN */
 
 .access-layout {
-  display: grid;
-
-  grid-template-columns:
-    minmax(0, 1fr)
-    320px;
-
-  gap: 14px;
+  width: 100%;
 }
 
 .access-main {
@@ -330,13 +328,45 @@ const handlePermissionMatrix = () => {
   font-weight: 650;
 }
 
+.users-message {
+  display: flex;
+  min-height: 110px;
+  align-items: center;
+  justify-content: center;
+
+  padding: 16px;
+
+  border: 1px solid var(--border);
+  border-radius: 11px;
+
+  background: var(--bg-card);
+  color: var(--text-muted);
+
+  font-size: 11px;
+}
+
+.error-message {
+  min-height: auto;
+  justify-content: space-between;
+  gap: 16px;
+
+  border-color: color-mix(in srgb, var(--red) 35%, var(--border));
+  background: color-mix(in srgb, var(--red) 8%, var(--bg-card));
+}
+
+.error-message strong {
+  color: var(--red);
+  font-size: 11px;
+}
+
+.error-message p {
+  margin: 3px 0 0;
+  color: var(--text-secondary);
+}
+
 /* RESPONSIVE */
 
 @media (max-width: 1100px) {
-  .access-layout {
-    grid-template-columns: 1fr;
-  }
-
   .access-filters {
     grid-template-columns:
       repeat(2, minmax(0, 1fr));

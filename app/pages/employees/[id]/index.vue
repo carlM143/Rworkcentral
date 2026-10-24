@@ -216,6 +216,18 @@ const primaryRate = computed(() => {
   }
 
   if (
+    employee.value.salaryType === 'Semi-Monthly'
+  ) {
+    const value = formatCurrency(
+      employee.value.basicSalary,
+    )
+
+    return value === 'Not provided'
+      ? value
+      : `${value} / semi-month`
+  }
+
+  if (
     employee.value.salaryType === 'Daily'
   ) {
     const value = formatCurrency(

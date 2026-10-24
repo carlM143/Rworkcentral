@@ -187,6 +187,7 @@ const loadEmployee = async () => {
       ]),
 
       pagIbigNumber: getGovernmentNumber(government, [
+        'Pag-IBIG (HDMF) Number',
         'Pag-IBIG',
         'PagIBIG',
         'Pag-IBIG Number',
@@ -196,6 +197,7 @@ const loadEmployee = async () => {
       ]),
 
       tinNumber: getGovernmentNumber(government, [
+        'Tax Identification Number (TIN)',
         'TIN',
         'TIN Number',
         'Tax Identification Number',
@@ -204,7 +206,7 @@ const loadEmployee = async () => {
       // SALARY SETUP
       salaryTypeId: numericId(salarySetup.salary_type_id),
       salaryType: salaryTypeName,
-      basicSalary: salaryTypeName === 'Monthly' ? salaryRate : '',
+      basicSalary: !['Daily', 'Hourly'].includes(salaryTypeName) ? salaryRate : '',
       dailyRate: salaryTypeName === 'Daily' ? salaryRate : '',
       hourlyRate: salaryTypeName === 'Hourly' ? salaryRate : '',
       allowance: textValue(salarySetup.allowance),
@@ -219,12 +221,23 @@ const loadEmployee = async () => {
       emergencyAddress: textValue(emergency.address),
 
       // DOCUMENTS
-      documents: documents.map((document: any) => ({
-        id: String(document.id),
-        type: textValue(document.doc_name ?? document.type),
-        name: textValue(document.doc_name ?? document.name),
-        file: null,
-      })),
+      documents: documents.map((document: any) => {
+        const requirement = document.employment_document ?? document.employmentDocument ?? {}
+        const documentName = textValue(
+          requirement.document_name
+          ?? document.doc_name
+          ?? document.type
+          ?? document.name,
+        )
+
+        return {
+          id: `requirement-${document.employment_document_id}`,
+          employmentDocumentId: numericId(document.employment_document_id) ?? undefined,
+          type: documentName,
+          name: documentName,
+          file: null,
+        }
+      }),
     })
 
   } catch (problem: any) {
@@ -398,6 +411,13 @@ const buildUpdatePayload = (values: EmployeeForm) => {
       account_number: values.accountNumber.trim() || null,
     }
   }
+
+  payload.documents = values.documents
+    .filter(document => document.employmentDocumentId != null)
+    .map(document => ({
+      employment_document_id: document.employmentDocumentId,
+      submitted: true,
+    }))
 
   return payload
 }

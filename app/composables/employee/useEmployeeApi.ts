@@ -65,10 +65,18 @@ const buildEmployeePayload = (form: EmployeeForm) => {
   appendText(payload, 'contact_persons[0][address]', form.emergencyAddress)
 
   form.documents
-    .filter(document => document.file instanceof File)
+    .filter(document => document.employmentDocumentId != null)
     .forEach((document, index) => {
-      appendText(payload, `documents[${index}][doc_name]`, document.name || document.type)
-      payload.append(`documents[${index}][file]`, document.file as File)
+      appendText(
+        payload,
+        `documents[${index}][employment_document_id]`,
+        document.employmentDocumentId ?? null,
+      )
+      appendText(payload, `documents[${index}][submitted]`, 1)
+
+      if (document.file instanceof File) {
+        payload.append(`documents[${index}][file]`, document.file)
+      }
     })
 
   // Payroll is intentionally omitted for now. Laravel requires payroll_period_id,
