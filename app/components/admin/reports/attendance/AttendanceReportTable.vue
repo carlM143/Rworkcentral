@@ -27,6 +27,8 @@ defineProps<{
   }
 }>()
 
+const emit = defineEmits<{ view: [record: AttendanceReportRecord] }>()
+
 const statusClass = (
   status:
     AttendanceReportStatus,
@@ -418,7 +420,9 @@ const attendanceClass = (
               <button
                 type="button"
                 class="action-button"
-                title="Attendance details will be added later"
+                title="View report details"
+                aria-label="View report details"
+                @click="emit('view', item)"
               >
 
                 <MoreHorizontal

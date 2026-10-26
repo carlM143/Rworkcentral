@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { validReportDates } from '~/utils/reportExport'
 import {
   Download,
   FileSpreadsheet,
@@ -35,61 +36,26 @@ const {
   resetFilters,
 } = useAttendanceReport()
 
-const {
-  info,
-} = useToast()
+const { busy, preview, selectedRecord, generate, viewRecord, download, print } = useReportActions({
+  title: "Attendance Report", category: "Timekeeping", rows: filteredRecords,
+  period: () => `${dateFrom.value || 'Beginning'} to ${dateTo.value || 'Latest'}`, totals, filters: () => ({ Search: search.value, Department: department.value, 'Employment Type': employmentType.value, Status: status.value }),
+  validate: () => validReportDates(dateFrom.value, dateTo.value) ? '' : 'Enter valid dates with the start date on or before the end date.',
+})
+const handleGenerate = generate
+const handleExport = () => download('Excel')
+const handleExportPdf = () => download('PDF')
 
-const formatPeriod = (
-  from: string,
-  to: string,
-) => {
-  const formatter =
-    new Intl.DateTimeFormat(
-      'en-US',
-      {
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric',
-      },
-    )
-
-  const fromDate =
-    new Date(
-      `${from}T00:00:00`,
-    )
-
-  const toDate =
-    new Date(
-      `${to}T00:00:00`,
-    )
-
-  return `${formatter.format(
-    fromDate,
-  )} - ${formatter.format(
-    toDate,
-  )}`
+const formatPeriod = (from: string, to: string) => {
+  if (!validReportDates(from, to)) return 'Invalid date range'
+  const format = (value: string) => value ? new Intl.DateTimeFormat('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(value + 'T00:00:00')) : 'Any date'
+  return format(from) + ' – ' + format(to)
 }
 
-const handleGenerate = () => {
-  info(
-    'Attendance Report Generated',
-    `Report period: ${formatPeriod(
-      dateFrom.value,
-      dateTo.value,
-    )}`,
-  )
-}
-
-const handleExport = () => {
-  info(
-    'Export Attendance Report',
-    'Excel/PDF attendance export functionality will be connected later.',
-  )
-}
 </script>
 
 <template>
   <section class="attendance-report-page">
+    <ReportDataNotice />
 
     <!-- =====================================================
          HEADER
@@ -105,16 +71,16 @@ const handleExport = () => {
         <AppButton
           variant="secondary"
           :icon="FileSpreadsheet"
-          @click="handleExport"
+          :disabled="busy" @click="handleExport"
         >
           Export Excel
         </AppButton>
 
         <AppButton
           :icon="Download"
-          @click="handleExport"
+          :disabled="busy" @click="handleExportPdf"
         >
-          Export Report
+          Export PDF
         </AppButton>
 
       </div>
@@ -176,7 +142,7 @@ const handleExport = () => {
 
         <span class="status-dot" />
 
-        Generated Preview
+        Live Preview
 
       </div>
 
@@ -208,11 +174,14 @@ const handleExport = () => {
       @generate="handleGenerate"
     />
 
+    <p class="report-period-note">Attendance totals include complete reporting periods within the selected dates; partial periods are excluded.</p>
+
     <!-- =====================================================
          TABLE
     ====================================================== -->
 
     <AttendanceReportTable
+      @view="viewRecord"
       :records="paginatedRecords"
       :totals="totals"
     />
@@ -246,6 +215,11 @@ const handleExport = () => {
 
     </div>
 
+    <ReportDialog
+      :report="preview" :record="selectedRecord" :busy="busy" title="Attendance Report"
+      @close="preview = null; selectedRecord = null"
+      @download="download" @print="print"
+    />
   </section>
 </template>
 

@@ -41,9 +41,12 @@ const {
   resetFilters,
 } = usePendingEmployeePayroll()
 
-const {
-  info,
-} = useToast()
+const exportOpen = ref(false)
+const ledgerOpen = ref(false)
+const ledgerMode = ref('details')
+const selectedPayroll = ref<Record<string, any> | null>(null)
+const lastChecked = ref('')
+const openPayroll = (mode: string, record: Record<string, any> | null = null) => { ledgerMode.value = mode; selectedPayroll.value = record; ledgerOpen.value = true }
 
 /* =========================================================
    PAY PERIOD QUERY
@@ -74,19 +77,9 @@ watch(
    UI ONLY ACTIONS
 ========================================================= */
 
-const handleExport = () => {
-  info(
-    'Export Pending Employee Payroll',
-    'Employee payroll export functionality will be connected later.',
-  )
-}
+const handleExport = () => { exportOpen.value = true }
 
-const handleRefresh = () => {
-  info(
-    'Payroll Refreshed',
-    'Payroll calculation and live data refresh will be connected later.',
-  )
-}
+const handleRefresh = () => openPayroll('refresh')
 
 const handleBack = () => {
   router.push(
@@ -192,6 +185,7 @@ const handleBack = () => {
     <!-- TABLE -->
 
     <PendingEmployeePayrollTable
+      @action="openPayroll"
       :payrolls="
         paginatedPayrolls
       "
@@ -234,6 +228,8 @@ const handleBack = () => {
 
     </div>
 
+    <PayrollExportDialog :open="exportOpen" title="Pending Employee Payroll" :records="filteredPayrolls" :filters="{ Search: search, Period: period, Department: department, Status: status }" :date-from="dateFrom" :date-to="dateTo" @close="exportOpen = false" />
+    <PayrollLedgerDialog :open="ledgerOpen" :mode="ledgerMode" :record="selectedPayroll" :records="filteredPayrolls" title="Pending Employee Payroll Summary" @close="ledgerOpen = false" @checked="at => lastChecked = at" />
   </section>
 </template>
 

@@ -1,6 +1,6 @@
 
 <script setup lang="ts">
-import { CalendarRange, Eye, Pencil, Trash2 } from 'lucide-vue-next'
+import { CalendarRange } from 'lucide-vue-next'
 import type { PayrollPeriod } from '~/types/payrollPeriod'
 
 defineProps<{ periods: PayrollPeriod[] }>()
@@ -11,6 +11,16 @@ const emit = defineEmits<{
   delete: [period: PayrollPeriod]
 }>()
 
+const rowActions = (period: PayrollPeriod) => [
+  { key: 'view', label: 'View Payroll Period' },
+  { key: 'edit', label: 'Edit Payroll Period', disabled: period.status.toLowerCase() !== 'draft', reason: 'Only draft periods can be edited.' },
+  { key: 'delete', label: 'Delete Payroll Period', disabled: period.status.toLowerCase() !== 'draft', reason: 'Only draft periods can be deleted.' },
+]
+const selectAction = (key: string, period: PayrollPeriod) => {
+  if (key === 'view') emit('view', period)
+  if (key === 'edit') emit('edit', period)
+  if (key === 'delete') emit('delete', period)
+}
 const formatDate = (value: string) => {
   if (!value) return '—'
   const date = new Date(`${value.slice(0, 10)}T00:00:00`)
@@ -66,31 +76,7 @@ const formatDate = (value: string) => {
             </td>
 
             <td>
-              <div class="row-actions">
-                <button type="button" class="action-button" title="View Payroll Period" @click="emit('view', period)">
-                  <Eye :size="15" />
-                </button>
-
-                <button
-                  type="button"
-                  class="action-button"
-                  title="Edit Payroll Period"
-                  :disabled="period.status.toLowerCase() !== 'draft'"
-                  @click="emit('edit', period)"
-                >
-                  <Pencil :size="15" />
-                </button>
-
-                <button
-                  type="button"
-                  class="action-button danger"
-                  title="Delete Draft Period"
-                  :disabled="period.status.toLowerCase() !== 'draft'"
-                  @click="emit('delete', period)"
-                >
-                  <Trash2 :size="15" />
-                </button>
-              </div>
+              <div class="row-actions"><PayrollActionMenu :label="'Actions for ' + period.periodName" :items="rowActions(period)" @select="key => selectAction(key, period)" /></div>
             </td>
           </tr>
         </tbody>

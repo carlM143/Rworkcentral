@@ -71,24 +71,28 @@ const emit =
 
       <AppSelect
         v-model="period"
+        aria-label="period"
         :options="periods"
         placeholder="Select Pay Period"
       />
 
       <AppSelect
         v-model="department"
+        aria-label="department"
         :options="departments"
         placeholder="All Departments"
       />
 
       <AppSelect
         v-model="employmentType"
+        aria-label="Employment type"
         :options="employmentTypes"
         placeholder="Employment Type"
       />
 
       <AppSelect
         v-model="status"
+        aria-label="status"
         :options="statuses"
         placeholder="Payroll Status"
       />

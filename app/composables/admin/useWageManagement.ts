@@ -431,7 +431,7 @@ export const useWageManagement = () => {
               WageComplianceRecord['status']
 
             if (
-              item.distortionRisk
+              item.distortionRisk && !item.distortionReviewed
             ) {
               status =
                 'Distortion Review'
@@ -442,7 +442,7 @@ export const useWageManagement = () => {
               status =
                 item.status ===
                   'Effective'
-                  ? 'Compliant'
+                  ? 'Below Minimum'
                   : 'Pending Adjustment'
             } else {
               status =

@@ -75,7 +75,7 @@ const leaveClass = (
       <div>
 
         <h3>
-          Leave Calendar
+          Holiday Leave
         </h3>
 
         <p>

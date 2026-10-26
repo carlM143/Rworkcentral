@@ -31,63 +31,19 @@ const {
   priorityOptions,
   departments,
 
-  approveRequest,
-  rejectRequest,
 
   resetFilters,
 } = useApprovalCenter()
 
-const {
-  success,
-  info,
-  warning,
-} = useToast()
-
-/* =========================================================
-   ACTIONS
-========================================================= */
-
-const handleExport = () => {
-  info(
-    'Export Pending Requests',
-    'Approval Center export will be connected later.',
-  )
-}
-
-const handleView = (
-  request: ApprovalRequest,
-) => {
-  info(
-    request.type,
-    `${request.employeeName} — ${request.title}`,
-  )
-}
-
-const handleApprove = (
-  request: ApprovalRequest,
-) => {
-  approveRequest(
-    request,
-  )
-
-  success(
-    'Request Approved',
-    `${request.reference} for ${request.employeeName} has been approved.`,
-  )
-}
-
-const handleReject = (
-  request: ApprovalRequest,
-) => {
-  rejectRequest(
-    request,
-  )
-
-  warning(
-    'Request Rejected',
-    `${request.reference} for ${request.employeeName} has been rejected.`,
-  )
-}
+const exportOpen = ref(false)
+const requestOpen = ref(false)
+const requestMode = ref('view')
+const selectedRequest = ref<ApprovalRequest | null>(null)
+const openRequest = (mode: string, request: ApprovalRequest) => { selectedRequest.value = request; requestMode.value = mode; requestOpen.value = true }
+const handleExport = () => { exportOpen.value = true }
+const handleView = (request: ApprovalRequest) => openRequest('view', request)
+const handleApprove = (request: ApprovalRequest) => openRequest('approve', request)
+const handleReject = (request: ApprovalRequest) => openRequest('reject', request)
 </script>
 
 <template>
@@ -172,6 +128,8 @@ const handleReject = (
 
     </div>
 
+    <PayrollExportDialog :open="exportOpen" title="Approval Center Requests" :records="filteredRequests" :sample="false" :filters="{ Search: search, Type: type, Department: department, Priority: priority }" @close="exportOpen = false" />
+    <ApprovalRequestDialog :open="requestOpen" kind="Overview" :mode="requestMode" :request="selectedRequest" @close="requestOpen = false" />
   </section>
 </template>
 

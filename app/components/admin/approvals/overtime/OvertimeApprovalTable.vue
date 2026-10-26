@@ -3,7 +3,6 @@ import {
   CalendarDays,
   CheckCircle2,
   Clock3,
-  MoreHorizontal,
   ShieldCheck,
   Timer,
   UserRound,
@@ -19,6 +18,8 @@ defineProps<{
   requests:
     OvertimeApproval[]
 }>()
+
+const emit = defineEmits<{ action: [mode: string, request: OvertimeApproval] }>()
 
 const formatDate = (
   value: string,
@@ -506,17 +507,7 @@ const statusClass = (
 
             <td>
 
-              <button
-                type="button"
-                class="action-button"
-                title="Approval actions will be added later"
-              >
-
-                <MoreHorizontal
-                  :size="18"
-                />
-
-              </button>
+              <ApprovalRowActions :request="request" @action="(mode, item) => emit('action', mode, item as OvertimeApproval)" />
 
             </td>
 

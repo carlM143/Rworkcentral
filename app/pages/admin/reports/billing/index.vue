@@ -34,41 +34,20 @@ const {
   resetFilters,
 } = useBillingReport()
 
-const {
-  info,
-} = useToast()
+const { busy, preview, selectedRecord, generate, viewRecord, download, print } = useReportActions({
+  title: "Billing Report", category: "Billing", rows: filteredRecords,
+  period: () => period.value || 'All billing periods', totals, filters: () => ({ Search: search.value, Client: client.value, Status: status.value }),
+})
+const handleGenerate = generate
+const handleExcel = () => download('Excel')
+const handlePdf = () => download('PDF')
+const handlePrint = () => print()
 
-const handleGenerate = () => {
-  info(
-    'Billing Report Generated',
-    `Billing report preview for ${period.value} is ready.`,
-  )
-}
-
-const handleExcel = () => {
-  info(
-    'Export Billing Report',
-    'Excel billing export will be connected later.',
-  )
-}
-
-const handlePdf = () => {
-  info(
-    'Export Billing Report',
-    'PDF billing export will be connected later.',
-  )
-}
-
-const handlePrint = () => {
-  info(
-    'Print Billing Report',
-    'Print-ready billing report will be connected later.',
-  )
-}
 </script>
 
 <template>
   <section class="billing-report-page">
+    <ReportDataNotice />
 
     <PageHeader
       title="Billing Report"
@@ -80,7 +59,7 @@ const handlePrint = () => {
         <AppButton
           variant="secondary"
           :icon="Printer"
-          @click="handlePrint"
+          :disabled="busy" @click="handlePrint"
         >
           Print
         </AppButton>
@@ -88,14 +67,14 @@ const handlePrint = () => {
         <AppButton
           variant="secondary"
           :icon="FileSpreadsheet"
-          @click="handleExcel"
+          :disabled="busy" @click="handleExcel"
         >
           Excel
         </AppButton>
 
         <AppButton
           :icon="Download"
-          @click="handlePdf"
+          :disabled="busy" @click="handlePdf"
         >
           Export PDF
         </AppButton>
@@ -181,6 +160,7 @@ const handlePrint = () => {
     <!-- TABLE -->
 
     <BillingReportTable
+      @view="viewRecord"
       :records="paginatedRecords"
       :totals="totals"
     />
@@ -212,6 +192,11 @@ const handlePrint = () => {
 
     </div>
 
+    <ReportDialog
+      :report="preview" :record="selectedRecord" :busy="busy" title="Billing Report"
+      @close="preview = null; selectedRecord = null"
+      @download="download" @print="print"
+    />
   </section>
 </template>
 

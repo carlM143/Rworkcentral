@@ -66,6 +66,9 @@ const formatDateTime = (
         </thead>
 
         <tbody>
+          <tr v-if="!reports.length">
+            <td colspan="8">No reports exported in this session. Open a report to generate a preview or download a file.</td>
+          </tr>
           <tr
             v-for="report in reports"
             :key="report.id"

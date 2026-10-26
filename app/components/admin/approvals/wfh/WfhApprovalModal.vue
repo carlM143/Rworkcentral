@@ -22,6 +22,7 @@ const props = defineProps<{
   open: boolean
   request: WfhApproval | null
   mode: ModalMode
+  uiOnly?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -336,6 +337,7 @@ onBeforeUnmount(() => {
           </section>
         </div>
 
+        <p v-if="uiOnly" class="ui-preview-note">UI preview only. Preparing a decision does not change the source request, table status or backend records.</p>
         <footer class="modal-footer">
           <button
             type="button"
@@ -363,8 +365,8 @@ onBeforeUnmount(() => {
 
             {{
               effectiveDecision === 'approve'
-                ? 'Confirm Approval'
-                : 'Confirm Rejection'
+                ? (uiOnly ? 'Prepare Approval' : 'Confirm Approval')
+                : (uiOnly ? 'Prepare Rejection' : 'Confirm Rejection')
             }}
           </button>
         </footer>
@@ -374,6 +376,7 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
+.ui-preview-note { margin:0;padding:12px 22px;font-size:12px;line-height:1.6;color:var(--text-muted);background:var(--bg-card-soft); }
 .wfh-modal-overlay {
   position: fixed;
   inset: 0;

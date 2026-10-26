@@ -199,7 +199,7 @@ const formatShortDate = (
         >
           <CalendarDays :size="15" />
 
-          Leave Calendar
+          Holiday Leave
         </button>
 
       </div>

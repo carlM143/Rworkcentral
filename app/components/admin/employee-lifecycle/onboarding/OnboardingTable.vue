@@ -1,13 +1,13 @@
+
 <script setup lang="ts">
 import {
   CalendarDays,
-  Check,
-  Circle,
   ClipboardList,
   Mail,
-  MoreHorizontal,
   UserRound,
 } from 'lucide-vue-next'
+
+import LifecycleActionMenu from '~/components/admin/employee-lifecycle/LifecycleActionMenu.vue'
 
 import type {
   OnboardingEmployee,
@@ -15,148 +15,66 @@ import type {
 } from '~/types/onboarding'
 
 defineProps<{
-  records:
-    OnboardingEmployee[]
+  records: OnboardingEmployee[]
 }>()
 
-const formatDate = (
-  value: string,
-) => {
-  return new Intl.DateTimeFormat(
-    'en-US',
-    {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    },
-  ).format(
-    new Date(
-      `${value}T00:00:00`,
-    ),
-  )
+const emit = defineEmits<{
+  view: [record: OnboardingEmployee]
+  details: [record: OnboardingEmployee]
+  history: [record: OnboardingEmployee]
+}>()
+
+const formatDate = (value: string) => {
+  if (!value) return '—'
+
+  const date = new Date(`${value}T00:00:00`)
+
+  if (Number.isNaN(date.getTime())) {
+    return value
+  }
+
+  return new Intl.DateTimeFormat('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  }).format(date)
 }
 
-const statusClass = (
-  status:
-    OnboardingStatus,
-) => {
-  if (
-    status ===
-    'Completed'
-  ) {
-    return 'completed'
-  }
-
-  if (
-    status ===
-    'For Completion'
-  ) {
-    return 'for-completion'
-  }
-
-  if (
-    status ===
-    'In Progress'
-  ) {
-    return 'in-progress'
-  }
-
-  if (
-    status ===
-    'On Hold'
-  ) {
-    return 'on-hold'
-  }
+const statusClass = (status: OnboardingStatus) => {
+  if (status === 'Completed') return 'completed'
+  if (status === 'For Completion') return 'for-completion'
+  if (status === 'In Progress') return 'in-progress'
+  if (status === 'On Hold') return 'on-hold'
 
   return 'not-started'
-}
-
-const progressClass = (
-  progress: number,
-) => {
-  if (progress === 100) {
-    return 'complete'
-  }
-
-  if (progress >= 70) {
-    return 'high'
-  }
-
-  if (progress >= 40) {
-    return 'medium'
-  }
-
-  return 'low'
-}
-
-const checklistItems = (
-  item:
-    OnboardingEmployee,
-) => {
-  return [
-    {
-      label: 'Documents',
-      completed:
-        item.checklist.documents,
-    },
-    {
-      label: 'Profile',
-      completed:
-        item.checklist.employeeProfile,
-    },
-    {
-      label: 'Account',
-      completed:
-        item.checklist.companyAccount,
-    },
-    {
-      label: 'Orientation',
-      completed:
-        item.checklist.orientation,
-    },
-    {
-      label: 'Policies',
-      completed:
-        item.checklist.policyAcknowledgment,
-    },
-    {
-      label: 'Endorsement',
-      completed:
-        item.checklist.departmentEndorsement,
-    },
-  ]
 }
 </script>
 
 <template>
   <article class="table-card">
 
+    <!-- TABLE HEADER -->
     <div class="table-heading">
-
       <div>
-
-        <h3>
-          Employee Onboarding
-        </h3>
+        <h3>Employee Onboarding</h3>
 
         <p>
-          Monitor new hire requirements,
-          onboarding checklist and completion progress.
+          Monitor employee onboarding records, employment
+          information, completion status and remarks.
         </p>
-
       </div>
 
+      <span class="record-count">
+        {{ records.length }}
+        {{ records.length === 1 ? 'Record' : 'Records' }}
+      </span>
     </div>
 
-    <div
-      v-if="records.length"
-      class="table-scroll"
-    >
-
+    <!-- TABLE -->
+    <div v-if="records.length" class="table-scroll">
       <table>
 
         <thead>
-
           <tr>
             <th>Onboarding No.</th>
             <th>Employee</th>
@@ -164,314 +82,140 @@ const checklistItems = (
             <th>Employment</th>
             <th>Date Hired</th>
             <th>Target Completion</th>
-            <th>Checklist</th>
-            <th>Progress</th>
-            <th>Assigned HR</th>
             <th>Status</th>
             <th>Remarks</th>
-            <th />
+            <th class="actions-heading">Actions</th>
           </tr>
-
         </thead>
 
         <tbody>
-
           <tr
             v-for="item in records"
             :key="item.id"
           >
 
-            <!-- NUMBER -->
-
+            <!-- ONBOARDING NUMBER -->
             <td>
-
               <strong class="onboarding-number">
                 {{ item.onboardingNumber }}
               </strong>
-
             </td>
 
             <!-- EMPLOYEE -->
-
             <td>
-
               <div class="employee-cell">
 
                 <div class="employee-avatar">
-
-                  <UserRound
-                    :size="17"
-                  />
-
+                  <UserRound :size="17" />
                 </div>
 
                 <div class="employee-info">
-
                   <strong>
                     {{ item.employeeName }}
                   </strong>
 
-                  <span>
+                  <span class="employee-meta">
                     {{ item.employeeNumber }}
                     ·
                     {{ item.position }}
                   </span>
 
-                  <span class="email">
-
-                    <Mail :size="10" />
-
+                  <span class="employee-email">
+                    <Mail :size="11" />
                     {{ item.email }}
-
                   </span>
-
                 </div>
 
               </div>
-
             </td>
 
             <!-- DEPARTMENT -->
-
             <td>
-
               <strong class="department-name">
                 {{ item.department }}
               </strong>
-
             </td>
 
             <!-- EMPLOYMENT -->
-
             <td>
-
               <span class="employment-badge">
                 {{ item.employmentType }}
               </span>
-
             </td>
 
-            <!-- HIRED -->
-
+            <!-- DATE HIRED -->
             <td>
-
               <div class="date-cell">
-
-                <CalendarDays
-                  :size="13"
-                />
+                <CalendarDays :size="14" />
 
                 <span>
                   {{ formatDate(item.dateHired) }}
                 </span>
-
               </div>
-
             </td>
 
-            <!-- TARGET -->
-
+            <!-- TARGET COMPLETION -->
             <td>
-
               <div class="date-cell target-date">
-
-                <CalendarDays
-                  :size="13"
-                />
+                <CalendarDays :size="14" />
 
                 <strong>
-                  {{
-                    formatDate(
-                      item.targetCompletionDate,
-                    )
-                  }}
+                  {{ formatDate(item.targetCompletionDate) }}
                 </strong>
-
               </div>
-
-            </td>
-
-            <!-- CHECKLIST -->
-
-            <td>
-
-              <div class="checklist">
-
-                <div
-                  v-for="
-                    check in checklistItems(item)
-                  "
-                  :key="check.label"
-                  class="checklist-item"
-                  :class="{
-                    done:
-                      check.completed,
-                  }"
-                >
-
-                  <Check
-                    v-if="check.completed"
-                    :size="10"
-                  />
-
-                  <Circle
-                    v-else
-                    :size="9"
-                  />
-
-                  <span>
-                    {{ check.label }}
-                  </span>
-
-                </div>
-
-              </div>
-
-            </td>
-
-            <!-- PROGRESS -->
-
-            <td>
-
-              <div class="progress-cell">
-
-                <div class="progress-heading">
-
-                  <span>
-                    {{
-                      item.completedTasks
-                    }}
-                    /
-                    {{
-                      item.totalTasks
-                    }}
-                    tasks
-                  </span>
-
-                  <strong>
-                    {{ item.progress }}%
-                  </strong>
-
-                </div>
-
-                <div class="progress-track">
-
-                  <div
-                    class="progress-bar"
-                    :class="
-                      progressClass(
-                        item.progress,
-                      )
-                    "
-                    :style="{
-                      width:
-                        `${item.progress}%`,
-                    }"
-                  />
-
-                </div>
-
-              </div>
-
-            </td>
-
-            <!-- HR -->
-
-            <td>
-
-              <div class="hr-cell">
-
-                <div class="hr-avatar">
-                  HR
-                </div>
-
-                <strong>
-                  {{ item.assignedHr }}
-                </strong>
-
-              </div>
-
             </td>
 
             <!-- STATUS -->
-
             <td>
-
               <span
                 class="status-badge"
-                :class="
-                  statusClass(
-                    item.status,
-                  )
-                "
+                :class="statusClass(item.status)"
               >
-
                 <span class="status-dot" />
-
                 {{ item.status }}
-
               </span>
-
             </td>
 
             <!-- REMARKS -->
-
             <td>
-
-              <p class="remarks">
-                {{
-                  item.remarks ||
-                  'No remarks'
-                }}
+              <p
+                class="remarks"
+                :title="item.remarks || 'No remarks'"
+              >
+                {{ item.remarks || 'No remarks' }}
               </p>
-
             </td>
 
-            <!-- ACTION -->
-
-            <td>
-
-              <button
-                type="button"
-                class="action-button"
-                title="Onboarding actions will be added later"
-              >
-
-                <MoreHorizontal
-                  :size="18"
-                />
-
-              </button>
-
+            <!-- ACTIONS -->
+            <td class="actions-cell">
+              <LifecycleActionMenu
+                detail-label="View Progress"
+                :show-history="true"
+                @view="emit('view', item)"
+                @details="emit('details', item)"
+                @history="emit('history', item)"
+              />
             </td>
 
           </tr>
-
         </tbody>
 
       </table>
-
     </div>
 
-    <!-- EMPTY -->
-
-    <div
-      v-else
-      class="empty-state"
-    >
-
-      <ClipboardList
-        :size="36"
-      />
+    <!-- EMPTY STATE -->
+    <div v-else class="empty-state">
+      <div class="empty-icon">
+        <ClipboardList :size="25" />
+      </div>
 
       <strong>
         No onboarding records found
       </strong>
 
       <span>
-        Try changing your onboarding filters.
+        Try changing your search or onboarding filters.
       </span>
-
     </div>
 
   </article>
@@ -479,109 +223,95 @@ const checklistItems = (
 
 <style scoped>
 .table-card {
+  width: 100%;
   overflow: hidden;
-
-  border:
-    1px solid var(--border);
-
+  border: 1px solid var(--border);
   border-radius: 11px;
-
-  background:
-    var(--bg-card);
-
-  box-shadow:
-    var(--shadow);
+  background: var(--bg-card);
+  box-shadow: var(--shadow);
 }
 
-.table-heading {
-  padding:
-    16px 17px;
+/* HEADER */
 
-  border-bottom:
-    1px solid var(--border-soft);
+.table-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 17px;
+  border-bottom: 1px solid var(--border-soft);
 }
 
 .table-heading h3 {
   margin: 0;
-
-  color:
-    var(--text-primary);
-
+  color: var(--text-primary);
   font-size: 15px;
+  font-weight: 700;
 }
 
 .table-heading p {
-  margin:
-    5px 0 0;
-
-  color:
-    var(--text-muted);
-
+  margin: 5px 0 0;
+  color: var(--text-muted);
   font-size: 11px;
 }
 
+.record-count {
+  flex-shrink: 0;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--bg-card-soft);
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-weight: 650;
+}
+
+/* TABLE */
+
 .table-scroll {
+  width: 100%;
   overflow-x: auto;
 }
 
 table {
   width: 100%;
-
-  min-width: 2180px;
-
-  border-collapse:
-    collapse;
+  min-width: 1280px;
+  border-collapse: collapse;
 }
 
 th {
-  padding:
-    12px 13px;
-
-  background:
-    var(--bg-card-soft);
-
-  color:
-    var(--text-secondary);
-
+  padding: 13px 14px;
+  background: var(--bg-card-soft);
+  color: var(--text-secondary);
   font-size: 10px;
   font-weight: 700;
-
   text-align: left;
-
-  text-transform:
-    uppercase;
-
+  text-transform: uppercase;
   white-space: nowrap;
 }
 
 td {
-  padding:
-    13px;
-
-  border-top:
-    1px solid var(--border-soft);
-
-  color:
-    var(--text-secondary);
-
+  padding: 13px 14px;
+  border-top: 1px solid var(--border-soft);
+  color: var(--text-secondary);
   font-size: 10.5px;
-
   vertical-align: middle;
 }
 
-tbody tr:hover {
-  background:
-    var(--bg-card-soft);
+tbody tr {
+  transition: background 0.15s ease;
 }
 
-/* NUMBER */
+tbody tr:hover {
+  background: var(--bg-card-soft);
+}
+
+/* ONBOARDING NUMBER */
 
 .onboarding-number {
-  color:
-    var(--primary);
-
+  color: var(--primary);
   font-size: 10.5px;
-
+  font-weight: 700;
   white-space: nowrap;
 }
 
@@ -589,69 +319,63 @@ tbody tr:hover {
 
 .employee-cell {
   display: flex;
-
-  min-width: 245px;
-
+  min-width: 220px;
   align-items: center;
-
   gap: 10px;
 }
 
 .employee-avatar {
   display: flex;
-
   width: 38px;
   height: 38px;
-
   flex-shrink: 0;
-
   align-items: center;
   justify-content: center;
-
   border-radius: 9px;
-
-  background:
-    var(--primary-soft);
-
-  color:
-    var(--primary);
+  background: var(--primary-soft);
+  color: var(--primary);
 }
 
-.employee-info strong,
-.employee-info span {
-  display: block;
+.employee-info {
+  min-width: 0;
 }
 
 .employee-info strong {
-  color:
-    var(--text-primary);
-
+  display: block;
+  color: var(--text-primary);
   font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
 }
 
-.employee-info span {
-  margin-top: 3px;
-
-  color:
-    var(--text-muted);
-
+.employee-meta {
+  display: block;
+  margin-top: 4px;
+  color: var(--text-muted);
   font-size: 9.5px;
+  white-space: nowrap;
 }
 
-.email {
-  display: flex !important;
-
+.employee-email {
+  display: flex;
   align-items: center;
+  gap: 5px;
+  margin-top: 5px;
+  color: var(--text-muted);
+  font-size: 9.5px;
+  white-space: nowrap;
+}
 
-  gap: 4px;
+.employee-email svg {
+  flex-shrink: 0;
 }
 
 /* DEPARTMENT */
 
 .department-name {
-  color:
-    var(--text-primary);
-
+  color: var(--text-primary);
+  font-size: 10.5px;
+  font-weight: 650;
   white-space: nowrap;
 }
 
@@ -659,21 +383,13 @@ tbody tr:hover {
 
 .employment-badge {
   display: inline-flex;
-
-  padding:
-    5px 8px;
-
+  align-items: center;
+  padding: 6px 10px;
   border-radius: 20px;
-
-  background:
-    var(--primary-soft);
-
-  color:
-    var(--primary);
-
+  background: var(--primary-soft);
+  color: var(--primary);
   font-size: 9px;
-  font-weight: 650;
-
+  font-weight: 700;
   white-space: nowrap;
 }
 
@@ -681,327 +397,139 @@ tbody tr:hover {
 
 .date-cell {
   display: flex;
-
   align-items: center;
-
-  gap: 5px;
-
+  gap: 7px;
   white-space: nowrap;
 }
 
 .date-cell svg {
-  color:
-    var(--text-muted);
+  flex-shrink: 0;
+  color: var(--text-muted);
 }
 
 .target-date svg {
-  color:
-    var(--orange);
+  color: var(--orange);
 }
 
 .target-date strong {
-  color:
-    var(--text-primary);
-}
-
-/* CHECKLIST */
-
-.checklist {
-  display: grid;
-
-  width: 250px;
-
-  grid-template-columns:
-    repeat(
-      2,
-      minmax(0, 1fr)
-    );
-
-  gap: 5px 8px;
-}
-
-.checklist-item {
-  display: flex;
-
-  align-items: center;
-
-  gap: 4px;
-
-  color:
-    var(--text-muted);
-
-  font-size: 9px;
-
-  white-space: nowrap;
-}
-
-.checklist-item.done {
-  color:
-    var(--green);
-}
-
-/* PROGRESS */
-
-.progress-cell {
-  width: 155px;
-}
-
-.progress-heading {
-  display: flex;
-
-  align-items: center;
-  justify-content: space-between;
-
-  gap: 8px;
-
-  margin-bottom: 6px;
-}
-
-.progress-heading span {
-  color:
-    var(--text-muted);
-
-  font-size: 9px;
-}
-
-.progress-heading strong {
-  color:
-    var(--text-primary);
-
-  font-size: 10px;
-}
-
-.progress-track {
-  overflow: hidden;
-
-  height: 6px;
-
-  border-radius: 100px;
-
-  background:
-    var(--border-soft);
-}
-
-.progress-bar {
-  height: 100%;
-
-  border-radius: inherit;
-
-  transition:
-    width 0.2s ease;
-}
-
-.progress-bar.low {
-  background:
-    var(--red);
-}
-
-.progress-bar.medium {
-  background:
-    var(--orange);
-}
-
-.progress-bar.high {
-  background:
-    var(--primary);
-}
-
-.progress-bar.complete {
-  background:
-    var(--green);
-}
-
-/* HR */
-
-.hr-cell {
-  display: flex;
-
-  min-width: 130px;
-
-  align-items: center;
-
-  gap: 7px;
-}
-
-.hr-avatar {
-  display: flex;
-
-  width: 29px;
-  height: 29px;
-
-  flex-shrink: 0;
-
-  align-items: center;
-  justify-content: center;
-
-  border-radius: 50%;
-
-  background:
-    var(--purple-soft);
-
-  color:
-    var(--purple);
-
-  font-size: 8px;
-  font-weight: 700;
-}
-
-.hr-cell strong {
-  color:
-    var(--text-primary);
-
-  font-size: 10px;
+  color: var(--text-primary);
+  font-size: 10.5px;
+  font-weight: 650;
 }
 
 /* STATUS */
 
 .status-badge {
   display: inline-flex;
-
   align-items: center;
-
-  gap: 5px;
-
-  padding:
-    5px 8px;
-
+  gap: 6px;
+  padding: 6px 10px;
   border-radius: 20px;
-
   font-size: 9px;
-  font-weight: 650;
-
+  font-weight: 700;
   white-space: nowrap;
 }
 
 .status-dot {
   width: 5px;
   height: 5px;
-
+  flex-shrink: 0;
   border-radius: 50%;
-
-  background:
-    currentColor;
+  background: currentColor;
 }
 
 .status-badge.completed {
-  background:
-    var(--green-soft);
-
-  color:
-    var(--green);
+  background: var(--green-soft);
+  color: var(--green);
 }
 
 .status-badge.for-completion {
-  background:
-    var(--purple-soft);
-
-  color:
-    var(--purple);
+  background: var(--purple-soft);
+  color: var(--purple);
 }
 
 .status-badge.in-progress {
-  background:
-    var(--primary-soft);
-
-  color:
-    var(--primary);
+  background: var(--primary-soft);
+  color: var(--primary);
 }
 
 .status-badge.on-hold {
-  background:
-    var(--red-soft);
-
-  color:
-    var(--red);
+  background: var(--red-soft);
+  color: var(--red);
 }
 
 .status-badge.not-started {
-  background:
-    var(--orange-soft);
-
-  color:
-    var(--orange);
+  background: var(--orange-soft);
+  color: var(--orange);
 }
 
 /* REMARKS */
 
 .remarks {
-  width: 220px;
-
+  max-width: 230px;
   margin: 0;
-
   overflow: hidden;
-
-  color:
-    var(--text-secondary);
-
+  color: var(--text-secondary);
   font-size: 10px;
-
   text-overflow: ellipsis;
-
   white-space: nowrap;
 }
 
-/* ACTION */
+/* ACTIONS */
 
-.action-button {
-  display: flex;
-
-  width: 32px;
-  height: 32px;
-
-  align-items: center;
-  justify-content: center;
-
-  border:
-    1px solid transparent;
-
-  border-radius: 7px;
-
-  background:
-    transparent;
-
-  color:
-    var(--text-secondary);
+.actions-heading {
+  text-align: center;
 }
 
-.action-button:hover {
-  border-color:
-    var(--border);
-
-  background:
-    var(--bg-card-soft);
-
-  color:
-    var(--primary);
+.actions-cell {
+  width: 75px;
+  text-align: center;
 }
 
-/* EMPTY */
+/* EMPTY STATE */
 
 .empty-state {
   display: flex;
-
-  min-height: 280px;
-
+  min-height: 250px;
   flex-direction: column;
-
   align-items: center;
   justify-content: center;
+  gap: 9px;
+  padding: 25px;
+  text-align: center;
+}
 
-  gap: 8px;
-
-  color:
-    var(--text-muted);
+.empty-icon {
+  display: flex;
+  width: 52px;
+  height: 52px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 13px;
+  background: var(--primary-soft);
+  color: var(--primary);
 }
 
 .empty-state strong {
-  color:
-    var(--text-primary);
-
+  color: var(--text-primary);
   font-size: 13px;
 }
 
 .empty-state span {
+  color: var(--text-muted);
   font-size: 11px;
+}
+
+/* RESPONSIVE */
+
+@media (max-width: 768px) {
+  .table-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  table {
+    min-width: 1150px;
+  }
 }
 </style>

@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import {
-  MoreHorizontal,
   UserRound,
   Clock3,
   AlertTriangle,
@@ -14,6 +13,8 @@ defineProps<{
   payrolls:
     PendingEmployeePayroll[]
 }>()
+
+const emit = defineEmits<{ action: [mode: string, record: PendingEmployeePayroll] }>()
 
 const money = (
   value: number,
@@ -392,17 +393,7 @@ const formatDate = (
 
             <td>
 
-              <button
-                type="button"
-                class="action-button"
-                title="Actions will be added later"
-              >
-
-                <MoreHorizontal
-                  :size="17"
-                />
-
-              </button>
+              <PayrollActionMenu :label="'Actions for ' + payroll.employeeName" :items="[{ key: 'details', label: 'View Payroll Details' }, { key: 'issues', label: 'Review Payroll Issues' }, { key: 'payslip', label: 'Payroll Preview' }]" @select="mode => emit('action', mode, payroll)" />
 
             </td>
 

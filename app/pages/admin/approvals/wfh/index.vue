@@ -45,9 +45,6 @@ const {
   requestTypeOptions,
   statusOptions,
 
-  approveRequest,
-  rejectRequest,
-  getApprovedRequests,
 
   resetFilters,
 } = useWfhApprovals()
@@ -93,51 +90,23 @@ const closeApprovalModal = () => {
    APPROVAL ACTIONS
 ========================================= */
 
-const handleApprove = (
-  request: WfhApproval,
-  remarks: string,
-) => {
-  const result = approveRequest(request, remarks)
-
-  if (!result) {
-    warning(
-      'Unable to Approve',
-      'This request is no longer available for approval.',
-    )
-    closeApprovalModal()
-    return
-  }
-
-  success(
-    'WFH Request Approved',
-    `${request.requestNumber} has been approved successfully.`,
-  )
-
-  closeApprovalModal()
+const ui = useApprovalUi()
+const historyOpen = ref(false)
+const historyRequest = ref<WfhApproval | null>(null)
+const getApprovedRequests = computed(() => requests.value.filter(request => request.status === 'Approved'))
+const handleRowAction = (mode: string, request: WfhApproval) => {
+  if (mode === 'history') { historyRequest.value = request; historyOpen.value = true; return }
+  openApprovalModal(mode as ModalMode, request)
 }
-
-const handleReject = (
-  request: WfhApproval,
-  remarks: string,
-) => {
-  const result = rejectRequest(request, remarks)
-
-  if (!result) {
-    warning(
-      'Unable to Reject',
-      'Please check the request status and rejection reason.',
-    )
+const prepareDecision = (decision: 'approve' | 'reject', request: WfhApproval, remarks: string) => {
+  try {
+    ui.prepare('WFH', request, decision, remarks)
+    success('Decision Preview Prepared', 'The source request and table status remain unchanged. No backend update was sent.')
     closeApprovalModal()
-    return
-  }
-
-  warning(
-    'WFH Request Rejected',
-    `${request.requestNumber} has been rejected.`,
-  )
-
-  closeApprovalModal()
+  } catch (problem) { warning('Check Decision', problem instanceof Error ? problem.message : 'Unable to prepare the decision.') }
 }
+const handleApprove = (request: WfhApproval, remarks: string) => prepareDecision('approve', request, remarks)
+const handleReject = (request: WfhApproval, remarks: string) => prepareDecision('reject', request, remarks)
 
 /* =========================================
    WFH SCHEDULE
@@ -303,10 +272,7 @@ const downloadCsv = () => {
 
     <WfhApprovalTable
       :requests="paginatedRequests"
-      @view="openApprovalModal('view', $event)"
-      @review="openApprovalModal('review', $event)"
-      @approve="openApprovalModal('approve', $event)"
-      @reject="openApprovalModal('reject', $event)"
+      @action="handleRowAction"
     />
 
     <!-- PAGINATION -->
@@ -328,7 +294,7 @@ const downloadCsv = () => {
 
     <!-- APPROVAL MODAL -->
 
-    <WfhApprovalModal
+    <WfhApprovalModal :ui-only="true"
       :open="approvalModalOpen"
       :request="selectedRequest"
       :mode="modalMode"
@@ -425,6 +391,7 @@ const downloadCsv = () => {
         </section>
       </div>
     </Teleport>
+    <ApprovalRequestDialog :open="historyOpen" kind="WFH" mode="history" :request="historyRequest" @close="historyOpen = false" />
   </section>
 </template>
 

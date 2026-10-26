@@ -5,7 +5,15 @@ import type {
 } from '~/types/reportCenter'
 
 export const useReportsCenter = () => {
-  const reports =
+  const archive = useReportArchive()
+  const supported = new Set(['/admin/reports/attendance', '/admin/reports/payroll', '/admin/reports/billing', '/admin/13th-month-pay', '/admin/reports/sss', '/admin/reports/pagibig', '/admin/reports/philhealth', '/admin/reports/wage-compliance'])
+  const reportNames: Record<string, string> = {
+    '/admin/reports/attendance': 'Attendance Report', '/admin/reports/payroll': 'Payroll Report',
+    '/admin/reports/billing': 'Billing Report', '/admin/13th-month-pay': '13th Month Pay',
+    '/admin/reports/sss': 'SSS Report', '/admin/reports/pagibig': 'Pag-IBIG Report',
+    '/admin/reports/philhealth': 'PhilHealth Report', '/admin/reports/wage-compliance': 'Wage Compliance Report',
+  }
+  const catalog =
     useState<ReportCenterItem[]>(
       'reports-center-items',
       () => [
@@ -629,6 +637,15 @@ export const useReportsCenter = () => {
         },
       ],
     )
+
+  const reports = computed<ReportCenterItem[]>(() => [
+    ...catalog.value,
+    { id: 17, code: 'RPT-WAG-001', title: 'Wage Compliance Report', description: 'Review rates, applicable minimums, variances and compliance status.', category: 'Payroll', frequency: 'On Demand', route: '/admin/reports/wage-compliance', availability: 'Available', exportFormats: ['Excel', 'PDF', 'CSV'], generatedCount: 0, iconKey: 'landmark' },
+  ].map(item => {
+    const available = Boolean(item.route && supported.has(item.route))
+    const generated = archive.value.filter(report => report.title === reportNames[item.route ?? ''])
+    return { ...item, availability: available ? 'Available' : 'Coming Soon', exportFormats: available ? ['Excel', 'PDF', 'CSV'] : [], generatedCount: generated.length, lastGenerated: generated[0]?.generatedAt } as ReportCenterItem
+  }))
 
   /* =========================================================
      FILTERS

@@ -1,1204 +1,581 @@
+
 <script setup lang="ts">
 import {
-  CalendarDays,
-  CheckCircle2,
-  FileCheck2,
-  MoreHorizontal,
-  Star,
   UserRound,
-  XCircle,
+  CalendarDays,
+  ClipboardCheck,
 } from 'lucide-vue-next'
 
-import type {
-  Recommendation,
-  RegularizationRecord,
-  RegularizationStatus,
-} from '~/types/regularization'
+import LifecycleActionMenu from '~/components/admin/employee-lifecycle/LifecycleActionMenu.vue'
+
+type RegularizationRow = Record<string, any>
 
 defineProps<{
-  records:
-    RegularizationRecord[]
+  records: RegularizationRow[]
 }>()
 
-const formatDate = (
-  value?: string,
-) => {
-  if (!value) {
-    return '—'
+const emit = defineEmits<{
+  view: [record: RegularizationRow]
+  details: [record: RegularizationRow]
+  history: [record: RegularizationRow]
+}>()
+
+const get = (
+  item: RegularizationRow,
+  ...keys: string[]
+): string => {
+  for (const key of keys) {
+    const value = item[key]
+
+    if (value !== undefined && value !== null && value !== '') {
+      if (typeof value === 'object') {
+        if ('name' in value) return String(value.name)
+        if ('label' in value) return String(value.label)
+        continue
+      }
+
+      return String(value)
+    }
   }
 
-  return new Intl.DateTimeFormat(
-    'en-US',
-    {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    },
-  ).format(
-    new Date(
-      `${value}T00:00:00`,
-    ),
+  return ''
+}
+
+const employeeName = (item: RegularizationRow) =>
+  get(item, 'employeeName', 'employee_name', 'name') ||
+  (item.employee?.firstname
+    ? `${item.employee.firstname} ${item.employee.lastname ?? ''}`.trim()
+    : 'Unknown Employee')
+
+const employeeNumber = (item: RegularizationRow) =>
+  get(item, 'employeeNumber', 'employee_number', 'employeeId', 'emp_id') ||
+  '—'
+
+const recordNumber = (item: RegularizationRow) =>
+  get(
+    item,
+    'regularizationNumber',
+    'regularization_number',
+    'reference',
+    'referenceNumber',
+    'reference_no'
+  ) || `REG-${item.id ?? 'N/A'}`
+
+const departmentName = (item: RegularizationRow) =>
+  get(item, 'department', 'departmentName', 'department_name') || '—'
+
+const positionName = (item: RegularizationRow) =>
+  get(item, 'position', 'positionName', 'position_name') || '—'
+
+const targetDate = (item: RegularizationRow) =>
+  get(
+    item,
+    'targetRegularizationDate',
+    'target_regularization_date',
+    'targetDate',
+    'target_date'
   )
+
+const evaluationLabel = (item: RegularizationRow) =>
+  get(item, 'evaluationStatus', 'evaluation_status') || 'Pending'
+
+const recommendationLabel = (item: RegularizationRow) =>
+  get(item, 'recommendation', 'hrRecommendation', 'hr_recommendation') || 'Pending'
+
+const regularizationStatus = (item: RegularizationRow) =>
+  get(item, 'status', 'regularizationStatus', 'regularization_status') ||
+  'Pending'
+
+const effectiveDate = (item: RegularizationRow) =>
+  get(item, 'effectiveDate', 'effective_date')
+
+const formatDate = (value: string) => {
+  if (!value) return '—'
+
+  const date = new Date(
+    value.includes('T') ? value : `${value}T00:00:00`
+  )
+
+  if (Number.isNaN(date.getTime())) return value
+
+  return date.toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  })
 }
 
-const statusClass = (
-  status:
-    RegularizationStatus,
-) => {
-  if (
-    status ===
-    'Regularized'
-  ) {
-    return 'regularized'
-  }
+const statusClass = (value: string) => {
+  const text = value.toLowerCase()
 
   if (
-    status ===
-    'Approved'
-  ) {
-    return 'approved'
-  }
+    text.includes('regularized') ||
+    text.includes('completed') ||
+    text.includes('approved')
+  ) return 'success'
 
-  if (
-    status ===
-    'Recommended'
-  ) {
-    return 'recommended'
-  }
+  if (text.includes('recommended')) return 'purple'
 
-  if (
-    status ===
-    'For Review'
-  ) {
-    return 'review'
-  }
+  if (text.includes('progress') || text.includes('review')) return 'blue'
 
-  if (
-    status ===
-    'For Evaluation'
-  ) {
-    return 'evaluation'
-  }
+  if (text.includes('extend')) return 'orange'
 
-  if (
-    status ===
-    'Extended'
-  ) {
-    return 'extended'
-  }
+  if (text.includes('reject') || text.includes('cancel')) return 'danger'
 
-  return 'not-recommended'
+  return 'warning'
 }
 
-const recommendationClass = (
-  recommendation:
-    Recommendation,
-) => {
-  if (
-    recommendation ===
-    'For Regularization'
-  ) {
-    return 'positive'
-  }
-
-  if (
-    recommendation ===
-    'Extend Probation'
-  ) {
-    return 'extended'
-  }
-
-  if (
-    recommendation ===
-    'Not Recommended'
-  ) {
-    return 'negative'
-  }
-
-  return 'pending'
-}
-
-const scoreClass = (
-  score?: number,
-) => {
-  if (
-    score === undefined
-  ) {
-    return 'none'
-  }
-
-  if (score >= 4.5) {
-    return 'excellent'
-  }
-
-  if (score >= 4) {
-    return 'good'
-  }
-
-  if (score >= 3) {
-    return 'average'
-  }
-
-  return 'low'
-}
+const initials = (name: string) =>
+  name
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map(word => word.charAt(0))
+    .join('')
+    .toUpperCase()
 </script>
 
 <template>
-  <article class="table-card">
+  <article class="regularization-table-card">
 
     <!-- HEADER -->
-
     <div class="table-heading">
-
       <div>
-
-        <h3>
-          Employee Regularization
-        </h3>
+        <h3>Employee Regularization</h3>
 
         <p>
-          Track probationary employee evaluation,
-          recommendation, approval and regularization.
+          Track employee regularization dates,
+          recommendations and status.
         </p>
-
       </div>
 
+      <span class="record-count">
+        {{ records.length }}
+        {{ records.length === 1 ? 'Record' : 'Records' }}
+      </span>
     </div>
 
     <!-- TABLE -->
-
-    <div
-      v-if="records.length"
-      class="table-scroll"
-    >
-
+    <div class="table-scroll">
       <table>
-
         <thead>
-
           <tr>
             <th>Regularization No.</th>
             <th>Employee</th>
             <th>Department</th>
-            <th>Date Hired</th>
-            <th>Probation End</th>
+            <th>Position</th>
             <th>Target Regularization</th>
             <th>Evaluation</th>
-            <th>Score</th>
             <th>Recommendation</th>
-            <th>Documents</th>
-            <th>Reviewed By</th>
-            <th>Approved By</th>
             <th>Effective Date</th>
             <th>Status</th>
             <th>Remarks</th>
-            <th />
+            <th class="action-heading">Actions</th>
           </tr>
-
         </thead>
 
         <tbody>
-
           <tr
             v-for="item in records"
-            :key="item.id"
+            :key="item.id ?? recordNumber(item)"
           >
-
-            <!-- NUMBER -->
-
+            <!-- REGULARIZATION NUMBER -->
             <td>
-
-              <strong class="record-number">
-                {{
-                  item.regularizationNumber
-                }}
+              <strong class="reference-number">
+                {{ recordNumber(item) }}
               </strong>
-
             </td>
 
             <!-- EMPLOYEE -->
-
             <td>
-
               <div class="employee-cell">
+                <span class="employee-avatar">
+                  {{ initials(employeeName(item)) || 'EM' }}
+                </span>
 
-                <div class="employee-avatar">
-
-                  <UserRound
-                    :size="17"
-                  />
-
-                </div>
-
-                <div>
-
-                  <strong>
-                    {{ item.employeeName }}
-                  </strong>
+                <div class="employee-info">
+                  <strong>{{ employeeName(item) }}</strong>
 
                   <span>
-                    {{ item.employeeNumber }}
-                    ·
-                    {{ item.position }}
+                    {{ employeeNumber(item) }}
                   </span>
-
                 </div>
-
               </div>
-
             </td>
 
             <!-- DEPARTMENT -->
-
             <td>
-
-              <strong class="department">
-                {{ item.department }}
-              </strong>
-
+              <span class="department-text">
+                {{ departmentName(item) }}
+              </span>
             </td>
 
-            <!-- DATE HIRED -->
-
+            <!-- POSITION -->
             <td>
+              <span class="position-text">
+                {{ positionName(item) }}
+              </span>
+            </td>
 
+            <!-- TARGET DATE -->
+            <td>
               <div class="date-cell">
-
-                <CalendarDays
-                  :size="13"
-                />
-
-                {{
-                  formatDate(
-                    item.dateHired,
-                  )
-                }}
-
+                <CalendarDays :size="14" />
+                <strong>{{ formatDate(targetDate(item)) }}</strong>
               </div>
-
-            </td>
-
-            <!-- PROBATION END -->
-
-            <td>
-
-              <div class="date-cell probation-date">
-
-                <CalendarDays
-                  :size="13"
-                />
-
-                <div>
-
-                  <strong>
-                    {{
-                      formatDate(
-                        item.probationEndDate,
-                      )
-                    }}
-                  </strong>
-
-                  <span>
-                    {{
-                      item.probationMonths
-                    }}
-                    months
-                  </span>
-
-                </div>
-
-              </div>
-
-            </td>
-
-            <!-- TARGET -->
-
-            <td>
-
-              <strong class="target-date">
-                {{
-                  formatDate(
-                    item.targetRegularizationDate,
-                  )
-                }}
-              </strong>
-
             </td>
 
             <!-- EVALUATION -->
-
             <td>
-
               <span
-                class="evaluation-badge"
-                :class="
-                  item.evaluationStatus
-                    .toLowerCase()
-                    .replace(
-                      ' ',
-                      '-',
-                    )
-                "
+                class="status-badge"
+                :class="statusClass(evaluationLabel(item))"
               >
-                {{
-                  item.evaluationStatus
-                }}
+                <span class="status-dot" />
+                {{ evaluationLabel(item) }}
               </span>
-
-            </td>
-
-            <!-- SCORE -->
-
-            <td>
-
-              <div
-                class="score-badge"
-                :class="
-                  scoreClass(
-                    item.evaluationScore,
-                  )
-                "
-              >
-
-                <Star
-                  :size="12"
-                />
-
-                <strong>
-                  {{
-                    item.evaluationScore !==
-                    undefined
-                      ? `${item.evaluationScore} / 5`
-                      : 'Not Rated'
-                  }}
-                </strong>
-
-              </div>
-
             </td>
 
             <!-- RECOMMENDATION -->
-
             <td>
-
               <span
-                class="recommendation-badge"
-                :class="
-                  recommendationClass(
-                    item.recommendation,
-                  )
-                "
+                class="status-badge"
+                :class="statusClass(recommendationLabel(item))"
               >
-                {{
-                  item.recommendation
-                }}
+                <span class="status-dot" />
+                {{ recommendationLabel(item) }}
               </span>
-
             </td>
 
-            <!-- DOCUMENTS -->
-
+            <!-- EFFECTIVE DATE -->
             <td>
-
-              <div
-                class="document-status"
-                :class="{
-                  complete:
-                    item.documentsComplete,
-                  incomplete:
-                    !item.documentsComplete,
-                }"
-              >
-
-                <FileCheck2
-                  v-if="
-                    item.documentsComplete
-                  "
-                  :size="14"
-                />
-
-                <XCircle
-                  v-else
-                  :size="14"
-                />
-
-                <span>
-                  {{
-                    item.documentsComplete
-                      ? 'Complete'
-                      : 'Incomplete'
-                  }}
-                </span>
-
+              <div class="date-cell">
+                <CalendarDays :size="14" />
+                <span>{{ formatDate(effectiveDate(item)) }}</span>
               </div>
-
-            </td>
-
-            <!-- REVIEWED -->
-
-            <td>
-
-              <strong class="person-name">
-                {{
-                  item.reviewedBy ||
-                  'Not assigned'
-                }}
-              </strong>
-
-            </td>
-
-            <!-- APPROVED -->
-
-            <td>
-
-              <div
-                v-if="item.approvedBy"
-                class="approval-cell"
-              >
-
-                <CheckCircle2
-                  :size="13"
-                />
-
-                <div>
-
-                  <strong>
-                    {{
-                      item.approvedBy
-                    }}
-                  </strong>
-
-                  <span>
-                    {{
-                      formatDate(
-                        item.approvalDate,
-                      )
-                    }}
-                  </span>
-
-                </div>
-
-              </div>
-
-              <span
-                v-else
-                class="muted-text"
-              >
-                Pending
-              </span>
-
-            </td>
-
-            <!-- EFFECTIVE -->
-
-            <td>
-
-              <strong class="effective-date">
-                {{
-                  formatDate(
-                    item.effectiveDate,
-                  )
-                }}
-              </strong>
-
             </td>
 
             <!-- STATUS -->
-
             <td>
-
               <span
                 class="status-badge"
-                :class="
-                  statusClass(
-                    item.status,
-                  )
-                "
+                :class="statusClass(regularizationStatus(item))"
               >
-
                 <span class="status-dot" />
-
-                {{ item.status }}
-
+                {{ regularizationStatus(item) }}
               </span>
-
             </td>
 
             <!-- REMARKS -->
-
             <td>
-
-              <p class="remarks">
-                {{
-                  item.remarks ||
-                  'No remarks'
-                }}
-              </p>
-
-            </td>
-
-            <!-- ACTION -->
-
-            <td>
-
-              <button
-                type="button"
-                class="action-button"
-                title="Regularization actions will be added later"
+              <p
+                class="remarks-text"
+                :title="get(item, 'remarks') || 'No remarks'"
               >
-
-                <MoreHorizontal
-                  :size="18"
-                />
-
-              </button>
-
+                {{ get(item, 'remarks') || 'No remarks' }}
+              </p>
             </td>
 
+            <!-- THREE DOTS -->
+            <td class="action-cell">
+              <LifecycleActionMenu
+                detail-label="View Regularization Status"
+                :show-history="true"
+                @view="emit('view', item)"
+                @details="emit('details', item)"
+                @history="emit('history', item)"
+              />
+            </td>
           </tr>
 
+          <tr v-if="records.length === 0">
+            <td colspan="11">
+              <div class="empty-state">
+                <span class="empty-icon">
+                  <ClipboardCheck :size="25" />
+                </span>
+
+                <strong>No regularization records found</strong>
+
+                <p>
+                  Try changing the search keyword or filters.
+                </p>
+              </div>
+            </td>
+          </tr>
         </tbody>
-
       </table>
-
-    </div>
-
-    <!-- EMPTY -->
-
-    <div
-      v-else
-      class="empty-state"
-    >
-
-      <CheckCircle2
-        :size="36"
-      />
-
-      <strong>
-        No regularization records found
-      </strong>
-
-      <span>
-        Try changing your regularization filters.
-      </span>
-
     </div>
 
   </article>
 </template>
 
 <style scoped>
-.table-card {
+.regularization-table-card {
+  width: 100%;
   overflow: hidden;
-
-  border:
-    1px solid var(--border);
-
+  border: 1px solid var(--border);
   border-radius: 11px;
-
-  background:
-    var(--bg-card);
-
-  box-shadow:
-    var(--shadow);
+  background: var(--bg-card);
+  box-shadow: var(--shadow);
 }
 
 .table-heading {
-  padding:
-    16px 17px;
-
-  border-bottom:
-    1px solid var(--border-soft);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 17px;
+  border-bottom: 1px solid var(--border-soft);
 }
 
 .table-heading h3 {
   margin: 0;
-
-  color:
-    var(--text-primary);
-
-  font-size: 15px;
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 700;
 }
 
 .table-heading p {
-  margin:
-    5px 0 0;
+  margin: 5px 0 0;
+  color: var(--text-muted);
+  font-size: 10px;
+}
 
-  color:
-    var(--text-muted);
-
-  font-size: 11px;
+.record-count {
+  flex-shrink: 0;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--bg-card-soft);
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-weight: 600;
 }
 
 .table-scroll {
+  width: 100%;
   overflow-x: auto;
 }
 
 table {
   width: 100%;
+  min-width: 1470px;
+  border-collapse: collapse;
+}
 
-  min-width: 2600px;
-
-  border-collapse:
-    collapse;
+thead {
+  background: var(--bg-card-soft);
 }
 
 th {
-  padding:
-    12px 13px;
-
-  background:
-    var(--bg-card-soft);
-
-  color:
-    var(--text-secondary);
-
-  font-size: 10px;
+  padding: 13px 14px;
+  color: var(--text-secondary);
+  font-size: 9px;
   font-weight: 700;
-
   text-align: left;
-
-  text-transform:
-    uppercase;
-
+  text-transform: uppercase;
   white-space: nowrap;
 }
 
 td {
-  padding:
-    13px;
-
-  border-top:
-    1px solid var(--border-soft);
-
-  color:
-    var(--text-secondary);
-
-  font-size: 10.5px;
-
+  padding: 13px 14px;
+  border-top: 1px solid var(--border-soft);
+  color: var(--text-secondary);
+  font-size: 10px;
   vertical-align: middle;
 }
 
-tbody tr:hover {
-  background:
-    var(--bg-card-soft);
+tbody tr {
+  transition: background .15s ease;
 }
 
-/* NUMBER */
+tbody tr:hover {
+  background: var(--bg-card-soft);
+}
 
-.record-number {
-  color:
-    var(--primary);
-
+/* REFERENCE */
+.reference-number {
+  color: var(--primary);
+  font-size: 10px;
+  font-weight: 700;
   white-space: nowrap;
 }
 
 /* EMPLOYEE */
-
 .employee-cell {
   display: flex;
-
-  min-width: 230px;
-
+  min-width: 170px;
   align-items: center;
-
-  gap: 9px;
+  gap: 10px;
 }
 
 .employee-avatar {
   display: flex;
-
-  width: 37px;
-  height: 37px;
-
+  width: 36px;
+  height: 36px;
   flex-shrink: 0;
-
   align-items: center;
   justify-content: center;
-
   border-radius: 9px;
-
-  background:
-    var(--primary-soft);
-
-  color:
-    var(--primary);
-}
-
-.employee-cell strong,
-.employee-cell span {
-  display: block;
-}
-
-.employee-cell strong {
-  color:
-    var(--text-primary);
-
+  background: var(--primary-soft);
+  color: var(--primary);
   font-size: 11px;
+  font-weight: 700;
 }
 
-.employee-cell span {
-  margin-top: 3px;
-
-  color:
-    var(--text-muted);
-
-  font-size: 9.5px;
+.employee-info {
+  min-width: 0;
 }
 
-.department {
-  color:
-    var(--text-primary);
-
+.employee-info strong {
+  display: block;
+  color: var(--text-primary);
+  font-size: 10.5px;
+  font-weight: 700;
   white-space: nowrap;
 }
 
-/* DATES */
+.employee-info span {
+  display: block;
+  margin-top: 4px;
+  color: var(--text-muted);
+  font-size: 9px;
+}
 
+.department-text,
+.position-text {
+  color: var(--text-primary);
+  font-size: 10px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* DATE */
 .date-cell {
   display: flex;
-
   align-items: center;
-
-  gap: 6px;
-
+  gap: 7px;
   white-space: nowrap;
 }
 
 .date-cell svg {
-  color:
-    var(--text-muted);
+  flex-shrink: 0;
+  color: var(--text-muted);
 }
 
-.probation-date {
-  align-items: flex-start;
-}
-
-.probation-date svg {
-  margin-top: 2px;
-
-  color:
-    var(--orange);
-}
-
-.probation-date strong,
-.probation-date span {
-  display: block;
-}
-
-.probation-date strong {
-  color:
-    var(--text-primary);
-}
-
-.probation-date span {
-  margin-top: 2px;
-
-  color:
-    var(--text-muted);
-
-  font-size: 9px;
-}
-
-.target-date,
-.effective-date {
-  color:
-    var(--text-primary);
-
-  white-space: nowrap;
-}
-
-/* EVALUATION */
-
-.evaluation-badge {
-  display: inline-flex;
-
-  padding:
-    5px 8px;
-
-  border-radius: 20px;
-
-  font-size: 9px;
-  font-weight: 650;
-
-  white-space: nowrap;
-}
-
-.evaluation-badge.completed {
-  background:
-    var(--green-soft);
-
-  color:
-    var(--green);
-}
-
-.evaluation-badge.in-progress {
-  background:
-    var(--primary-soft);
-
-  color:
-    var(--primary);
-}
-
-.evaluation-badge.pending {
-  background:
-    var(--orange-soft);
-
-  color:
-    var(--orange);
-}
-
-/* SCORE */
-
-.score-badge {
-  display: inline-flex;
-
-  align-items: center;
-
-  gap: 5px;
-
-  padding:
-    6px 8px;
-
-  border-radius: 7px;
-
-  white-space: nowrap;
-}
-
-.score-badge svg {
-  color:
-    currentColor;
-}
-
-.score-badge.excellent {
-  background:
-    var(--green-soft);
-
-  color:
-    var(--green);
-}
-
-.score-badge.good {
-  background:
-    var(--primary-soft);
-
-  color:
-    var(--primary);
-}
-
-.score-badge.average {
-  background:
-    var(--orange-soft);
-
-  color:
-    var(--orange);
-}
-
-.score-badge.low {
-  background:
-    var(--red-soft);
-
-  color:
-    var(--red);
-}
-
-.score-badge.none {
-  background:
-    var(--bg-card-soft);
-
-  color:
-    var(--text-muted);
-}
-
-/* RECOMMENDATION */
-
-.recommendation-badge {
-  display: inline-flex;
-
-  padding:
-    5px 8px;
-
-  border-radius: 20px;
-
-  font-size: 9px;
-  font-weight: 650;
-
-  white-space: nowrap;
-}
-
-.recommendation-badge.positive {
-  background:
-    var(--green-soft);
-
-  color:
-    var(--green);
-}
-
-.recommendation-badge.extended {
-  background:
-    var(--orange-soft);
-
-  color:
-    var(--orange);
-}
-
-.recommendation-badge.negative {
-  background:
-    var(--red-soft);
-
-  color:
-    var(--red);
-}
-
-.recommendation-badge.pending {
-  background:
-    var(--bg-card-soft);
-
-  color:
-    var(--text-muted);
-}
-
-/* DOCUMENT */
-
-.document-status {
-  display: inline-flex;
-
-  align-items: center;
-
-  gap: 5px;
-
-  font-weight: 650;
-
-  white-space: nowrap;
-}
-
-.document-status.complete {
-  color:
-    var(--green);
-}
-
-.document-status.incomplete {
-  color:
-    var(--red);
-}
-
-/* PEOPLE */
-
-.person-name {
-  color:
-    var(--text-primary);
-
-  white-space: nowrap;
-}
-
-.approval-cell {
-  display: flex;
-
-  min-width: 125px;
-
-  align-items: flex-start;
-
-  gap: 6px;
-}
-
-.approval-cell svg {
-  margin-top: 1px;
-
-  color:
-    var(--green);
-}
-
-.approval-cell strong,
-.approval-cell span {
-  display: block;
-}
-
-.approval-cell strong {
-  color:
-    var(--text-primary);
-
+.date-cell strong {
+  color: var(--text-primary);
   font-size: 10px;
-}
-
-.approval-cell span {
-  margin-top: 2px;
-
-  color:
-    var(--text-muted);
-
-  font-size: 9px;
-}
-
-.muted-text {
-  color:
-    var(--text-muted);
+  font-weight: 650;
 }
 
 /* STATUS */
-
 .status-badge {
   display: inline-flex;
-
   align-items: center;
-
-  gap: 5px;
-
-  padding:
-    5px 8px;
-
+  gap: 6px;
+  padding: 6px 9px;
   border-radius: 20px;
-
   font-size: 9px;
-  font-weight: 650;
-
+  font-weight: 700;
   white-space: nowrap;
 }
 
 .status-dot {
   width: 5px;
   height: 5px;
-
+  flex-shrink: 0;
   border-radius: 50%;
-
-  background:
-    currentColor;
+  background: currentColor;
 }
 
-.status-badge.regularized {
-  background:
-    var(--green-soft);
-
-  color:
-    var(--green);
+.status-badge.success {
+  background: var(--green-soft);
+  color: var(--green);
 }
 
-.status-badge.approved {
-  background:
-    var(--primary-soft);
-
-  color:
-    var(--primary);
+.status-badge.purple {
+  background: var(--purple-soft);
+  color: var(--purple);
 }
 
-.status-badge.recommended {
-  background:
-    var(--purple-soft);
-
-  color:
-    var(--purple);
+.status-badge.blue {
+  background: var(--primary-soft);
+  color: var(--primary);
 }
 
-.status-badge.review {
-  background:
-    var(--primary-soft);
-
-  color:
-    var(--primary);
+.status-badge.orange,
+.status-badge.warning {
+  background: var(--orange-soft);
+  color: var(--orange);
 }
 
-.status-badge.evaluation {
-  background:
-    var(--orange-soft);
-
-  color:
-    var(--orange);
-}
-
-.status-badge.extended {
-  background:
-    var(--orange-soft);
-
-  color:
-    var(--orange);
-}
-
-.status-badge.not-recommended {
-  background:
-    var(--red-soft);
-
-  color:
-    var(--red);
+.status-badge.danger {
+  background: var(--red-soft);
+  color: var(--red);
 }
 
 /* REMARKS */
-
-.remarks {
-  width: 235px;
-
+.remarks-text {
+  max-width: 200px;
   margin: 0;
-
   overflow: hidden;
-
-  color:
-    var(--text-secondary);
-
-  text-overflow:
-    ellipsis;
-
-  white-space:
-    nowrap;
+  color: var(--text-secondary);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-/* ACTION */
-
-.action-button {
-  display: flex;
-
-  width: 32px;
-  height: 32px;
-
-  align-items: center;
-  justify-content: center;
-
-  border:
-    1px solid transparent;
-
-  border-radius: 7px;
-
-  background:
-    transparent;
-
-  color:
-    var(--text-secondary);
+/* ACTIONS */
+.action-heading,
+.action-cell {
+  width: 75px;
+  text-align: center;
 }
 
-.action-button:hover {
-  border-color:
-    var(--border);
-
-  background:
-    var(--bg-card-soft);
-
-  color:
-    var(--primary);
-}
-
-/* EMPTY */
-
+/* EMPTY STATE */
 .empty-state {
   display: flex;
-
-  min-height: 280px;
-
+  min-height: 210px;
   flex-direction: column;
-
   align-items: center;
   justify-content: center;
+  gap: 9px;
+  padding: 30px;
+  text-align: center;
+}
 
-  gap: 8px;
-
-  color:
-    var(--text-muted);
+.empty-icon {
+  display: flex;
+  width: 51px;
+  height: 51px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  background: var(--primary-soft);
+  color: var(--primary);
 }
 
 .empty-state strong {
-  color:
-    var(--text-primary);
-
-  font-size: 13px;
+  color: var(--text-primary);
+  font-size: 12px;
 }
 
-.empty-state span {
-  font-size: 11px;
+.empty-state p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 10px;
+}
+
+@media (max-width: 768px) {
+  table {
+    min-width: 1400px;
+  }
+
+  .table-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
 }
 </style>

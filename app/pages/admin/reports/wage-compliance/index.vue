@@ -12,10 +12,6 @@ const {
   complianceRecords,
 } = useWageManagement()
 
-const {
-  info,
-} = useToast()
-
 const search = ref('')
 const status = ref('')
 const region = ref('')
@@ -79,7 +75,7 @@ const filteredRecords =
 const compliant =
   computed(
     () =>
-      complianceRecords.value.filter(
+      filteredRecords.value.filter(
         item =>
           item.status ===
           'Compliant',
@@ -89,7 +85,7 @@ const compliant =
 const pending =
   computed(
     () =>
-      complianceRecords.value.filter(
+      filteredRecords.value.filter(
         item =>
           item.status ===
           'Pending Adjustment' ||
@@ -101,7 +97,7 @@ const pending =
 const distortion =
   computed(
     () =>
-      complianceRecords.value.filter(
+      filteredRecords.value.filter(
         item =>
           item.distortionRisk,
       ).length,
@@ -126,12 +122,20 @@ const resetFilters = () => {
   region.value = ''
 }
 
-const handleExport = () => {
-  info(
-    'Export Wage Compliance Report',
-    'Excel/PDF export will be connected later.',
-  )
-}
+const currentPage = ref(1)
+const perPage = 10
+const totalPages = computed(() => Math.max(1, Math.ceil(filteredRecords.value.length / perPage)))
+const paginatedRecords = computed(() => filteredRecords.value.slice((currentPage.value - 1) * perPage, currentPage.value * perPage))
+const showingFrom = computed(() => filteredRecords.value.length ? (currentPage.value - 1) * perPage + 1 : 0)
+const showingTo = computed(() => Math.min(currentPage.value * perPage, filteredRecords.value.length))
+watch([search, status, region], () => { currentPage.value = 1 })
+watch(totalPages, value => { currentPage.value = Math.min(currentPage.value, value) })
+const { busy, preview, selectedRecord, generate, viewRecord, download, print } = useReportActions({
+  title: 'Wage Compliance Report', category: 'Payroll', rows: filteredRecords,
+  period: () => 'Current wage review',
+  filters: () => ({ Search: search.value, Region: region.value, Status: status.value }),
+})
+const handleExport = generate
 
 const statusClass = (
   value: string,
@@ -156,6 +160,7 @@ const statusClass = (
 
 <template>
   <section class="page">
+    <ReportDataNotice />
 
     <PageHeader
       title="Wage Compliance Report"
@@ -164,6 +169,7 @@ const statusClass = (
 
       <AppButton
         :icon="Download"
+        :disabled="busy"
         @click="handleExport"
       >
         Export Report
@@ -175,7 +181,7 @@ const statusClass = (
 
       <StatCard
         label="Employees Reviewed"
-        :value="complianceRecords.length"
+        :value="filteredRecords.length"
         description="Employees evaluated"
         :icon="UsersRound"
         tone="blue"
@@ -259,13 +265,15 @@ const statusClass = (
               <th>Wage Order</th>
               <th>Distortion Risk</th>
               <th>Compliance Status</th>
+              <th>Details</th>
             </tr>
           </thead>
 
           <tbody>
+            <tr v-if="!filteredRecords.length"><td colspan="11">No wage compliance records match your filters.</td></tr>
 
             <tr
-              v-for="item in filteredRecords"
+              v-for="item in paginatedRecords"
               :key="item.id"
             >
 
@@ -345,6 +353,7 @@ const statusClass = (
                   {{ item.status }}
                 </span>
               </td>
+              <td><AppButton variant="secondary" size="sm" @click="viewRecord(item)">View</AppButton></td>
 
             </tr>
 
@@ -356,10 +365,17 @@ const statusClass = (
 
     </article>
 
+    <div class="report-footer">
+      <p>Showing {{ showingFrom }}–{{ showingTo }} of {{ filteredRecords.length }} records</p>
+      <AppPagination v-model="currentPage" :total-pages="totalPages" />
+    </div>
+    <ReportDialog :report="preview" :record="selectedRecord" :busy="busy" title="Wage Compliance Report"
+      @close="preview = null; selectedRecord = null" @download="download" @print="print" />
   </section>
 </template>
 
 <style scoped>
+.report-footer { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; padding-top: 14px; font-size: 12px; color: var(--text-secondary); }
 .page {
   width: 100%;
   max-width: 1680px;

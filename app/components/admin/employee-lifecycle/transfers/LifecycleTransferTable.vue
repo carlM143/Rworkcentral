@@ -4,9 +4,16 @@ import {
   Building2,
   CalendarDays,
   MapPin,
-  MoreHorizontal,
   UserRound,
 } from 'lucide-vue-next'
+
+import TransferActionMenu from '~/components/admin/employee-lifecycle/transfers/TransferActionMenu.vue'
+
+const emit = defineEmits<{
+  view: [record: any]
+  edit: [record: any]
+  history: [record: any]
+}>()
 
 import type {
   LifecycleTransfer,
@@ -440,29 +447,16 @@ const typeClass = (
             </td>
 
             <!-- ACTION -->
-
             <td>
-
-              <button
-                type="button"
-                class="action-button"
-                title="Transfer actions will be added later"
-              >
-
-                <MoreHorizontal
-                  :size="18"
-                />
-
-              </button>
-
+              <TransferActionMenu
+                @view="emit('view', item)"
+                @edit="emit('edit', item)"
+                @history="emit('history', item)"
+              />
             </td>
-
           </tr>
-
         </tbody>
-
       </table>
-
     </div>
 
     <div

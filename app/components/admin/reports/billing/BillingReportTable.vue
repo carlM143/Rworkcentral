@@ -31,6 +31,8 @@ defineProps<{
   }
 }>()
 
+const emit = defineEmits<{ view: [record: BillingReportRecord] }>()
+
 const money = (
   value: number,
 ) => {
@@ -390,7 +392,9 @@ const statusClass = (
               <button
                 type="button"
                 class="action-button"
-                title="Billing report details will be added later"
+                title="View report details"
+                aria-label="View report details"
+                @click="emit('view', item)"
               >
 
                 <MoreHorizontal

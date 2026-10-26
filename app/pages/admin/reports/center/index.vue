@@ -31,50 +31,45 @@ const {
   resetFilters,
 } = useReportsCenter()
 
-const {
-  info,
-} = useToast()
+const library = useReportLibrary()
+const { exportWorkbook } = useReportWorkbook()
+const { info, error: showError } = useToast()
+const { busy, preview, download, print } = useReportActions({
+  title: 'Reports Center', category: 'Payroll', rows: ref<object[]>([]), period: () => 'Current report defaults',
+})
+const route = useRoute()
+watch(() => route.query.category, value => {
+  category.value = typeof value === 'string' && categoryOptions.includes(value as any) ? value : ''
+}, { immediate: true })
 
-const handleOpenReport = async (
-  report:
-    ReportCenterItem,
-) => {
-  if (
-    report.route
-  ) {
-    await router.push(
-      report.route,
-    )
-
-    return
-  }
-
-  info(
-    report.title,
-    'Detailed report page will be connected later.',
-  )
+const handleOpenReport = async (report: ReportCenterItem) => {
+  if (report.availability !== 'Available' || !report.route) return
+  await router.push(report.route)
 }
-
-const handleExportReport = (
-  report:
-    ReportCenterItem,
-) => {
-  info(
-    `Export ${report.title}`,
-    'Report export functionality will be connected later.',
-  )
+const handleExportReport = (report: ReportCenterItem) => {
+  if (report.availability !== 'Available') return
+  const document = library.documentFor(report.route)
+  if (!document?.rows.length) { info('No report records', 'No data is available for this report.'); return }
+  preview.value = document
 }
-
-const handleQuickExport = () => {
-  info(
-    'Quick Export',
-    'Bulk report export functionality will be added later.',
-  )
+const handleQuickExport = async () => {
+  if (busy.value) return
+  const documents = filteredReports.value.filter(report => report.availability === 'Available')
+    .map(report => library.documentFor(report.route)).filter((report): report is NonNullable<typeof report> => Boolean(report?.rows.length))
+  if (!documents.length) { info('No available reports', 'Change the filters to include available reports.'); return }
+  busy.value = true
+  try { await exportWorkbook(documents) } catch (error) { showError('Export failed', error instanceof Error ? error.message : 'Please try again.') }
+  finally { busy.value = false }
+}
+const showAvailableReports = () => {
+  resetFilters()
+  availability.value = 'Available'
 }
 </script>
 
 <template>
   <section class="reports-center-page">
+    <ReportDataNotice />
 
     <!-- =====================================================
          HEADER
@@ -90,17 +85,14 @@ const handleQuickExport = () => {
         <AppButton
           variant="secondary"
           :icon="Download"
-          @click="handleQuickExport"
+          :disabled="busy" @click="handleQuickExport"
         >
-          Quick Export
+          Export Available Reports
         </AppButton>
 
         <AppButton
           :icon="FileBarChart"
-          @click="
-            availability =
-              'Available'
-          "
+          @click="showAvailableReports"
         >
           Available Reports
         </AppButton>
@@ -232,6 +224,7 @@ const handleQuickExport = () => {
       @export="handleExportReport"
     />
 
+    <ReportDialog :report="preview" :busy="busy" @close="preview = null" @download="download" @print="print" />
   </section>
 </template>
 
