@@ -17,6 +17,7 @@ import WfhApprovalTable from '~/components/admin/approvals/wfh/WfhApprovalTable.
 import WfhApprovalModal from '~/components/admin/approvals/wfh/WfhApprovalModal.vue'
 import WfhScheduleModal from '~/components/admin/approvals/wfh/WfhScheduleModal.vue'
 
+
 type ModalMode = 'view' | 'review' | 'approve' | 'reject'
 
 const {

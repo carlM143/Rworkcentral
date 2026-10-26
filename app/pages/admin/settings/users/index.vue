@@ -9,6 +9,10 @@ import type {
   SystemUser,
 } from '~/types/userAccess'
 
+// USER MODALS
+import UserFormModal from '~/components/admin/settings/users/UserFormModal.vue'
+import UserViewModal from '~/components/admin/settings/users/UserViewModal.vue'
+
 const {
   search,
   role,
@@ -35,42 +39,36 @@ const {
   loadUsers,
 } = useUsersAccess()
 
+type UserModalMode = 'add' | 'view' | 'edit' | null
+
+const userModalMode = ref<UserModalMode>(null)
+const selectedUser = ref<SystemUser | null>(null)
+
+const openAddUser = () => {
+  selectedUser.value = null
+  userModalMode.value = 'add'
+}
+
+const openViewUser = (user: SystemUser) => {
+  selectedUser.value = user
+  userModalMode.value = 'view'
+}
+
+const openEditUser = (user: SystemUser) => {
+  selectedUser.value = user
+  userModalMode.value = 'edit'
+}
+
+const closeUserModal = () => {
+  userModalMode.value = null
+  selectedUser.value = null
+}
+
 const router =
   useRouter()
 
-const {
-  info,
-} = useToast()
-
 const handleBack = () => {
-  router.push(
-    '/admin/settings',
-  )
-}
-
-const handleAddUser = () => {
-  info(
-    'Add System User',
-    'System user creation form will be implemented next.',
-  )
-}
-
-const handleView = (
-  user: SystemUser,
-) => {
-  info(
-    'User Access',
-    `${user.name} — ${user.role}`,
-  )
-}
-
-const handleEdit = (
-  user: SystemUser,
-) => {
-  info(
-    'Edit User',
-    `${user.name} access settings will be editable in the user management form.`,
-  )
+  router.push('/admin/settings')
 }
 
 </script>
@@ -95,9 +93,9 @@ const handleEdit = (
       description="Manage system users, account roles, access status and security permissions."
     >
 
-      <AppButton
+     <AppButton
         :icon="UserPlus"
-        @click="handleAddUser"
+        @click="openAddUser"
       >
         Add System User
       </AppButton>
@@ -175,8 +173,8 @@ const handleEdit = (
         <SystemUsersTable
           v-else
           :users="paginatedUsers"
-          @view="handleView"
-          @edit="handleEdit"
+          @view="openViewUser"
+          @edit="openEditUser"
         />
 
         <div
@@ -204,12 +202,22 @@ const handleEdit = (
             v-model="currentPage"
             :total-pages="totalPages"
           />
-
+         </div>
+         </div>
         </div>
+    <UserFormModal
+      :open="userModalMode === 'add' || userModalMode === 'edit'"
+      :mode="userModalMode === 'edit' ? 'edit' : 'add'"
+      :user="selectedUser"
+      @close="closeUserModal"
+    />
 
-      </div>
-
-    </div>
+    <UserViewModal
+      :open="userModalMode === 'view'"
+      :user="selectedUser"
+      @close="closeUserModal"
+      @edit="openEditUser"
+    />
 
   </section>
 </template>
