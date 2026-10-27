@@ -1,12 +1,20 @@
 import { employeeRequestCategory, type EmployeeRequestCategory } from '~/utils/employeeRequestCategory'
 import { employeeLeavePolicy } from '~/utils/employeeLeavePolicy'
 
+export interface LeaveDateItem {
+  id?: number
+  leave_date: string
+  day_type: 'whole_day' | 'half_day'
+  day_value?: number
+}
+
 export interface EmployeeRequest {
   id: string
   rawId?: number
   requestNo?: string
   category?: EmployeeRequestCategory
   type: string
+  requestDate?: string
   start: string
   end: string
   reason: string
@@ -14,6 +22,8 @@ export interface EmployeeRequest {
   file_url?: string | null
   file_path?: string | null
   status: 'Pending' | 'Approved' | 'Rejected' | 'Cancelled'
+  dates?: LeaveDateItem[]
+  total_days?: number
   timing?: {
     startTime?: string
     endTime?: string
@@ -445,12 +455,17 @@ export const useEmployeePortal = () => {
     const fileUrl = item.file_url || (item.file_path ? (item.file_path.startsWith('http') ? item.file_path : `/storage/${item.file_path.replace(/^\/+/, '')}`) : null)
     const imageObj = fileUrl ? { name: item.file_path ? item.file_path.split('/').pop() : 'Attachment', dataUrl: fileUrl } : (item.image || undefined)
 
+    const reqDate = item.request_date
+      ? (typeof item.request_date === 'string' ? item.request_date.slice(0, 10) : item.request_date)
+      : (item.start || item.ot_date || item.undertime_date || '')
+
     return {
       id: item.request_no || item.id || `${category.toUpperCase().slice(0, 2)}-${item.raw_id || Math.floor(Math.random() * 10000)}`,
       rawId: item.raw_id || (typeof item.id === 'number' ? item.id : undefined),
       requestNo: item.request_no,
       category,
       type: item.type || (category === 'Leave' ? (item.leave_type?.leave_name || 'Vacation Leave') : category),
+      requestDate: reqDate,
       start: item.start || item.request_date || item.ot_date || item.undertime_date || '',
       end: item.end || item.request_date || item.ot_date || item.undertime_date || '',
       reason: item.reason || '',
@@ -466,6 +481,13 @@ export const useEmployeePortal = () => {
         requestedTimeOut: item.timing.requestedTimeOut,
         requestedMinutes: item.timing.requestedMinutes ?? 0,
       } : undefined,
+      dates: Array.isArray(item.dates) ? item.dates.map((d: any) => ({
+        id: d.id,
+        leave_date: d.leave_date || d.date,
+        day_type: d.day_type || 'whole_day',
+        day_value: Number(d.day_value ?? (d.day_type === 'half_day' ? 0.5 : 1.0)),
+      })) : undefined,
+      total_days: typeof item.total_days === 'number' ? item.total_days : undefined,
       created_at: item.created_at,
     }
   }
@@ -520,10 +542,12 @@ export const useEmployeePortal = () => {
 
   const submitRequest = async (payload: {
     type: string
+    requestDate?: string
     start: string
     end?: string
     reason: string
     image?: { name: string; dataUrl: string }
+    dates?: LeaveDateItem[]
     timing?: EmployeeRequest['timing']
   }) => {
     if (!import.meta.client) return { success: false, message: 'Client only' }
@@ -558,9 +582,11 @@ export const useEmployeePortal = () => {
         endpoint = '/employee/leave-requests'
         body = {
           type: payload.type,
+          request_date: payload.requestDate || payload.start,
           start_date: payload.start,
           end_date: payload.end || payload.start,
           reason: payload.reason,
+          dates: payload.dates,
           image: payload.image?.dataUrl || undefined,
         }
       }
@@ -588,7 +614,15 @@ export const useEmployeePortal = () => {
     return await submitRequest(payload)
   }
 
-  const updateRequest = async (id: string, changes: Pick<EmployeeRequest, 'start' | 'end' | 'reason' | 'image' | 'timing'> & { type?: string }) => {
+  const updateRequest = async (
+    id: string,
+    changes: Pick<EmployeeRequest, 'start' | 'end' | 'reason' | 'image' | 'timing'> & {
+      type?: string
+      dates?: LeaveDateItem[]
+      requestDate?: string
+      remove_image?: boolean
+    }
+  ) => {
     if (!import.meta.client) return false
     const existing = requests.value.find(r => r.id === id || String(r.rawId) === String(id))
     if (!existing || existing.status !== 'Pending') return false
@@ -601,6 +635,9 @@ export const useEmployeePortal = () => {
       let endpoint = `/employee/leave-requests/${rawId}`
       let body: any = {}
 
+      const isRemovingImage = changes.remove_image === true || (Boolean(existing.image) && !changes.image)
+      const imagePayload = isRemovingImage ? null : (changes.image?.dataUrl || undefined)
+
       if (category === 'Overtime') {
         endpoint = `/employee/overtime-requests/${rawId}`
         body = {
@@ -609,7 +646,8 @@ export const useEmployeePortal = () => {
           end_time: changes.timing?.endTime,
           ends_next_day: changes.timing?.endsNextDay ?? false,
           reason: changes.reason,
-          image: changes.image?.dataUrl || undefined,
+          image: imagePayload,
+          remove_image: isRemovingImage,
         }
       } else if (category === 'Undertime') {
         endpoint = `/employee/undertime-requests/${rawId}`
@@ -619,16 +657,20 @@ export const useEmployeePortal = () => {
           scheduled_time: changes.timing?.endTime || changes.timing?.scheduledTimeOut,
           requested_minutes: changes.timing?.requestedMinutes,
           reason: changes.reason,
-          image: changes.image?.dataUrl || undefined,
+          image: imagePayload,
+          remove_image: isRemovingImage,
         }
       } else {
         endpoint = `/employee/leave-requests/${rawId}`
         body = {
           type: changes.type || existing.type,
+          request_date: changes.requestDate || existing.requestDate || changes.start,
           start_date: changes.start,
           end_date: changes.end || changes.start,
           reason: changes.reason,
-          image: changes.image?.dataUrl || undefined,
+          dates: changes.dates,
+          image: imagePayload,
+          remove_image: isRemovingImage,
         }
       }
 

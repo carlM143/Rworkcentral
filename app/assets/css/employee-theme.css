@@ -73,7 +73,7 @@ html.dark .employee-auth-shell {
 .record-fields {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 20px;
+  gap: 14px 18px;
   margin: 0;
 }
 
@@ -82,21 +82,42 @@ html.dark .employee-auth-shell {
 }
 
 .record-fields dt {
-  margin-bottom: 7px;
-  font-size: 12px;
+  margin-bottom: 3px;
+  font-size: 11px;
   color: var(--text-secondary);
+  font-weight: 500;
 }
 
 .record-fields dd {
   margin: 0;
   font-size: 13px;
-  line-height: 1.7;
+  font-weight: 600;
+  line-height: 1.45;
   overflow-wrap: anywhere;
   white-space: pre-wrap;
+  color: var(--text-primary);
 }
 
 .record-fields .wide {
   grid-column: 1 / -1;
+  padding: 8px 12px;
+  background: var(--bg-card-soft);
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  margin-top: 2px;
+}
+
+.record-fields .wide dt {
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-bottom: 2px;
+}
+
+.record-fields .wide dd {
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.5;
+  color: var(--text-secondary);
 }
 
 .employee-shell .record-row {
@@ -191,10 +212,21 @@ html.dark .employee-auth-shell {
   }
 
   .employee-shell .record-fields {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px 14px;
   }
 
-  .employee-shell :is(button, summary),
+  .employee-shell .record-fields dt {
+    margin-bottom: 2px;
+    font-size: 11px;
+  }
+
+  .employee-shell .record-fields dd {
+    font-size: 13px;
+    line-height: 1.4;
+  }
+
+  .employee-shell :is(button:not(.leave-calendar-card button):not(.day-btn):not(.preset-pill):not(.nav-btn):not(.today-jump-btn):not(.reset-single-btn):not(.month-title-btn):not(.month-btn), summary),
   .employee-auth-shell button {
     min-height: 44px;
   }
