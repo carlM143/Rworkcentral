@@ -231,7 +231,6 @@ const fullName = computed(() => {
             v-model="form.gender"
             label="Gender"
             :options="genderOptions"
-            required
           />
         </div>
 
@@ -258,6 +257,7 @@ const fullName = computed(() => {
           <div class="form-field">
             <label class="field-label">
               Email Address
+              <span>*</span>
             </label>
 
             <div class="input-with-icon">
@@ -294,6 +294,7 @@ const fullName = computed(() => {
 
             <label>
               Residential Address
+              <span>*</span>
             </label>
           </div>
 
@@ -301,7 +302,7 @@ const fullName = computed(() => {
             v-model="form.address"
             placeholder="House/Unit No., Street, Barangay, City/Municipality, Province"
             :rows="3"
-            :maxlength="300"
+            :maxlength="255"
           />
         </div>
 
@@ -618,6 +619,10 @@ const fullName = computed(() => {
 .address-label label {
   font-size: 10px;
   font-weight: 600;
+}
+
+.address-label span {
+  color: var(--red);
 }
 
 /* =========================

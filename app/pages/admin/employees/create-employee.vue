@@ -56,25 +56,27 @@ const stepLabels: Record<number, string> = {
 const getSavePreflightErrors = () => {
   const missing: string[] = []
 
+  // Personal Information
   if (!form.value.firstName.trim()) missing.push('First Name')
   if (!form.value.lastName.trim()) missing.push('Last Name')
   if (!form.value.birthDate) missing.push('Birth Date')
-  if (!form.value.gender) missing.push('Gender')
-  if (!form.value.civilStatus) missing.push('Civil Status')
   if (!form.value.email.trim()) missing.push('Email Address')
-  if (!form.value.mobileNumber.trim()) missing.push('Mobile Number')
-  if (!form.value.dateHired) missing.push('Date Hired')
-  if (form.value.employmentTypeId === null) missing.push('Employment Type')
-  if (form.value.departmentId === null) missing.push('Department')
-  if (form.value.positionId === null) missing.push('Position')
-  if (form.value.workScheduleId === null) missing.push('Work Schedule')
-  if (form.value.restDayId === null) missing.push('Rest Day')
-  if (!form.value.emergencyContactName.trim()) missing.push('Emergency Contact Name')
-  if (!form.value.emergencyRelationship) missing.push('Emergency Relationship')
-  if (!form.value.emergencyMobileNumber.trim()) missing.push('Emergency Mobile Number')
-  if (!form.value.emergencyAddress.trim()) missing.push('Emergency Contact Address')
+  if (!form.value.address.trim()) missing.push('Residential Address')
 
+  // Employment Information
+  if (!form.value.dateHired) missing.push('Date Hired')
+  if (form.value.employmentTypeId == null) missing.push('Employment Type')
+  if (form.value.departmentId == null) missing.push('Department')
+  if (form.value.positionId == null) missing.push('Position')
+
+  // Emergency Contact
+  if (!form.value.emergencyContactName.trim()) missing.push('Contact Person Name')
+  if (!form.value.emergencyRelationship.trim()) missing.push('Relationship')
+  if (!form.value.emergencyMobileNumber.trim()) missing.push('Contact Number')
+
+  // Validate provided salary values without requiring salary setup
   missing.push(...salaryErrors(form.value))
+
   return missing
 }
 
@@ -219,40 +221,14 @@ const nextLabels: Record<number, string> = {
 const validatePersonalStep = () => {
   const missing: string[] = []
 
-  if (!form.value.firstName.trim()) {
-    missing.push('First Name')
-  }
-
-  if (!form.value.lastName.trim()) {
-    missing.push('Last Name')
-  }
-
-  if (!form.value.birthDate) {
-    missing.push('Birth Date')
-  }
-
-  if (!form.value.gender) {
-    missing.push('Gender')
-  }
-
-  if (!form.value.civilStatus) {
-    missing.push('Civil Status')
-  }
-
-  if (!form.value.email.trim()) {
-    missing.push('Email Address')
-  }
-
-  if (!form.value.mobileNumber.trim()) {
-    missing.push('Mobile Number')
-  }
+  if (!form.value.firstName.trim()) missing.push('First Name')
+  if (!form.value.lastName.trim()) missing.push('Last Name')
+  if (!form.value.birthDate) missing.push('Birth Date')
+  if (!form.value.email.trim()) missing.push('Email Address')
+  if (!form.value.address.trim()) missing.push('Residential Address')
 
   if (missing.length) {
-    warning(
-      'Incomplete Personal Information',
-      `Please complete: ${missing.join(', ')}.`,
-    )
-
+    warning('Incomplete Personal Information', `Please complete: ${missing.join(', ')}.`)
     return false
   }
 
@@ -270,36 +246,13 @@ const validateDocumentsStep = () => {
 const validateEmploymentStep = () => {
   const missing: string[] = []
 
-  if (!form.value.dateHired) {
-    missing.push('Date Hired')
-  }
-
-  if (form.value.departmentId === null) {
-    missing.push('Department')
-  }
-
-  if (form.value.positionId === null) {
-    missing.push('Position')
-  }
-
-  if (form.value.employmentTypeId === null) {
-    missing.push('Employment Type')
-  }
-
-  if (form.value.workScheduleId === null) {
-    missing.push('Work Schedule')
-  }
-
-  if (form.value.restDayId === null) {
-    missing.push('Rest Day')
-  }
+  if (!form.value.dateHired) missing.push('Date Hired')
+  if (form.value.employmentTypeId == null) missing.push('Employment Type')
+  if (form.value.departmentId == null) missing.push('Department')
+  if (form.value.positionId == null) missing.push('Position')
 
   if (missing.length) {
-    warning(
-      'Incomplete Employment Information',
-      `Please complete: ${missing.join(', ')}.`,
-    )
-
+    warning('Incomplete Employment Information', `Please complete: ${missing.join(', ')}.`)
     return false
   }
 
@@ -337,34 +290,12 @@ const validatePayrollStep = () => {
 const validateEmergencyContactStep = () => {
   const missing: string[] = []
 
-  if (
-    !form.value.emergencyContactName.trim()
-  ) {
-    missing.push('Contact Person')
-  }
-
-  if (
-    !form.value.emergencyRelationship
-  ) {
-    missing.push('Relationship')
-  }
-
-  if (
-    !form.value.emergencyMobileNumber.trim()
-  ) {
-    missing.push('Mobile Number')
-  }
-
-  if (!form.value.emergencyAddress.trim()) {
-    missing.push('Contact Address')
-  }
+  if (!form.value.emergencyContactName.trim()) missing.push('Contact Person Name')
+  if (!form.value.emergencyRelationship.trim()) missing.push('Relationship')
+  if (!form.value.emergencyMobileNumber.trim()) missing.push('Contact Number')
 
   if (missing.length) {
-    warning(
-      'Incomplete Emergency Contact',
-      `Please complete: ${missing.join(', ')}.`,
-    )
-
+    warning('Incomplete Emergency Contact', `Please complete: ${missing.join(', ')}.`)
     return false
   }
 

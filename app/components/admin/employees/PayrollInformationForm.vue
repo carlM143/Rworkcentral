@@ -153,7 +153,7 @@ const allowanceDisplay = computed(() => form.value.allowance
         </div>
 
         <div class="summary-note">
-          You may leave this step completely blank and finish it later. If entering any salary details, select a Salary Type first. Payroll Group and Payroll Period are assigned during payroll processing.
+          You may leave this step completely blank and finish it later. Salary Type and salary rate can be completed later. Payroll Group and Payroll Period are assigned during payroll processing.
         </div>
       </aside>
 

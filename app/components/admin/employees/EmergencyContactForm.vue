@@ -206,8 +206,8 @@ const contactSummary = computed(() => {
             </strong>
 
             <span>
-              Provide a valid phone number and
-              residential address.
+              Provide a contact number and an optional
+              contact address.
             </span>
           </div>
         </div>
@@ -259,7 +259,6 @@ const contactSummary = computed(() => {
 
             <label>
               Contact Address
-              <span>*</span>
             </label>
           </div>
 
@@ -267,7 +266,7 @@ const contactSummary = computed(() => {
             v-model="form.emergencyAddress"
             placeholder="House/Unit No., Street, Barangay, City/Municipality, Province"
             :rows="4"
-            :maxlength="300"
+            :maxlength="255"
           />
         </div>
 

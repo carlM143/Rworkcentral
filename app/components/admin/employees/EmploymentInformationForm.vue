@@ -1,4 +1,3 @@
-
 <script setup lang="ts">
 import { BriefcaseBusiness, Building2, UserRound, CalendarDays, Clock3, BadgeCheck } from 'lucide-vue-next'
 import { useDepartmentApi, type DepartmentApiRecord } from '~/composables/admin/departments/useDepartmentApi'
