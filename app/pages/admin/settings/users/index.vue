@@ -8,6 +8,11 @@ import {
 import type {
   SystemUser,
 } from '~/types/userAccess'
+import type { SystemUserRoleOption } from '~/composables/admin/useUsersAccess'
+
+// USER MODALS
+import UserFormModal from '~/components/admin/settings/users/UserFormModal.vue'
+import UserViewModal from '~/components/admin/settings/users/UserViewModal.vue'
 
 const {
   search,
@@ -33,44 +38,156 @@ const {
   loading,
   loadError,
   loadUsers,
+  loadUserEditData,
+  setupUserAccount,
+  updateSystemUser,
 } = useUsersAccess()
+
+const { success, warning } = useToast()
+
+type UserModalMode = 'add' | 'view' | 'edit' | 'setup' | null
+
+const userModalMode = ref<UserModalMode>(null)
+const selectedUser = ref<SystemUser | null>(null)
+const editRoleOptions = ref<SystemUserRoleOption[]>([])
+const editLoading = ref(false)
+const editSaving = ref(false)
+const editError = ref('')
+
+const openAddUser = () => {
+  selectedUser.value = null
+  userModalMode.value = 'add'
+}
+
+const openViewUser = (user: SystemUser) => {
+  selectedUser.value = user
+  userModalMode.value = 'view'
+}
+
+const getApiError = (problem: any) => (
+  problem?.data?.errors?.role_id?.[0]
+  ?? problem?.data?.errors?.email?.[0]
+  ?? problem?.data?.errors?.password?.[0]
+  ?? problem?.data?.errors?.password_confirmation?.[0]
+  ?? problem?.data?.errors?.employee?.[0]
+  ?? problem?.data?.errors?.user?.[0]
+  ?? problem?.data?.message
+  ?? problem?.response?._data?.message
+  ?? problem?.message
+  ?? 'Unable to update the system user role.'
+)
+
+const openEditUser = async (user: SystemUser) => {
+  if (!user.employeeId) {
+    warning(
+      'Role Editing Unavailable',
+      'Only linked employee user accounts can be assigned through this endpoint.',
+    )
+    return
+  }
+
+  selectedUser.value = user
+  userModalMode.value = user.canSetupAccount ? 'setup' : 'edit'
+  editRoleOptions.value = []
+  editError.value = ''
+  editLoading.value = true
+
+  try {
+    const response = await loadUserEditData(user)
+    editRoleOptions.value = response.data.available_roles
+  } catch (problem: any) {
+    editError.value = getApiError(problem)
+  } finally {
+    editLoading.value = false
+  }
+}
+
+const closeUserModal = () => {
+  userModalMode.value = null
+  selectedUser.value = null
+  editRoleOptions.value = []
+  editError.value = ''
+}
+
+const handleUserSave = async (payload: {
+  email: string
+  roleId?: number
+  password?: string
+  passwordConfirmation?: string
+}) => {
+  if (userModalMode.value === 'add') {
+    warning(
+      'Not Available',
+      'The backend does not currently provide a create-system-user endpoint.',
+    )
+    return
+  }
+
+  if (!selectedUser.value || !payload.roleId) return
+
+  editSaving.value = true
+  editError.value = ''
+
+  try {
+    let response
+
+    if (userModalMode.value === 'setup') {
+      if (!selectedUser.value.employeeId || !payload.password) return
+
+      response = await setupUserAccount(selectedUser.value.employeeId, {
+        email: payload.email,
+        role_id: payload.roleId,
+        password: payload.password,
+        password_confirmation: payload.passwordConfirmation ?? '',
+      })
+    } else {
+      const updates: {
+        email?: string
+        role_id?: number
+        password?: string
+        password_confirmation?: string
+      } = {}
+
+      if (payload.email.toLowerCase() !== selectedUser.value.email.toLowerCase()) {
+        updates.email = payload.email
+      }
+
+      const selectedRole = editRoleOptions.value.find(role => role.id === payload.roleId)
+      if (selectedRole?.name !== selectedUser.value.role) {
+        updates.role_id = payload.roleId
+      }
+
+      if (payload.password) {
+        updates.password = payload.password
+        updates.password_confirmation = payload.passwordConfirmation ?? ''
+      }
+
+      if (!Object.keys(updates).length) {
+        warning('No Changes', 'Change the email, role, or password before saving.')
+        return
+      }
+
+      response = await updateSystemUser(selectedUser.value.id, updates)
+    }
+
+    await loadUsers()
+    success(
+      userModalMode.value === 'setup' ? 'Account Created' : 'Account Updated',
+      response.message,
+    )
+    closeUserModal()
+  } catch (problem: any) {
+    editError.value = getApiError(problem)
+  } finally {
+    editSaving.value = false
+  }
+}
 
 const router =
   useRouter()
 
-const {
-  info,
-} = useToast()
-
 const handleBack = () => {
-  router.push(
-    '/admin/settings',
-  )
-}
-
-const handleAddUser = () => {
-  info(
-    'Add System User',
-    'System user creation form will be implemented next.',
-  )
-}
-
-const handleView = (
-  user: SystemUser,
-) => {
-  info(
-    'User Access',
-    `${user.name} — ${user.role}`,
-  )
-}
-
-const handleEdit = (
-  user: SystemUser,
-) => {
-  info(
-    'Edit User',
-    `${user.name} access settings will be editable in the user management form.`,
-  )
+  router.push('/admin/settings')
 }
 
 </script>
@@ -95,9 +212,9 @@ const handleEdit = (
       description="Manage system users, account roles, access status and security permissions."
     >
 
-      <AppButton
+     <AppButton
         :icon="UserPlus"
-        @click="handleAddUser"
+        @click="openAddUser"
       >
         Add System User
       </AppButton>
@@ -175,8 +292,8 @@ const handleEdit = (
         <SystemUsersTable
           v-else
           :users="paginatedUsers"
-          @view="handleView"
-          @edit="handleEdit"
+          @view="openViewUser"
+          @edit="openEditUser"
         />
 
         <div
@@ -204,12 +321,27 @@ const handleEdit = (
             v-model="currentPage"
             :total-pages="totalPages"
           />
-
+         </div>
+         </div>
         </div>
+    <UserFormModal
+      :open="userModalMode === 'add' || userModalMode === 'edit' || userModalMode === 'setup'"
+      :mode="userModalMode === 'setup' ? 'setup' : userModalMode === 'edit' ? 'edit' : 'add'"
+      :user="selectedUser"
+      :available-roles="editRoleOptions"
+      :loading="editLoading"
+      :saving="editSaving"
+      :api-error="editError"
+      @close="closeUserModal"
+      @save="handleUserSave"
+    />
 
-      </div>
-
-    </div>
+    <UserViewModal
+      :open="userModalMode === 'view'"
+      :user="selectedUser"
+      @close="closeUserModal"
+      @edit="openEditUser"
+    />
 
   </section>
 </template>
