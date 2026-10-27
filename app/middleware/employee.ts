@@ -1,5 +1,9 @@
-export default defineNuxtRouteMiddleware(() => {
+export default defineNuxtRouteMiddleware((to) => {
   if (!import.meta.client) return
+
+  if (to.path === '/employee/login') {
+    return
+  }
 
   const auth = useAuth()
   auth.hydrate()

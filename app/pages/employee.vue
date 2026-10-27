@@ -1,10 +1,15 @@
 <script setup lang="ts">
+const route = useRoute()
+const isLogin = computed(() => route.path === '/employee/login')
+
 definePageMeta({
-  layout: 'employee',
+  layout: false,
   middleware: ['employee'],
 })
 </script>
 
 <template>
-  <NuxtPage />
+  <NuxtLayout :name="isLogin ? 'auth' : 'employee'">
+    <NuxtPage />
+  </NuxtLayout>
 </template>
