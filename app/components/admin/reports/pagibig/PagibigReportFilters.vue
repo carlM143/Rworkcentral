@@ -71,24 +71,28 @@ const emit =
 
       <AppSelect
         v-model="month"
+        aria-label="month"
         :options="months"
         placeholder="Month"
       />
 
       <AppSelect
         v-model="year"
+        aria-label="year"
         :options="years"
         placeholder="Year"
       />
 
       <AppSelect
         v-model="department"
+        aria-label="department"
         :options="departments"
         placeholder="All Departments"
       />
 
       <AppSelect
         v-model="status"
+        aria-label="status"
         :options="statuses"
         placeholder="Remittance Status"
       />

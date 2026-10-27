@@ -12,9 +12,7 @@ defineProps<{
   records: PayrollPreviewRecord[]
 }>()
 
-const {
-  info,
-} = useToast()
+const emit = defineEmits<{ view: [record: PayrollPreviewRecord] }>()
 
 const formatCurrency = (
   value: number,
@@ -29,14 +27,7 @@ const formatCurrency = (
   ).format(value)
 }
 
-const viewPayroll = (
-  record: PayrollPreviewRecord,
-) => {
-  info(
-    'Employee Payroll',
-    `${record.employeeName} payroll details will be available in the employee payroll module.`,
-  )
-}
+const viewPayroll = (record: PayrollPreviewRecord) => emit('view', record)
 </script>
 
 <template>
@@ -131,6 +122,7 @@ const viewPayroll = (
               <button
                 type="button"
                 class="view-button"
+                aria-label="View payroll details" title="View payroll details"
                 @click="viewPayroll(record)"
               >
                 <Eye :size="15" />

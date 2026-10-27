@@ -1,20 +1,19 @@
 <script setup lang="ts">
+import type { WageOrder } from '~/types/wageManagement'
+import { wageToday } from '~/utils/wageWorkflow'
 import {
   CalendarDays,
   CirclePlus,
   Landmark,
-  MoreHorizontal,
   RefreshCcw,
   Scale,
 } from 'lucide-vue-next'
 
-const {
-  wageOrders,
-} = useWageManagement()
+const workflow = useWageWorkflow()
+const { wageOrders } = workflow
+const router = useRouter()
 
-const {
-  info,
-} = useToast()
+
 
 const search = ref('')
 const region = ref('')
@@ -142,23 +141,32 @@ const resetFilters = () => {
   status.value = ''
 }
 
-const handleNewOrder = () => {
-  info(
-    'New Wage Order',
-    'Wage order creation form will be connected later.',
-  )
+const dialogOpen = ref(false)
+const dialogMode = ref('view')
+const selectedOrder = ref<WageOrder | null>(null)
+const handleNewOrder = () => { selectedOrder.value = null; dialogMode.value = 'form'; dialogOpen.value = true }
+const orderActions = (order: WageOrder) => [
+  { key: 'view', label: 'View Details' },
+  { key: 'form', label: 'Edit Order', disabled: !workflow.orderEditable(order), reason: 'Only unused draft or scheduled orders can be edited.' },
+  { key: 'affected', label: 'View Affected Employees' },
+  { key: 'publish', label: order.effectiveDate > wageToday() ? 'Schedule Order' : 'Activate Order', disabled: !['Draft', 'Scheduled'].includes(order.status) || (order.status === 'Scheduled' && order.effectiveDate > wageToday()), reason: 'Available for drafts or scheduled orders that are due.' },
+  { key: 'supersede', label: 'Supersede Order', disabled: order.status !== 'Active', reason: 'Only active orders can be superseded.' },
+  { key: 'history', label: 'View History' },
+]
+const handleActions = (key: string, order: WageOrder) => {
+  if (key === 'affected') { router.push('/admin/payroll/wage-adjustments?order=' + encodeURIComponent(order.code)); return }
+  selectedOrder.value = order; dialogMode.value = key; dialogOpen.value = true
 }
-
-const handleActions = () => {
-  info(
-    'Wage Order Actions',
-    'Edit, schedule and archive actions will be added later.',
-  )
-}
+const currentPage = ref(1)
+const totalPages = computed(() => Math.max(1, Math.ceil(filteredOrders.value.length / 10)))
+const paginatedOrders = computed(() => filteredOrders.value.slice((currentPage.value - 1) * 10, currentPage.value * 10))
+watch([search, region, status], () => { currentPage.value = 1 })
+watch(totalPages, value => { currentPage.value = Math.min(currentPage.value, value) })
 </script>
 
 <template>
   <section class="page">
+    <p class="demo-notice">Sample wage configuration · Daily rates in PHP · Changes are retained for this session.</p>
 
     <PageHeader
       title="Wage Orders"
@@ -274,14 +282,15 @@ const handleActions = () => {
               <th>Tranche</th>
               <th>Source</th>
               <th>Status</th>
-              <th />
+              <th class="action-cell">Actions</th>
             </tr>
           </thead>
 
           <tbody>
+            <tr v-if="!filteredOrders.length"><td colspan="11">No wage orders match your filters.</td></tr>
 
             <tr
-              v-for="item in filteredOrders"
+              v-for="item in paginatedOrders"
               :key="item.id"
             >
 
@@ -342,15 +351,7 @@ const handleActions = () => {
                 </span>
               </td>
 
-              <td>
-                <button
-                  class="icon-action"
-                  type="button"
-                  @click="handleActions"
-                >
-                  <MoreHorizontal :size="17" />
-                </button>
-              </td>
+              <td class="action-cell"><WageActionMenu :label="'Actions for ' + item.code" :items="orderActions(item)" @select="key => handleActions(key, item)" /></td>
 
             </tr>
 
@@ -362,10 +363,17 @@ const handleActions = () => {
 
     </article>
 
+    <div class="wage-footer"><p>{{ filteredOrders.length }} wage orders</p><AppPagination v-model="currentPage" :total-pages="totalPages" /></div>
+    <WageOrderDialog :open="dialogOpen" :mode="dialogMode" :order="selectedOrder" @close="dialogOpen = false" />
   </section>
 </template>
 
 <style scoped>
+.demo-notice, .wage-footer { font-size: 12px; color: var(--text-muted); }
+.wage-footer { display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:14px; }
+.action-cell { position: sticky; right: 0; background: var(--bg-card); box-shadow: -5px 0 8px #0001; text-align:center; min-width:76px; }
+th.action-cell { background: var(--bg-card-soft); }
+
 .page {
   width: 100%;
   max-width: 1680px;

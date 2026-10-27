@@ -6,7 +6,8 @@ import {
   CalendarClock,
   ListChecks,
   Umbrella,
-  TimerReset,
+  CalendarDays,
+  Truck,
   WalletCards,
   // ReceiptText,
   Building2,
@@ -46,7 +47,7 @@ const openMenus = reactive<Record<string, boolean>>({
   timekeeping: false,
   payroll: false,
   leave: false,
-  overtime: false,
+  drivers: false,
   departments: false,
   approvals: false,
   documents: false,
@@ -106,6 +107,10 @@ const menuItems = [
         to: '/admin/timekeeping/time-log-correction-requests',
       },
       {
+        label: 'Time Log Corrections',
+        to: '/admin/approvals/time-logs',
+      },
+      {
         label: 'Late Adjustment',
         to: '/admin/late-adjustment',
       },
@@ -144,6 +149,10 @@ const menuItems = [
     icon: WalletCards,
     children: [
       {
+        label: 'Payroll Group',
+        to: '/admin/payroll/payroll-group',
+      },
+      {
         label: 'Rates',
         to: '/admin/rates',
       },
@@ -162,23 +171,11 @@ const menuItems = [
 
       // PAY PERIODS
       {
-        label: 'Driver Pay Periods',
-        to: '/admin/driver-pay-periods',
-      },
-      {
         label: 'Payroll Periods',
         to: '/admin/payroll/payroll-period',
       },
 
       // OLD SYSTEM PAYROLL SUBMENU
-      {
-        label: 'Pending Drivers Payroll',
-        to: '/admin/pending-drivers-payroll',
-      },
-      {
-        label: 'Completed Drivers Payroll',
-        to: '/admin/completed-drivers-payroll',
-      },
       {
         label: 'Pending Employees Payroll',
         to: '/admin/pending-employees-payroll',
@@ -191,6 +188,26 @@ const menuItems = [
       {
         label: 'Employee Payroll',
         to: '/admin/employee-payroll',
+      },
+    ],
+  },
+
+  {
+    label: 'All Drivers',
+    key: 'drivers',
+    icon: Truck,
+    children: [
+      {
+        label: 'Driver Pay Periods',
+        to: '/admin/driver-pay-periods',
+      },
+      {
+        label: 'Pending Drivers Payroll',
+        to: '/admin/pending-drivers-payroll',
+      },
+      {
+        label: 'Completed Drivers Payroll',
+        to: '/admin/completed-drivers-payroll',
       },
     ],
   },
@@ -215,38 +232,13 @@ const menuItems = [
       label: 'Leave Types',
       to: '/admin/leave-types',
     },
-    {
-      label: 'Leave Calendar',
-      to: '/admin/leave-calendar',
-    },
   ],
 },
 
-  // =====================================================
-  // OVERTIME
-  // =====================================================
   {
-    label: 'Overtime',
-    key: 'overtime',
-    icon: TimerReset,
-    children: [
-      {
-      label: 'Overview',
-      to: '/admin/overtime',
-      },
-      {
-        label: 'Overtime Requests',
-        to: '/admin/ot-requests',
-      },
-      {
-        label: 'Approved Overtime',
-        to: '/admin/approved-overtime',
-      },
-      {
-        label: 'Overtime History',
-        to: '/admin/overtime-history',
-      },
-    ],
+    label: 'Holiday Leave',
+    icon: CalendarDays,
+    to: '/admin/holiday-leave',
   },
 
   {
@@ -289,10 +281,6 @@ const menuItems = [
     {
       label: 'OT Approvals',
       to: '/admin/approvals/overtime',
-    },
-    {
-      label: 'Time Log Corrections',
-      to: '/admin/approvals/time-logs',
     },
     {
       label: 'WFH Approvals',

@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import {
-  MoreHorizontal,
   UserRound,
   CircleCheck,
   CreditCard,
@@ -15,6 +14,8 @@ defineProps<{
   payrolls:
     CompletedEmployeePayroll[]
 }>()
+
+const emit = defineEmits<{ action: [mode: string, record: CompletedEmployeePayroll] }>()
 
 const money = (
   value: number,
@@ -400,15 +401,7 @@ const paymentClass = (
 
             <td>
 
-              <button
-                type="button"
-                class="action-button"
-                title="Actions will be added later"
-              >
-
-                <MoreHorizontal :size="17" />
-
-              </button>
+              <PayrollActionMenu :label="'Actions for ' + payroll.employeeName" :items="[{ key: 'details', label: 'View Payroll Details' }, { key: 'payslip', label: 'Payslip Preview' }, { key: 'history', label: 'Payment History' }]" @select="mode => emit('action', mode, payroll)" />
 
             </td>
 

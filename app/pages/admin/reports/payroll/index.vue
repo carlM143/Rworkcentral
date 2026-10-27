@@ -36,41 +36,20 @@ const {
   resetFilters,
 } = usePayrollReport()
 
-const {
-  info,
-} = useToast()
+const { busy, preview, selectedRecord, generate, viewRecord, download, print } = useReportActions({
+  title: "Payroll Report", category: "Payroll", rows: filteredRecords,
+  period: () => period.value || 'All pay periods', totals, filters: () => ({ Search: search.value, Department: department.value, 'Employment Type': employmentType.value, Status: status.value }),
+})
+const handleGenerate = generate
+const handleExportExcel = () => download('Excel')
+const handleExportPdf = () => download('PDF')
+const handlePrint = () => print()
 
-const handleGenerate = () => {
-  info(
-    'Payroll Report Generated',
-    `Payroll report preview for ${period.value} is ready.`,
-  )
-}
-
-const handleExportExcel = () => {
-  info(
-    'Export Payroll Report',
-    'Excel payroll report export will be connected later.',
-  )
-}
-
-const handleExportPdf = () => {
-  info(
-    'Export Payroll Report',
-    'PDF payroll report export will be connected later.',
-  )
-}
-
-const handlePrint = () => {
-  info(
-    'Print Payroll Report',
-    'Print-ready payroll report will be connected later.',
-  )
-}
 </script>
 
 <template>
   <section class="payroll-report-page">
+    <ReportDataNotice />
 
     <!-- =====================================================
          HEADER
@@ -86,7 +65,7 @@ const handlePrint = () => {
         <AppButton
           variant="secondary"
           :icon="Printer"
-          @click="handlePrint"
+          :disabled="busy" @click="handlePrint"
         >
           Print
         </AppButton>
@@ -94,14 +73,14 @@ const handlePrint = () => {
         <AppButton
           variant="secondary"
           :icon="FileSpreadsheet"
-          @click="handleExportExcel"
+          :disabled="busy" @click="handleExportExcel"
         >
           Excel
         </AppButton>
 
         <AppButton
           :icon="Download"
-          @click="handleExportPdf"
+          :disabled="busy" @click="handleExportPdf"
         >
           Export PDF
         </AppButton>
@@ -197,6 +176,7 @@ const handlePrint = () => {
     ====================================================== -->
 
     <PayrollReportTable
+      @view="viewRecord"
       :records="paginatedRecords"
       :totals="totals"
     />
@@ -230,6 +210,11 @@ const handlePrint = () => {
 
     </div>
 
+    <ReportDialog
+      :report="preview" :record="selectedRecord" :busy="busy" title="Payroll Report"
+      @close="preview = null; selectedRecord = null"
+      @download="download" @print="print"
+    />
   </section>
 </template>
 

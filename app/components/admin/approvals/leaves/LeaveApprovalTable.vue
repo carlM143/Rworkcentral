@@ -2,7 +2,6 @@
 import {
   CalendarDays,
   Clock3,
-  MoreHorizontal,
   ShieldCheck,
   UserRound,
   WalletCards,
@@ -17,6 +16,8 @@ defineProps<{
   requests:
     LeaveApproval[]
 }>()
+
+const emit = defineEmits<{ action: [mode: string, request: LeaveApproval] }>()
 
 const formatDate = (
   value: string,
@@ -456,17 +457,7 @@ const balanceClass = (
 
             <td>
 
-              <button
-                type="button"
-                class="action-button"
-                title="Approval actions will be added later"
-              >
-
-                <MoreHorizontal
-                  :size="18"
-                />
-
-              </button>
+              <ApprovalRowActions :request="request" @action="(mode, item) => emit('action', mode, item as LeaveApproval)" />
 
             </td>
 

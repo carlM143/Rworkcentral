@@ -45,10 +45,7 @@ const handleBalances = () => {
 }
 
 const handleCalendar = () => {
-  info(
-    'Leave Calendar',
-    'Leave calendar UI will be connected later.',
-  )
+  return navigateTo('/admin/holiday-leave')
 }
 </script>
 

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { exportReport } from '~/utils/reportExport'
 import {
   Download,
   FileText,
@@ -24,49 +25,32 @@ const {
 const router =
   useRouter()
 
-const {
-  info,
-} = useToast()
-
-/* =========================================================
-   ACTIONS
-========================================================= */
-
-const handleBrowseReports = () => {
-  info(
-    'Report Library',
-    'Select a report category below to continue.',
-  )
+const { error: showError } = useToast()
+const exporting = ref(false)
+const archive = useReportArchive()
+const { download } = useReportActions({ title: 'Report History', category: 'Payroll', rows: ref<object[]>([]), period: () => '' })
+const handleBrowseReports = () => router.push('/admin/reports/center')
+const handleOpenModule = (module: ReportModule) => router.push(module.route)
+const handleQuickReport = (route: string) => router.push(route)
+const handleDownload = (report: RecentReport) => {
+  const saved = archive.value.find(item => item.id === report.id)
+  if (saved) return download(saved.format, saved.document)
 }
-
-const handleOpenModule = (
-  module: ReportModule,
-) => {
-  router.push(
-    module.route,
-  )
-}
-
-const handleQuickReport = (
-  route: string,
-) => {
-  router.push(
-    route,
-  )
-}
-
-const handleDownload = (
-  report: RecentReport,
-) => {
-  info(
-    'Download Report',
-    `${report.title} download will be connected to the reporting backend later.`,
-  )
+const handleExportAnalytics = async () => {
+  if (exporting.value) return
+  exporting.value = true
+  try {
+    await exportReport({ title: 'Reports Analytics', period: 'Current sample reporting periods',
+      rows: analytics.value.map(item => ({ metric: item.label, value: item.value, period: item.description })),
+      generatedAt: new Date().toISOString(), sample: true }, 'Excel')
+  } catch (error) { showError('Export failed', error instanceof Error ? error.message : 'Please try again.') }
+  finally { exporting.value = false }
 }
 </script>
 
 <template>
   <section class="reports-page">
+    <ReportDataNotice />
 
     <!-- HEADER -->
     <PageHeader
@@ -77,12 +61,7 @@ const handleDownload = (
       <AppButton
         variant="secondary"
         :icon="Download"
-        @click="
-          info(
-            'Export Analytics',
-            'Analytics export will be connected later.',
-          )
-        "
+        :disabled="exporting" @click="handleExportAnalytics"
       >
         Export
       </AppButton>

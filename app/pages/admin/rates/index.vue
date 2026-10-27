@@ -293,12 +293,8 @@ const handleDeactivate = (
    EXPORT
 ========================================================= */
 
-const handleExport = () => {
-  info(
-    'Export Payroll Rates',
-    'Payroll rate export will be connected later.',
-  )
-}
+const exportOpen = ref(false)
+const handleExport = () => { exportOpen.value = true }
 
 /* =========================================================
    BACK
@@ -514,6 +510,7 @@ const handleBack = () => {
       "
     />
 
+    <PayrollExportDialog :open="exportOpen" title="Payroll Rates" :records="filteredRates" :filters="{ Search: search, Department: department, Status: status, Type: rateType }"  @close="exportOpen = false" />
   </section>
 </template>
 

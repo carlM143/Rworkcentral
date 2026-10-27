@@ -37,16 +37,13 @@ const {
   resetFilters,
 } = useOvertimeApprovals()
 
-const {
-  info,
-} = useToast()
+const exportOpen = ref(false)
+const requestOpen = ref(false)
+const requestMode = ref('view')
+const selectedRequest = ref<Record<string, any> | null>(null)
+const openRequest = (mode: string, request: Record<string, any>) => { selectedRequest.value = request; requestMode.value = mode; requestOpen.value = true }
 
-const handleExport = () => {
-  info(
-    'Export OT Approvals',
-    'Overtime approval export functionality will be connected later.',
-  )
-}
+const handleExport = () => { exportOpen.value = true }
 
 const handleApprovedOvertime = () => {
   router.push(
@@ -135,7 +132,7 @@ const handleApprovedOvertime = () => {
 
     <!-- TABLE -->
 
-    <OvertimeApprovalTable
+    <OvertimeApprovalTable @action="openRequest"
       :requests="
         paginatedRequests
       "
@@ -178,6 +175,8 @@ const handleApprovedOvertime = () => {
 
     </div>
 
+    <PayrollExportDialog :open="exportOpen" title="OT Approvals" :records="filteredRequests" :sample="false" :date-from="dateFrom" :date-to="dateTo" :filters="{ Search: search, Department: department, Type: overtimeType, Status: status }" @close="exportOpen = false" />
+    <ApprovalRequestDialog :open="requestOpen" kind="Overtime" :mode="requestMode" :request="selectedRequest" @close="requestOpen = false" />
   </section>
 </template>
 

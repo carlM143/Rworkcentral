@@ -471,12 +471,8 @@ const handleStatusSave = () => {
    EXPORT
 ========================================================= */
 
-const handleExport = () => {
-  info(
-    'Export Loans',
-    'Loan report export will be connected later.',
-  )
-}
+const exportOpen = ref(false)
+const handleExport = () => { exportOpen.value = true }
 
 const handleBack = () => {
   router.push(
@@ -867,6 +863,7 @@ const handleBack = () => {
 
     </Teleport>
 
+    <PayrollExportDialog :open="exportOpen" title="Loans" :records="filteredLoans" :filters="{ Search: search, Department: department, Status: status, Type: loanType }" :date-from="dateFrom" :date-to="dateTo" @close="exportOpen = false" />
   </section>
 </template>
 

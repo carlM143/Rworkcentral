@@ -41,6 +41,7 @@ export interface WageAdjustmentRecord {
   department: string
   position: string
   region: string
+  classification?: string
 
   currentRate: number
   newMinimumRate: number
@@ -56,6 +57,10 @@ export interface WageAdjustmentRecord {
   effectiveDate: string
 
   status: WageAdjustmentStatus
+  remarks?: string
+  distortionReviewed?: boolean
+  approvedBy?: string
+  appliedFromRate?: number
 }
 
 export type CompensationChangeReason =

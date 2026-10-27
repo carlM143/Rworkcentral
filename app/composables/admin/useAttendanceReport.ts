@@ -1,3 +1,4 @@
+import { attendancePeriodMatches } from '~/utils/reportExport'
 import type {
   AttendanceEmploymentType,
   AttendanceReportRecord,
@@ -539,7 +540,8 @@ export const useAttendanceReport = () => {
             matchesSearch &&
             matchesDepartment &&
             matchesEmploymentType &&
-            matchesStatus
+            matchesStatus &&
+            attendancePeriodMatches(item.periodStart, item.periodEnd, dateFrom.value, dateTo.value)
           )
         },
       )

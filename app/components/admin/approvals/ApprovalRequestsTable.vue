@@ -174,7 +174,7 @@ const typeClass = (
                 <button
                   type="button"
                   class="action-button view"
-                  title="View request"
+                  title="View request" aria-label="View request"
                   @click="
                     emit(
                       'view',
@@ -188,7 +188,7 @@ const typeClass = (
                 <button
                   type="button"
                   class="action-button approve"
-                  title="Approve request"
+                  title="Approve request" aria-label="Approve request"
                   @click="
                     emit(
                       'approve',
@@ -202,7 +202,7 @@ const typeClass = (
                 <button
                   type="button"
                   class="action-button reject"
-                  title="Reject request"
+                  title="Reject request" aria-label="Reject request"
                   @click="
                     emit(
                       'reject',

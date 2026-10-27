@@ -7,12 +7,21 @@
     "dev": "nuxt dev",
     "generate": "nuxt generate",
     "preview": "nuxt preview",
+    "test:reports": "nuxt build && node --test tests/report-export.test.mjs && playwright test tests/browser/reports.spec.mjs",
+    "test:wages": "nuxt build && node --test tests/wage-workflow.test.mjs && playwright test tests/browser/wages.spec.mjs",
+    "test:payroll-ui": "nuxt build && node --test tests/payroll-ui.test.mjs && playwright test tests/browser/payroll-ui.spec.mjs",
     "postinstall": "nuxt prepare"
   },
   "dependencies": {
+    "exceljs": "^4.4.0",
+    "jspdf": "^4.2.1",
+    "jspdf-autotable": "^5.0.9",
     "lucide-vue-next": "^1.0.0",
     "nuxt": "^4.5.2",
     "vue": "^3.5.41",
     "vue-router": "^5.2.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.64.1"
   }
 }

@@ -62,18 +62,21 @@ const emit =
 
       <AppSelect
         v-model="period"
+        aria-label="period"
         :options="periods"
         placeholder="Billing Period"
       />
 
       <AppSelect
         v-model="client"
+        aria-label="client"
         :options="clients"
         placeholder="All Clients"
       />
 
       <AppSelect
         v-model="status"
+        aria-label="status"
         :options="statuses"
         placeholder="Billing Status"
       />

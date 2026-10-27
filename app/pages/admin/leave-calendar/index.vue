@@ -9,6 +9,10 @@ import LeaveCalendarStats from '~/components/admin/leave/calendar/LeaveCalendarS
 import LeaveCalendarFilters from '~/components/admin/leave/calendar/LeaveCalendarFilters.vue'
 import LeaveCalendarGrid from '~/components/admin/leave/calendar/LeaveCalendarGrid.vue'
 
+definePageMeta({
+  alias: ['/admin/holiday-leave'],
+})
+
 const router =
   useRouter()
 
@@ -40,14 +44,14 @@ const {
 
 const handleBack = () => {
   router.push(
-    '/admin/leave-management',
+    '/admin',
   )
 }
 
 const handleExport = () => {
   info(
-    'Export Leave Calendar',
-    'Leave calendar export functionality will be connected later.',
+    'Export Holiday Leave',
+    'Holiday leave export functionality will be connected later.',
   )
 }
 
@@ -75,14 +79,14 @@ const handleFiledLeaves = () => {
         :size="16"
       />
 
-      Back to Leave Management
+      Back to Dashboard
 
     </button>
 
     <!-- HEADER -->
 
     <PageHeader
-      title="Leave Calendar"
+      title="Holiday Leave"
       description="View approved and pending employee leaves by date, department and leave type."
     >
 

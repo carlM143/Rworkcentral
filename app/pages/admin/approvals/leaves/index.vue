@@ -37,16 +37,13 @@ const {
   resetFilters,
 } = useLeaveApprovals()
 
-const {
-  info,
-} = useToast()
+const exportOpen = ref(false)
+const requestOpen = ref(false)
+const requestMode = ref('view')
+const selectedRequest = ref<Record<string, any> | null>(null)
+const openRequest = (mode: string, request: Record<string, any>) => { selectedRequest.value = request; requestMode.value = mode; requestOpen.value = true }
 
-const handleExport = () => {
-  info(
-    'Export Leave Approvals',
-    'Leave approval export functionality will be connected later.',
-  )
-}
+const handleExport = () => { exportOpen.value = true }
 
 const handleFiledLeaves = () => {
   router.push(
@@ -135,7 +132,7 @@ const handleFiledLeaves = () => {
 
     <!-- TABLE -->
 
-    <LeaveApprovalTable
+    <LeaveApprovalTable @action="openRequest"
       :requests="
         paginatedRequests
       "
@@ -178,6 +175,8 @@ const handleFiledLeaves = () => {
 
     </div>
 
+    <PayrollExportDialog :open="exportOpen" title="Leave Approvals" :records="filteredRequests" :sample="false" :date-from="dateFrom" :date-to="dateTo" :filters="{ Search: search, Department: department, Type: leaveType, Status: status }" @close="exportOpen = false" />
+    <ApprovalRequestDialog :open="requestOpen" kind="Leave" :mode="requestMode" :request="selectedRequest" @close="requestOpen = false" />
   </section>
 </template>
 

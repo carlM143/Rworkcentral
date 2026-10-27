@@ -34,7 +34,7 @@ export interface RecentReport {
   generatedBy: string
   generatedAt: string
 
-  format: 'PDF' | 'Excel'
+  format: 'PDF' | 'Excel' | 'CSV'
 
   status: ReportStatus
 }

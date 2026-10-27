@@ -24,23 +24,15 @@ const {
 const router =
   useRouter()
 
-const {
-  info,
-} = useToast()
+const exportOpen = ref(false)
+const draftOpen = ref(false)
+const detailsOpen = ref(false)
+const selectedPayroll = ref<Record<string, any> | null>(null)
+const showPayroll = (record: Record<string, any>) => { selectedPayroll.value = record; detailsOpen.value = true }
 
-const handleExport = () => {
-  info(
-    'Export Payroll',
-    'Payroll export will be connected later.',
-  )
-}
+const handleExport = () => { exportOpen.value = true }
 
-const handleCreatePayroll = () => {
-  info(
-    'Create Payroll',
-    'Payroll creation workflow will be implemented in the payroll processing module.',
-  )
-}
+const handleCreatePayroll = () => { draftOpen.value = true }
 </script>
 
 <template>
@@ -83,7 +75,7 @@ const handleCreatePayroll = () => {
 
       <div class="payroll-main">
 
-        <PayrollPreviewTable
+        <PayrollPreviewTable @view="showPayroll"
           :records="payrollRecords"
         />
 
@@ -120,7 +112,7 @@ const handleCreatePayroll = () => {
               type="button"
               @click="
                 router.push(
-                  '/employee-pay-periods',
+                  '/admin/payroll/payroll-period',
                 )
               "
             >
@@ -165,6 +157,9 @@ const handleCreatePayroll = () => {
 
     </div>
 
+    <PayrollExportDialog :open="exportOpen" title="Payroll Overview" :records="payrollRecords" :filters="{ Period: currentPeriod.code }" @close="exportOpen = false" />
+    <PayrollDraftDialog :open="draftOpen" :period="currentPeriod" :records="payrollRecords" @close="draftOpen = false" />
+    <PayrollLedgerDialog :open="detailsOpen" mode="details" :record="selectedPayroll" :records="payrollRecords" @close="detailsOpen = false" />
   </section>
 </template>
 

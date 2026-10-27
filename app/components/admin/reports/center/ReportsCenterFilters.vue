@@ -51,12 +51,14 @@ const emit =
 
       <AppSelect
         v-model="category"
+        aria-label="category"
         :options="categories"
         placeholder="All Categories"
       />
 
       <AppSelect
         v-model="availability"
+        aria-label="availability"
         :options="availabilities"
         placeholder="Availability"
       />

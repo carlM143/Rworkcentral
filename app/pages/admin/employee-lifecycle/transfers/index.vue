@@ -8,6 +8,31 @@ import LifecycleTransferStats from '~/components/admin/employee-lifecycle/transf
 import LifecycleTransferFilters from '~/components/admin/employee-lifecycle/transfers/LifecycleTransferFilters.vue'
 import LifecycleTransferTable from '~/components/admin/employee-lifecycle/transfers/LifecycleTransferTable.vue'
 
+import TransferModal from '~/components/admin/employee-lifecycle/transfers/TransferModal.vue'
+
+type TransferModalMode =
+  'create' | 'edit' | 'view' | 'history' | 'export' | null
+
+const transferModalMode = ref<TransferModalMode>(null)
+const selectedTransfer = ref<Record<string, any> | null>(null)
+
+const openTransferModal = (
+  mode: Exclude<TransferModalMode, null>,
+  record?: Record<string, any>
+) => {
+  selectedTransfer.value = record ?? null
+  transferModalMode.value = mode
+}
+
+const closeTransferModal = () => {
+  transferModalMode.value = null
+  selectedTransfer.value = null
+}
+
+const handleTransferDraft = (_payload: Record<string, string>) => {
+
+}
+
 const {
   search,
   transferType,
@@ -65,17 +90,19 @@ const handleNewTransfer = () => {
 
       <div class="header-actions">
 
+      <!-- EXPORT -->
         <AppButton
           variant="secondary"
           :icon="Download"
-          @click="handleExport"
+          @click="openTransferModal('export')"
         >
           Export
         </AppButton>
 
+        <!-- NEW TRANSFER -->
         <AppButton
           :icon="ArrowLeftRight"
-          @click="handleNewTransfer"
+          @click="openTransferModal('create')"
         >
           New Transfer
         </AppButton>
@@ -111,8 +138,11 @@ const handleNewTransfer = () => {
          TABLE
     ====================================================== -->
 
-    <LifecycleTransferTable
+   <LifecycleTransferTable
       :records="paginatedRecords"
+      @view="record => openTransferModal('view', record)"
+      @edit="record => openTransferModal('edit', record)"
+      @history="record => openTransferModal('history', record)"
     />
 
     <!-- =====================================================
@@ -141,9 +171,15 @@ const handleNewTransfer = () => {
         v-model="currentPage"
         :total-pages="totalPages"
       />
-
     </div>
-
+    <TransferModal
+      :open="transferModalMode !== null"
+      :mode="transferModalMode ?? 'view'"
+      :records="filteredRecords"
+      :selected="selectedTransfer"
+      @close="closeTransferModal"
+      @save="handleTransferDraft"
+    />
   </section>
 </template>
 

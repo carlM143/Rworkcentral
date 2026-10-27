@@ -5,7 +5,6 @@ import {
   Clock3,
   House,
   MapPin,
-  MoreHorizontal,
   ShieldCheck,
   UserRound,
 } from 'lucide-vue-next'
@@ -20,6 +19,8 @@ defineProps<{
   requests:
     WfhApproval[]
 }>()
+
+const emit = defineEmits<{ action: [mode: string, request: WfhApproval] }>()
 
 const formatDate = (
   value: string,
@@ -484,17 +485,7 @@ const statusClass = (
 
             <td>
 
-              <button
-                type="button"
-                class="action-button"
-                title="Approval actions will be added later"
-              >
-
-                <MoreHorizontal
-                  :size="18"
-                />
-
-              </button>
+              <ApprovalRowActions :request="request" @action="(mode, item) => emit('action', mode, item as WfhApproval)" />
 
             </td>
 
