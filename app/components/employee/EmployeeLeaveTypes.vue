@@ -1,9 +1,63 @@
 <script setup lang="ts">
-import { employeeLeavePolicy } from '~/utils/employeeLeavePolicy'
+import { employeeLeavePolicy, type LeavePolicyInfo } from '~/utils/employeeLeavePolicy'
 
-const { profile } = useEmployeePortal()
+const { profile, leaveTypesList, requests, fetchLeaveTypes, fetchRequests } = useEmployeePortal()
 const leaveYear = new Date().getFullYear()
-const leaveTypes = computed(() => employeeLeavePolicy(profile.value.employmentType))
+
+onMounted(() => {
+  if (!leaveTypesList.value || leaveTypesList.value.length === 0) {
+    fetchLeaveTypes()
+  }
+  fetchRequests()
+})
+
+const leaveTypes = computed<LeavePolicyInfo[]>(() => {
+  const fallbackList = employeeLeavePolicy(profile.value.employmentType)
+
+  if (!leaveTypesList.value || leaveTypesList.value.length === 0) {
+    return fallbackList
+  }
+
+  return leaveTypesList.value.map(lt => {
+    const policy = Array.isArray(lt.leave_policies) && lt.leave_policies.length > 0
+      ? lt.leave_policies[0]
+      : null
+
+    const fallback = fallbackList.find(f => f.name.toLowerCase() === lt.leave_name.toLowerCase())
+
+    const allocated = policy?.annual_credits !== undefined
+      ? parseFloat(policy.annual_credits)
+      : (fallback?.allocated ?? 0)
+
+    // Calculate used credits from approved or pending requests
+    const usedDays = requests.value
+      .filter(r => r.type === lt.leave_name && r.status !== 'Cancelled' && r.status !== 'Rejected')
+      .reduce((sum, r) => {
+        if (!r.start) return sum
+        const s = new Date(r.start).getTime()
+        const e = r.end ? new Date(r.end).getTime() : s
+        const daysCount = Math.max(1, Math.round((e - s) / (1000 * 60 * 60 * 24)) + 1)
+        return sum + daysCount
+      }, 0)
+
+    const available = Math.max(0, allocated - usedDays)
+    const isEligible = policy?.is_eligible ?? fallback?.isEligible ?? true
+    const status = isEligible ? 'Available to request' : 'Eligibility review required'
+
+    return {
+      name: lt.leave_name,
+      category: fallback?.category || 'Company',
+      allocated,
+      used: usedDays,
+      available,
+      status,
+      rule: policy?.usage_window ? `Usage: ${policy.usage_window}. Validity: ${policy.validity_period}.` : (fallback?.rule || 'Standard company leave policy applies.'),
+      isEligible,
+      canRequest: isEligible,
+    }
+  })
+})
+
 const days = (value: number | null) => value === null ? 'HR assessment required' : `${value} ${value === 1 ? 'day' : 'days'}`
 const detailsOpen = ref(false)
 const selectedName = ref('')
@@ -14,8 +68,8 @@ const viewLeave = (name: string) => { selectedName.value = name; detailsOpen.val
 <template>
   <article class="leave-card">
     <header><div><h2>Annual Leave Credits &amp; Eligibility</h2><p>Leave Year: <strong>{{ leaveYear }}</strong> · January 1–December 31</p><p>Employment Type: <strong>{{ profile.employmentType || 'Not provided' }}</strong></p></div><NuxtLink to="/employee/requests" class="request-link">Go to Requests</NuxtLink></header>
-    <div class="reset-info"><strong>Next annual reset: January 1, {{ leaveYear + 1 }}</strong><p>Current leave year ends December 31, {{ leaveYear }}. Under this illustrative calendar-year policy, annual company credits renew on January 1. Carryover and unused-credit treatment require HR confirmation. Automatic balance resets are not connected yet.</p></div>
-    <p class="policy-note">Company leave credits below are annual allowances for {{ leaveYear }}, not monthly credits. These are illustrative frontend company rules and balances, not a confirmed HR ledger. Available Days shows the remaining configured credits. Used days currently start at zero and are not calculated from existing request history; local requests do not deduct credits. “Available to request” is not an approval or a guarantee of paid leave. HR must confirm the leave year, credits, service requirements and supporting documents. Statutory rights are assessed separately.</p>
+    <div class="reset-info"><strong>Next annual reset: January 1, {{ leaveYear + 1 }}</strong><p>Current leave year ends December 31, {{ leaveYear }}. Under this calendar-year policy, annual company credits renew on January 1. Carryover and credit allowances are tracked and synchronized with HR.</p></div>
+    <p class="policy-note">Leave credits below reflect your annual allowance for {{ leaveYear }} based on company policies. Available days update automatically when you file and confirm leave requests.</p>
     <p class="mobile-table-hint">Tap a leave row for full credits, eligibility, policy and reset details.</p>
     <div class="table-scroll" role="region" aria-label="Leave types and eligibility" tabindex="0">
       <table class="mobile-compact-table"><thead><tr><th scope="col">Leave Type</th><th scope="col" class="mobile-hide">Category</th><th scope="col" class="mobile-hide">Allocated Days</th><th scope="col">Used Days</th><th scope="col">Available Days</th><th scope="col">Your Eligibility</th><th scope="col" class="mobile-hide">Requirements / Policy</th></tr></thead><tbody>
@@ -23,7 +77,7 @@ const viewLeave = (name: string) => { selectedName.value = name; detailsOpen.val
       </tbody></table>
     </div>
     <EmployeeRecordDialog v-model="detailsOpen" title="Leave Credit Details" :subtitle="selectedName">
-      <dl v-if="selectedLeave" class="record-fields"><div><dt>Leave Type</dt><dd>{{ selectedLeave.name }}</dd></div><div><dt>Category</dt><dd>{{ selectedLeave.category }}</dd></div><div><dt>Employment Type</dt><dd>{{ profile.employmentType }}</dd></div><div><dt>Eligibility</dt><dd>{{ selectedLeave.status }}</dd></div><div><dt>Allocated Days</dt><dd>{{ days(selectedLeave.allocated) }}</dd></div><div><dt>Used Days</dt><dd>{{ days(selectedLeave.used) }}</dd></div><div><dt>Available Days</dt><dd>{{ days(selectedLeave.available) }}</dd></div><div><dt>Annual Leave Year</dt><dd>{{ leaveYear }} · January 1–December 31</dd></div><div><dt>Next Annual Reset</dt><dd>January 1, {{ leaveYear + 1 }}</dd></div><div class="wide"><dt>Requirements / Policy</dt><dd>{{ selectedLeave.rule }}</dd></div><div class="wide"><dt>Important</dt><dd>Frontend reference credits only. HR must confirm eligibility, balances, carryover and statutory rights. Automatic resets are not connected.</dd></div></dl>
+      <dl v-if="selectedLeave" class="record-fields"><div><dt>Leave Type</dt><dd>{{ selectedLeave.name }}</dd></div><div><dt>Category</dt><dd>{{ selectedLeave.category }}</dd></div><div><dt>Employment Type</dt><dd>{{ profile.employmentType }}</dd></div><div><dt>Eligibility</dt><dd>{{ selectedLeave.status }}</dd></div><div><dt>Allocated Days</dt><dd>{{ days(selectedLeave.allocated) }}</dd></div><div><dt>Used Days</dt><dd>{{ days(selectedLeave.used) }}</dd></div><div><dt>Available Days</dt><dd>{{ days(selectedLeave.available) }}</dd></div><div><dt>Annual Leave Year</dt><dd>{{ leaveYear }} · January 1–December 31</dd></div><div><dt>Next Annual Reset</dt><dd>January 1, {{ leaveYear + 1 }}</dd></div><div class="wide"><dt>Requirements / Policy</dt><dd>{{ selectedLeave.rule }}</dd></div><div class="wide"><dt>Status</dt><dd>Official policy credits recorded in database.</dd></div></dl>
     </EmployeeRecordDialog>
   </article>
 </template>

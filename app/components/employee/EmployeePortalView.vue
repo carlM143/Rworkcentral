@@ -8,7 +8,19 @@ import { overtimeDuration, undertimeDuration, requestClock } from '~/utils/emplo
 const props = defineProps<{ section: string }>()
 const route = useRoute()
 const router = useRouter()
-const { profile, requests, punches, addRequest, updateRequest, storageError } = useEmployeePortal()
+const {
+  profile,
+  requests,
+  punches,
+  addRequest,
+  submitRequest: submitRequestApi,
+  updateRequest,
+  cancelRequest,
+  leaveTypesList,
+  isSubmittingRequest,
+  submitError,
+  storageError,
+} = useEmployeePortal()
 const titles: Record<string, string> = { dashboard: 'Dashboard', attendance: 'Attendance', 'leave-types': 'Leave Credits', requests: 'Requests', payslips: 'Payslips', loans: 'Loans', profile: 'Profile' }
 const requestableLeaves = computed(() => employeeLeavePolicy(profile.value.employmentType).filter(leave => leave.canRequest))
 const leaveCredit = (name: string) => {
@@ -64,6 +76,9 @@ const reportedAttendanceDate = ref('')
 const editingRequestId = ref('')
 const originalRequest = computed(() => requests.value.find(request => request.id === editingRequestId.value))
 const leaveFormOptions = computed(() => {
+  if (leaveTypesList.value && leaveTypesList.value.length > 0) {
+    return leaveTypesList.value.map(lt => lt.leave_name)
+  }
   const names = requestableLeaves.value.map(leave => leave.name)
   if (originalRequest.value && employeeRequestCategory(originalRequest.value.type) === 'Leave' && !names.includes(originalRequest.value.type)) names.unshift(originalRequest.value.type)
   return names
@@ -139,8 +154,23 @@ const reportAttendance = (date: string) => {
   form.start = date
   form.end = date
 }
-const submitRequest = () => {
-  if (imageLoading.value) return
+const isCancelling = ref(false)
+const cancelViewingRequest = async () => {
+  if (!viewedRequest.value || viewedRequest.value.status !== 'Pending') return
+  if (!confirm('Are you sure you want to cancel this request?')) return
+  isCancelling.value = true
+  const res = await cancelRequest(viewedRequest.value.id)
+  isCancelling.value = false
+  if (res.success) {
+    notice.value = res.message || 'Request cancelled successfully.'
+    viewDialog.value?.close()
+  } else {
+    alert(res.message || 'Failed to cancel request.')
+  }
+}
+
+const submitRequest = async () => {
+  if (imageLoading.value || isSubmittingRequest.value) return
   if (formCategory.value !== 'Attendance Report' && !requestImage.value) { formError.value = 'Please attach a supporting image before saving your request.'; return }
   if (formCategory.value === 'Attendance Report') {
     if (!reportedAttendanceDate.value || !punches.value[reportedAttendanceDate.value]) { formError.value = 'Choose an attendance record to report.'; return }
@@ -148,7 +178,7 @@ const submitRequest = () => {
     form.end = reportedAttendanceDate.value
   }
   if (!formCategory.value) { formError.value = 'Please choose Leave, Undertime, or Overtime.'; return }
-  if (originalRequest.value?.type !== form.type && employeeLeavePolicy(profile.value.employmentType).some(leave => leave.name === form.type && !leave.canRequest)) { formError.value = 'This leave type is not available under the current frontend company policy. Contact HR to confirm your eligibility.'; return }
+  if (originalRequest.value?.type !== form.type && leaveTypesList.value?.length === 0 && employeeLeavePolicy(profile.value.employmentType).some(leave => leave.name === form.type && !leave.canRequest)) { formError.value = 'This leave type is not available under the current policy.'; return }
   if (!form.start || (!timedRequest.value && (!form.end || form.end < form.start))) { formError.value = 'Choose valid request dates. End date must be on or after the start date.'; return }
   if (timedRequest.value && requestedMinutes.value === null) {
     formError.value = form.type === 'Overtime' ? 'Enter valid start/end times. For overnight overtime, select Ends next day. Maximum duration is 24 hours.' : 'Choose a working day and valid undertime start/end times within the scheduled shift. End time must be later than start time.'
@@ -157,14 +187,27 @@ const submitRequest = () => {
   if (!form.reason.trim()) { formError.value = 'Please provide a reason for your request.'; return }
   const requestTiming: EmployeeRequest['timing'] = !timedRequest.value ? undefined : form.type === 'Overtime'
     ? { startTime: timing.startTime, endTime: timing.endTime, endsNextDay: timing.endsNextDay, requestedMinutes: requestedMinutes.value! }
-    : { startTime: timing.requestedTimeOut, endTime: timing.endTime, scheduledTimeOut: selectedShift.value!.end, requestedTimeOut: timing.requestedTimeOut, requestedMinutes: requestedMinutes.value! }
+    : { startTime: timing.requestedTimeOut, endTime: timing.endTime, scheduledTimeOut: selectedShift.value?.end, requestedTimeOut: timing.requestedTimeOut, requestedMinutes: requestedMinutes.value! }
   const changes = { start: form.start, end: timedRequest.value ? form.start : form.end, reason: form.reason.trim(), image: requestImage.value, timing: requestTiming }
+
   if (editingRequestId.value) {
-    if (!updateRequest(editingRequestId.value, { ...changes, type: form.type })) { formError.value = 'This request is no longer pending or the selected type is not allowed.'; return }
-  } else addRequest({ ...changes, type: form.type, id: `REQ-${crypto.randomUUID().slice(0, 8).toUpperCase()}` })
+    const success = await updateRequest(editingRequestId.value, { ...changes, type: form.type })
+    if (!success) {
+      formError.value = submitError.value || 'This request is no longer pending or the update failed.'
+      return
+    }
+    notice.value = 'Request updated successfully.'
+  } else {
+    const res = await submitRequestApi({ ...changes, type: form.type })
+    if (!res.success) {
+      formError.value = res.message || submitError.value || 'Failed to submit request.'
+      return
+    }
+    notice.value = res.message || 'Request submitted successfully to HR.'
+  }
+
   if (formCategory.value !== 'Attendance Report') selectRequestCategory(formCategory.value!)
   requestDialog.value?.close()
-  notice.value = `${editingRequestId.value ? 'Request updated' : 'Request saved'} in this browser. It has not been sent to HR.`
 }
 </script>
 
@@ -182,8 +225,8 @@ const submitRequest = () => {
       </div>
     </div>
 
-    <div class="portal-banner"><ClipboardCheck :size="17" /><span><strong>Employee Portal.</strong> Account verification and HR submission are not connected. Changes are saved in this browser only.</span></div>
-    <details v-if="section === 'dashboard' || section === 'attendance'" class="home-storage-note"><summary>Changes are saved on this device only</summary><p>Account verification and HR submission are not connected. These are frontend records, not verified HR data.</p></details>
+    <div class="portal-banner"><ClipboardCheck :size="17" /><span><strong>Employee Portal.</strong> Your Leave, Overtime, and Undertime requests are directly synchronized with the HR database.</span></div>
+    <details v-if="section === 'dashboard' || section === 'attendance'" class="home-storage-note"><summary>Requests status</summary><p>All requests are submitted and recorded in the database for HR approval.</p></details>
     <p v-if="storageError" class="feedback error" role="alert">{{ storageError }}</p>
     <p v-if="notice" class="feedback" role="status">{{ notice }}<button aria-label="Dismiss message" @click="notice = ''"><X :size="16" /></button></p>
 
@@ -268,7 +311,7 @@ const submitRequest = () => {
 
     <dialog ref="viewDialog" class="portal-dialog" aria-label="Request details" @close="viewingRequestId = ''">
       <template v-if="viewedRequest">
-        <div class="panel-heading"><div><h2>Request Details</h2><p>{{ viewedRequest.id }} · Read-only</p></div><button type="button" class="dialog-close" aria-label="Close request details" @click="viewDialog?.close()"><X :size="20" /></button></div>
+        <div class="panel-heading"><div><h2>Request Details</h2><p>{{ viewedRequest.id }} · Status: {{ viewedRequest.status }}</p></div><button type="button" class="dialog-close" aria-label="Close request details" @click="viewDialog?.close()"><X :size="20" /></button></div>
         <div class="request-details">
           <dl class="request-detail-grid">
             <div><dt>Request Type</dt><dd>{{ employeeRequestCategory(viewedRequest.type) === 'Attendance Report' ? 'Attendance Report' : viewedRequest.type }}</dd></div>
@@ -283,9 +326,15 @@ const submitRequest = () => {
             </template>
             <div class="full-width"><dt>Reason / Details</dt><dd class="request-reason">{{ viewedRequest.reason }}</dd></div>
           </dl>
-          <div class="view-attachment"><h3>Supporting Image</h3><template v-if="viewedRequest.image"><a :href="viewedRequest.image.dataUrl" :download="viewedRequest.image.name" class="view-image-link"><img :src="viewedRequest.image.dataUrl" :alt="`Supporting image for request ${viewedRequest.id}`"><span><Download :size="14" />{{ viewedRequest.image.name }}</span></a></template><p v-else>No supporting image on this older record.</p></div>
-          <p class="footnote">Frontend record only; not submitted to HR.</p>
-          <div class="dialog-actions"><button v-if="canEditRequest(viewedRequest)" type="button" class="portal-button primary" @click="editRequest(viewedRequest)">Edit Request</button><button type="button" class="portal-button" @click="viewDialog?.close()">Close</button></div>
+          <div class="view-attachment"><h3>Supporting Image</h3><template v-if="viewedRequest.image"><a :href="viewedRequest.image.dataUrl" :download="viewedRequest.image.name" class="view-image-link"><img :src="viewedRequest.image.dataUrl" :alt="`Supporting image for request ${viewedRequest.id}`"><span><Download :size="14" />{{ viewedRequest.image.name }}</span></a></template><p v-else>No supporting image attached.</p></div>
+          <p class="footnote">Official employee request record connected to HR database.</p>
+          <div class="dialog-actions">
+            <button v-if="canEditRequest(viewedRequest)" type="button" class="portal-button primary" @click="editRequest(viewedRequest)">Edit Request</button>
+            <button v-if="viewedRequest.status === 'Pending'" type="button" class="portal-button danger" :disabled="isCancelling" @click="cancelViewingRequest">
+              {{ isCancelling ? 'Cancelling…' : 'Cancel Request' }}
+            </button>
+            <button type="button" class="portal-button" @click="viewDialog?.close()">Close</button>
+          </div>
         </div>
       </template>
     </dialog>
@@ -293,14 +342,14 @@ const submitRequest = () => {
     <dialog ref="requestDialog" class="portal-dialog" aria-label="New employee request" @close="formError = ''">
       <form @submit.prevent="submitRequest">
         <div class="panel-heading">
-          <div><h2>{{ formCategory === 'Attendance Report' ? 'Report Attendance Issue' : `${editingRequestId ? 'Edit' : 'New'} ${formCategory} Request` }}</h2><p>Saved in this browser only; not sent to HR</p></div>
+          <div><h2>{{ formCategory === 'Attendance Report' ? 'Report Attendance Issue' : `${editingRequestId ? 'Edit' : 'New'} ${formCategory} Request` }}</h2><p>Official HR Submission</p></div>
           <button type="button" class="dialog-close" aria-label="Close request form" @click="requestDialog?.close()"><X :size="20" /></button>
         </div>
         <div class="form-fields">
           <label v-if="formCategory === 'Leave'" class="full-width">Leave Type<select v-model="form.type"><option v-for="leave in leaveFormOptions" :key="leave">{{ leave }}</option></select></label>
           <p v-if="formCategory === 'Leave' && originalRequest && !requestableLeaves.some(leave => leave.name === originalRequest?.type)" class="full-width">The existing leave type is preserved for this pending request. Its eligibility still requires HR confirmation under the current policy.</p>
           <p v-else class="full-width"><strong>Request Type: {{ formCategory }}</strong></p>
-          <p v-if="formCategory === 'Leave'" class="full-width">Leave choices follow the current frontend employment-type policy. Statutory leave requires HR eligibility review; saving a request does not establish eligibility or deduct credits. <NuxtLink to="/employee/leave-types" @click="requestDialog?.close()">View Leave Credits</NuxtLink></p>
+          <p v-if="formCategory === 'Leave'" class="full-width">Leave choices follow the current company policy. <NuxtLink to="/employee/leave-types" @click="requestDialog?.close()">View Leave Credits</NuxtLink></p>
           <p v-if="formCategory === 'Attendance Report'" class="full-width locked-report-date">Attendance Date: <strong>{{ formatDate(reportedAttendanceDate) }}</strong><br>This report is linked to the attendance record you selected.</p>
           <template v-else>
             <label>{{ timedRequest ? 'Request Date' : 'Start Date' }}<input v-model="form.start" type="date" required></label>
@@ -317,13 +366,13 @@ const submitRequest = () => {
             <label>Undertime End Time<input v-model="timing.endTime" type="time" :min="timing.requestedTimeOut || selectedShift?.start || undefined" :max="selectedShift?.end || undefined" required></label>
             <p v-if="!selectedShift?.start" class="full-width error">No working shift is assigned on this day. Select a working day or contact HR.</p>
           </template>
-          <p v-if="timedRequest" class="full-width">Requested duration: <strong>{{ requestedMinutes === null ? 'Enter valid times' : `${requestedMinutes} minutes` }}</strong>. HR must verify the schedule and duration. This request does not change official attendance, pay, or approval status.</p>
+          <p v-if="timedRequest" class="full-width">Requested duration: <strong>{{ requestedMinutes === null ? 'Enter valid times' : `${requestedMinutes} minutes` }}</strong>.</p>
           <label class="full-width">Reason / Details<textarea v-model="form.reason" required maxlength="1000" rows="4" :placeholder="formCategory === 'Attendance Report' ? 'Describe what is wrong with the attendance record and the correct time or details. You can attach a supporting image below.' : 'Include the reason and any relevant times or details.'" /></label>
           <EmployeeRequestImageUpload :key="requestFormKey" v-model="requestImage" :required="formCategory !== 'Attendance Report'" class="full-width" @busy="imageLoading = $event" />
           <p v-if="formError" class="error full-width" role="alert">{{ formError }}</p>
           <div class="dialog-actions full-width">
             <button type="button" class="portal-button" @click="requestDialog?.close()">Cancel</button>
-            <button type="submit" class="portal-button primary" :disabled="imageLoading">{{ imageLoading ? 'Preparing Image…' : editingRequestId ? 'Save Changes Locally' : 'Save Request Locally' }}</button>
+            <button type="submit" class="portal-button primary" :disabled="imageLoading || isSubmittingRequest">{{ isSubmittingRequest ? 'Submitting…' : imageLoading ? 'Preparing Image…' : editingRequestId ? 'Update Request' : 'Submit Request' }}</button>
           </div>
         </div>
       </form>
@@ -348,6 +397,8 @@ p { font-size: 12px; color: var(--text-secondary); line-height: 1.7; margin: 4px
 .date-label { display: flex; align-items: center; gap: 8px; border: 1px solid var(--border); background: var(--bg-card); padding: 12px; border-radius: 9px; font-size: 12px; color: var(--text-secondary); }
 .portal-button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 41px; padding: 10px 15px; border: 1px solid var(--border); border-radius: 9px; background: var(--bg-card); color: var(--text-primary); font-size: 12px; font-weight: 600; }
 .portal-button.primary { background: linear-gradient(135deg, #1f68f2, #2878ff); border-color: transparent; color: white; box-shadow: 0 5px 12px #246bfd25; }
+.portal-button.danger { color: #dc2626; border-color: #fca5a5; background: var(--bg-card); }
+.portal-button.danger:hover { background: #fee2e2; border-color: #dc2626; }
 .portal-button:hover { filter: brightness(.96); }
 .portal-button:disabled { opacity: .6; cursor: default; }
 .portal-banner { display: flex; gap: 10px; align-items: center; background: var(--primary-soft); color: var(--text-secondary); padding: 12px 15px; border-radius: 9px; font-size: 11px; margin-bottom: 18px; }

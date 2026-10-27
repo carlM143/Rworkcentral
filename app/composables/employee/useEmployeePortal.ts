@@ -1,13 +1,18 @@
-import { employeeRequestCategory } from '~/utils/employeeRequestCategory'
+import { employeeRequestCategory, type EmployeeRequestCategory } from '~/utils/employeeRequestCategory'
 import { employeeLeavePolicy } from '~/utils/employeeLeavePolicy'
 
 export interface EmployeeRequest {
   id: string
+  rawId?: number
+  requestNo?: string
+  category?: EmployeeRequestCategory
   type: string
   start: string
   end: string
   reason: string
   image?: { name: string; dataUrl: string }
+  file_url?: string | null
+  file_path?: string | null
   status: 'Pending' | 'Approved' | 'Rejected' | 'Cancelled'
   timing?: {
     startTime?: string
@@ -17,6 +22,10 @@ export interface EmployeeRequest {
     requestedTimeOut?: string
     requestedMinutes: number
   }
+  leave_type_id?: number
+  leave_policy_id?: number
+  work_schedule_id?: number
+  created_at?: string
 }
 
 export interface EmployeeRequirement {
@@ -290,6 +299,13 @@ export const useEmployeePortal = () => {
   const isUploadingPhoto = useState('employee-photo-uploading', () => false)
   const photoError = useState('employee-photo-error', () => '')
 
+  const requests = useState<EmployeeRequest[]>('employee-requests', () => [])
+  const isLoadingRequests = useState('employee-requests-loading', () => false)
+  const requestsError = useState('employee-requests-error', () => '')
+  const isSubmittingRequest = useState('employee-request-submitting', () => false)
+  const submitError = useState('employee-request-submit-error', () => '')
+  const leaveTypesList = useState<any[]>('employee-leave-types', () => [])
+
   const uploadProfilePhoto = async (photoData: string | File) => {
     if (!import.meta.client) return { success: false, message: 'Client only' }
     isUploadingPhoto.value = true
@@ -423,6 +439,250 @@ export const useEmployeePortal = () => {
     }
   }
 
+  const mapBackendRequest = (item: any, category: 'Leave' | 'Undertime' | 'Overtime'): EmployeeRequest => {
+    const rawStatus = String(item.status || 'Pending').toLowerCase()
+    const status = (rawStatus.charAt(0).toUpperCase() + rawStatus.slice(1)) as EmployeeRequest['status']
+    const fileUrl = item.file_url || (item.file_path ? (item.file_path.startsWith('http') ? item.file_path : `/storage/${item.file_path.replace(/^\/+/, '')}`) : null)
+    const imageObj = fileUrl ? { name: item.file_path ? item.file_path.split('/').pop() : 'Attachment', dataUrl: fileUrl } : (item.image || undefined)
+
+    return {
+      id: item.request_no || item.id || `${category.toUpperCase().slice(0, 2)}-${item.raw_id || Math.floor(Math.random() * 10000)}`,
+      rawId: item.raw_id || (typeof item.id === 'number' ? item.id : undefined),
+      requestNo: item.request_no,
+      category,
+      type: item.type || (category === 'Leave' ? (item.leave_type?.leave_name || 'Vacation Leave') : category),
+      start: item.start || item.request_date || item.ot_date || item.undertime_date || '',
+      end: item.end || item.request_date || item.ot_date || item.undertime_date || '',
+      reason: item.reason || '',
+      status,
+      image: imageObj,
+      file_url: fileUrl,
+      file_path: item.file_path,
+      timing: item.timing ? {
+        startTime: item.timing.startTime,
+        endTime: item.timing.endTime,
+        endsNextDay: item.timing.endsNextDay,
+        scheduledTimeOut: item.timing.scheduledTimeOut,
+        requestedTimeOut: item.timing.requestedTimeOut,
+        requestedMinutes: item.timing.requestedMinutes ?? 0,
+      } : undefined,
+      created_at: item.created_at,
+    }
+  }
+
+  const fetchLeaveTypes = async () => {
+    if (!import.meta.client || !auth.isAuthenticated.value) return []
+    try {
+      const res = await $api<{ success: boolean; data: any[] }>('/employee/leave-types')
+      if (res?.success && Array.isArray(res.data)) {
+        leaveTypesList.value = res.data
+        return res.data
+      }
+    } catch (err: any) {
+      console.warn('Failed to fetch leave types', err)
+    }
+    return leaveTypesList.value
+  }
+
+  const fetchRequests = async () => {
+    if (!import.meta.client || !auth.isAuthenticated.value) return requests.value
+    isLoadingRequests.value = true
+    requestsError.value = ''
+    try {
+      const [lRes, otRes, utRes] = await Promise.allSettled([
+        $api<{ success: boolean; data: any[] }>('/employee/leave-requests'),
+        $api<{ success: boolean; data: any[] }>('/employee/overtime-requests'),
+        $api<{ success: boolean; data: any[] }>('/employee/undertime-requests'),
+      ])
+
+      const lList = (lRes.status === 'fulfilled' && lRes.value?.success && Array.isArray(lRes.value.data))
+        ? lRes.value.data.map(i => mapBackendRequest(i, 'Leave')) : []
+      const otList = (otRes.status === 'fulfilled' && otRes.value?.success && Array.isArray(otRes.value.data))
+        ? otRes.value.data.map(i => mapBackendRequest(i, 'Overtime')) : []
+      const utList = (utRes.status === 'fulfilled' && utRes.value?.success && Array.isArray(utRes.value.data))
+        ? utRes.value.data.map(i => mapBackendRequest(i, 'Undertime')) : []
+
+      const combined = [...lList, ...otList, ...utList].sort((a, b) => {
+        const tA = a.created_at ? new Date(a.created_at).getTime() : new Date(`${a.start}T00:00:00`).getTime()
+        const tB = b.created_at ? new Date(b.created_at).getTime() : new Date(`${b.start}T00:00:00`).getTime()
+        return tB - tA
+      })
+
+      requests.value = combined
+      return requests.value
+    } catch (err: any) {
+      requestsError.value = err?.data?.message || err?.message || 'Failed to load requests.'
+      return requests.value
+    } finally {
+      isLoadingRequests.value = false
+    }
+  }
+
+  const submitRequest = async (payload: {
+    type: string
+    start: string
+    end?: string
+    reason: string
+    image?: { name: string; dataUrl: string }
+    timing?: EmployeeRequest['timing']
+  }) => {
+    if (!import.meta.client) return { success: false, message: 'Client only' }
+    isSubmittingRequest.value = true
+    submitError.value = ''
+    try {
+      const category = employeeRequestCategory(payload.type)
+      let endpoint = '/employee/leave-requests'
+      let body: any = {}
+
+      if (category === 'Overtime') {
+        endpoint = '/employee/overtime-requests'
+        body = {
+          ot_date: payload.start,
+          start_time: payload.timing?.startTime,
+          end_time: payload.timing?.endTime,
+          ends_next_day: payload.timing?.endsNextDay ?? false,
+          reason: payload.reason,
+          image: payload.image?.dataUrl || undefined,
+        }
+      } else if (category === 'Undertime') {
+        endpoint = '/employee/undertime-requests'
+        body = {
+          undertime_date: payload.start,
+          requested_time: payload.timing?.requestedTimeOut,
+          scheduled_time: payload.timing?.endTime || payload.timing?.scheduledTimeOut,
+          requested_minutes: payload.timing?.requestedMinutes,
+          reason: payload.reason,
+          image: payload.image?.dataUrl || undefined,
+        }
+      } else {
+        endpoint = '/employee/leave-requests'
+        body = {
+          type: payload.type,
+          start_date: payload.start,
+          end_date: payload.end || payload.start,
+          reason: payload.reason,
+          image: payload.image?.dataUrl || undefined,
+        }
+      }
+
+      const response = await $api<{ success: boolean; message: string; data: any }>(endpoint, {
+        method: 'POST',
+        body,
+      })
+
+      if (response?.success) {
+        await fetchRequests()
+        return { success: true, message: response.message || 'Request submitted successfully.', data: response.data }
+      }
+      return { success: false, message: response?.message || 'Failed to submit request.' }
+    } catch (err: any) {
+      const msg = err?.data?.message || (err?.data?.errors ? Object.values(err.data.errors)[0]?.[0] : null) || 'Failed to submit request.'
+      submitError.value = msg
+      return { success: false, message: msg }
+    } finally {
+      isSubmittingRequest.value = false
+    }
+  }
+
+  const addRequest = async (payload: any) => {
+    return await submitRequest(payload)
+  }
+
+  const updateRequest = async (id: string, changes: Pick<EmployeeRequest, 'start' | 'end' | 'reason' | 'image' | 'timing'> & { type?: string }) => {
+    if (!import.meta.client) return false
+    const existing = requests.value.find(r => r.id === id || String(r.rawId) === String(id))
+    if (!existing || existing.status !== 'Pending') return false
+
+    isSubmittingRequest.value = true
+    submitError.value = ''
+    try {
+      const category = employeeRequestCategory(existing.type)
+      const rawId = existing.rawId || existing.id
+      let endpoint = `/employee/leave-requests/${rawId}`
+      let body: any = {}
+
+      if (category === 'Overtime') {
+        endpoint = `/employee/overtime-requests/${rawId}`
+        body = {
+          ot_date: changes.start,
+          start_time: changes.timing?.startTime,
+          end_time: changes.timing?.endTime,
+          ends_next_day: changes.timing?.endsNextDay ?? false,
+          reason: changes.reason,
+          image: changes.image?.dataUrl || undefined,
+        }
+      } else if (category === 'Undertime') {
+        endpoint = `/employee/undertime-requests/${rawId}`
+        body = {
+          undertime_date: changes.start,
+          requested_time: changes.timing?.requestedTimeOut,
+          scheduled_time: changes.timing?.endTime || changes.timing?.scheduledTimeOut,
+          requested_minutes: changes.timing?.requestedMinutes,
+          reason: changes.reason,
+          image: changes.image?.dataUrl || undefined,
+        }
+      } else {
+        endpoint = `/employee/leave-requests/${rawId}`
+        body = {
+          type: changes.type || existing.type,
+          start_date: changes.start,
+          end_date: changes.end || changes.start,
+          reason: changes.reason,
+          image: changes.image?.dataUrl || undefined,
+        }
+      }
+
+      const response = await $api<{ success: boolean; message: string; data: any }>(endpoint, {
+        method: 'PUT',
+        body,
+      })
+
+      if (response?.success) {
+        await fetchRequests()
+        return true
+      }
+      return false
+    } catch (err: any) {
+      const msg = err?.data?.message || (err?.data?.errors ? Object.values(err.data.errors)[0]?.[0] : null) || 'Failed to update request.'
+      submitError.value = msg
+      return false
+    } finally {
+      isSubmittingRequest.value = false
+    }
+  }
+
+  const cancelRequest = async (id: string) => {
+    if (!import.meta.client) return { success: false, message: 'Client only' }
+    const existing = requests.value.find(r => r.id === id || String(r.rawId) === String(id))
+    if (!existing || existing.status !== 'Pending') {
+      return { success: false, message: 'Only pending requests can be cancelled.' }
+    }
+
+    const category = employeeRequestCategory(existing.type)
+    const rawId = existing.rawId || existing.id
+    let endpoint = `/employee/leave-requests/${rawId}/cancel`
+    if (category === 'Overtime') {
+      endpoint = `/employee/overtime-requests/${rawId}/cancel`
+    } else if (category === 'Undertime') {
+      endpoint = `/employee/undertime-requests/${rawId}/cancel`
+    }
+
+    try {
+      const response = await $api<{ success: boolean; message: string; data: any }>(endpoint, {
+        method: 'PATCH',
+      })
+      if (response?.success) {
+        existing.status = 'Cancelled'
+        await fetchRequests()
+        return { success: true, message: response.message || 'Request cancelled successfully.' }
+      }
+      return { success: false, message: response?.message || 'Unable to cancel request.' }
+    } catch (err: any) {
+      const msg = err?.data?.message || 'Failed to cancel request.'
+      return { success: false, message: msg }
+    }
+  }
+
   // Synchronize authenticated user details
   watch(() => auth.user.value, (currentUser) => {
     if (currentUser?.name && !profile.value.firstName) {
@@ -433,22 +693,10 @@ export const useEmployeePortal = () => {
     }
     if (auth.isAuthenticated.value) {
       fetchProfile()
+      fetchLeaveTypes()
+      fetchRequests()
     }
   }, { immediate: true })
-
-  const timedRequestRecords: EmployeeRequest[] = [
-    { id: 'UT-2026-001', type: 'Undertime', start: '2026-10-23', end: '2026-10-23', reason: 'Medical appointment', status: 'Pending', timing: { startTime: '15:00', endTime: '17:00', scheduledTimeOut: '17:00', requestedTimeOut: '15:00', requestedMinutes: 120 } },
-    { id: 'UT-2026-002', type: 'Undertime', start: '2026-10-16', end: '2026-10-16', reason: 'Family appointment', status: 'Approved', timing: { startTime: '16:30', endTime: '17:00', scheduledTimeOut: '17:00', requestedTimeOut: '16:30', requestedMinutes: 30 } },
-    { id: 'OT-2026-001', type: 'Overtime', start: '2026-10-23', end: '2026-10-23', reason: 'Complete inventory reconciliation', status: 'Pending', timing: { startTime: '17:00', endTime: '19:00', endsNextDay: false, requestedMinutes: 120 } },
-    { id: 'OT-2026-002', type: 'Overtime', start: '2026-10-15', end: '2026-10-15', reason: 'Additional operational support', status: 'Approved', timing: { startTime: '17:00', endTime: '18:30', endsNextDay: false, requestedMinutes: 90 } },
-  ]
-
-  const requests = useState<EmployeeRequest[]>('employee-requests', () => [
-    ...timedRequestRecords,
-    { id: 'REQ-1001', type: 'Vacation Leave', start: '2026-05-29', end: '2026-05-30', reason: 'Family commitment', status: 'Pending' },
-    { id: 'REQ-1002', type: 'Overtime', start: '2026-05-22', end: '2026-05-22', reason: 'Additional operational support', status: 'Approved' },
-    { id: 'REQ-1003', type: 'Time Log Correction', start: '2026-05-20', end: '2026-05-20', reason: 'Attendance record correction', status: 'Approved' },
-  ])
 
   const attendanceRecords = {
     '2026-10-12': { timeIn: '2026-10-12T09:00:00', timeOut: '2026-10-12T17:00:00', hoursWorked: 7, status: 'On Time' },
@@ -465,56 +713,15 @@ export const useEmployeePortal = () => {
     if (!punches.value[date]) punches.value[date] = { ...record }
   }
 
-  const loaded = useState('employee-storage-loaded', () => false)
   const storageError = ref('')
-
-  const populateTimedRequests = () => {
-    for (const record of timedRequestRecords) {
-      if (!requests.value.some(request => request.id === record.id)) {
-        requests.value.push({ ...record, timing: record.timing ? { ...record.timing } : undefined })
-      }
-    }
-  }
-
-  populateTimedRequests()
 
   onMounted(() => {
     if (auth.isAuthenticated.value) {
       fetchProfile()
+      fetchLeaveTypes()
+      fetchRequests()
     }
-
-    if (loaded.value) return
-    loaded.value = true
-    try {
-      const saved = JSON.parse(localStorage.getItem('rworkcentral-employee-demo') || 'null')
-      if (saved && typeof saved === 'object') {
-        if (Array.isArray(saved.requests) && saved.requests.every((row: EmployeeRequest) => row && ['id', 'type', 'start', 'end', 'reason'].every(key => typeof (row as unknown as Record<string, unknown>)[key] === 'string') && ['Pending', 'Approved', 'Rejected', 'Cancelled'].includes(row.status) && (!row.image || (typeof row.image.name === 'string' && typeof row.image.dataUrl === 'string' && row.image.dataUrl.length <= 4 * Math.ceil(2 * 1024 * 1024 / 3) + 23 && /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(row.image.dataUrl))))) {
-          requests.value = saved.requests
-        }
-      }
-    } catch {
-      storageError.value = 'Saved data could not be loaded.'
-    }
-    populateTimedRequests()
   })
-
-  const addRequest = (request: Omit<EmployeeRequest, 'status'>) => requests.value.unshift({ ...request, status: 'Pending' })
-
-  const updateRequest = (id: string, changes: Pick<EmployeeRequest, 'start' | 'end' | 'reason' | 'image' | 'timing'> & { type?: string }) => {
-    const request = requests.value.find(row => row.id === id)
-    if (!request || request.status !== 'Pending') return false
-    const category = employeeRequestCategory(request.type)
-    const nextType = changes.type ?? request.type
-    if (!category || !['Leave', 'Undertime', 'Overtime'].includes(category) || employeeRequestCategory(nextType) !== category) return false
-    if (nextType !== request.type && category === 'Leave' && !employeeLeavePolicy(profile.value.employmentType).some(leave => leave.name === nextType && leave.canRequest)) return false
-    Object.assign(request, { type: nextType, start: changes.start, end: changes.end, reason: changes.reason, image: changes.image, timing: changes.timing })
-    return true
-  }
-
-  const cancelRequest = (id: string) => {
-    const request = requests.value.find(row => row.id === id && row.status === 'Pending')
-    if (request) request.status = 'Cancelled'
-  }
 
   const displayName = computed(() => {
     if (profile.value.name && profile.value.name !== 'Employee') return profile.value.name
@@ -533,6 +740,7 @@ export const useEmployeePortal = () => {
     requests,
     punches,
     addRequest,
+    submitRequest,
     updateRequest,
     cancelRequest,
     storageError,
@@ -552,5 +760,12 @@ export const useEmployeePortal = () => {
     photoError,
     uploadProfilePhoto,
     deleteProfilePhoto,
+    isLoadingRequests,
+    requestsError,
+    isSubmittingRequest,
+    submitError,
+    leaveTypesList,
+    fetchLeaveTypes,
+    fetchRequests,
   }
 }
