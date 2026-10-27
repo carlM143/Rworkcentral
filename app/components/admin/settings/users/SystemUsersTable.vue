@@ -202,6 +202,7 @@ const getInitials = (
                 </button>
 
                 <button
+                  v-if="user.employeeId"
                   type="button"
                   title="Edit user"
                   @click="

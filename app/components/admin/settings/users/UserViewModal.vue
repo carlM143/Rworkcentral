@@ -236,6 +236,7 @@ const onKeydown = (event: KeyboardEvent) => {
           </button>
 
           <button
+            v-if="user && user.employeeId"
             type="button"
             class="primary-button"
             @click="editUser"

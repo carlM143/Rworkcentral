@@ -23,6 +23,26 @@ interface SystemUsersApiResponse {
   data: SystemUserApiRecord[]
 }
 
+export interface SystemUserRoleOption {
+  id: number
+  name: string
+}
+
+interface SystemUserEditResponse {
+  success: boolean
+  message: string
+  data: {
+    user: SystemUserApiRecord
+    available_roles: SystemUserRoleOption[]
+  }
+}
+
+interface SystemUserUpdateResponse {
+  success: boolean
+  message: string
+  data: SystemUserApiRecord
+}
+
 const mapAccountStatus = (status: string): SystemUserStatus => {
   const normalizedStatus = status.toLowerCase()
 
@@ -41,6 +61,7 @@ const mapSystemUser = (record: SystemUserApiRecord, index: number): SystemUser =
   // provides a stable, collision-free key until account setup is completed.
   id: record.user_id ?? -(record.employee_id ?? index + 1),
   employeeId: record.employee_id ?? undefined,
+  canSetupAccount: record.can_setup_account,
   name: record.name,
   email: record.email ?? 'No email address',
   role: (record.role?.name ?? '-') as SystemUser['role'],
@@ -79,6 +100,54 @@ export const useUsersAccess = () => {
       loading.value = false
     }
   }
+
+  const loadUserEditData = (user: SystemUser) => {
+    const endpoint = user.canSetupAccount && user.employeeId
+      ? `/admin/system-users/employees/${user.employeeId}/edit`
+      : `/admin/system-users/${user.id}/edit`
+
+    return $api<SystemUserEditResponse>(endpoint, {
+      method: 'GET',
+    })
+  }
+
+  const setupUserAccount = (
+    employeeId: number,
+    payload: {
+      email: string
+      role_id: number
+      password: string
+      password_confirmation: string
+    },
+  ) => $api<SystemUserUpdateResponse>(
+    `/admin/system-users/employees/${employeeId}/setup-account`,
+    {
+      method: 'POST',
+      body: payload,
+    },
+  )
+
+  const updateSystemUser = (
+    userId: number,
+    payload: {
+      email?: string
+      role_id?: number
+      password?: string
+      password_confirmation?: string
+    },
+  ) => $api<SystemUserUpdateResponse>(`/admin/system-users/${userId}`, {
+    method: 'PATCH',
+    body: payload,
+  })
+
+  const updateUserRole = (userId: number, roleId: number) => (
+    $api<SystemUserUpdateResponse>(`/admin/system-users/${userId}/role`, {
+      method: 'PATCH',
+      body: {
+        role_id: roleId,
+      },
+    })
+  )
 
   onMounted(() => {
     void loadUsers()
@@ -176,6 +245,10 @@ export const useUsersAccess = () => {
     loading,
     loadError,
     loadUsers,
+    loadUserEditData,
+    setupUserAccount,
+    updateSystemUser,
+    updateUserRole,
     search,
     role,
     status,

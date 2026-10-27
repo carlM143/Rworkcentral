@@ -14,21 +14,28 @@ import {
 } from 'lucide-vue-next'
 
 import type { SystemUser } from '~/types/userAccess'
+import type { SystemUserRoleOption } from '~/composables/admin/useUsersAccess'
 
-type UserMode = 'add' | 'edit'
+type UserMode = 'add' | 'edit' | 'setup'
 
 type UserPayload = {
   name: string
   email: string
   role: string
+  roleId?: number
   status: string
   password?: string
+  passwordConfirmation?: string
 }
 
 const props = defineProps<{
   open: boolean
   mode: UserMode
   user: SystemUser | null
+  availableRoles?: SystemUserRoleOption[]
+  loading?: boolean
+  saving?: boolean
+  apiError?: string
 }>()
 
 const emit = defineEmits<{
@@ -40,6 +47,7 @@ const form = reactive({
   name: '',
   email: '',
   role: '',
+  roleId: 0,
   status: 'Active',
   password: '',
   confirmPassword: '',
@@ -50,25 +58,43 @@ const showPassword = ref(false)
 const showConfirmPassword = ref(false)
 
 const isEdit = computed(() => props.mode === 'edit')
+const isSetup = computed(() => props.mode === 'setup')
+const isManagedAccount = computed(() => isEdit.value || isSetup.value)
 
 const modalTitle = computed(() =>
-  isEdit.value ? 'Edit System User' : 'Add System User'
+  isSetup.value
+    ? 'Set Up Employee Account'
+    : isEdit.value
+      ? 'Edit System User'
+      : 'Add System User'
 )
 
 const modalDescription = computed(() =>
-  isEdit.value
-    ? 'Update system user information and access settings.'
-    : 'Create a new system user and assign account access.'
+  isSetup.value
+    ? 'Create login access and assign a role to this employee.'
+    : isEdit.value
+      ? 'Update the account email, role, or password.'
+      : 'Create a new system user and assign account access.'
 )
 
-const roleOptions = [
+const addRoleOptions = [
   { label: 'Administrator', value: 'Administrator' },
   { label: 'Human Resources', value: 'Human Resources' },
   { label: 'Employee', value: 'Employee' },
 ]
 
+const roleOptions = computed(() => (
+  isManagedAccount.value
+    ? (props.availableRoles ?? []).map(role => ({
+        label: role.name,
+        value: role.id,
+      }))
+    : addRoleOptions
+))
+
 const statusOptions = [
   { label: 'Active', value: 'Active' },
+  { label: 'Invited', value: 'Invited' },
   { label: 'Disabled', value: 'Disabled' },
 ]
 
@@ -79,10 +105,13 @@ const resetErrors = () => {
 const resetForm = () => {
   resetErrors()
 
-  form.name = props.mode === 'edit' ? props.user?.name ?? '' : ''
-  form.email = props.mode === 'edit' ? props.user?.email ?? '' : ''
-  form.role = props.mode === 'edit' ? props.user?.role ?? '' : ''
-  form.status = props.mode === 'edit'
+  form.name = isManagedAccount.value ? props.user?.name ?? '' : ''
+  form.email = isManagedAccount.value ? props.user?.email ?? '' : ''
+  form.role = isManagedAccount.value ? props.user?.role ?? '' : ''
+  form.roleId = isManagedAccount.value
+    ? props.availableRoles?.find(role => role.name === props.user?.role)?.id ?? 0
+    : 0
+  form.status = isManagedAccount.value
     ? String((props.user as unknown as Record<string, unknown> | null)?.status ?? 'Active')
     : 'Active'
 
@@ -94,7 +123,7 @@ const resetForm = () => {
 }
 
 watch(
-  () => [props.open, props.mode, props.user],
+  () => [props.open, props.mode, props.user, props.availableRoles],
   () => {
     if (props.open) resetForm()
   },
@@ -114,7 +143,9 @@ const validateForm = () => {
     errors.email = 'Enter a valid email address.'
   }
 
-  if (!form.role) {
+  if (isManagedAccount.value && !form.roleId) {
+    errors.role = 'Please select a system role.'
+  } else if (!isManagedAccount.value && !form.role) {
     errors.role = 'Please select a system role.'
   }
 
@@ -122,7 +153,7 @@ const validateForm = () => {
     errors.status = 'Please select an account status.'
   }
 
-  if (!isEdit.value && !form.password) {
+  if ((isSetup.value || !isManagedAccount.value) && !form.password) {
     errors.password = 'Temporary password is required.'
   } else if (form.password && form.password.length < 8) {
     errors.password = 'Password must contain at least 8 characters.'
@@ -145,8 +176,14 @@ const submitForm = () => {
     status: form.status,
   }
 
+  if (isManagedAccount.value) {
+    payload.roleId = form.roleId
+    payload.role = props.availableRoles?.find(role => role.id === form.roleId)?.name ?? ''
+  }
+
   if (form.password) {
     payload.password = form.password
+    payload.passwordConfirmation = form.confirmPassword
   }
 
   emit('save', payload)
@@ -218,6 +255,7 @@ const onKeydown = (event: KeyboardEvent) => {
                   <input
                     v-model="form.name"
                     type="text"
+                    :readonly="isManagedAccount"
                     placeholder="Enter full name"
                     autocomplete="name"
                     @input="delete errors.name"
@@ -260,7 +298,25 @@ const onKeydown = (event: KeyboardEvent) => {
               <div class="form-group">
                 <label>System Role <span>*</span></label>
 
-                <select v-model="form.role">
+                <select
+                  v-if="isManagedAccount"
+                  v-model.number="form.roleId"
+                  :disabled="loading || saving"
+                >
+                  <option disabled :value="0">
+                    {{ loading ? 'Loading roles...' : 'Select a role' }}
+                  </option>
+
+                  <option
+                    v-for="option in roleOptions"
+                    :key="option.value"
+                    :value="option.value"
+                  >
+                    {{ option.label }}
+                  </option>
+                </select>
+
+                <select v-else v-model="form.role">
                   <option disabled value="">Select a role</option>
 
                   <option
@@ -280,7 +336,7 @@ const onKeydown = (event: KeyboardEvent) => {
               <div class="form-group">
                 <label>Account Status <span>*</span></label>
 
-                <select v-model="form.status">
+                <select v-model="form.status" :disabled="isManagedAccount">
                   <option
                     v-for="option in statusOptions"
                     :key="option.value"
@@ -296,6 +352,15 @@ const onKeydown = (event: KeyboardEvent) => {
               </div>
             </div>
 
+            <p v-if="isManagedAccount" class="helper-text section-spacing">
+              The employee name and account status are managed automatically.
+              You can change the login email, assigned role, and password here.
+            </p>
+
+            <p v-if="apiError" class="api-error" role="alert">
+              {{ apiError }}
+            </p>
+
             <!-- SECURITY -->
             <div class="section-title section-spacing">
               <LockKeyhole :size="16" />
@@ -304,8 +369,8 @@ const onKeydown = (event: KeyboardEvent) => {
 
             <p class="helper-text">
               {{ isEdit
-                ? 'Leave the password fields blank to keep the current password.'
-                : 'Set a temporary password for the new system user.'
+                ? 'Leave both password fields blank to keep the current password.'
+                : 'Set a temporary password for the employee account.'
               }}
             </p>
 
@@ -397,9 +462,20 @@ const onKeydown = (event: KeyboardEvent) => {
               Cancel
             </button>
 
-            <button type="submit" class="save-button">
+            <button
+              type="submit"
+              class="save-button"
+              :disabled="loading || saving"
+            >
               <Save :size="16" />
-              {{ isEdit ? 'Save Changes' : 'Create User' }}
+              {{ saving
+                ? 'Saving...'
+                : isSetup
+                  ? 'Create Account'
+                  : isEdit
+                    ? 'Save Changes'
+                    : 'Create User'
+              }}
             </button>
           </footer>
         </form>
@@ -582,6 +658,12 @@ const onKeydown = (event: KeyboardEvent) => {
   color: var(--text-muted);
 }
 
+.input-wrapper input:read-only,
+.form-group select:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
 .form-group select {
   width: 100%;
   height: 41px;
@@ -614,6 +696,17 @@ const onKeydown = (event: KeyboardEvent) => {
   color: var(--text-muted);
   font-size: 11px;
   line-height: 1.6;
+}
+
+.api-error {
+  margin: 0 0 15px;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--red) 45%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--red) 10%, transparent);
+  color: var(--red);
+  font-size: 11px;
+  line-height: 1.5;
 }
 
 .security-note {
@@ -674,6 +767,11 @@ const onKeydown = (event: KeyboardEvent) => {
 
 .save-button:hover {
   filter: brightness(1.08);
+}
+
+.save-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
 }
 
 @media (max-width: 560px) {
