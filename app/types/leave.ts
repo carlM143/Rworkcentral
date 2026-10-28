@@ -9,9 +9,6 @@ export type LeaveTypeName =
   | 'Emergency Leave'
   | 'Paternity Leave'
   | 'Maternity Leave'
-  | 'Bereavement Leave'
-  | 'Special Leave'
-  | 'Unpaid Leave'
 
 export interface LeaveRequest {
   id: number
@@ -35,19 +32,6 @@ export interface LeaveRequest {
   status: LeaveRequestStatus
 
   filedAt: string
-}
-
-export interface LeaveRequestFormData {
-  employeeId: number
-
-  leaveType: LeaveTypeName
-
-  dateFrom: string
-  dateTo: string
-
-  days: number
-
-  reason?: string
 }
 
 export interface LeaveBalanceSummary {

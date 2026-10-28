@@ -1,3 +1,5 @@
+<!-- AppSelect.vue -->
+
 <script setup lang="ts">
 const model = defineModel<string>({
   default: '',

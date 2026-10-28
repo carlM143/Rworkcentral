@@ -11,6 +11,7 @@ export type EmployeeStatus =
 
 export type SalaryType =
   | 'Monthly'
+  | 'Semi-Monthly'
   | 'Daily'
   | 'Hourly'
 

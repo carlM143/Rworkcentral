@@ -1,42 +1,33 @@
-export type LeaveTypeCategory =
-  | 'Company Leave'
-  | 'Statutory Leave'
-  | 'Special Leave'
-
-export type LeaveTypeStatus =
-  | 'Active'
-  | 'Inactive'
-
-export type LeaveCreditUnit =
-  | 'Days'
-  | 'Hours'
+export type LeaveTypeStatus = 'active' | 'inactive'
 
 export interface LeaveType {
   id: number
-
+  userId: number
   code: string
   name: string
+  status: string
+  policiesCount: number
+  requestsCount: number
+}
 
-  category: LeaveTypeCategory
-
-  description: string
-
-  defaultCredits: number
-  creditUnit: LeaveCreditUnit
-
-  isPaid: boolean
-  requiresApproval: boolean
-
-  carryOverAllowed: boolean
-  maxCarryOver: number
-
-  minimumDays: number
-  maximumDays?: number
-
+export interface LeaveTypePayload {
+  leave_code: string
+  leave_name: string
   status: LeaveTypeStatus
+}
 
-  createdBy: string
-  createdAt: string
+export interface LeaveTypeApiRecord {
+  id: number
+  user_id: number
+  leave_code: string
+  leave_name: string
+  status: string
+  leave_policies_count?: number
+  leave_requests_count?: number
+}
 
-  updatedAt: string
+export interface LeaveTypeApiResponse<T> {
+  success: boolean
+  message: string
+  data: T
 }

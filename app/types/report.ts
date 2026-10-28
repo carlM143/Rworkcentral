@@ -2,6 +2,7 @@ export type ReportCategory =
   | 'Employees'
   | 'Timekeeping'
   | 'Payroll'
+  | 'Billing'
   | 'Leave & Overtime'
   | 'Government'
 
@@ -33,7 +34,7 @@ export interface RecentReport {
   generatedBy: string
   generatedAt: string
 
-  format: 'PDF' | 'Excel'
+  format: 'PDF' | 'Excel' | 'CSV'
 
   status: ReportStatus
 }

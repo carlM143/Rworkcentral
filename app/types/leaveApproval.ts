@@ -1,50 +1,39 @@
-export type LeaveApprovalType =
-  | 'Vacation Leave'
-  | 'Sick Leave'
-  | 'Emergency Leave'
-  | 'Special Leave'
-  | 'Maternity Leave'
-  | 'Paternity Leave'
-  | 'Unpaid Leave'
 
-export type LeaveApprovalStatus =
-  | 'Pending'
-  | 'For Review'
-  | 'Approved'
-  | 'Rejected'
-  | 'Cancelled'
+export type LeaveApprovalStatus = 'pending' | 'approved' | 'rejected' | 'cancelled'
+export type LeavePayType = 'paid' | 'unpaid'
 
 export interface LeaveApproval {
   id: number
-
-  requestNumber: string
-
-  employeeId: number
-  employeeNumber: string
-  employeeName: string
-
-  department: string
-  position: string
-
-  leaveType: LeaveApprovalType
-
-  startDate: string
-  endDate: string
-
-  totalDays: number
-
-  availableBalance: number
-
-  reason: string
-
-  filedAt: string
-
+  request_no: string
+  employee: {
+    id: number | null
+    emp_id: number | null
+    name: string
+  }
+  leave_type: string
+  leave_code: string | null
+  leave_policy_id: number
+  policy_status: string | null
+  policy_eligible: boolean
+  policy_paid: boolean | null
+  request_date: string | null
+  requested_pay_type: LeavePayType
+  approved_pay_type: LeavePayType | null
+  reason: string | null
   status: LeaveApprovalStatus
+  approved_by: number | null
+  approved_at: string | null
+}
 
-  immediateSupervisor: string
+export interface LeaveApprovalStats {
+  total: number
+  pending: number
+  approved: number
+  rejected: number
+}
 
-  reviewedBy?: string
-  reviewedAt?: string
-
-  remarks?: string
+export interface LeaveApprovalApiResponse<T> {
+  success: boolean
+  message: string
+  data: T
 }

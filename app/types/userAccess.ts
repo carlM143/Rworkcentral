@@ -1,6 +1,8 @@
 export type SystemUserRole =
   | 'Administrator'
+  | 'Human Resources'
   | 'HR Administrator'
+  | 'Manager'
   | 'Supervisor'
   | 'Employee'
 
@@ -14,11 +16,12 @@ export interface SystemUser {
 
   employeeId?: number
   employeeNumber?: string
+  canSetupAccount?: boolean
 
   name: string
   email: string
 
-  role: SystemUserRole
+  role: SystemUserRole | '-'
 
   department?: string
 

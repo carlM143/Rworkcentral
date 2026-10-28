@@ -1,36 +1,27 @@
 export default defineNuxtRouteMiddleware((to) => {
-
   if (!import.meta.client) {
     return
   }
 
-  const isAuthenticated =
-    sessionStorage.getItem(
-      'rworkcentral-auth',
-    ) === '1'
+  const auth = useAuth()
+  auth.hydrate()
 
   const publicRoutes = [
-    '/admin/login',
+    '/auth/login',
+    '/employee/login',
   ]
 
-  const isPublicRoute =
-    publicRoutes.includes(
-      to.path,
-    )
+  const isPublicRoute = publicRoutes.includes(to.path)
 
-  if (
-    !isAuthenticated &&
-    !isPublicRoute
-  ) {
-    return navigateTo(
-      '/admin/login',
-    )
+  if (!auth.isAuthenticated.value && !isPublicRoute) {
+    return navigateTo('/auth/login')
   }
 
   if (
-    isAuthenticated &&
-    to.path === '/admin/login'
+    auth.isAuthenticated.value
+    && publicRoutes.includes(to.path)
+    && auth.homePath.value
   ) {
-    return navigateTo('/')
+    return navigateTo(auth.homePath.value)
   }
 })

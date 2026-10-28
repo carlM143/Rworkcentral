@@ -45,3 +45,25 @@ export interface OvertimeApproval {
 
   remarks?: string
 }
+
+export interface OvertimeApprovalApiRecord {
+  id: number
+  employee_id: number
+  request_no: string
+  ot_date: string
+  start_at: string
+  end_at: string
+  reason: string
+  status: string
+  approved_at: string | null
+  created_at: string
+  employee?: { emp_id: string; firstname: string; lastname: string } | null
+  work_schedule?: { schedule_name?: string } | null
+  approver?: { name: string } | null
+}
+
+export interface OvertimeApprovalApiResponse<T> {
+  success: boolean
+  message: string
+  data: T
+}

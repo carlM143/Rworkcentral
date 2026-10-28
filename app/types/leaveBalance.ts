@@ -1,64 +1,60 @@
-export type LeaveBalanceStatus =
-  | 'Healthy'
-  | 'Low Balance'
-  | 'Exhausted'
 
-export type LeaveCreditType =
-  | 'Vacation Leave'
-  | 'Sick Leave'
-  | 'Emergency Leave'
-  | 'Special Leave'
+export type LeaveBalanceStatus = 'healthy' | 'low' | 'none'
+export type CreditAdjustmentAction = 'add' | 'deduct'
 
-export type LeaveCreditKey =
-  | 'vacationLeave'
-  | 'sickLeave'
-  | 'emergencyLeave'
-  | 'specialLeave'
-
-export type LeaveCreditAdjustmentType =
-  | 'Add Credits'
-  | 'Deduct Credits'
-
-export interface LeaveCreditBreakdown {
+export interface LeaveBalance {
+  employee_id: number
+  employee: string
+  emp_id: string | number | null
+  department?: string | null
+  leave_policy_id: number
+  leave_type: string | null
+  policy_paid?: boolean | null
+  cycle_start: string
+  cycle_end: string
   allocated: number
-  used: number
+  deductions: number
+  adjustments: number
+  carry_over: number
+  expired: number
+  reversals: number
   available: number
 }
 
-export interface LeaveBalance {
-  id: number
-
-  employeeId: number
-  employeeNumber: string
-  employeeName: string
-
-  department: string
-  position: string
-
-  vacationLeave: LeaveCreditBreakdown
-  sickLeave: LeaveCreditBreakdown
-  emergencyLeave: LeaveCreditBreakdown
-  specialLeave: LeaveCreditBreakdown
-
+export interface EmployeeLeaveBalance {
+  employee_id: number
+  employee: string
+  emp_id: string | number | null
+  department: string | null
+  records: LeaveBalance[]
   totalAllocated: number
   totalUsed: number
   totalAvailable: number
-
   status: LeaveBalanceStatus
-
-  lastUpdated: string
 }
 
-export interface LeaveCreditAdjustmentFormData {
-  employeeId: number
+export interface LeaveBalanceStats {
+  employeesWithCredits: number
+  remainingCredits: number
+  lowBalance: number
+  noCredits: number
+}
 
-  leaveType:
-    LeaveCreditType
+export interface LeaveBalanceOption {
+  label: string
+  value: string
+}
 
-  adjustmentType:
-    LeaveCreditAdjustmentType
-
+export interface AdjustLeaveCreditPayload {
+  employee_id: number
+  leave_policy_id: number
+  action: CreditAdjustmentAction
   days: number
+  remarks: string
+}
 
-  reason: string
+export interface LeaveBalanceApiResponse<T> {
+  success: boolean
+  message: string
+  data: T
 }
