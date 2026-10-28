@@ -485,7 +485,7 @@ const statusClass = (
 
             <td>
 
-              <ApprovalRowActions :request="request" @action="(mode, item) => emit('action', mode, item as WfhApproval)" />
+              <ApprovalRowActions :request="item" @action="(mode, request) => emit('action', mode, request as WfhApproval)" />
 
             </td>
 

@@ -40,11 +40,36 @@ const {
   statusOptions,
 
   resetFilters,
+  loading,
+  loadError,
+  approvingId,
+  loadRequests,
+  approveRequest,
 } = useOvertimeRequests()
 
 const {
   info,
+  success,
+  warning,
 } = useToast()
+
+const apiError = (problem: any) => (
+  problem?.data?.errors?.status?.[0]
+  ?? problem?.data?.errors?.end_at?.[0]
+  ?? problem?.data?.message
+  ?? problem?.response?._data?.message
+  ?? problem?.message
+  ?? 'Unable to approve the overtime request.'
+)
+
+const handleApprove = async (request: { id: number; requestNumber: string }) => {
+  try {
+    const message = await approveRequest(request.id)
+    success('Overtime Approved', message)
+  } catch (problem: any) {
+    warning('Approval Failed', apiError(problem))
+  }
+}
 
 const handleBack = () => {
   router.push(
@@ -153,13 +178,25 @@ const handleFileOvertime = () => {
       "
     />
 
+    <div v-if="loading" class="request-message">
+      Loading overtime requests...
+    </div>
+
+    <div v-else-if="loadError" class="request-message request-error" role="alert">
+      <span>{{ loadError }}</span>
+      <AppButton variant="secondary" size="sm" @click="loadRequests">Retry</AppButton>
+    </div>
+
     <OvertimeRequestTable
+      v-else
       :requests="
         paginatedRequests
       "
+      :approving-id="approvingId"
+      @approve="handleApprove"
     />
 
-    <div class="table-footer">
+    <div v-if="!loading && !loadError" class="table-footer">
 
       <p>
         Showing
@@ -271,6 +308,24 @@ const handleFileOvertime = () => {
     var(--text-primary);
 
   font-weight: 650;
+}
+
+.request-message {
+  display: flex;
+  min-height: 130px;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-card);
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.request-error {
+  color: var(--red);
 }
 
 @media (max-width: 650px) {

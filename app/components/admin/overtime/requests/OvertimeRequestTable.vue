@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import {
+  CheckCircle2,
   Clock3,
-  MoreHorizontal,
   Timer,
   UserRound,
 } from 'lucide-vue-next'
@@ -15,6 +15,11 @@ import type {
 defineProps<{
   requests:
     OvertimeRequest[]
+  approvingId?: number | null
+}>()
+
+const emit = defineEmits<{
+  approve: [request: OvertimeRequest]
 }>()
 
 const formatDate = (
@@ -396,12 +401,15 @@ const typeClass = (
             <td>
 
               <button
+                v-if="item.status === 'Pending' || item.status === 'For Review'"
                 type="button"
                 class="action-button"
-                title="Actions will be added later"
+                title="Approve overtime request"
+                :disabled="approvingId === item.id"
+                @click="emit('approve', item)"
               >
 
-                <MoreHorizontal
+                <CheckCircle2
                   :size="17"
                 />
 
@@ -818,6 +826,11 @@ tbody tr:hover {
 
   color:
     var(--primary);
+}
+
+.action-button:disabled {
+  cursor: wait;
+  opacity: 0.55;
 }
 
 .empty-state {

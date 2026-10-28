@@ -7,9 +7,15 @@ import {
 import OvertimeApprovalStats from '~/components/admin/approvals/overtime/OvertimeApprovalStats.vue'
 import OvertimeApprovalFilters from '~/components/admin/approvals/overtime/OvertimeApprovalFilters.vue'
 import OvertimeApprovalTable from '~/components/admin/approvals/overtime/OvertimeApprovalTable.vue'
+import { useOvertimeApprovals } from '~/composables/admin/approvals/useOvertimeApprovals'
 
 const router =
   useRouter()
+
+const {
+  success,
+  warning,
+} = useToast()
 
 const {
   search,
@@ -35,13 +41,48 @@ const {
   statusOptions,
 
   resetFilters,
+  loading,
+  loadError,
+  approvingId,
+  loadRequests,
+  approveRequest,
 } = useOvertimeApprovals()
 
 const exportOpen = ref(false)
 const requestOpen = ref(false)
 const requestMode = ref('view')
 const selectedRequest = ref<Record<string, any> | null>(null)
-const openRequest = (mode: string, request: Record<string, any>) => { selectedRequest.value = request; requestMode.value = mode; requestOpen.value = true }
+const apiError = (problem: any) => (
+  problem?.data?.errors?.status?.[0]
+  ?? problem?.data?.errors?.end_at?.[0]
+  ?? problem?.data?.message
+  ?? problem?.response?._data?.message
+  ?? problem?.message
+  ?? 'Unable to approve the overtime request.'
+)
+
+const openRequest = async (mode: string, request: Record<string, any>) => {
+  if (mode === 'approve') {
+    if (approvingId.value !== null) return
+
+    try {
+      const message = await approveRequest(Number(request.id))
+      success('Overtime Approved', message)
+    } catch (problem: any) {
+      warning('Approval Failed', apiError(problem))
+    }
+    return
+  }
+
+  if (mode === 'reject') {
+    warning('Reject Not Available', 'The backend currently provides an approve endpoint only.')
+    return
+  }
+
+  selectedRequest.value = request
+  requestMode.value = mode === 'review' ? 'view' : mode
+  requestOpen.value = true
+}
 
 const handleExport = () => { exportOpen.value = true }
 
@@ -50,6 +91,8 @@ const handleApprovedOvertime = () => {
     '/admin/approved-overtime',
   )
 }
+
+onMounted(() => { void loadRequests() })
 </script>
 
 <template>
@@ -132,7 +175,16 @@ const handleApprovedOvertime = () => {
 
     <!-- TABLE -->
 
-    <OvertimeApprovalTable @action="openRequest"
+    <div v-if="loading" class="request-message">
+      Loading overtime approvals...
+    </div>
+
+    <div v-else-if="loadError" class="request-message request-error" role="alert">
+      <span>{{ loadError }}</span>
+      <AppButton variant="secondary" size="sm" @click="loadRequests">Retry</AppButton>
+    </div>
+
+    <OvertimeApprovalTable v-else @action="openRequest"
       :requests="
         paginatedRequests
       "
@@ -140,7 +192,7 @@ const handleApprovedOvertime = () => {
 
     <!-- PAGINATION -->
 
-    <div class="table-footer">
+    <div v-if="!loading && !loadError" class="table-footer">
 
       <p>
         Showing
@@ -224,6 +276,23 @@ const handleApprovedOvertime = () => {
     var(--text-primary);
 
   font-weight: 650;
+}
+
+.request-message {
+  display: flex;
+  min-height: 130px;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-card);
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.request-error {
+  color: var(--red);
 }
 
 @media (max-width: 650px) {

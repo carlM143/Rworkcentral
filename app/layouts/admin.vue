@@ -230,7 +230,11 @@ const menuItems = [
     },
     {
       label: 'Leave Types',
-      to: '/admin/leave-types',
+      to: '/admin/leave-management/leave-types',
+    },
+    {
+      label: 'Leave Policies',
+      to: '/admin/leave-management/leave-policies',
     },
   ],
 },
@@ -281,6 +285,10 @@ const menuItems = [
     {
       label: 'OT Approvals',
       to: '/admin/approvals/overtime',
+    },
+    {
+      label: 'Undertime Approvals',
+      to: '/admin/approvals/undertime',
     },
     {
       label: 'WFH Approvals',

@@ -1,244 +1,161 @@
+
 <script setup lang="ts">
-import {
-  Download,
-  FileText,
-} from 'lucide-vue-next'
+import { ArrowLeft, RefreshCw } from 'lucide-vue-next'
 
 import LeaveApprovalStats from '~/components/admin/approvals/leaves/LeaveApprovalStats.vue'
 import LeaveApprovalFilters from '~/components/admin/approvals/leaves/LeaveApprovalFilters.vue'
 import LeaveApprovalTable from '~/components/admin/approvals/leaves/LeaveApprovalTable.vue'
+import LeaveApprovalReviewModal from '~/components/admin/approvals/leaves/LeaveApprovalReviewModal.vue'
+import { useLeaveApprovals } from '~/composables/admin/approvals/useLeaveApprovals'
 
-const router =
-  useRouter()
+definePageMeta({ layout: 'admin' })
+
+const router = useRouter()
 
 const {
+  requests,
   search,
-  department,
-  leaveType,
-  status,
-  dateFrom,
-  dateTo,
-
+  statusFilter,
   currentPage,
-
-  filteredRequests,
+  stats,
   paginatedRequests,
-
+  filteredRequests,
   totalPages,
   showingFrom,
   showingTo,
-
-  stats,
-
-  departmentOptions,
-  leaveTypeOptions,
-  statusOptions,
-
+  loading,
+  loadError,
+  selectedRequest,
+  approving,
+  approvalProblem,
+  loadRequests,
   resetFilters,
+  openApproval,
+  closeApproval,
+  handleApprove,
 } = useLeaveApprovals()
 
-const exportOpen = ref(false)
-const requestOpen = ref(false)
-const requestMode = ref('view')
-const selectedRequest = ref<Record<string, any> | null>(null)
-const openRequest = (mode: string, request: Record<string, any>) => { selectedRequest.value = request; requestMode.value = mode; requestOpen.value = true }
-
-const handleExport = () => { exportOpen.value = true }
-
-const handleFiledLeaves = () => {
-  router.push(
-    '/admin/filed-leaves',
-  )
-}
+onMounted(() => { void loadRequests() })
 </script>
 
 <template>
-  <section class="leave-approval-page">
+  <section class="leave-approvals-page">
+
+    <!-- BACK -->
+    <button
+      type="button"
+      class="back-button"
+      @click="router.push('/admin/approvals')"
+    >
+      <ArrowLeft :size="15" />
+      Back to Approval Center
+    </button>
 
     <!-- HEADER -->
-
     <PageHeader
       title="Leave Approvals"
-      description="Review employee leave requests, available leave balances, requested dates and approval status."
+      description="Review employee leave applications, payment classifications and approval status."
     >
-
-      <div class="header-actions">
-
-        <AppButton
-          variant="secondary"
-          :icon="Download"
-          @click="
-            handleExport
-          "
-        >
-          Export
-        </AppButton>
-
-        <AppButton
-          :icon="FileText"
-          @click="
-            handleFiledLeaves
-          "
-        >
-          View Filed Leaves
-        </AppButton>
-
-      </div>
-
+      <AppButton
+        variant="secondary"
+        :icon="RefreshCw"
+        :disabled="loading"
+        @click="loadRequests"
+      >
+        {{ loading ? 'Refreshing...' : 'Refresh' }}
+      </AppButton>
     </PageHeader>
 
-    <!-- STATS -->
-
-    <LeaveApprovalStats
-      :stats="
-        stats
-      "
-    />
+    <!-- STATISTICS -->
+    <LeaveApprovalStats :stats="stats" />
 
     <!-- FILTERS -->
-
     <LeaveApprovalFilters
-      v-model:search="
-        search
-      "
-      v-model:department="
-        department
-      "
-      v-model:leave-type="
-        leaveType
-      "
-      v-model:status="
-        status
-      "
-      v-model:date-from="
-        dateFrom
-      "
-      v-model:date-to="
-        dateTo
-      "
-      :departments="
-        departmentOptions
-      "
-      :leave-types="
-        leaveTypeOptions
-      "
-      :statuses="
-        statusOptions
-      "
-      @reset="
-        resetFilters
-      "
+      v-model:search="search"
+      v-model:status="statusFilter"
+      @reset="resetFilters"
     />
 
-    <!-- TABLE -->
+    <!-- LOADING MESSAGE -->
+    <div
+      v-if="loading"
+      class="directory-message"
+    >
+      <RefreshCw :size="15" class="loading-icon" />
+      {{ requests.length ? 'Refreshing leave requests...' : 'Loading employee leave requests...' }}
+    </div>
 
-    <LeaveApprovalTable @action="openRequest"
-      :requests="
-        paginatedRequests
-      "
+    <!-- API ERROR -->
+    <div
+      v-if="loadError"
+      class="directory-message error-message"
+      role="alert"
+    >
+      <div>
+        <strong>Leave Requests Could Not Be Loaded</strong>
+        <p>{{ loadError }}</p>
+      </div>
+
+      <AppButton
+        variant="secondary"
+        size="sm"
+        :disabled="loading"
+        @click="loadRequests"
+      >
+        Retry
+      </AppButton>
+    </div>
+
+    <!-- TABLE: REMAINS MOUNTED -->
+    <LeaveApprovalTable
+      :requests="paginatedRequests"
+      :status-filter="statusFilter"
+      @review="openApproval"
     />
 
     <!-- PAGINATION -->
-
     <div class="table-footer">
-
       <p>
         Showing
-
-        <strong>
-          {{
-            showingFrom
-          }}–{{
-            showingTo
-          }}
-        </strong>
-
+        <strong>{{ showingFrom }}–{{ showingTo }}</strong>
         of
-
-        <strong>
-          {{
-            filteredRequests.length
-          }}
-        </strong>
-
-        leave approval requests
+        <strong>{{ filteredRequests.length }}</strong>
+        requests
       </p>
 
       <AppPagination
-        v-model="
-          currentPage
-        "
-        :total-pages="
-          totalPages
-        "
+        v-model="currentPage"
+        :total-pages="totalPages"
       />
-
     </div>
 
-    <PayrollExportDialog :open="exportOpen" title="Leave Approvals" :records="filteredRequests" :sample="false" :date-from="dateFrom" :date-to="dateTo" :filters="{ Search: search, Department: department, Type: leaveType, Status: status }" @close="exportOpen = false" />
-    <ApprovalRequestDialog :open="requestOpen" kind="Leave" :mode="requestMode" :request="selectedRequest" @close="requestOpen = false" />
+    <!-- APPROVAL MODAL -->
+    <LeaveApprovalReviewModal
+      :request="selectedRequest"
+      :approving="approving"
+      :blocked-reason="approvalProblem"
+      @close="closeApproval"
+      @approve="handleApprove"
+    />
+
   </section>
 </template>
 
 <style scoped>
-.leave-approval-page {
-  width: 100%;
-
-  max-width: 1660px;
-
-  margin:
-    0 auto;
-}
-
-.header-actions {
-  display: flex;
-
-  align-items: center;
-
-  gap: 8px;
-}
-
-.table-footer {
-  display: flex;
-
-  align-items: center;
-  justify-content: space-between;
-
-  gap: 20px;
-
-  padding:
-    14px 3px 0;
-}
-
-.table-footer p {
-  margin: 0;
-
-  color:
-    var(--text-muted);
-
-  font-size: 11px;
-}
-
-.table-footer strong {
-  color:
-    var(--text-primary);
-
-  font-weight: 650;
-}
-
-@media (max-width: 650px) {
-  .header-actions {
-    width: 100%;
-
-    align-items: stretch;
-
-    flex-direction: column;
-  }
-
-  .table-footer {
-    align-items: flex-start;
-
-    flex-direction: column;
-  }
+.leave-approvals-page{width:100%;max-width:1660px;margin:0 auto}
+.back-button{display:inline-flex;align-items:center;gap:6px;margin-bottom:10px;padding:0;border:0;background:transparent;color:var(--primary);font-size:10px;font-weight:600;cursor:pointer}
+.back-button:hover{color:var(--primary-dark)}
+.table-footer{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:13px 3px 0}
+.table-footer p{margin:0;color:var(--text-muted);font-size:10px}
+.table-footer strong{color:var(--text-primary);font-weight:650}
+.directory-message{display:flex;align-items:center;justify-content:center;gap:9px;min-height:65px;margin-bottom:14px;padding:15px;border:1px solid var(--border);border-radius:10px;background:var(--bg-card);color:var(--text-secondary);font-size:11px}
+.loading-icon{color:var(--primary);animation:spin 1s linear infinite}
+.error-message{justify-content:space-between;border-color:var(--red)}
+.error-message strong{color:var(--red);font-size:11px}
+.error-message p{margin:5px 0 0;color:var(--text-muted);font-size:10px}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media(max-width:650px){
+  .table-footer{align-items:flex-start;flex-direction:column}
+  .error-message{align-items:flex-start;flex-direction:column}
 }
 </style>

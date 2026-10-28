@@ -507,7 +507,7 @@ const statusClass = (
 
             <td>
 
-              <ApprovalRowActions :request="request" @action="(mode, item) => emit('action', mode, item as OvertimeApproval)" />
+              <ApprovalRowActions :request="item" @action="(mode, request) => emit('action', mode, request as OvertimeApproval)" />
 
             </td>
 

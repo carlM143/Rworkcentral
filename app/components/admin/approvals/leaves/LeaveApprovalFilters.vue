@@ -1,280 +1,49 @@
+
 <script setup lang="ts">
-import {
-  CalendarDays,
-  RotateCcw,
-} from 'lucide-vue-next'
+import { Search, RotateCcw } from 'lucide-vue-next'
 
-const search =
-  defineModel<string>(
-    'search',
-    {
-      default: '',
-    },
-  )
+const search = defineModel<string>('search', { default: '' })
+const status = defineModel<string>('status', { default: 'pending' })
 
-const department =
-  defineModel<string>(
-    'department',
-    {
-      default: '',
-    },
-  )
-
-const leaveType =
-  defineModel<string>(
-    'leaveType',
-    {
-      default: '',
-    },
-  )
-
-const status =
-  defineModel<string>(
-    'status',
-    {
-      default: '',
-    },
-  )
-
-const dateFrom =
-  defineModel<string>(
-    'dateFrom',
-    {
-      default: '',
-    },
-  )
-
-const dateTo =
-  defineModel<string>(
-    'dateTo',
-    {
-      default: '',
-    },
-  )
-
-defineProps<{
-  departments: string[]
-  leaveTypes: string[]
-  statuses: string[]
-}>()
-
-const emit =
-  defineEmits<{
-    reset: []
-  }>()
+const emit = defineEmits<{ reset: [] }>()
 </script>
 
 <template>
   <div class="filters-card">
-
-    <div class="filter-row">
-
-      <AppInput
+    <div class="search-field">
+      <Search :size="16" />
+      <input
         v-model="search"
-        searchable
-        clearable
-        placeholder="Search leave no., employee or reason..."
+        type="search"
+        placeholder="Search request number, employee ID or leave type..."
+        aria-label="Search leave requests"
       />
-
-      <AppSelect
-        v-model="department"
-        :options="departments"
-        placeholder="All Departments"
-      />
-
-      <AppSelect
-        v-model="leaveType"
-        :options="leaveTypes"
-        placeholder="All Leave Types"
-      />
-
-      <AppSelect
-        v-model="status"
-        :options="statuses"
-        placeholder="All Status"
-      />
-
     </div>
 
-    <div class="date-row">
+    <select v-model="status" aria-label="Filter leave requests by status">
+      <option value="pending">Pending Approval</option>
+      <option value="approved">Approved</option>
+      <option value="rejected">Rejected</option>
+      <option value="cancelled">Cancelled</option>
+      <option value="">All Status</option>
+    </select>
 
-      <div class="date-control">
-
-        <CalendarDays
-          :size="15"
-        />
-
-        <div>
-          <span>
-            Leave Date From
-          </span>
-
-          <input
-            v-model="dateFrom"
-            type="date"
-          >
-        </div>
-
-      </div>
-
-      <div class="date-control">
-
-        <CalendarDays
-          :size="15"
-        />
-
-        <div>
-          <span>
-            Leave Date To
-          </span>
-
-          <input
-            v-model="dateTo"
-            type="date"
-          >
-        </div>
-
-      </div>
-
-      <AppButton
-        variant="secondary"
-        :icon="RotateCcw"
-        @click="
-          emit('reset')
-        "
-      >
-        Reset Filters
-      </AppButton>
-
-    </div>
-
+    <button type="button" class="reset-button" @click="emit('reset')">
+      <RotateCcw :size="14" />
+      Reset
+    </button>
   </div>
 </template>
 
 <style scoped>
-.filters-card {
-  margin-bottom: 14px;
-
-  padding: 11px;
-
-  border:
-    1px solid var(--border);
-
-  border-radius: 10px;
-
-  background:
-    var(--bg-card);
-
-  box-shadow:
-    var(--shadow);
-}
-
-.filter-row {
-  display: grid;
-
-  grid-template-columns:
-    minmax(320px, 1fr)
-    230px
-    210px
-    175px;
-
-  gap: 8px;
-}
-
-.date-row {
-  display: flex;
-
-  align-items: center;
-
-  gap: 8px;
-
-  margin-top: 8px;
-}
-
-.date-control {
-  display: flex;
-
-  width: 220px;
-  height: 42px;
-
-  align-items: center;
-
-  gap: 8px;
-
-  padding:
-    0 10px;
-
-  border:
-    1px solid var(--border);
-
-  border-radius: 7px;
-
-  background:
-    var(--bg-card-soft);
-
-  color:
-    var(--text-muted);
-}
-
-.date-control > div {
-  min-width: 0;
-  flex: 1;
-}
-
-.date-control span {
-  display: block;
-
-  font-size: 9px;
-}
-
-.date-control input {
-  width: 100%;
-
-  border: 0;
-  outline: 0;
-
-  background:
-    transparent;
-
-  color:
-    var(--text-primary);
-
-  font-family:
-    inherit;
-
-  font-size: 10px;
-}
-
-:deep(input),
-:deep(select),
-:deep(button) {
-  font-size: 11px;
-}
-
-@media (max-width: 1100px) {
-  .filter-row {
-    grid-template-columns:
-      repeat(
-        2,
-        minmax(0, 1fr)
-      );
-  }
-}
-
-@media (max-width: 650px) {
-  .filter-row {
-    grid-template-columns:
-      1fr;
-  }
-
-  .date-row {
-    align-items: stretch;
-
-    flex-direction: column;
-  }
-
-  .date-control {
-    width: 100%;
-  }
-}
+.filters-card{display:grid;grid-template-columns:minmax(250px,1fr) 185px auto;gap:8px;margin-bottom:14px;padding:10px;border:1px solid var(--border);border-radius:10px;background:var(--bg-card);box-shadow:var(--shadow)}
+.search-field{display:flex;align-items:center;gap:9px;min-width:0;height:40px;padding:0 11px;border:1px solid var(--border);border-radius:7px;background:var(--bg-card-soft);color:var(--text-muted)}
+.search-field:focus-within{border-color:var(--primary)}
+.search-field input{width:100%;min-width:0;height:100%;border:0;outline:0;background:transparent;color:var(--text-primary);font-family:inherit;font-size:10px}
+.search-field input::placeholder{color:var(--text-muted)}
+select{height:40px;padding:0 11px;border:1px solid var(--border);border-radius:7px;outline:0;background:var(--bg-card-soft);color:var(--text-primary);font-family:inherit;font-size:10px}
+select:focus{border-color:var(--primary)}
+.reset-button{display:flex;align-items:center;justify-content:center;gap:7px;padding:0 13px;border:1px solid var(--border);border-radius:7px;background:var(--bg-card-soft);color:var(--text-secondary);font-family:inherit;font-size:10px;font-weight:600;cursor:pointer}
+.reset-button:hover{color:var(--text-primary);border-color:var(--primary)}
+@media(max-width:700px){.filters-card{grid-template-columns:1fr}}
 </style>

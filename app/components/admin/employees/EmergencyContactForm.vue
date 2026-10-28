@@ -259,6 +259,7 @@ const contactSummary = computed(() => {
 
             <label>
               Contact Address
+              <span>*</span>
             </label>
           </div>
 
