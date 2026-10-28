@@ -52,17 +52,20 @@ onMounted(() => {
   hidePageLoader(500)
 
   removeBeforeGuard =
-    router.beforeEach(() => {
-      showPageLoader()
+    router.beforeEach((to, from) => {
+      if (to.path.startsWith('/employee') || from.path?.startsWith('/employee')) {
+        return true
+      }
 
+      showPageLoader()
       return true
     })
 
-
-
   removeAfterGuard =
-    router.afterEach(() => {
-      hidePageLoader(300)
+    router.afterEach((to) => {
+      if (!to.path.startsWith('/employee')) {
+        hidePageLoader(300)
+      }
     })
 })
 
