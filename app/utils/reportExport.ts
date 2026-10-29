@@ -1,5 +1,5 @@
 export type ReportRow = Record<string, unknown>
-export type ReportFormat = 'Excel' | 'PDF' | 'CSV'
+export type ReportFormat = 'Excel' | 'PDF'
 
 export interface ReportDocument {
   title: string
@@ -15,6 +15,48 @@ const labels: Record<string, string> = {
   sss: 'SSS', sssNumber: 'SSS Number', pagibig: 'Pag-IBIG', philHealth: 'PhilHealth',
   ecContribution: 'EC Contribution', workedHours: 'Total Worked Hours',
   referenceNumber: 'Reference Number', pin: 'PhilHealth PIN',
+  request_no: 'Request No.',
+  leave_type: 'Leave Type',
+  leave_code: 'Leave Code',
+  leave_policy_id: 'Policy ID',
+  policy_status: 'Policy Status',
+  policy_eligible: 'Policy Eligible',
+  policy_paid: 'Policy Paid',
+  request_date: 'Request Date',
+  requested_pay_type: 'Requested Pay Type',
+  approved_pay_type: 'Approved Pay Type',
+  total_days: 'Total Days',
+  approved_by: 'Approved By',
+  approver_name: 'Approver Name',
+  approved_at: 'Approved At',
+  created_at: 'Created At',
+  sourceId: 'Source ID',
+  sourceType: 'Source Type',
+  employeeNumber: 'Employee Number',
+  employeeName: 'Employee Name',
+  requestDate: 'Request Date',
+  submittedAt: 'Submitted At',
+  requestedPayType: 'Requested Pay Type',
+  leavePolicyId: 'Leave Policy ID',
+  policyStatus: 'Policy Status',
+}
+
+export const formatDayType = (type?: string | null): string => {
+  if (!type) return ''
+  return type
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, c => c.toUpperCase())
+}
+
+export const formatLeaveDateItem = (item: any): string => {
+  if (!item || typeof item !== 'object') return String(item ?? '')
+  const dateStr = item.leave_date || item.date || ''
+  const formattedDate = dateStr && /^\d{4}-\d{2}-\d{2}/.test(dateStr)
+    ? new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(`${dateStr.slice(0, 10)}T12:00:00`))
+    : (dateStr || '')
+  const dayType = formatDayType(item.day_type)
+  if (formattedDate && dayType) return `${formattedDate} (${dayType})`
+  return formattedDate || dayType || '—'
 }
 
 export const reportLabel = (key: string) => labels[key]
@@ -29,6 +71,69 @@ export const reportValue = (value: unknown): string => {
   if (value == null || value === '') return '—'
   if (typeof value === 'boolean') return value ? 'Yes' : 'No'
   if (typeof value === 'number') return new Intl.NumberFormat('en-PH', { maximumFractionDigits: 2 }).format(value)
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    if ((trimmed.startsWith('[') && trimmed.endsWith(']')) || (trimmed.startsWith('{') && trimmed.endsWith('}'))) {
+      try {
+        const parsed = JSON.parse(trimmed)
+        if (parsed && typeof parsed === 'object') {
+          return reportValue(parsed)
+        }
+      } catch {
+        // Not JSON, continue
+      }
+    }
+    if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(value)) {
+      const d = new Date(value)
+      if (!Number.isNaN(d.getTime())) {
+        return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+      }
+    }
+    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+      const d = new Date(`${value}T12:00:00`)
+      if (!Number.isNaN(d.getTime())) {
+        return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+      }
+    }
+    return value
+  }
+
+  if (Array.isArray(value)) {
+    if (value.length === 0) return '—'
+    return value.map(item => {
+      if (item && typeof item === 'object') {
+        if ('leave_date' in item || 'date' in item) {
+          return formatLeaveDateItem(item)
+        }
+        if ('name' in item && item.name) {
+          return ('emp_id' in item && item.emp_id) ? `${item.name} (${item.emp_id})` : String(item.name)
+        }
+        if ('label' in item && item.label) return String(item.label)
+        if ('title' in item && item.title) return String(item.title)
+        const entries = Object.values(item).filter(v => v != null && typeof v !== 'object')
+        return entries.length ? entries.join(' ') : '—'
+      }
+      return reportValue(item)
+    }).filter(Boolean).join('; ')
+  }
+
+  if (typeof value === 'object') {
+    const obj = value as Record<string, unknown>
+    if ('leave_date' in obj || 'date' in obj) {
+      return formatLeaveDateItem(obj)
+    }
+    if ('name' in obj && obj.name) {
+      return ('emp_id' in obj && obj.emp_id) ? `${obj.name} (${obj.emp_id})` : String(obj.name)
+    }
+    if ('department_name' in obj && obj.department_name) return String(obj.department_name)
+    if ('position' in obj && obj.position) return String(obj.position)
+    if ('label' in obj && obj.label) return String(obj.label)
+    if ('title' in obj && obj.title) return String(obj.title)
+    const values = Object.values(obj).filter(v => v != null && typeof v !== 'object')
+    if (values.length) return values.join(' - ')
+    return '—'
+  }
+
   return String(value)
 }
 
@@ -38,18 +143,24 @@ export const reportTimestamp = (value: string) => new Intl.DateTimeFormat('en-PH
 
 export const reportMatrix = (report: ReportDocument) => {
   const columns = reportColumns(report.rows)
-  const rows = report.rows.map(row => columns.map(key => row[key] ?? ''))
+  const rows = report.rows.map(row => columns.map(key => {
+    const val = row[key]
+    if (val == null || val === '') return ''
+    if (typeof val === 'number') return val
+    if (typeof val === 'boolean') return val ? 'Yes' : 'No'
+    return reportValue(val)
+  }))
   if (report.totals && rows.length) {
     const totals = { ...report.totals }
     if ('workedHours' in totals) totals.totalWorkedHours = totals.workedHours
-    rows.push(columns.map((key, index) => index === 0 ? 'TOTAL (ALL FILTERED RECORDS)' : totals[key] ?? ''))
+    rows.push(columns.map((key, index) => index === 0 ? 'TOTAL (ALL FILTERED RECORDS)' : (totals[key] != null ? reportValue(totals[key]) : '')))
   }
   return { columns, rows }
 }
 
 // Spreadsheet programs must treat user-entered text as text, never formulas.
 export const csvCell = (value: unknown) => {
-  let text = value == null ? '' : String(value)
+  let text = value == null ? '' : (typeof value === 'object' ? reportValue(value) : String(value))
   if (typeof value === 'string' && /^[\s]*[=+\-@]/.test(text)) text = `'${text}`
   return `"${text.replace(/"/g, '""')}"`
 }

@@ -2,6 +2,7 @@
 import { Plus, RotateCcw, BriefcaseBusiness, CheckCircle } from 'lucide-vue-next'
 import EmploymentTypeModal from '~/components/admin/employmentTypes/EmploymentTypeModal.vue'
 import EmploymentTypeTable from '~/components/admin/employmentTypes/EmploymentTypeTable.vue'
+import EmploymentTypeDeleteModal from '~/components/admin/employmentTypes/EmploymentTypeDeleteModal.vue'
 import type { EmploymentTypePayload, EmploymentTypeRecord } from '~/composables/admin/employmentTypes/useEmploymentTypeApi'
 
 const {
@@ -22,6 +23,10 @@ const { success, error: showError } = useToast()
 
 const modalOpen = ref(false)
 const selectedItem = ref<EmploymentTypeRecord | null>(null)
+
+const deleteModalOpen = ref(false)
+const itemToDelete = ref<EmploymentTypeRecord | null>(null)
+const deleting = ref(false)
 
 onMounted(async () => {
   try {
@@ -58,14 +63,23 @@ const handleSave = async (data: EmploymentTypePayload, id?: number) => {
   }
 }
 
-const handleDelete = async (item: EmploymentTypeRecord) => {
-  if (!confirm(`Are you sure you want to delete "${item.name}"?`)) return
+const promptDelete = (item: EmploymentTypeRecord) => {
+  itemToDelete.value = item
+  deleteModalOpen.value = true
+}
+
+const confirmDelete = async (item: EmploymentTypeRecord) => {
+  deleting.value = true
   try {
     const res = await deleteEmploymentType(item.id)
     success('Employment Type Deleted', res.message || 'Employment type deleted successfully.')
+    deleteModalOpen.value = false
+    itemToDelete.value = null
   } catch (err: any) {
     const msg = err?.data?.message || err?.message || 'Could not delete employment type.'
     showError('Deletion Failed', msg)
+  } finally {
+    deleting.value = false
   }
 }
 </script>
@@ -123,16 +137,25 @@ const handleDelete = async (item: EmploymentTypeRecord) => {
       v-if="!loading"
       :employment-types="filteredEmploymentTypes"
       @edit="openEditModal"
-      @delete="handleDelete"
+      @delete="promptDelete"
     />
 
-    <!-- MODAL -->
+    <!-- CREATE / EDIT MODAL -->
     <EmploymentTypeModal
       :open="modalOpen"
       :employment-type="selectedItem"
       :saving="saving"
       @close="modalOpen = false"
       @save="handleSave"
+    />
+
+    <!-- DELETE CONFIRMATION MODAL -->
+    <EmploymentTypeDeleteModal
+      :open="deleteModalOpen"
+      :employment-type="itemToDelete"
+      :deleting="deleting"
+      @close="deleteModalOpen = false"
+      @confirm="confirmDelete"
     />
   </section>
 </template>

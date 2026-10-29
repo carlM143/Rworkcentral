@@ -241,11 +241,11 @@ const menuItems = [
     },
     {
       label: 'Leave Types',
-      to: '/admin/leave-types',
+      to: '/admin/leave-management/leave-types',
     },
     {
-      label: 'Leave Calendar',
-      to: '/admin/leave-calendar',
+      label: 'Leave Policies',
+      to: '/admin/leave-management/leave-policies',
     },
   ],
 },
@@ -268,6 +268,10 @@ const menuItems = [
       {
         label: 'Positions',
         to: '/admin/positions',
+      },
+      {
+        label: 'Employment Types',
+        to: '/admin/employment-types',
       },
       {
         label: 'Employee Assignment',
@@ -298,8 +302,8 @@ const menuItems = [
       to: '/admin/approvals/overtime',
     },
     {
-      label: 'Time Log Corrections',
-      to: '/admin/approvals/time-logs',
+      label: 'Undertime Approvals',
+      to: '/admin/approvals/undertime',
     },
   ],
 },

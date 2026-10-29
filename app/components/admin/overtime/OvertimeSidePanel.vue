@@ -17,8 +17,6 @@ defineProps<{
 }>()
 
 const emit = defineEmits<{
-  fileOvertime: []
-  approved: []
   history: []
 }>()
 </script>
@@ -162,24 +160,6 @@ const emit = defineEmits<{
       </div>
 
       <div class="quick-list">
-
-        <button
-          type="button"
-          @click="emit('fileOvertime')"
-        >
-          <Plus :size="15" />
-
-          File Overtime
-        </button>
-
-        <button
-          type="button"
-          @click="emit('approved')"
-        >
-          <BadgeCheck :size="15" />
-
-          Approved Overtime
-        </button>
 
         <button
           type="button"

@@ -14,5 +14,15 @@ export const useOvertimeApprovalApi = () => {
       method: 'PATCH',
     })
 
-  return { getOvertimeApprovals, approveOvertimeRequest }
+  const rejectOvertimeRequest = (id: number) =>
+    $api<OvertimeApprovalApiResponse<OvertimeApprovalApiRecord>>(`${endpoint}/${id}/reject`, {
+      method: 'PATCH',
+    })
+
+  const revertOvertimeRequest = (id: number) =>
+    $api<OvertimeApprovalApiResponse<OvertimeApprovalApiRecord>>(`${endpoint}/${id}/revert`, {
+      method: 'PATCH',
+    })
+
+  return { getOvertimeApprovals, approveOvertimeRequest, rejectOvertimeRequest, revertOvertimeRequest }
 }

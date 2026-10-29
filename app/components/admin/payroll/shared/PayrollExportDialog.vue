@@ -25,7 +25,7 @@ const download = async () => {
   <PayrollDialog :open="open" :title="'Export ' + title" description="Downloads include all matching records across pages, using the current filters." @close="emit('close')">
     <p>{{ records.length }} records selected <span v-if="sample">· Sample data</span></p>
     <p v-if="filters && Object.values(filters).some(Boolean)">{{ Object.entries(filters).filter(([, value]) => value).map(([key, value]) => `${key}: ${value}`).join(' · ') }}</p>
-    <label>File Format<select v-model="format" aria-label="File Format"><option>Excel</option><option>PDF</option><option>CSV</option></select></label>
+    <label>File Format<select v-model="format" aria-label="File Format"><option>Excel</option><option>PDF</option></select></label>
     <p v-if="error" role="alert" class="error">{{ error }}</p>
     <p v-if="!records.length">No records match the current filters. Close this dialog and adjust the filters.</p>
     <div v-else class="table-wrap"><table><thead><tr><th v-for="key in columns" :key="key">{{ reportLabel(key) }}</th></tr></thead><tbody><tr v-for="(row, index) in records.slice(0, 3)" :key="index"><td v-for="key in columns" :key="key">{{ reportValue((row as Record<string, unknown>)[key]) }}</td></tr></tbody></table></div>

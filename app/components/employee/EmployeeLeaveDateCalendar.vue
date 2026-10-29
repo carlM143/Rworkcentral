@@ -3,6 +3,7 @@ import { ref, computed, watch } from 'vue'
 import {
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   CalendarDays,
   Sparkles,
   RotateCcw,
@@ -15,7 +16,13 @@ const props = withDefaults(defineProps<{
   minDate?: string
   maxDate?: string
   activeDates?: string[]
-}>(), {})
+  totalDays?: number
+  readonly?: boolean
+  hidePresets?: boolean
+}>(), {
+  readonly: false,
+  hidePresets: false,
+})
 
 // Parsing & formatting utilities (pure string-based, timezone-proof)
 const parseDateString = (str: string): Date | null => {
@@ -30,6 +37,13 @@ const formatDateString = (date: Date): string => {
   const m = String(date.getMonth() + 1).padStart(2, '0')
   const d = String(date.getDate()).padStart(2, '0')
   return `${y}-${m}-${d}`
+}
+
+const getAdjacentDateStr = (dateStr: string, offsetDays: number): string => {
+  const d = parseDateString(dateStr)
+  if (!d) return ''
+  d.setDate(d.getDate() + offsetDays)
+  return formatDateString(d)
 }
 
 const formatPrettyDate = (dateStr: string) => {
@@ -52,13 +66,13 @@ const monthNames = [
 ]
 const shortMonthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 const weekdays = [
-  { short: 'Su', full: 'Sunday' },
-  { short: 'Mo', full: 'Monday' },
-  { short: 'Tu', full: 'Tuesday' },
-  { short: 'We', full: 'Wednesday' },
-  { short: 'Th', full: 'Thursday' },
-  { short: 'Fr', full: 'Friday' },
-  { short: 'Sa', full: 'Saturday' },
+  { short: 'SU', full: 'Sunday' },
+  { short: 'MO', full: 'Monday' },
+  { short: 'TU', full: 'Tuesday' },
+  { short: 'WE', full: 'Wednesday' },
+  { short: 'TH', full: 'Thursday' },
+  { short: 'FR', full: 'Friday' },
+  { short: 'SA', full: 'Saturday' },
 ]
 
 // Sync viewDate to start date when opening or when start updates externally
@@ -70,6 +84,16 @@ watch(() => start.value, (newStart) => {
       if (d.getFullYear() !== viewDate.value.getFullYear() || d.getMonth() !== viewDate.value.getMonth()) {
         viewDate.value = new Date(d.getFullYear(), d.getMonth(), 1, 12, 0, 0)
       }
+    }
+  }
+}, { immediate: true })
+
+// Jump to activeDates month if start is not explicitly provided
+watch(() => props.activeDates, (dates) => {
+  if (dates && dates.length > 0 && !start.value) {
+    const first = parseDateString(dates[0])
+    if (first) {
+      viewDate.value = new Date(first.getFullYear(), first.getMonth(), 1, 12, 0, 0)
     }
   }
 }, { immediate: true })
@@ -131,6 +155,13 @@ const calendarCells = computed<CalendarCell[]>(() => {
   const startingDayOfWeek = firstDay.getDay()
 
   const todayStr = formatDateString(new Date())
+  const hasActiveDatesList = Boolean(props.activeDates && props.activeDates.length > 0)
+  const activeDateSet = new Set(
+    (props.activeDates || [])
+      .map(d => (d || '').slice(0, 10))
+      .filter(Boolean),
+  )
+
   const rawStart = start.value || ''
   const rawEnd = end.value || rawStart
 
@@ -152,6 +183,104 @@ const calendarCells = computed<CalendarCell[]>(() => {
 
   // Helper to build a cell
   const makeCell = (dateStr: string, dayNum: number, isCurrent: boolean, dayOfWeek: number): CalendarCell => {
+    // Discrete active dates mode (when specific days are filed)
+    if (hasActiveDatesList) {
+      const isSelected = activeDateSet.has(dateStr)
+      if (!isSelected) {
+        return {
+          dateStr,
+          dayNumber: dayNum,
+          isCurrentMonth: isCurrent,
+          isToday: dateStr === todayStr,
+          isWeekend: dayOfWeek === 0 || dayOfWeek === 6,
+          isStart: false,
+          isEnd: false,
+          isInRange: false,
+          isSingleDay: false,
+          isHoverPreview: false,
+          isRangeLeftEdge: false,
+          isRangeRightEdge: false,
+        }
+      }
+
+      // Day is in active dates list. Only connect ribbon if adjacent days are also scheduled
+      const prevDateStr = getAdjacentDateStr(dateStr, -1)
+      const nextDateStr = getAdjacentDateStr(dateStr, 1)
+      const hasPrev = activeDateSet.has(prevDateStr)
+      const hasNext = activeDateSet.has(nextDateStr)
+
+      // Standalone separate day (neither previous nor next day is on leave)
+      if (!hasPrev && !hasNext) {
+        return {
+          dateStr,
+          dayNumber: dayNum,
+          isCurrentMonth: isCurrent,
+          isToday: dateStr === todayStr,
+          isWeekend: dayOfWeek === 0 || dayOfWeek === 6,
+          isStart: true,
+          isEnd: true,
+          isInRange: false,
+          isSingleDay: true,
+          isHoverPreview: false,
+          isRangeLeftEdge: true,
+          isRangeRightEdge: true,
+        }
+      }
+
+      // Start of a consecutive multi-day group
+      if (!hasPrev && hasNext) {
+        return {
+          dateStr,
+          dayNumber: dayNum,
+          isCurrentMonth: isCurrent,
+          isToday: dateStr === todayStr,
+          isWeekend: dayOfWeek === 0 || dayOfWeek === 6,
+          isStart: true,
+          isEnd: false,
+          isInRange: false,
+          isSingleDay: false,
+          isHoverPreview: false,
+          isRangeLeftEdge: true,
+          isRangeRightEdge: dayOfWeek === 6,
+        }
+      }
+
+      // End of a consecutive multi-day group
+      if (hasPrev && !hasNext) {
+        return {
+          dateStr,
+          dayNumber: dayNum,
+          isCurrentMonth: isCurrent,
+          isToday: dateStr === todayStr,
+          isWeekend: dayOfWeek === 0 || dayOfWeek === 6,
+          isStart: false,
+          isEnd: true,
+          isInRange: false,
+          isSingleDay: false,
+          isHoverPreview: false,
+          isRangeLeftEdge: dayOfWeek === 0,
+          isRangeRightEdge: true,
+        }
+      }
+
+      // Middle of a consecutive multi-day group
+      return {
+        dateStr,
+        dayNumber: dayNum,
+        isCurrentMonth: isCurrent,
+        isToday: dateStr === todayStr,
+        isWeekend: dayOfWeek === 0 || dayOfWeek === 6,
+        isStart: false,
+        isEnd: false,
+        isInRange: true,
+        isSingleDay: false,
+        isHoverPreview: false,
+        isRangeLeftEdge: dayOfWeek === 0,
+        isRangeRightEdge: dayOfWeek === 6,
+      }
+    }
+
+    // Default continuous start -> end range mode
     const isStart = activeStart !== '' && dateStr === activeStart
     const isEnd = activeEnd !== '' && dateStr === activeEnd
     const isSingleDay = isStart && isEnd
@@ -208,6 +337,8 @@ const calendarCells = computed<CalendarCell[]>(() => {
 
 // Date selection interactions
 const handleCellClick = (cell: CalendarCell) => {
+  if (props.readonly) return
+
   // If clicked a cell outside current month, smoothly navigate to that month
   if (!cell.isCurrentMonth) {
     const d = parseDateString(cell.dateStr)
@@ -235,6 +366,7 @@ const handleCellClick = (cell: CalendarCell) => {
 }
 
 const handleCellHover = (dateStr: string) => {
+  if (props.readonly) return
   if (isSelectingEnd.value) {
     hoverDate.value = dateStr
   }
@@ -293,6 +425,12 @@ const setPreset = (type: 'today' | 'tomorrow' | 'next3' | 'nextWeek') => {
 
 // Selected day count
 const selectedDayCount = computed(() => {
+  if (props.totalDays !== undefined && props.totalDays > 0) {
+    return props.totalDays
+  }
+  if (props.activeDates && props.activeDates.length > 0) {
+    return props.activeDates.length
+  }
   if (!start.value) return 0
   const s = parseDateString(start.value)
   const e = parseDateString(end.value || start.value)
@@ -305,7 +443,7 @@ const selectedDayCount = computed(() => {
 <template>
   <div class="leave-calendar-card" aria-label="Leave date range calendar">
     <!-- Summary Header Strip -->
-    <div class="calendar-summary-strip">
+    <div v-if="!hidePresets" class="calendar-summary-strip">
       <div class="summary-selection">
         <div class="date-chip" :class="{ 'chip-pending': isSelectingEnd }">
           <span class="chip-tag">START</span>
@@ -322,7 +460,7 @@ const selectedDayCount = computed(() => {
           {{ selectedDayCount }} day{{ selectedDayCount === 1 ? '' : 's' }}
         </span>
         <button
-          v-if="start !== (end || start)"
+          v-if="!readonly && start !== (end || start)"
           type="button"
           class="reset-single-btn"
           title="Reset to 1-day leave"
@@ -335,7 +473,7 @@ const selectedDayCount = computed(() => {
     </div>
 
     <!-- Interactive Instruction / Hint -->
-    <div class="calendar-hint-row">
+    <div v-if="!readonly && !hidePresets" class="calendar-hint-row">
       <span v-if="isSelectingEnd" class="hint-text hint-active">
         <span class="hint-dot pulse"></span>
         Tap an <strong>end date</strong> to complete range (or tap same date for 1 day)
@@ -347,7 +485,7 @@ const selectedDayCount = computed(() => {
     </div>
 
     <!-- Quick Presets -->
-    <div class="presets-row">
+    <div v-if="!readonly && !hidePresets" class="presets-row">
       <div class="presets-label">
         <Sparkles :size="11" />
         <span>Quick:</span>
@@ -370,7 +508,7 @@ const selectedDayCount = computed(() => {
           @click="showMonthPicker = !showMonthPicker"
         >
           <strong>{{ currentMonthLabel }}</strong>
-          <span class="dropdown-caret">▾</span>
+          <ChevronDown :size="14" class="dropdown-caret-icon" />
         </button>
         <button
           type="button"
@@ -479,7 +617,7 @@ const selectedDayCount = computed(() => {
     </div>
 
     <!-- Manual Inputs Toggle Link (For Screen Readers or Direct Typing) -->
-    <div class="calendar-footer">
+    <div v-if="!readonly" class="calendar-footer">
       <button
         type="button"
         class="toggle-inputs-btn"

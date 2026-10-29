@@ -3,6 +3,7 @@ import type {
   UndertimeRequest,
   UndertimeRequestStatus,
 } from '~/types/undertimeRequest'
+import { hasActiveFilter, resolveExportRecords } from '~/utils/approvalExport'
 import { useUndertimeApprovalApi } from './useUndertimeApprovalApi'
 
 const statusLabel = (status: string): UndertimeRequestStatus => {
@@ -13,33 +14,43 @@ const statusLabel = (status: string): UndertimeRequestStatus => {
   return 'Pending'
 }
 
-const mapRequest = (record: UndertimeApprovalApiRecord): UndertimeRequest => ({
-  id: record.id,
-  requestNumber: record.request_no,
-  employeeId: record.employee_id,
-  employeeNumber: record.employee?.emp_id ?? `EMP-${record.employee_id}`,
-  employeeName: record.employee
-    ? `${record.employee.firstname} ${record.employee.lastname}`.trim()
-    : 'Unknown employee',
-  undertimeDate: record.undertime_date?.slice(0, 10) ?? '',
-  requestedTimeOut: record.requested_time_out,
-  scheduledTimeOut: record.scheduled_time_out,
-  requestedMinutes: Number(record.requested_minutes),
-  reason: record.reason,
-  status: statusLabel(record.status),
-  requestedAt: record.created_at,
-  reviewedBy: record.approver?.name,
-  reviewedAt: record.approved_at ?? undefined,
-})
+const mapRequest = (record: UndertimeApprovalApiRecord): UndertimeRequest => {
+  const employments = [...(record.employee?.employments ?? [])].sort((a, b) => a.id - b.id)
+  const latestEmployment = employments[employments.length - 1]
+
+  return {
+    id: record.id,
+    requestNumber: record.request_no,
+    employeeId: record.employee_id,
+    employeeNumber: record.employee?.emp_id ?? `EMP-${record.employee_id}`,
+    employeeName: record.employee
+      ? `${record.employee.firstname} ${record.employee.lastname}`.trim()
+      : 'Unknown employee',
+    department: latestEmployment?.department?.department_name
+      ?? record.employee?.department?.department_name
+      ?? '—',
+    position: latestEmployment?.position?.position ?? record.work_schedule?.schedule_name ?? '—',
+    undertimeDate: record.undertime_date?.slice(0, 10) ?? '',
+    requestedTimeOut: record.requested_time_out,
+    scheduledTimeOut: record.scheduled_time_out,
+    requestedMinutes: Number(record.requested_minutes),
+    reason: record.reason,
+    status: statusLabel(record.status),
+    requestedAt: record.created_at,
+    reviewedBy: record.approver?.name,
+    reviewedAt: record.approved_at ?? undefined,
+  }
+}
 
 export const useUndertimeApprovals = () => {
-  const { getUndertimeApprovals, approveUndertimeRequest } = useUndertimeApprovalApi()
+  const { getUndertimeApprovals, approveUndertimeRequest, rejectUndertimeRequest, revertUndertimeRequest } = useUndertimeApprovalApi()
   const requests = ref<UndertimeRequest[]>([])
   const loading = ref(false)
   const loadError = ref('')
   const approvingId = ref<number | null>(null)
   const search = ref('')
   const status = ref('')
+  const department = ref('')
   const dateFrom = ref('')
   const dateTo = ref('')
   const currentPage = ref(1)
@@ -77,20 +88,65 @@ export const useUndertimeApprovals = () => {
     }
   }
 
+  const rejectRequest = async (requestId: number) => {
+    approvingId.value = requestId
+    try {
+      const response = await rejectUndertimeRequest(requestId)
+      if (response.success === false) throw new Error(response.message)
+      const index = requests.value.findIndex(request => request.id === requestId)
+      if (index >= 0) requests.value[index] = mapRequest(response.data)
+      return response.message
+    } finally {
+      approvingId.value = null
+    }
+  }
+
+  const revertRequest = async (requestId: number) => {
+    approvingId.value = requestId
+    try {
+      const response = await revertUndertimeRequest(requestId)
+      if (response.success === false) throw new Error(response.message)
+      const index = requests.value.findIndex(request => request.id === requestId)
+      if (index >= 0) requests.value[index] = mapRequest(response.data)
+      return response.message
+    } finally {
+      approvingId.value = null
+    }
+  }
+
   const statusOptions: UndertimeRequestStatus[] = ['Pending', 'Approved', 'Rejected', 'Cancelled']
   const filteredRequests = computed(() => {
     const keyword = search.value.trim().toLowerCase()
-    return requests.value.filter(item => (
-      (!keyword
-        || item.requestNumber.toLowerCase().includes(keyword)
-        || item.employeeName.toLowerCase().includes(keyword)
-        || item.employeeNumber.toLowerCase().includes(keyword)
-        || item.reason.toLowerCase().includes(keyword))
-      && (!status.value || item.status === status.value)
-      && (!dateFrom.value || item.undertimeDate >= dateFrom.value)
-      && (!dateTo.value || item.undertimeDate <= dateTo.value)
-    ))
+    return requests.value.filter((item) => {
+      const requestDate = (item.undertimeDate || item.requestedAt || '').slice(0, 10)
+
+      return (
+        (!keyword
+          || item.requestNumber.toLowerCase().includes(keyword)
+          || item.employeeName.toLowerCase().includes(keyword)
+          || item.employeeNumber.toLowerCase().includes(keyword)
+          || item.reason.toLowerCase().includes(keyword))
+        && (!status.value || item.status === status.value)
+        && (!department.value || item.department === department.value)
+        && (!dateFrom.value || requestDate >= dateFrom.value)
+        && (!dateTo.value || requestDate <= dateTo.value)
+      )
+    })
   })
+
+  const hasFilters = computed(() => hasActiveFilter([
+    search.value,
+    status.value,
+    department.value,
+    dateFrom.value,
+    dateTo.value,
+  ]))
+
+  const exportRecords = computed(() => resolveExportRecords(
+    requests.value,
+    filteredRequests.value,
+    hasFilters.value,
+  ))
 
   const stats = computed(() => ({
     total: filteredRequests.value.length,
@@ -111,12 +167,21 @@ export const useUndertimeApprovals = () => {
   const resetFilters = () => {
     search.value = ''
     status.value = ''
+    department.value = ''
     dateFrom.value = ''
     dateTo.value = ''
     currentPage.value = 1
   }
 
-  watch([search, status, dateFrom, dateTo], () => { currentPage.value = 1 })
+  const departmentOptions = computed(() => [
+    ...new Set(
+      requests.value
+        .map(item => item.department)
+        .filter(value => value && value !== '—'),
+    ),
+  ].sort())
+
+  watch([search, status, department, dateFrom, dateTo], () => { currentPage.value = 1 })
   watch(totalPages, value => { if (currentPage.value > value) currentPage.value = value })
 
   return {
@@ -126,6 +191,8 @@ export const useUndertimeApprovals = () => {
     approvingId,
     search,
     status,
+    department,
+    departmentOptions,
     dateFrom,
     dateTo,
     currentPage,
@@ -136,8 +203,12 @@ export const useUndertimeApprovals = () => {
     totalPages,
     showingFrom,
     showingTo,
+    hasFilters,
+    exportRecords,
     loadRequests,
     approveRequest,
+    rejectRequest,
+    revertRequest,
     resetFilters,
   }
 }

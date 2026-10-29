@@ -1,7 +1,9 @@
+import type { LeaveApprovalDateItem } from '~/types/leaveApproval'
+
 export type ApprovalRequestType =
   | 'Leave'
   | 'Overtime'
-  | 'Time Log Correction'
+  | 'Undertime'
   | 'WFH'
 
 export type ApprovalRequestStatus =
@@ -15,6 +17,8 @@ export type ApprovalPriority =
 
 export interface ApprovalRequest {
   id: number
+  sourceId?: number
+  sourceType?: 'leave' | 'overtime' | 'undertime'
 
   reference: string
 
@@ -37,4 +41,19 @@ export interface ApprovalRequest {
   priority: ApprovalPriority
 
   approver?: string
+
+  // Detailed fields for preview modal
+  start?: string
+  end?: string
+  totalDays?: number
+  dates?: LeaveApprovalDateItem[]
+  requestedPayType?: 'paid' | 'unpaid'
+  leavePolicyId?: number | null
+  policyStatus?: string | null
+  startTime?: string
+  endTime?: string
+  requestedHours?: number
+  requestedTimeOut?: string
+  scheduledTimeOut?: string
+  requestedMinutes?: number
 }

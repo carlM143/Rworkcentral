@@ -1,21 +1,40 @@
-
 <script setup lang="ts">
-import { ClipboardList, Check, UserRound } from 'lucide-vue-next'
+import { ClipboardList, Eye, RotateCcw, UserRound } from 'lucide-vue-next'
 import type { LeaveApproval } from '~/types/leaveApproval'
 
 withDefaults(defineProps<{
   requests: LeaveApproval[]
   statusFilter?: string
-}>(), { statusFilter: 'pending' })
+  approving?: boolean
+}>(), {
+  statusFilter: '',
+  approving: false,
+})
 
-const emit = defineEmits<{ review: [request: LeaveApproval] }>()
+const emit = defineEmits<{
+  review: [request: LeaveApproval]
+  revert: [request: LeaveApproval]
+}>()
 
-const formatDate = (value: string | null) => {
+const formatDate = (value: string | null | undefined) => {
   if (!value) return '—'
-  const date = new Date(`${value.slice(0, 10)}T00:00:00`)
+  const date = new Date(`${value.slice(0, 10)}T12:00:00`)
   return Number.isNaN(date.getTime())
     ? value
     : new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(date)
+}
+
+const formatLeaveRange = (item: LeaveApproval) => {
+  const s = item.start || item.dates?.[0]?.leave_date || item.request_date
+  const e = item.end || item.dates?.[item.dates.length - 1]?.leave_date || s
+  if (!s) return '—'
+  if (!e || s.slice(0, 10) === e.slice(0, 10)) return formatDate(s)
+  return `${formatDate(s)} – ${formatDate(e)}`
+}
+
+const formatTotalDays = (item: LeaveApproval) => {
+  const days = item.total_days ?? item.dates?.reduce((acc, d) => acc + (Number(d.day_value) || 1), 0) ?? 1
+  return `${days} day${days === 1 ? '' : 's'}`
 }
 </script>
 
@@ -35,7 +54,7 @@ const formatDate = (value: string | null) => {
             <th>Leave Type</th>
             <th>Requested Pay</th>
             <th>Leave Policy</th>
-            <th>Request Date</th>
+            <th>Leave Schedule</th>
             <th>Reason</th>
             <th>Status</th>
             <th class="actions-header">Actions</th>
@@ -80,7 +99,12 @@ const formatDate = (value: string | null) => {
               </div>
             </td>
 
-            <td>{{ formatDate(item.request_date) }}</td>
+            <td>
+              <div class="cell-info">
+                <strong>{{ formatLeaveRange(item) }}</strong>
+                <span>{{ formatTotalDays(item) }} · Filed {{ formatDate(item.request_date) }}</span>
+              </div>
+            </td>
 
             <td>
               <p class="reason" :title="item.reason || ''">
@@ -96,19 +120,28 @@ const formatDate = (value: string | null) => {
             </td>
 
             <td class="actions-cell">
-              <button
-                v-if="item.status === 'pending'"
-                type="button"
-                class="review-button"
-                @click="emit('review', item)"
-              >
-                <Check :size="13" />
-                Review
-              </button>
+              <div class="action-buttons-row">
+                <button
+                  type="button"
+                  class="review-button"
+                  @click="emit('review', item)"
+                >
+                  <Eye :size="13" />
+                  Preview
+                </button>
 
-              <span v-else class="completed-label">
-                {{ item.status === 'approved' ? 'Reviewed' : 'No action' }}
-              </span>
+                <button
+                  v-if="item.status === 'approved' || item.status === 'rejected'"
+                  type="button"
+                  class="undo-button"
+                  :disabled="approving"
+                  title="Undo approval and revert to pending"
+                  @click="emit('revert', item)"
+                >
+                  <RotateCcw :size="13" />
+                  Undo
+                </button>
+              </div>
             </td>
           </tr>
         </tbody>
@@ -153,9 +186,12 @@ tbody tr:hover{background:var(--bg-card-soft)}
 .status-dot{width:5px;height:5px;border-radius:50%;background:currentColor}
 .reason{max-width:190px;margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .actions-header,.actions-cell{text-align:right}
+.action-buttons-row{display:inline-flex;align-items:center;justify-content:flex-end;gap:6px}
 .review-button{display:inline-flex;align-items:center;gap:6px;padding:8px 11px;border:1px solid var(--primary);border-radius:7px;background:var(--primary-soft);color:var(--primary);font-family:inherit;font-size:10px;font-weight:650;cursor:pointer}
 .review-button:hover{background:var(--primary);color:#fff}
-.completed-label{color:var(--text-muted);font-size:9px}
+.undo-button{display:inline-flex;align-items:center;gap:6px;padding:8px 11px;border:1px solid var(--orange);border-radius:7px;background:var(--orange-soft);color:var(--orange);font-family:inherit;font-size:10px;font-weight:650;cursor:pointer}
+.undo-button:hover{background:var(--orange);color:#fff}
+.undo-button:disabled{opacity:.5;cursor:not-allowed}
 .empty-state{display:flex;min-height:240px;flex-direction:column;align-items:center;justify-content:center;gap:8px;color:var(--text-muted)}
 .empty-state strong{color:var(--text-primary);font-size:12px}
 .empty-state span{font-size:10px}

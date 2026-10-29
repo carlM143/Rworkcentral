@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { ArrowLeft, Landmark } from 'lucide-vue-next'
-import { createEmployeeLoans, loanRepayments, loanSummary, type EmployeeLoan, type EmployeeLoanPayment } from '~/utils/employeeLoans'
+import { createEmployeeLoans, loanRepayments, loanSummary, type EmployeePortalLoan, type EmployeeLoanPayment } from '~/utils/employeeLoans'
 
 const loans = createEmployeeLoans()
 const { profile } = useEmployeePortal()
 const detailsOpen = ref(false)
-const selectedLoan = ref<EmployeeLoan | null>(null)
+const selectedLoan = ref<EmployeePortalLoan | null>(null)
 const selectedPayment = ref<(EmployeeLoanPayment & { balanceAfter: number }) | null>(null)
 const summary = computed(() => selectedLoan.value ? loanSummary(selectedLoan.value) : null)
 const repayments = computed(() => selectedLoan.value ? loanRepayments(selectedLoan.value) : [])
@@ -14,7 +14,7 @@ const activeCount = computed(() => loans.filter(loan => loanSummary(loan).outsta
 const totalInstallments = computed(() => loans.filter(loan => loanSummary(loan).outstanding > 0).reduce((sum, loan) => sum + Math.min(loan.installment, loanSummary(loan).outstanding), 0))
 const money = (value: number) => new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(value)
 const date = (value: string | null) => value ? new Date(`${value}T12:00:00`).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }) : 'No further payments'
-const openLoan = (loan: EmployeeLoan) => { selectedLoan.value = loan; selectedPayment.value = null; detailsOpen.value = true }
+const openLoan = (loan: EmployeePortalLoan) => { selectedLoan.value = loan; selectedPayment.value = null; detailsOpen.value = true }
 </script>
 
 <template>
