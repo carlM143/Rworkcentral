@@ -1,8 +1,15 @@
 <script setup lang="ts">
 import {
   Download,
+  Upload,
   LogIn,
 } from 'lucide-vue-next'
+
+import TimeLogImportModal from '~/components/admin/timekeeping/TimeLogImportModal.vue'
+
+import type {
+  AttendanceImportSummary,
+} from '~/types/attendanceImport'
 
 const {
   search,
@@ -43,6 +50,25 @@ const handleExport = () => {
   )
 }
 
+const showImportModal = ref(false)
+
+const handleImport = () => {
+  showImportModal.value = true
+}
+
+const closeImportModal = () => {
+  showImportModal.value = false
+}
+
+const handleImportSuccess = (result: AttendanceImportSummary) => {
+  closeImportModal()
+
+  info(
+    'Attendance Import Completed',
+    `${result.imported} records imported, ${result.duplicates} duplicates, ${result.invalid} invalid records.`,
+  )
+}
+
 const handleManualTimeLog =
   () => {
     router.push(
@@ -58,6 +84,16 @@ const handleManualTimeLog =
       title="Time Logs"
       description="Review detailed employee attendance, time entries, late, undertime and missing logs."
     >
+      <div class="header-actions">
+
+      <AppButton
+        variant="secondary"
+        :icon="Upload"
+        @click="handleImport"
+      >
+        Import
+      </AppButton>
+
       <AppButton
         variant="secondary"
         :icon="Download"
@@ -72,6 +108,8 @@ const handleManualTimeLog =
       >
         Manual Time In / Out
       </AppButton>
+
+    </div>
     </PageHeader>
 
     <TimeLogStats
@@ -116,9 +154,15 @@ const handleManualTimeLog =
         :total-pages="totalPages"
       />
 
-    </div>
+      </div>
 
-  </section>
+      <TimeLogImportModal
+          :open="showImportModal"
+          @close="closeImportModal"
+          @imported="handleImportSuccess"
+        />
+
+      </section>
 </template>
 
 <style scoped>
@@ -159,5 +203,12 @@ const handleManualTimeLog =
     flex-direction: column;
     align-items: flex-start;
   }
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 </style>
