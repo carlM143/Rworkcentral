@@ -36,7 +36,7 @@ const saveErrorMessage = ref('')
 const saveErrorDetails = ref<string[]>([])
 
 onMounted(() => {
-  resetForm()
+  // Retain existing form data when navigating steps or returning from review
 })
 
 /* =========================================================

@@ -82,9 +82,9 @@ const handleLogin = async () => {
       remember: rememberMe.value,
     })
 
-    if (!auth.homePath.value) {
+    if (auth.portal.value !== 'admin' || !auth.homePath.value) {
       auth.clearSession()
-      errorMessage.value = 'Your account does not have a supported portal role.'
+      errorMessage.value = 'This portal is for authorized administrators only.'
       return
     }
 
@@ -236,7 +236,7 @@ const handleLogin = async () => {
         <div class="login-header">
 
           <span class="admin-label">
-            SYSTEM PORTAL
+            ADMINISTRATOR PORTAL — ADMIN
           </span>
 
           <h2>
@@ -421,8 +421,8 @@ const handleLogin = async () => {
   min-height: 100vh;
 
   grid-template-columns:
-    minmax(440px, 1.05fr)
-    minmax(500px, 0.95fr);
+    minmax(0, 1.05fr)
+    minmax(0, 0.95fr);
 
   background: #f7f9fc;
 }
@@ -984,66 +984,156 @@ const handleLogin = async () => {
 }
 
 /* =========================
-   RESPONSIVE
+   RESPONSIVE (MATCHING EMPLOYEE LOGIN)
 ========================= */
 
-@media (max-width: 900px) {
+@media (max-width: 1000px) {
   .login-page {
-    display: block;
+    display: flex;
+    flex-direction: column;
+    min-height: 100dvh;
+    background: #f3f6fc;
   }
 
   .brand-panel {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    gap: 16px;
+    min-height: 185px;
+    padding: calc(22px + env(safe-area-inset-top, 0px)) max(24px, env(safe-area-inset-right, 0px)) 52px max(24px, env(safe-area-inset-left, 0px));
+    border-radius: 0 0 28px 28px;
+    box-shadow: 0 12px 32px rgba(6, 43, 101, 0.22);
+  }
+
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .login-brand-image {
+    width: 145px;
+    height: 40px;
+    max-width: 100%;
+    object-fit: contain;
+    object-position: left center;
+  }
+
+  .brand-message {
+    margin-top: 10px;
+    margin-bottom: 0;
+    max-width: 100%;
+  }
+
+  .brand-message .eyebrow,
+  .brand-message p,
+  .feature-list,
+  .brand-footer {
+    display: none;
+  }
+
+  .brand-message h2 {
+    margin: 4px 0 0;
+    font-size: clamp(22px, 4.8vw, 26px);
+    line-height: 1.22;
+    letter-spacing: -0.6px;
+  }
+
+  .brand-message h2 br {
     display: none;
   }
 
   .login-panel {
-    padding:
-      30px 20px;
+    position: relative;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    flex: 1;
+    margin-top: -26px;
+    padding: 0 max(16px, env(safe-area-inset-right, 0px)) calc(28px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
+    background: transparent;
+    min-height: auto;
+  }
+
+  .login-wrapper {
+    width: 100%;
+    max-width: 460px;
+    padding: 30px 24px;
+    border: 1px solid #e3e9f3;
+    border-radius: 22px;
+    background: #ffffff;
+    box-shadow: 0 12px 40px rgba(15, 33, 64, 0.08);
   }
 
   .mobile-brand {
-  display: flex;
-
-  align-items: center;
-
-  width: fit-content;
-
-  margin-bottom: 45px;
-
-  padding: 10px 14px;
-
-  border-radius: 10px;
-
-  background: #062d67;
-}
-
-.mobile-brand-image {
-  display: block;
-
-  width: 150px;
-  height: 38px;
-
-  object-fit: contain;
-  object-position: left center;
-}
-
-  .mobile-brand strong,
-  .mobile-brand span {
-    display: block;
+    display: none;
   }
 
-  .mobile-brand strong {
-    color: #172033;
+  .login-header h2 {
+    font-size: 25px;
+    margin: 6px 0 4px;
+  }
 
+  .login-header p {
+    font-size: 13px;
+  }
+
+  .input-control {
+    height: 50px;
+    border-radius: 11px;
+  }
+
+  .input-control input {
     font-size: 15px;
   }
 
-  .mobile-brand span {
-    margin-top: 1px;
+  .login-button {
+    height: 50px;
+    font-size: 13.5px;
+    border-radius: 11px;
+  }
 
-    color: #98a2b3;
+  .forgot-button {
+    font-size: 11.5px;
+    min-height: 36px;
+  }
 
-    font-size: 9px;
+  .remember-row {
+    font-size: 11.5px;
+  }
+}
+
+@media (max-width: 380px) {
+  .brand-panel {
+    padding-left: 18px;
+    padding-right: 18px;
+    border-radius: 0 0 22px 22px;
+  }
+
+  .login-brand-image {
+    width: 125px;
+  }
+
+  .brand-message h2 {
+    font-size: 20px;
+  }
+
+  .login-panel {
+    padding-left: 12px;
+    padding-right: 12px;
+    margin-top: -22px;
+  }
+
+  .login-wrapper {
+    padding: 22px 18px;
+    border-radius: 18px;
+  }
+
+  .login-header h2 {
+    font-size: 22px;
   }
 }
 </style>

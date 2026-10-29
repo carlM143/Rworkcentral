@@ -3,17 +3,9 @@ definePageMeta({
   layout: 'auth',
 })
 
-const auth = useAuth()
-auth.hydrate()
-
-if (auth.homePath.value) {
-  await navigateTo(auth.homePath.value, { replace: true })
-} else {
-  auth.clearSession()
-  await navigateTo('/auth/login', { replace: true })
-}
+useHead({ title: 'Employee Sign In | RWorkCentral' })
 </script>
 
 <template>
-  <div />
+  <EmployeePortalLogin />
 </template>

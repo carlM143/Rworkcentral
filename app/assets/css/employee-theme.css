@@ -1,0 +1,293 @@
+.employee-shell,
+.employee-auth-shell {
+  font-family: 'Poppins', sans-serif;
+  --bg-main: #f5f7fb;
+  --bg-card: #ffffff;
+  --bg-card-soft: #f8fafc;
+  --bg-sidebar: #062d67;
+  --bg-sidebar-secondary: #073977;
+  --text-primary: #172033;
+  --text-secondary: #667085;
+  --text-muted: #98a2b3;
+  --border: #e6eaf0;
+  --border-soft: #eff2f6;
+  --primary: #246bfd;
+  --primary-dark: #1657dd;
+  --primary-soft: #edf4ff;
+  --green: #16a663;
+  --green-soft: #eaf8f1;
+  --orange: #f59e0b;
+  --orange-soft: #fff6df;
+  --red: #ef4444;
+  --red-soft: #fff0f0;
+  --purple: #7c4dff;
+  --purple-soft: #f2edff;
+  --shadow: 0 1px 2px rgba(16, 24, 40, .03), 0 4px 16px rgba(16, 24, 40, .04);
+}
+
+html.dark .employee-shell,
+html.dark .employee-auth-shell {
+  --bg-main: #0d1421;
+  --bg-card: #141d2c;
+  --bg-card-soft: #192334;
+  --text-primary: #f1f5f9;
+  --text-secondary: #a9b4c4;
+  --text-muted: #6f7d90;
+  --border: #273448;
+  --border-soft: #202d40;
+  --primary-soft: #142950;
+  --green-soft: #123326;
+  --orange-soft: #3c2d12;
+  --red-soft: #3a1d23;
+  --purple-soft: #261e45;
+  --shadow: 0 1px 2px rgba(0, 0, 0, .12), 0 8px 24px rgba(0, 0, 0, .16);
+}
+
+.employee-shell, .employee-auth-shell,
+.employee-shell *, .employee-auth-shell * { box-sizing: border-box; }
+.employee-shell, .employee-auth-shell { background: var(--bg-main); color: var(--text-primary); }
+.employee-shell button, .employee-auth-shell button { cursor: pointer; }
+.employee-shell a, .employee-auth-shell a { color: inherit; text-decoration: none; }
+.employee-shell button:focus-visible, .employee-shell a:focus-visible,
+.employee-auth-shell button:focus-visible, .employee-auth-shell a:focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; }
+
+.mobile-table-hint {
+  display: none;
+}
+
+.table-scroll {
+  min-width: 0;
+  max-width: 100%;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.mobile-only {
+  display: none;
+}
+
+.employee-shell .table-scroll .mobile-only {
+  display: none;
+}
+
+.record-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px 18px;
+  margin: 0;
+}
+
+.record-fields > div {
+  min-width: 0;
+}
+
+.record-fields dt {
+  margin-bottom: 3px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.record-fields dd {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  color: var(--text-primary);
+}
+
+.record-fields .wide {
+  grid-column: 1 / -1;
+  padding: 8px 12px;
+  background: var(--bg-card-soft);
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  margin-top: 2px;
+}
+
+.record-fields .wide dt {
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-bottom: 2px;
+}
+
+.record-fields .wide dd {
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+.employee-shell .record-row {
+  cursor: pointer;
+}
+
+.employee-shell .record-row:hover,
+.employee-shell .record-row:focus-within {
+  background: var(--primary-soft);
+}
+
+.employee-shell .table-scroll .record-row .row-open-button {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 44px;
+  min-width: 0;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+
+.employee-shell .row-open-button::after {
+  content: '›';
+  flex-shrink: 0;
+  margin-left: auto;
+  color: var(--primary);
+  font-size: 18px;
+  font-weight: 400;
+}
+
+.employee-shell .row-open-button:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+@media (max-width: 850px) {
+  .employee-shell .mobile-hide {
+    display: none;
+  }
+
+  .employee-shell .table-scroll .mobile-hide {
+    display: none;
+  }
+
+  .employee-shell .mobile-only {
+    display: inline-flex;
+  }
+
+  .employee-shell .table-scroll .mobile-only {
+    display: inline-flex;
+  }
+
+  .employee-shell .table-scroll :is(th, td).mobile-only {
+    display: table-cell;
+  }
+
+  .employee-shell table.mobile-compact-table {
+    width: 100%;
+    min-width: 0;
+    table-layout: fixed;
+  }
+
+  .employee-shell .table-scroll .mobile-compact-table :is(th, td) {
+    padding: 10px 6px;
+    font-size: 11px;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .employee-shell .table-scroll .mobile-compact-table :is(.badge, .status, .requirement-status) {
+    padding: 4px 5px;
+    font-size: 10px;
+    white-space: normal;
+    min-width: 0;
+  }
+
+  .employee-shell .table-scroll .mobile-compact-table button {
+    min-width: 44px;
+    min-height: 44px;
+    padding: 7px;
+    font-size: 12px;
+  }
+
+  .employee-shell .record-fields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px 14px;
+  }
+
+  .employee-shell .record-fields dt {
+    margin-bottom: 2px;
+    font-size: 11px;
+  }
+
+  .employee-shell .record-fields dd {
+    font-size: 13px;
+    line-height: 1.4;
+  }
+
+  .employee-shell :is(button:not(.leave-calendar-card button):not(.day-btn):not(.preset-pill):not(.nav-btn):not(.today-jump-btn):not(.reset-single-btn):not(.month-title-btn):not(.month-btn), summary),
+  .employee-auth-shell button {
+    min-height: 44px;
+  }
+
+  .employee-shell :is(input:not([type='checkbox']), select, textarea),
+  .employee-auth-shell :is(input:not([type='checkbox']), select, textarea) {
+    width: 100%;
+    min-height: 44px;
+    font-size: 16px;
+  }
+
+  .employee-shell :is(p, dd, label, .note),
+  .employee-shell .sheet-links a {
+    overflow-wrap: anywhere;
+  }
+
+  .employee-shell .mobile-table-hint {
+    display: block;
+    margin: 0;
+    padding: 10px 16px;
+    border-top: 1px solid var(--border-soft);
+    color: var(--text-secondary);
+    background: var(--bg-card-soft);
+    font-size: 12px;
+    line-height: 1.6;
+  }
+
+  .employee-shell .table-scroll table {
+    font-size: 13px;
+  }
+
+  .employee-shell .table-scroll :is(th, td) {
+    padding: 12px 14px;
+  }
+
+  .employee-shell .table-scroll thead th {
+    font-size: 12px;
+  }
+
+  .employee-shell .table-scroll :is(td, th) {
+    overflow-wrap: anywhere;
+  }
+
+  .employee-shell .table-scroll :is(button, .text-link) {
+    min-height: 44px;
+    min-width: 44px;
+    font-size: 13px;
+  }
+
+  .employee-shell .table-scroll td small {
+    font-size: 12px;
+    line-height: 1.6;
+  }
+
+  .employee-shell .table-scroll :is(.badge, .status, .requirement-status) {
+    font-size: 12px;
+  }
+
+  .employee-shell .icon-button,
+  .employee-shell .eye-button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}

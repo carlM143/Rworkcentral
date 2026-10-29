@@ -57,12 +57,42 @@ const form = reactive<WorkScheduleFormData>({
   status: 'Active',
 })
 
+interface DaySchedule {
+  day: string
+  label: string
+  enabled: boolean
+  timeIn: string
+  timeOut: string
+}
+
+const weekDays = reactive<DaySchedule[]>([
+  { day: 'monday', label: 'Monday', enabled: true, timeIn: '08:00', timeOut: '17:00' },
+  { day: 'tuesday', label: 'Tuesday', enabled: true, timeIn: '08:00', timeOut: '17:00' },
+  { day: 'wednesday', label: 'Wednesday', enabled: true, timeIn: '08:00', timeOut: '17:00' },
+  { day: 'thursday', label: 'Thursday', enabled: true, timeIn: '08:00', timeOut: '17:00' },
+  { day: 'friday', label: 'Friday', enabled: true, timeIn: '08:00', timeOut: '17:00' },
+  { day: 'saturday', label: 'Saturday', enabled: false, timeIn: '08:00', timeOut: '12:00' },
+  { day: 'sunday', label: 'Sunday', enabled: false, timeIn: '08:00', timeOut: '12:00' },
+])
+
+const applyMonToWeekdays = () => {
+  const mon = weekDays.find(d => d.day === 'monday')
+  if (!mon) return
+  weekDays.forEach(d => {
+    if (['monday', 'tuesday', 'wednesday', 'thursday', 'friday'].includes(d.day)) {
+      d.timeIn = mon.timeIn
+      d.timeOut = mon.timeOut
+      d.enabled = true
+    }
+  })
+}
+
 /* =========================================================
    COMPUTED
 ========================================================= */
 
 const isFlexible = computed(() => {
-  return form.type === 'Flexible'
+  return form.type === 'Flexible' || form.type.toLowerCase().includes('flexible')
 })
 
 /* =========================================================
@@ -85,6 +115,12 @@ const resetForm = () => {
   form.gracePeriod = 5
 
   form.status = 'Active'
+
+  weekDays.forEach((d, i) => {
+    d.enabled = i < 5
+    d.timeIn = '08:00'
+    d.timeOut = '17:00'
+  })
 }
 
 /* =========================================================
@@ -136,18 +172,15 @@ const handleSave = () => {
     return
   }
 
-  if (
-    !isFlexible.value &&
-    (
-      !form.timeIn ||
-      !form.timeOut
-    )
-  ) {
+  const activeDay = weekDays.find(d => d.enabled && d.timeIn && d.timeOut) || weekDays[0]
+  const finalTimeIn = !isFlexible.value ? (activeDay?.timeIn || form.timeIn || '08:00') : form.timeIn
+  const finalTimeOut = !isFlexible.value ? (activeDay?.timeOut || form.timeOut || '17:00') : form.timeOut
+
+  if (!isFlexible.value && (!finalTimeIn || !finalTimeOut)) {
     error(
       'Working Hours Required',
-      'Please provide the time in and time out.',
+      'Please provide time in and time out for active work days.',
     )
-
     return
   }
 
@@ -173,10 +206,10 @@ const handleSave = () => {
     type:
       form.type,
     timeIn:
-      form.timeIn,
+      finalTimeIn,
 
     timeOut:
-      form.timeOut,
+      finalTimeOut,
 
     breakStart:
       form.breakStart,
@@ -329,7 +362,7 @@ const handleSave = () => {
 
             </div>
 
-            <!-- WORKING HOURS -->
+            <!-- WORKING HOURS & DAY-BY-DAY SHIFT TIMINGS -->
 
             <div class="form-section">
 
@@ -339,57 +372,72 @@ const handleSave = () => {
                   <Clock3 :size="16" />
                 </div>
 
-                <div>
-                  <h3>
-                    Working Hours
-                  </h3>
-
-                  <p>
-                    Configure employee time in,
-                    time out and required working hours.
-                  </p>
+                <div class="heading-with-action">
+                  <div>
+                    <h3>
+                      Day-by-Day Shift Timings (Monday – Sunday)
+                    </h3>
+                    <p>
+                      Set specific Time In and Time Out for each workday. Uncheck non-working days.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    class="btn-text-action"
+                    @click="applyMonToWeekdays"
+                  >
+                    Apply Monday to Weekdays
+                  </button>
                 </div>
 
               </div>
 
-              <div
-                v-if="!isFlexible"
-                class="time-grid"
-              >
-
-                <div class="field-group">
-                  <label>
-                    Time In
-                    <span>*</span>
+              <!-- WEEKDAYS TIMINGS TABLE / CARDS -->
+              <div class="days-schedule-container">
+                <div
+                  v-for="d in weekDays"
+                  :key="d.day"
+                  class="day-schedule-row"
+                  :class="{ 'day-disabled': !d.enabled }"
+                >
+                  <label class="day-checkbox-label">
+                    <input
+                      v-model="d.enabled"
+                      type="checkbox"
+                    >
+                    <span class="day-name">{{ d.label }}</span>
                   </label>
 
-                  <input
-                    v-model="form.timeIn"
-                    type="time"
-                    class="native-input"
-                  >
+                  <div class="day-times" v-if="d.enabled">
+                    <div class="mini-field">
+                      <span class="mini-label">In:</span>
+                      <input
+                        v-model="d.timeIn"
+                        type="time"
+                        class="native-input mini"
+                      >
+                    </div>
+                    <span class="time-dash">-</span>
+                    <div class="mini-field">
+                      <span class="mini-label">Out:</span>
+                      <input
+                        v-model="d.timeOut"
+                        type="time"
+                        class="native-input mini"
+                      >
+                    </div>
+                  </div>
+                  <div class="day-rest-badge" v-else>
+                    Rest Day / Off
+                  </div>
                 </div>
-
-                <div class="field-group">
-                  <label>
-                    Time Out
-                    <span>*</span>
-                  </label>
-
-                  <input
-                    v-model="form.timeOut"
-                    type="time"
-                    class="native-input"
-                  >
-                </div>
-
               </div>
 
               <div class="form-grid small-top">
 
                 <div class="field-group">
                   <label>
-                    Required Work Hours
+                    Required Work Hours (Daily)
                   </label>
 
                   <div class="number-input">
@@ -398,6 +446,7 @@ const handleSave = () => {
                       type="number"
                       min="1"
                       max="24"
+                      step="0.5"
                     >
 
                     <span>
@@ -439,9 +488,7 @@ const handleSave = () => {
                   </strong>
 
                   <p>
-                    Fixed time in and time out are not required
-                    for flexible schedules. Required work hours
-                    will still be used for attendance computation.
+                    Fixed time in and time out are optional for flexible schedules. Required work hours will still be used for attendance computation.
                   </p>
                 </div>
               </div>
@@ -910,73 +957,114 @@ html:not(.dark) .native-input {
 }
 
 /* =========================================
-   DAYS
+   DAY BY DAY SCHEDULE STYLES
 ========================================= */
 
-.days-grid {
-  display: grid;
-
-  grid-template-columns:
-    repeat(4, minmax(0, 1fr));
-
-  gap: 7px;
+.heading-with-action {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
 }
 
-.day-button {
-  display: flex;
-
-  min-height: 38px;
-
-  align-items: center;
-
-  gap: 7px;
-
-  padding: 0 9px;
-
+.btn-text-action {
+  padding: 4px 10px;
   border: 1px solid var(--border);
-  border-radius: 7px;
-
+  border-radius: 6px;
   background: var(--bg-card);
-  color: var(--text-secondary);
-
+  color: var(--primary);
   font-size: 9px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
 
+.btn-text-action:hover {
+  background: var(--primary-soft);
+  border-color: var(--primary);
+}
+
+.days-schedule-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.day-schedule-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: var(--bg-card);
+  transition: all 0.15s ease;
+}
+
+.day-schedule-row.day-disabled {
+  opacity: 0.55;
+  background: var(--bg-card-soft);
+}
+
+.day-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.day-checkbox-label input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--primary);
   cursor: pointer;
 }
 
-.day-button:hover {
-  border-color: var(--primary);
+.day-name {
+  color: var(--text-primary);
+  font-size: 10px;
+  font-weight: 600;
+  min-width: 75px;
 }
 
-.day-button.selected {
-  border-color: var(--primary);
-
-  background: var(--primary-soft);
-  color: var(--primary);
-}
-
-.day-check {
+.day-times {
   display: flex;
-
-  width: 17px;
-  height: 17px;
-
   align-items: center;
-  justify-content: center;
+  gap: 8px;
+}
 
-  border: 1px solid var(--border);
-  border-radius: 4px;
+.mini-field {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
 
-  color: transparent;
+.mini-label {
+  color: var(--text-muted);
+  font-size: 9px;
+}
 
+.native-input.mini {
+  width: 110px;
+  height: 32px;
+  font-size: 9px;
+}
+
+.time-dash {
+  color: var(--text-muted);
   font-size: 10px;
 }
 
-.day-button.selected .day-check {
-  border-color: var(--primary);
-
-  background: var(--primary);
-  color: white;
+.day-rest-badge {
+  padding: 3px 8px;
+  border-radius: 4px;
+  background: var(--bg-card-soft);
+  color: var(--text-muted);
+  font-size: 9px;
+  font-weight: 500;
 }
 
 /* =========================================
