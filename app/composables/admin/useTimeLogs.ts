@@ -113,7 +113,7 @@ export const useTimeLogs = () => {
   ========================================================= */
 
   const timeLogs =
-    ref<TimeLogRecord[]>([
+    useState<TimeLogRecord[]>('rworkcentral-time-logs', () => [
       createTimeLog({
         id: 1,
         employeeId: 1,

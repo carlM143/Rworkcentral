@@ -3,12 +3,13 @@ import {
   LayoutDashboard,
   Users,
   Clock3,
-  CalendarClock,
-  ListChecks,
   Umbrella,
-  CalendarDays,
-  Truck,
   WalletCards,
+  HandCoins,
+  Truck,
+  CalendarDays,
+  House,
+  CalendarClock,
   // ReceiptText,
   Building2,
   BarChart3,
@@ -32,7 +33,6 @@ import {
 
 const route = useRoute()
 const router = useRouter()
-const auth = useAuth()
 
 const sidebarOpen = ref(false)
 const isDark = ref(false)
@@ -46,10 +46,13 @@ const openMenus = reactive<Record<string, boolean>>({
   employees: false,
   timekeeping: false,
   payroll: false,
-  leave: false,
+  loans: false,
   drivers: false,
+  leave: false,
+  // overtime: false,
   departments: false,
   approvals: false,
+  wfh: false,
   documents: false,
   'employee-lifecycle': false,
   reports: false,
@@ -98,17 +101,13 @@ const menuItems = [
         label: 'Time Logs',
         to: '/admin/time-logs',
       },
-      {
-        label: 'Overtime Requests',
-        to: '/admin/timekeeping/overtime-requests',
-      },
+      // {
+      //   label: 'Overtime Requests',
+      //   to: '/admin/timekeeping/overtime-requests',
+      // },
       {
         label: 'Time Log Correction Requests',
         to: '/admin/timekeeping/time-log-correction-requests',
-      },
-      {
-        label: 'Time Log Corrections',
-        to: '/admin/approvals/time-logs',
       },
       {
         label: 'Late Adjustment',
@@ -149,10 +148,6 @@ const menuItems = [
     icon: WalletCards,
     children: [
       {
-        label: 'Payroll Group',
-        to: '/admin/payroll/payroll-group',
-      },
-      {
         label: 'Rates',
         to: '/admin/rates',
       },
@@ -164,18 +159,25 @@ const menuItems = [
         label: 'Overview',
         to: '/admin/payroll',
       },
-      {
-        label: 'Loans',
-        to: '/admin/loans',
-      },
 
       // PAY PERIODS
       {
-        label: 'Payroll Periods',
-        to: '/admin/payroll/payroll-period',
+        label: 'Driver Pay Periods',
+        to: '/admin/driver-pay-periods',
       },
-
+      {
+        label: 'Employee Pay Periods',
+        to: '/admin/employee-pay-periods',
+      },
       // OLD SYSTEM PAYROLL SUBMENU
+      {
+        label: 'Pending Drivers Payroll',
+        to: '/admin/pending-drivers-payroll',
+      },
+      {
+        label: 'Completed Drivers Payroll',
+        to: '/admin/completed-drivers-payroll',
+      },
       {
         label: 'Pending Employees Payroll',
         to: '/admin/pending-employees-payroll',
@@ -192,23 +194,32 @@ const menuItems = [
     ],
   },
 
+  // =====================================================
+  // LOANS
+  // =====================================================
+  {
+    label: 'Loans',
+    key: 'loans',
+    icon: HandCoins,
+    children: [
+      { label: 'Loan Transactions', to: '/admin/loans/transactions' },
+      { label: 'Loan Types', to: '/admin/loans/types' },
+      { label: 'Employee Loans', to: '/admin/loans/employees' },
+    ],
+  },
+
+  // =====================================================
+  // ALL DRIVERS
+  // =====================================================
   {
     label: 'All Drivers',
     key: 'drivers',
     icon: Truck,
     children: [
-      {
-        label: 'Driver Pay Periods',
-        to: '/admin/driver-pay-periods',
-      },
-      {
-        label: 'Pending Drivers Payroll',
-        to: '/admin/pending-drivers-payroll',
-      },
-      {
-        label: 'Completed Drivers Payroll',
-        to: '/admin/completed-drivers-payroll',
-      },
+      { label: 'Drivers Directory', to: '/admin/drivers' },
+      { label: 'Driver Pay Periods', to: '/admin/driver-pay-periods' },
+      { label: 'Pending Drivers Payroll', to: '/admin/pending-drivers-payroll' },
+      { label: 'Completed Drivers Payroll', to: '/admin/completed-drivers-payroll' },
     ],
   },
 
@@ -230,11 +241,11 @@ const menuItems = [
     },
     {
       label: 'Leave Types',
-      to: '/admin/leave-management/leave-types',
+      to: '/admin/leave-types',
     },
     {
-      label: 'Leave Policies',
-      to: '/admin/leave-management/leave-policies',
+      label: 'Leave Calendar',
+      to: '/admin/leave-calendar',
     },
   ],
 },
@@ -287,15 +298,25 @@ const menuItems = [
       to: '/admin/approvals/overtime',
     },
     {
-      label: 'Undertime Approvals',
-      to: '/admin/approvals/undertime',
-    },
-    {
-      label: 'WFH Approvals',
-      to: '/admin/approvals/wfh',
+      label: 'Time Log Corrections',
+      to: '/admin/approvals/time-logs',
     },
   ],
 },
+
+  // =====================================================
+  // WFH (SEPARATE FRONTEND-ONLY MODULE)
+  // =====================================================
+  {
+    label: 'Work From Home',
+    key: 'wfh',
+    icon: House,
+    children: [
+      { label: 'WFH Requests', to: '/admin/wfh/requests' },
+      { label: 'WFH List', to: '/admin/wfh/list' },
+      { label: 'WFH Attach Documents', to: '/admin/wfh/documents' },
+    ],
+  },
 
   // =====================================================
   // PERFORMANCE
@@ -454,16 +475,14 @@ const goToCompanySettings = async () => {
   )
 }
 
-
-const handleMyAccount = async () => {
-  closeCompanyMenu()
-  await router.push('/admin/settings/my-account')
-}
-
-
 const handleAdminLogout = async () => {
   closeCompanyMenu()
-  auth.clearSession()
+
+  if (import.meta.client) {
+    sessionStorage.removeItem(
+      'rworkcentral-auth',
+    )
+  }
 
   await router.replace(
     '/auth/login',
@@ -570,7 +589,7 @@ onBeforeUnmount(() => {
       <div class="brand">
 
   <NuxtLink
-  to="/"
+  to="/admin"
   class="brand-image-link"
   @click="sidebarOpen = false"
 >
@@ -945,19 +964,33 @@ onBeforeUnmount(() => {
 
         <div class="dropdown-divider" />
 
-      <!-- ACCOUNT -->
-      <button
-        type="button"
-        class="dropdown-item"
-        @click="handleMyAccount"
-      >
-        <UserRound :size="16" />
+        <!-- ACCOUNT -->
 
-        <div>
-          <strong>My Account</strong>
-          <span>Manage administrator profile</span>
-        </div>
-      </button>
+        <button
+          type="button"
+          class="dropdown-item"
+          @click="
+            closeCompanyMenu
+          "
+        >
+
+          <UserRound
+            :size="16"
+          />
+
+          <div>
+
+            <strong>
+              My Account
+            </strong>
+
+            <span>
+              Administrator profile
+            </span>
+
+          </div>
+
+        </button>
 
         <!-- COMPANY SETTINGS -->
 
@@ -982,8 +1015,43 @@ onBeforeUnmount(() => {
             <span>
               Company information
             </span>
+
           </div>
+
         </button>
+
+        <!-- CURRENT BRANCH -->
+
+        <button
+          type="button"
+          class="dropdown-item"
+          @click="
+            closeCompanyMenu
+          "
+        >
+
+          <MapPin
+            :size="16"
+          />
+
+          <div>
+
+            <strong>
+              Main Branch
+            </strong>
+
+            <span>
+              Current branch
+            </span>
+
+          </div>
+
+          <span class="current-badge">
+            Current
+          </span>
+
+        </button>
+
         <div class="dropdown-divider" />
 
         <!-- LOGOUT -->
