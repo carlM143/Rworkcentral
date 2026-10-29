@@ -6,6 +6,7 @@ import {
   Umbrella,
   WalletCards,
   HandCoins,
+  Landmark,
   Truck,
   CalendarDays,
   House,
@@ -46,6 +47,7 @@ const openMenus = reactive<Record<string, boolean>>({
   employees: false,
   timekeeping: false,
   payroll: false,
+  contributions: false,
   loans: false,
   drivers: false,
   leave: false,
@@ -93,10 +95,6 @@ const menuItems = [
     key: 'timekeeping',
     icon: Clock3,
     children: [
-      {
-        label: 'Overview',
-        to: '/admin/timekeeping',
-      },
        {
         label: 'Time Logs',
         to: '/admin/time-logs',
@@ -155,10 +153,6 @@ const menuItems = [
         label: 'Wage Adjustments',
         to: '/admin/payroll/wage-adjustments',
       },
-      {
-        label: 'Overview',
-        to: '/admin/payroll',
-      },
 
       // PAY PERIODS
       {
@@ -190,6 +184,30 @@ const menuItems = [
       {
         label: 'Employee Payroll',
         to: '/admin/employee-payroll',
+      },
+    ],
+  },
+
+  {
+    label: 'Contributions',
+    key: 'contributions',
+    icon: Landmark,
+    children: [
+      {
+        label: 'Contribution Types',
+        to: '/admin/contribution/types',
+      },
+      {
+        label: 'Contribution Rate',
+        to: '/admin/contribution/rate-schedules',
+      },
+      {
+        label: 'Contribution History',
+        to: '/admin/contribution/rate-brackets',
+      },
+      {
+        label: 'Contribution Settings',
+        to: '/admin/contribution/deduction-settings',
       },
     ],
   },
@@ -232,16 +250,12 @@ const menuItems = [
   icon: Umbrella,
   children: [
     {
-      label: 'Overview',
-      to: '/admin/leave-management',
-    },
-    {
       label: 'Leave Balances',
       to: '/admin/leave-balances',
     },
     {
       label: 'Leave Types',
-      to: '/admin/leave-types',
+      to: '/admin/leave-management/leave-types',
     },
     {
       label: 'Leave Calendar',
@@ -269,10 +283,10 @@ const menuItems = [
         label: 'Positions',
         to: '/admin/positions',
       },
-      {
-        label: 'Employee Assignment',
-        to: '/admin/department-assignments',
-      },
+      // {
+      //   label: 'Employee Assignment',
+      //   to: '/admin/department-assignments',
+      // },
       {
         label: 'Employee Transfers',
         to: '/admin/employee-transfers',
@@ -285,10 +299,6 @@ const menuItems = [
   key: 'approvals',
   icon: ClipboardCheck,
   children: [
-    {
-      label: 'Overview',
-      to: '/admin/approvals',
-    },
     {
       label: 'Leave Approvals',
       to: '/admin/approvals/leaves',
@@ -332,10 +342,7 @@ const menuItems = [
   key: 'employee-lifecycle',
   icon: UserRound,
   children: [
-    {
-      label: 'Overview',
-      to: '/admin/employee-lifecycle',
-    },
+
     {
       label: 'Onboarding',
       to: '/admin/employee-lifecycle/onboarding',
@@ -375,10 +382,6 @@ const menuItems = [
     key: 'reports',
     icon: BarChart3,
     children: [
-      {
-        label: 'Overview',
-        to: '/admin/reports',
-      },
       {
         label: 'Reports Center',
         to: '/admin/reports/center',
