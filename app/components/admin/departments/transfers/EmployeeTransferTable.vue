@@ -1,4 +1,7 @@
 <script setup lang="ts">
+
+import { ref, onMounted, onUnmounted, nextTick } from 'vue'
+
 import {
   ArrowRight,
   BriefcaseBusiness,
@@ -6,6 +9,8 @@ import {
   CalendarDays,
   MoreHorizontal,
   UserRound,
+  Eye,
+  Pencil,
 } from 'lucide-vue-next'
 
 import type {
@@ -18,6 +23,106 @@ defineProps<{
   transfers:
     EmployeeTransfer[]
 }>()
+
+
+const emit = defineEmits<{
+  view: [item: EmployeeTransfer]
+  edit: [item: EmployeeTransfer]
+}>()
+
+const activeTransfer = ref<EmployeeTransfer | null>(null)
+const actionButtonRef = ref<HTMLElement | null>(null)
+
+const menuPosition = ref({
+  top: 0,
+  left: 0,
+})
+
+const closeActions = () => {
+  activeTransfer.value = null
+  actionButtonRef.value = null
+}
+
+const toggleActions = async (
+  item: EmployeeTransfer,
+  event: MouseEvent,
+) => {
+  if (activeTransfer.value?.id === item.id) {
+    closeActions()
+    return
+  }
+
+  actionButtonRef.value = event.currentTarget as HTMLElement
+  activeTransfer.value = item
+
+  await nextTick()
+
+  const rect = actionButtonRef.value?.getBoundingClientRect()
+  if (!rect) return
+
+  const menuWidth = 210
+  const menuHeight = 100
+  const gap = 6
+
+  menuPosition.value = {
+    left: Math.max(
+      8,
+      Math.min(
+        rect.right - menuWidth,
+        window.innerWidth - menuWidth - 8,
+      ),
+    ),
+    top:
+      rect.bottom + menuHeight + gap > window.innerHeight
+        ? Math.max(8, rect.top - menuHeight - gap)
+        : rect.bottom + gap,
+  }
+}
+
+const selectAction = (action: 'view' | 'edit') => {
+  const item = activeTransfer.value
+
+  closeActions()
+
+  if (item) {
+    emit(action, item)
+  }
+}
+
+const handleOutsideClick = (event: MouseEvent) => {
+  const target = event.target
+
+  if (!(target instanceof Element)) return
+
+  if (
+    target.closest('.transfer-more-button') ||
+    target.closest('.transfer-action-menu')
+  ) {
+    return
+  }
+
+  closeActions()
+}
+
+const handleEscape = (event: KeyboardEvent) => {
+  if (event.key === 'Escape') {
+    closeActions()
+  }
+}
+
+onMounted(() => {
+  document.addEventListener('click', handleOutsideClick)
+  document.addEventListener('keydown', handleEscape)
+  window.addEventListener('scroll', closeActions, true)
+  window.addEventListener('resize', closeActions)
+})
+
+onUnmounted(() => {
+  document.removeEventListener('click', handleOutsideClick)
+  document.removeEventListener('keydown', handleEscape)
+  window.removeEventListener('scroll', closeActions, true)
+  window.removeEventListener('resize', closeActions)
+})
 
 const formatDate = (
   value?: string,
@@ -451,27 +556,21 @@ const statusClass = (
                   'No remarks'
                 }}
               </p>
-
             </td>
 
             <!-- ACTION -->
-
-            <td>
-
+            <td class="transfer-actions-cell">
               <button
                 type="button"
-                class="action-button"
-                title="Actions will be added later"
+                class="transfer-more-button"
+                :aria-label="`More actions for ${item.employeeName}`"
+                aria-haspopup="menu"
+                :aria-expanded="activeTransfer?.id === item.id"
+                @click.stop="toggleActions(item, $event)"
               >
-
-                <MoreHorizontal
-                  :size="18"
-                />
-
+                <MoreHorizontal :size="18" />
               </button>
-
             </td>
-
           </tr>
 
         </tbody>
@@ -500,6 +599,38 @@ const statusClass = (
     </div>
 
   </article>
+
+  
+<Teleport to="body">
+  <div
+    v-if="activeTransfer"
+    class="transfer-action-menu"
+    role="menu"
+    :style="{
+      top: `${menuPosition.top}px`,
+      left: `${menuPosition.left}px`,
+    }"
+  >
+    <button
+      type="button"
+      role="menuitem"
+      @click="selectAction('view')"
+    >
+      <Eye :size="15" />
+      <span>View Transfer</span>
+    </button>
+
+    <button
+      type="button"
+      role="menuitem"
+      @click="selectAction('edit')"
+    >
+      <Pencil :size="15" />
+      <span>Edit Transfer</span>
+    </button>
+  </div>
+</Teleport>
+
 </template>
 
 <style scoped>
@@ -952,25 +1083,35 @@ tbody tr:hover {
 
 /* ACTION */
 
-.action-button {
-  display: flex;
+.transfer-actions-cell {
+  text-align: right;
+}
 
-  width: 32px;
-  height: 32px;
-
+.transfer-more-button {
+  display: inline-flex;
   align-items: center;
   justify-content: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
 
-  border:
-    1px solid transparent;
+.transfer-more-button:hover,
+.transfer-more-button[aria-expanded='true'] {
+  border-color: var(--border);
+  background: var(--bg-card-soft);
+  color: var(--primary);
+}
 
-  border-radius: 7px;
-
-  background:
-    transparent;
-
-  color:
-    var(--text-secondary);
+.transfer-more-button:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
 }
 
 .action-button:hover {
@@ -1011,5 +1152,46 @@ tbody tr:hover {
 
 .empty-state span {
   font-size: 10px;
+}
+
+.transfer-action-menu {
+  position: fixed;
+  z-index: 99999;
+  width: 210px;
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-card);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.3);
+}
+
+.transfer-action-menu button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 11px 12px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 11px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+}
+
+.transfer-action-menu button:hover {
+  background: var(--bg-card-soft);
+  color: var(--primary);
+}
+
+.transfer-action-menu button svg {
+  flex-shrink: 0;
+  color: var(--text-secondary);
+}
+
+.transfer-action-menu button:hover svg {
+  color: var(--primary);
 }
 </style>
