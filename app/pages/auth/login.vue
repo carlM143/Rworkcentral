@@ -82,9 +82,9 @@ const handleLogin = async () => {
       remember: rememberMe.value,
     })
 
-    if (!auth.homePath.value) {
+    if (auth.portal.value !== 'admin' || !auth.homePath.value) {
       auth.clearSession()
-      errorMessage.value = 'Your account does not have a supported portal role.'
+      errorMessage.value = 'This portal is for authorized administrators only.'
       return
     }
 
@@ -236,7 +236,7 @@ const handleLogin = async () => {
         <div class="login-header">
 
           <span class="admin-label">
-            SYSTEM PORTAL
+            ADMINISTRATOR PORTAL — ADMIN
           </span>
 
           <h2>

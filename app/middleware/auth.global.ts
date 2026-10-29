@@ -7,6 +7,7 @@ export default defineNuxtRouteMiddleware((to) => {
   auth.hydrate()
 
   const publicRoutes = [
+    '/',
     '/auth/login',
     '/employee/login',
   ]
@@ -14,7 +15,8 @@ export default defineNuxtRouteMiddleware((to) => {
   const isPublicRoute = publicRoutes.includes(to.path)
 
   if (!auth.isAuthenticated.value && !isPublicRoute) {
-    return navigateTo('/auth/login')
+    const isAdminPath = to.path.startsWith('/admin')
+    return navigateTo(isAdminPath ? '/auth/login' : '/')
   }
 
   if (

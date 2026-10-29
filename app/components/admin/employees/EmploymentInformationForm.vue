@@ -23,6 +23,36 @@ const loadingEmploymentTypes = ref(false)
 const loadingOrganization = ref(false)
 const organizationError = ref('')
 
+interface DaySchedule {
+  day: string
+  label: string
+  enabled: boolean
+  timeIn: string
+  timeOut: string
+}
+
+const weekDays = reactive<DaySchedule[]>([
+  { day: 'monday', label: 'Monday', enabled: true, timeIn: '08:00 AM', timeOut: '05:00 PM' },
+  { day: 'tuesday', label: 'Tuesday', enabled: true, timeIn: '08:00 AM', timeOut: '05:00 PM' },
+  { day: 'wednesday', label: 'Wednesday', enabled: true, timeIn: '08:00 AM', timeOut: '05:00 PM' },
+  { day: 'thursday', label: 'Thursday', enabled: true, timeIn: '08:00 AM', timeOut: '05:00 PM' },
+  { day: 'friday', label: 'Friday', enabled: true, timeIn: '08:00 AM', timeOut: '05:00 PM' },
+  { day: 'saturday', label: 'Saturday', enabled: false, timeIn: '08:00 AM', timeOut: '12:00 PM' },
+  { day: 'sunday', label: 'Sunday', enabled: false, timeIn: '08:00 AM', timeOut: '12:00 PM' },
+])
+
+const applyMonToWeekdays = () => {
+  const mon = weekDays.find(d => d.day === 'monday')
+  if (!mon) return
+  weekDays.forEach(d => {
+    if (['monday', 'tuesday', 'wednesday', 'thursday', 'friday'].includes(d.day)) {
+      d.timeIn = mon.timeIn
+      d.timeOut = mon.timeOut
+      d.enabled = true
+    }
+  })
+}
+
 const isActive = (status: boolean | number | string) =>
   status === true || status === 1 || status === '1' || status === 'true' || status === 'Active'
 
@@ -46,24 +76,65 @@ const {
   loadSchedules,
 } = useWorkSchedules()
 
-const workSchedules = computed(() =>
-  schedules.value.filter(schedule => schedule.status === 'Active').map(schedule => schedule.name)
+const workScheduleOptions = computed(() =>
+  schedules.value.filter(schedule => schedule.status === 'Active')
 )
 
 const loadAvailableWorkSchedules = async () => {
   try {
     await loadSchedules()
 
-    const selected = schedules.value.find(
-      schedule => schedule.name === form.value.workSchedule,
-    )
-
-    form.value.workScheduleId = selected?.id ?? null
+    if (!form.value.workScheduleId && workScheduleOptions.value.length > 0) {
+      const defaultSch = workScheduleOptions.value[0]
+      form.value.workScheduleId = defaultSch.id
+      form.value.workSchedule = defaultSch.name
+      if (defaultSch.timeIn && defaultSch.timeOut) {
+        weekDays.forEach(d => {
+          if (['monday', 'tuesday', 'wednesday', 'thursday', 'friday'].includes(d.day)) {
+            d.timeIn = defaultSch.timeIn
+            d.timeOut = defaultSch.timeOut
+            d.enabled = true
+          }
+        })
+      }
+    } else if (form.value.workScheduleId) {
+      const selected = schedules.value.find(s => s.id === form.value.workScheduleId)
+      if (selected) {
+        form.value.workSchedule = selected.name
+        if (selected.timeIn && selected.timeOut) {
+          weekDays.forEach(d => {
+            if (['monday', 'tuesday', 'wednesday', 'thursday', 'friday'].includes(d.day)) {
+              d.timeIn = selected.timeIn
+              d.timeOut = selected.timeOut
+              d.enabled = true
+            }
+          })
+        }
+      }
+    }
   } catch {
     showError(
       'Work Schedules Unavailable',
       'Could not load work schedules from the database.',
     )
+  }
+}
+
+const selectWorkSchedule = (event: Event) => {
+  const value = (event.target as HTMLSelectElement).value
+  const schId = value ? Number(value) : null
+  form.value.workScheduleId = schId
+  const selected = schedules.value.find(s => s.id === schId)
+  form.value.workSchedule = selected?.name ?? ''
+
+  if (selected && selected.timeIn && selected.timeOut) {
+    weekDays.forEach(d => {
+      if (['monday', 'tuesday', 'wednesday', 'thursday', 'friday'].includes(d.day)) {
+        d.timeIn = selected.timeIn
+        d.timeOut = selected.timeOut
+        d.enabled = true
+      }
+    })
   }
 }
 
@@ -118,11 +189,6 @@ watch(() => form.value.employmentType, name => {
   form.value.employmentTypeId = selected?.id ?? null
 })
 
-watch(() => form.value.workSchedule, name => {
-  const selected = schedules.value.find(schedule => schedule.name === name)
-  form.value.workScheduleId = selected?.id ?? null
-})
-
 // DEPARTMENTS AND POSITIONS
 const loadOrganization = async () => {
   loadingOrganization.value = true
@@ -139,7 +205,6 @@ const loadOrganization = async () => {
     if (departmentResult.status === 'fulfilled') {
       departments.value = departmentResult.value.data
 
-      // Restore a valid selection when returning to this wizard step.
       const selectedDepartment = departmentOptions.value.find(
         item => item.id === form.value.departmentId
       )
@@ -194,7 +259,6 @@ const selectDepartment = (event: Event) => {
   form.value.departmentId = selected?.id ?? null
   form.value.department = selected?.department_name ?? ''
 
-  // Clear the position whenever a different department is selected.
   form.value.positionId = null
   form.value.position = ''
 }
@@ -347,42 +411,78 @@ onMounted(() => {
 
         <div class="section-title">
           <div class="section-title-icon orange"><Clock3 :size="16" /></div>
-          <div>
-            <strong>Work Schedule</strong>
-            <span>Define the employee's default work schedule and rest day.</span>
+          <div class="heading-with-action">
+            <div>
+              <strong>Work Schedule &amp; Day-by-Day Shift Timings</strong>
+              <span>Select work schedule template or customize shift timings for each workday.</span>
+            </div>
+            <button
+              type="button"
+              class="btn-text-action"
+              @click="applyMonToWeekdays"
+            >
+              Apply Monday to Weekdays
+            </button>
           </div>
         </div>
 
-        <div class="form-grid two-column">
-          <div class="form-field">
-            <label class="field-label">Work Schedule</label>
-            <AppSelect v-model="form.workSchedule" :options="workSchedules" placeholder="Select work schedule" />
-            <small v-if="loadingWorkSchedules" class="field-hint">Loading work schedules...</small>
-            <small class="field-hint">Used as basis for attendance, late and undertime calculations.</small>
-          </div>
+        <div class="form-field" style="margin-bottom: 14px;">
+          <label class="field-label" for="employee-work-schedule">Work Schedule Template <span>*</span></label>
+          <select
+            id="employee-work-schedule"
+            class="lookup-select"
+            :value="form.workScheduleId ?? ''"
+            :disabled="loadingWorkSchedules"
+            @change="selectWorkSchedule"
+          >
+            <option value="">{{ loadingWorkSchedules ? 'Loading work schedules...' : 'Select work schedule template' }}</option>
+            <option v-for="sch in workScheduleOptions" :key="sch.id" :value="sch.id">
+              {{ sch.name }} ({{ sch.code }} - {{ sch.timeIn }} to {{ sch.timeOut }})
+            </option>
+          </select>
+          <small class="field-hint">Selecting a template auto-fills shift times below. You can overwrite any day's timing freely.</small>
+        </div>
 
-          <div class="form-field">
-            <label class="field-label">Rest Day</label>
-            <div class="rest-day-options">
-              <label
-                v-for="day in restDays"
-                :key="day.id"
-                class="rest-day-option"
-                :class="{ selected: form.restDayId === day.id }"
+        <!-- DAY BY DAY SHIFT TIMINGS -->
+        <div class="days-schedule-container">
+          <div
+            v-for="d in weekDays"
+            :key="d.day"
+            class="day-schedule-row"
+            :class="{ 'day-disabled': !d.enabled }"
+          >
+            <label class="day-checkbox-label">
+              <input
+                v-model="d.enabled"
+                type="checkbox"
               >
+              <span class="day-name">{{ d.label }}</span>
+            </label>
+
+            <div class="day-times" v-if="d.enabled">
+              <div class="mini-field">
+                <span class="mini-label">In:</span>
                 <input
-                  type="radio"
-                  name="employee-rest-day"
-                  :value="day.id"
-                  :checked="form.restDayId === day.id"
-                  @change="selectRestDay(day)"
-                />
-                <span class="radio-control" />
-                <span class="radio-label">{{ day.rest_day }}</span>
-              </label>
+                  v-model="d.timeIn"
+                  type="text"
+                  class="native-input mini"
+                  placeholder="08:00 AM"
+                >
+              </div>
+              <span class="time-dash">-</span>
+              <div class="mini-field">
+                <span class="mini-label">Out:</span>
+                <input
+                  v-model="d.timeOut"
+                  type="text"
+                  class="native-input mini"
+                  placeholder="05:00 PM"
+                >
+              </div>
             </div>
-            <small v-if="loadingRestDays" class="field-hint">Loading rest days...</small>
-            <small class="field-hint">Select the employee's default weekly rest day.</small>
+            <div class="day-rest-badge" v-else>
+              Rest Day / Off
+            </div>
           </div>
         </div>
 
@@ -390,7 +490,7 @@ onMounted(() => {
           <CalendarDays :size="18" />
           <div>
             <strong>HRIS Integration</strong>
-            <span>Department and position assignments are retrieved from Laravel and will be saved using their database IDs.</span>
+            <span>Department, position, and work schedule assignments are retrieved from Laravel and will be saved using their database IDs.</span>
           </div>
         </div>
       </div>
@@ -414,6 +514,9 @@ onMounted(() => {
 .summary-note{margin-top:13px;padding:10px;border-radius:8px;background:var(--primary-soft);color:var(--text-secondary);font-size:8px;line-height:1.55}
 .employment-form{min-width:0}
 .section-title{display:flex;align-items:center;gap:9px;margin-bottom:14px}
+.heading-with-action{display:flex;flex:1;align-items:center;justify-content:space-between;gap:12px}
+.btn-text-action{padding:4px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg-card);color:var(--primary);font-size:9px;font-weight:600;cursor:pointer;white-space:nowrap}
+.btn-text-action:hover{background:var(--primary-soft);border-color:var(--primary)}
 .section-title-icon{display:flex;width:31px;height:31px;flex-shrink:0;align-items:center;justify-content:center;border-radius:8px;background:var(--primary-soft);color:var(--primary)}
 .section-title-icon.green{background:var(--green-soft);color:var(--green)}
 .section-title-icon.orange{background:var(--orange-soft);color:var(--orange)}
@@ -422,7 +525,6 @@ onMounted(() => {
 .section-title span{margin-top:2px;color:var(--text-muted);font-size:8px}
 .form-grid{display:grid;gap:14px}
 .two-column{grid-template-columns:repeat(2,minmax(0,1fr))}
-.form-row{margin-top:16px}
 .form-field{min-width:0}
 .field-label{display:block;margin-bottom:7px;color:var(--text-secondary);font-size:10px;font-weight:600}
 .field-label span{color:var(--red)}
@@ -448,6 +550,22 @@ onMounted(() => {
 .rest-day-option.selected .radio-control{border-color:var(--primary)}
 .rest-day-option.selected .radio-control::after{position:absolute;top:50%;left:50%;width:7px;height:7px;transform:translate(-50%,-50%);border-radius:50%;background:var(--primary);content:''}
 .radio-label{font-weight:550}
+
+/* DAY BY DAY SHIFT TIMINGS */
+.days-schedule-container { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+.day-schedule-row { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; border: 1px solid var(--border-soft); border-radius: 8px; background: var(--bg-card); transition: all 0.15s ease; }
+.day-schedule-row.day-disabled { opacity: 0.55; background: var(--bg-card-soft); }
+.day-checkbox-label { display: flex; align-items: center; gap: 10px; cursor: pointer; user-select: none; }
+.day-checkbox-label input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--primary); cursor: pointer; }
+.day-name { color: var(--text-primary); font-size: 10px; font-weight: 600; min-width: 75px; }
+.day-times { display: flex; align-items: center; gap: 8px; }
+.mini-field { display: flex; align-items: center; gap: 5px; }
+.mini-label { color: var(--text-muted); font-size: 9px; }
+.native-input.mini { width: 110px; height: 32px; padding: 0 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-card); color: var(--text-primary); font-size: 10px; outline: none; }
+.native-input.mini:focus { border-color: var(--primary); }
+.time-dash { color: var(--text-muted); font-size: 10px; }
+.day-rest-badge { padding: 3px 8px; border-radius: 4px; background: var(--bg-card-soft); color: var(--text-muted); font-size: 9px; font-weight: 500; }
+
 @media(max-width:1100px){.rest-day-options{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:900px){.employment-layout{grid-template-columns:1fr}.summary-column{width:100%;max-width:450px;margin:0 auto;padding-right:0;padding-bottom:20px;border-right:0;border-bottom:1px solid var(--border-soft)}}
 @media(max-width:600px){.two-column{grid-template-columns:1fr}.rest-day-options{grid-template-columns:1fr}}

@@ -79,7 +79,7 @@ const toggleTheme = () => {
 const signOut = async () => {
   closeMore()
   auth.clearSession()
-  await navigateTo('/auth/login')
+  await navigateTo('/')
 }
 
 let mobileQuery: MediaQueryList | undefined

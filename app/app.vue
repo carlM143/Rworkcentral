@@ -4,7 +4,7 @@ const router =
   useRouter()
 
 const isPageLoading =
-  ref(true)
+  ref(false)
 
 let hideTimer:
   ReturnType<
@@ -53,19 +53,12 @@ onMounted(() => {
 
   removeBeforeGuard =
     router.beforeEach((to, from) => {
-      if (to.path.startsWith('/employee') || from.path?.startsWith('/employee')) {
-        return true
-      }
-
-      showPageLoader()
       return true
     })
 
   removeAfterGuard =
     router.afterEach((to) => {
-      if (!to.path.startsWith('/employee')) {
-        hidePageLoader(300)
-      }
+      // No global loading spinner triggered on route changes
     })
 })
 

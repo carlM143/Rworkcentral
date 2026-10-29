@@ -87,9 +87,9 @@ const handleLogin = async () => {
       remember: rememberMe.value,
     })
 
-    if (!auth.homePath.value) {
+    if (auth.portal.value !== 'employee' || !auth.homePath.value) {
       auth.clearSession()
-      errorMessage.value = 'Your account does not have a supported portal role.'
+      errorMessage.value = 'This login is for employees only. Administrators should sign in via /admin.'
       return
     }
 
@@ -120,7 +120,7 @@ const handleLogin = async () => {
     <aside class="login-brand" aria-label="About the employee portal">
       <div class="brand-top">
         <img src="/logo-white.png" alt="RWorkCentral" width="170" height="48">
-        <span class="portal-pill"><span aria-hidden="true" />Employee Portal</span>
+        <span class="portal-pill"><span aria-hidden="true" />Employee Portal — Employee</span>
       </div>
       <div class="brand-message">
         <p class="eyebrow">YOUR EVERYDAY WORKSPACE</p>
@@ -220,11 +220,6 @@ const handleLogin = async () => {
             <span v-else class="loading-ring" aria-hidden="true" />
           </button>
         </form>
-
-        <div class="portal-switch">
-          <span>Prefer unified login?</span>
-          <NuxtLink to="/auth/login" class="portal-link">Sign in at main portal</NuxtLink>
-        </div>
 
         <div class="login-note">
           <span class="note-icon" aria-hidden="true"><Check :size="15" /></span>
