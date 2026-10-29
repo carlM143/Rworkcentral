@@ -2,8 +2,10 @@ import { useWorkScheduleApi } from '~/composables/admin/employeeSchedule/useWork
 
 import type {
   WorkSchedule,
+  WorkScheduleDayFormData,
   WorkScheduleFormData,
 } from '~/types/workSchedule'
+import { WORK_SCHEDULE_DAYS } from '~/types/workSchedule'
 
 import type {
   WorkScheduleRecord,
@@ -25,7 +27,7 @@ const as12Hour = (value: string | null | undefined): string => {
 
 const as24Hour = (value: string | undefined): string => {
   const clean = (value || '').trim().toUpperCase()
-  const match = clean.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/)
+  const match = clean.match(/^(\d{1,2}):(\d{2})(?::\d{2})?\s*(AM|PM)?$/)
 
   if (!match) return ''
 
@@ -45,23 +47,29 @@ const as24Hour = (value: string | undefined): string => {
 const toUiSchedule = (
   item: WorkScheduleRecord,
   types: ScheduleTypeRecord[],
-): WorkSchedule => ({
-  id: item.id,
-  code: item.schedule_code,
-  name: item.schedule_name,
-  typeId: item.schedule_type_id,
-  type: item.schedule_type?.type_name
-    ?? types.find(x => x.id === item.schedule_type_id)?.type_name
-    ?? 'Unknown',
-  timeIn: as12Hour(item.time_in),
-  timeOut: as12Hour(item.time_out),
-  breakStart: as12Hour(item.break_start) || undefined,
-  breakEnd: as12Hour(item.break_end) || undefined,
-  workHours: Number(item.required_work_hours),
-  gracePeriod: Number(item.grace_period),
-  employeeCount: Number(item.employments_count ?? 0),
-  status: item.status === true || item.status === 1 ? 'Active' : 'Inactive',
-})
+): WorkSchedule => {
+  const days = Array.isArray(item.days) ? item.days : []
+  const firstWorkingDay = days.find(day => day.is_working_day)
+
+  return {
+    id: item.id,
+    code: item.schedule_code,
+    name: item.schedule_name,
+    typeId: item.schedule_type_id,
+    type: item.schedule_type?.type_name
+      ?? types.find(x => x.id === item.schedule_type_id)?.type_name
+      ?? 'Unknown',
+    timeIn: as12Hour(firstWorkingDay?.time_in ?? item.time_in),
+    timeOut: as12Hour(firstWorkingDay?.time_out ?? item.time_out),
+    breakStart: as12Hour(item.break_start) || undefined,
+    breakEnd: as12Hour(item.break_end) || undefined,
+    workHours: Number(item.required_work_hours),
+    gracePeriod: Number(item.grace_period),
+    employeeCount: Number(item.employments_count ?? 0),
+    status: item.status === true || item.status === 1 ? 'Active' : 'Inactive',
+    days,
+  }
+}
 
 export const useWorkSchedules = () => {
   const api = useWorkScheduleApi()
@@ -113,31 +121,50 @@ export const useWorkSchedules = () => {
       throw new Error('Select a valid schedule type from the database.')
     }
 
-    const timeIn = as24Hour(form.timeIn)
-    const timeOut = as24Hour(form.timeOut)
-
-    if (!timeIn || !timeOut || timeIn === timeOut) {
-      throw new Error('Provide valid and different time-in and time-out values.')
+    if (!Array.isArray(form.days) || form.days.length !== WORK_SCHEDULE_DAYS.length) {
+      throw new Error('Configure all seven days from Monday to Sunday.')
     }
 
-    const breakStart = as24Hour(form.breakStart) || null
-    const breakEnd = as24Hour(form.breakEnd) || null
+    const dayMap = new Map(form.days.map(day => [day.day_of_week, day]))
+    const days: WorkScheduleDayFormData[] = WORK_SCHEDULE_DAYS.map(dayName => {
+      const day = dayMap.get(dayName)
+      if (!day) throw new Error(`Missing schedule configuration for ${dayName}.`)
 
-    if ((breakStart && !breakEnd) || (!breakStart && breakEnd)) {
-      throw new Error('Enter both break start and break end, or leave both blank.')
+      if (!day.is_working_day) {
+        return {
+          day_of_week: dayName,
+          is_working_day: false,
+          time_in: null,
+          time_out: null,
+        }
+      }
+
+      const timeIn = as24Hour(day.time_in ?? undefined)
+      const timeOut = as24Hour(day.time_out ?? undefined)
+      if (!timeIn || !timeOut || timeIn === timeOut) {
+        throw new Error(`${dayName} requires valid and different time-in and time-out values.`)
+      }
+
+      return {
+        day_of_week: dayName,
+        is_working_day: true,
+        time_in: timeIn,
+        time_out: timeOut,
+      }
+    })
+
+    if (!days.some(day => day.is_working_day)) {
+      throw new Error('Select at least one working day.')
     }
 
     return {
       schedule_type_id: selectedType.id,
       schedule_code: form.code.trim(),
       schedule_name: form.name.trim(),
-      time_in: timeIn,
-      time_out: timeOut,
-      break_start: breakStart,
-      break_end: breakEnd,
       required_work_hours: Number(form.workHours),
       grace_period: Number(form.gracePeriod),
       status: form.status === 'Active',
+      days,
     }
   }
 
@@ -176,13 +203,15 @@ export const useWorkSchedules = () => {
       code: schedule.code,
       name: schedule.name,
       type: schedule.type,
-      timeIn: as24Hour(schedule.timeIn),
-      timeOut: as24Hour(schedule.timeOut),
-      breakStart: as24Hour(schedule.breakStart),
-      breakEnd: as24Hour(schedule.breakEnd),
       workHours: schedule.workHours,
       gracePeriod: schedule.gracePeriod,
       status: schedule.status === 'Active' ? 'Inactive' : 'Active',
+      days: schedule.days.map(day => ({
+        day_of_week: day.day_of_week,
+        is_working_day: day.is_working_day,
+        time_in: day.time_in,
+        time_out: day.time_out,
+      })),
     })
   }
 

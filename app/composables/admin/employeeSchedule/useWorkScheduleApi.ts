@@ -1,3 +1,8 @@
+import type {
+  WorkScheduleDay,
+  WorkScheduleDayFormData,
+} from '~/types/workSchedule'
+
 export interface ScheduleTypeRecord {
   id: number
   type_name: string
@@ -9,27 +14,25 @@ export interface WorkScheduleRecord {
   schedule_name: string
   schedule_type_id: number
   schedule_type: ScheduleTypeRecord | null
-  time_in: string
-  time_out: string
+  time_in: string | null
+  time_out: string | null
   break_start: string | null
   break_end: string | null
   required_work_hours: string | number
   grace_period: number
   status: boolean | number
   employments_count?: number
+  days: WorkScheduleDay[]
 }
 
 export interface WorkSchedulePayload {
   schedule_type_id: number
   schedule_code: string
   schedule_name: string
-  time_in: string
-  time_out: string
-  break_start: string | null
-  break_end: string | null
   required_work_hours: number
   grace_period: number
   status: boolean
+  days: WorkScheduleDayFormData[]
 }
 
 interface ApiResponse<T> {

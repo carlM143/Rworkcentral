@@ -34,7 +34,6 @@ const formatDate = (value: string | null) => {
             <th>Employee</th>
             <th>Leave Type</th>
             <th>Requested Pay</th>
-            <th>Leave Policy</th>
             <th>Request Date</th>
             <th>Reason</th>
             <th>Status</th>
@@ -70,16 +69,7 @@ const formatDate = (value: string | null) => {
                 {{ item.requested_pay_type === 'paid' ? 'Paid Leave' : 'Unpaid Leave' }}
               </span>
             </td>
-
-            <td>
-              <div class="cell-info">
-                <strong>Policy #{{ item.leave_policy_id }}</strong>
-                <span :class="item.policy_status === 'approved' ? 'valid' : 'warning'">
-                  {{ item.policy_status || 'Not available' }}
-                </span>
-              </div>
-            </td>
-
+            
             <td>{{ formatDate(item.request_date) }}</td>
 
             <td>

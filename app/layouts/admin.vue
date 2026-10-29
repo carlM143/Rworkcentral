@@ -241,11 +241,11 @@ const menuItems = [
     },
     {
       label: 'Leave Types',
-      to: '/admin/leave-types',
+      to: '/admin/leave-management/leave-types',
     },
     {
-      label: 'Leave Calendar',
-      to: '/admin/leave-calendar',
+      label: 'Leave Policies',
+      to: '/admin/leave-management/leave-policies',
     },
   ],
 },

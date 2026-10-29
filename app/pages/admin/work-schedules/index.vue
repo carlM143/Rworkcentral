@@ -4,12 +4,8 @@ import {
   RotateCcw,
 } from 'lucide-vue-next'
 
-import AddWorkScheduleModal from '~/components/admin/employeeSchedule/AddWorkScheduleModal.vue'
-import EditWorkScheduleModal from '~/components/admin/employeeSchedule/EditWorkScheduleModal.vue'
-
 import type {
   WorkSchedule,
-  WorkScheduleFormData,
 } from '~/types/workSchedule'
 
 import { useWorkSchedules } from '~/composables/admin/employeeSchedule/useWorkSchedules'
@@ -27,10 +23,10 @@ const {
   stats,
   resetFilters,
   loadSchedules,
-  createSchedule,
-  updateSchedule,
   toggleScheduleStatus,
 } = useWorkSchedules()
+
+const router = useRouter()
 
 const {
   success,
@@ -38,11 +34,6 @@ const {
 } = useToast()
 
 const statusOptions = ['Active', 'Inactive']
-
-const addScheduleOpen = ref(false)
-const editScheduleOpen = ref(false)
-
-const selectedScheduleForEdit = ref<WorkSchedule | null>(null)
 
 // LOAD SCHEDULES
 onMounted(async () => {
@@ -73,20 +64,6 @@ const reportError = (problem: unknown, fallback: string) => {
   )
 }
 
-// SUGGESTED SCHEDULE CODE
-const suggestedScheduleCode = computed(() => {
-  const highest = schedules.value.reduce((max, schedule) => {
-    const match = schedule.code.match(/^WS-(\d+)$/i)
-
-    return match
-      ? Math.max(max, Number(match[1]))
-      : max
-  }, 0)
-
-  return `WS-${String(highest + 1).padStart(3, '0')}`
-})
-
-// OPEN ADD MODAL
 const handleAddSchedule = () => {
   if (!scheduleTypeNames.value.length) {
     showError(
@@ -96,61 +73,12 @@ const handleAddSchedule = () => {
     return
   }
 
-  addScheduleOpen.value = true
-}
-
-// CREATE SCHEDULE
-const handleSaveSchedule = async (form: WorkScheduleFormData) => {
-  try {
-    const response = await createSchedule(form)
-
-    if (!response) return
-
-    addScheduleOpen.value = false
-
-    success(
-      'Work Schedule Added',
-      response.message,
-    )
-  } catch (error) {
-    reportError(error, 'Could not save work schedule.')
-  }
+  router.push('/admin/work-schedules/create')
 }
 
 // OPEN EDIT MODAL
 const handleEditSchedule = (schedule: WorkSchedule) => {
-  selectedScheduleForEdit.value = schedule
-  editScheduleOpen.value = true
-}
-
-// CLOSE EDIT MODAL
-const closeEditSchedule = () => {
-  editScheduleOpen.value = false
-  selectedScheduleForEdit.value = null
-}
-
-// UPDATE SCHEDULE
-const handleSaveEditedSchedule = async (payload: {
-  scheduleId: number
-  data: WorkScheduleFormData
-}) => {
-  try {
-    const response = await updateSchedule(
-      payload.scheduleId,
-      payload.data,
-    )
-
-    if (!response) return
-
-    closeEditSchedule()
-
-    success(
-      'Schedule Updated',
-      response.message,
-    )
-  } catch (error) {
-    reportError(error, 'Could not update work schedule.')
-  }
+  router.push(`/admin/work-schedules/${schedule.id}/edit`)
 }
 
 // ACTIVATE / DEACTIVATE SCHEDULE
@@ -236,25 +164,6 @@ const handleToggleScheduleStatus = async (
       @toggle-status="handleToggleScheduleStatus"
     />
 
-    <!-- ADD SCHEDULE -->
-    <AddWorkScheduleModal
-      :open="addScheduleOpen"
-      :suggested-code="suggestedScheduleCode"
-      :schedule-types="scheduleTypeNames"
-      :saving="saving"
-      @close="addScheduleOpen = false"
-      @save="handleSaveSchedule"
-    />
-
-    <!-- EDIT SCHEDULE -->
-    <EditWorkScheduleModal
-      :open="editScheduleOpen"
-      :schedule="selectedScheduleForEdit"
-      :schedule-types="scheduleTypeNames"
-      :saving="saving"
-      @close="closeEditSchedule"
-      @save="handleSaveEditedSchedule"
-    />
   </section>
 </template>
 

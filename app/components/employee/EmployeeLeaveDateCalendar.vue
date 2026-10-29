@@ -10,12 +10,16 @@ import {
 
 const start = defineModel<string>('start', { required: true })
 const end = defineModel<string>('end', { default: '' })
+const selectedDates = defineModel<string[]>('selectedDates', { default: () => [] })
 
 const props = withDefaults(defineProps<{
   minDate?: string
   maxDate?: string
   activeDates?: string[]
-}>(), {})
+  selectionMode?: 'range' | 'multiple'
+}>(), { selectionMode: 'range' })
+
+const isMultiple = computed(() => props.selectionMode === 'multiple')
 
 // Parsing & formatting utilities (pure string-based, timezone-proof)
 const parseDateString = (str: string): Date | null => {
@@ -118,6 +122,7 @@ interface CalendarCell {
   isHoverPreview: boolean
   isRangeLeftEdge: boolean
   isRangeRightEdge: boolean
+  isMultiSelected: boolean
 }
 
 const calendarCells = computed<CalendarCell[]>(() => {
@@ -152,11 +157,11 @@ const calendarCells = computed<CalendarCell[]>(() => {
 
   // Helper to build a cell
   const makeCell = (dateStr: string, dayNum: number, isCurrent: boolean, dayOfWeek: number): CalendarCell => {
-    const isStart = activeStart !== '' && dateStr === activeStart
-    const isEnd = activeEnd !== '' && dateStr === activeEnd
+    const isStart = !isMultiple.value && activeStart !== '' && dateStr === activeStart
+    const isEnd = !isMultiple.value && activeEnd !== '' && dateStr === activeEnd
     const isSingleDay = isStart && isEnd
-    const isInRange = activeStart !== '' && activeEnd !== '' && dateStr > activeStart && dateStr < activeEnd
-    const isHoverPreview = isSelectingEnd.value && (isStart || isEnd || isInRange)
+    const isInRange = !isMultiple.value && activeStart !== '' && activeEnd !== '' && dateStr > activeStart && dateStr < activeEnd
+    const isHoverPreview = !isMultiple.value && isSelectingEnd.value && (isStart || isEnd || isInRange)
 
     // Check if cell is the left/right edge of row for border radius continuation
     const isRangeLeftEdge = dayOfWeek === 0 || isStart
@@ -175,6 +180,7 @@ const calendarCells = computed<CalendarCell[]>(() => {
       isHoverPreview,
       isRangeLeftEdge,
       isRangeRightEdge,
+      isMultiSelected: isMultiple.value && selectedDates.value.includes(dateStr),
     }
   }
 
@@ -216,6 +222,17 @@ const handleCellClick = (cell: CalendarCell) => {
     }
   }
 
+  if (isMultiple.value) {
+    const dates = selectedDates.value.includes(cell.dateStr)
+      ? selectedDates.value.filter(date => date !== cell.dateStr)
+      : [...selectedDates.value, cell.dateStr]
+
+    selectedDates.value = dates.sort()
+    start.value = selectedDates.value[0] || ''
+    end.value = selectedDates.value[selectedDates.value.length - 1] || ''
+    return
+  }
+
   if (!isSelectingEnd.value) {
     // First click: sets start date & temporary end
     start.value = cell.dateStr
@@ -235,7 +252,7 @@ const handleCellClick = (cell: CalendarCell) => {
 }
 
 const handleCellHover = (dateStr: string) => {
-  if (isSelectingEnd.value) {
+  if (!isMultiple.value && isSelectingEnd.value) {
     hoverDate.value = dateStr
   }
 }
@@ -248,6 +265,26 @@ const resetToSingleDay = () => {
   end.value = start.value
   isSelectingEnd.value = false
   hoverDate.value = null
+}
+
+const clearSelection = () => {
+  if (isMultiple.value) {
+    selectedDates.value = []
+    start.value = ''
+    end.value = ''
+    return
+  }
+  resetToSingleDay()
+}
+
+const datesBetween = (first: Date, last: Date) => {
+  const dates: string[] = []
+  const cursor = new Date(first)
+  while (cursor <= last && dates.length < 60) {
+    dates.push(formatDateString(cursor))
+    cursor.setDate(cursor.getDate() + 1)
+  }
+  return dates
 }
 
 // Quick Presets
@@ -282,6 +319,12 @@ const setPreset = (type: 'today' | 'tomorrow' | 'next3' | 'nextWeek') => {
     end.value = formatDateString(nextFri)
   }
 
+  if (isMultiple.value) {
+    const first = parseDateString(start.value)
+    const last = parseDateString(end.value || start.value)
+    selectedDates.value = first && last ? datesBetween(first, last) : []
+  }
+
   isSelectingEnd.value = false
   hoverDate.value = null
 
@@ -293,6 +336,7 @@ const setPreset = (type: 'today' | 'tomorrow' | 'next3' | 'nextWeek') => {
 
 // Selected day count
 const selectedDayCount = computed(() => {
+  if (isMultiple.value) return selectedDates.value.length
   if (!start.value) return 0
   const s = parseDateString(start.value)
   const e = parseDateString(end.value || start.value)
@@ -303,10 +347,15 @@ const selectedDayCount = computed(() => {
 </script>
 
 <template>
-  <div class="leave-calendar-card" aria-label="Leave date range calendar">
+  <div class="leave-calendar-card" :aria-label="isMultiple ? 'Select individual leave dates' : 'Leave date range calendar'">
     <!-- Summary Header Strip -->
     <div class="calendar-summary-strip">
       <div class="summary-selection">
+        <div v-if="isMultiple" class="date-chip multi-date-chip">
+          <span class="chip-tag">DATES</span>
+          <span class="chip-date">Select any individual days</span>
+        </div>
+        <template v-else>
         <div class="date-chip" :class="{ 'chip-pending': isSelectingEnd }">
           <span class="chip-tag">START</span>
           <span class="chip-date">{{ formatPrettyDate(start) }}</span>
@@ -316,27 +365,32 @@ const selectedDayCount = computed(() => {
           <span class="chip-tag">END</span>
           <span class="chip-date">{{ formatPrettyDate(end || start) }}</span>
         </div>
+        </template>
       </div>
       <div class="summary-actions">
         <span class="day-count-badge">
           {{ selectedDayCount }} day{{ selectedDayCount === 1 ? '' : 's' }}
         </span>
         <button
-          v-if="start !== (end || start)"
+          v-if="isMultiple ? selectedDayCount > 0 : start !== (end || start)"
           type="button"
           class="reset-single-btn"
-          title="Reset to 1-day leave"
-          @click="resetToSingleDay"
+          :title="isMultiple ? 'Clear selected dates' : 'Reset to 1-day leave'"
+          @click="clearSelection"
         >
           <RotateCcw :size="12" />
-          <span>1 Day</span>
+          <span>{{ isMultiple ? 'Clear' : '1 Day' }}</span>
         </button>
       </div>
     </div>
 
     <!-- Interactive Instruction / Hint -->
     <div class="calendar-hint-row">
-      <span v-if="isSelectingEnd" class="hint-text hint-active">
+      <span v-if="isMultiple" class="hint-text hint-active">
+        <CalendarDays :size="12" class="hint-icon" />
+        Tap each date you need. Tap a selected date again to remove it.
+      </span>
+      <span v-else-if="isSelectingEnd" class="hint-text hint-active">
         <span class="hint-dot pulse"></span>
         Tap an <strong>end date</strong> to complete range (or tap same date for 1 day)
       </span>
@@ -458,28 +512,30 @@ const selectedDayCount = computed(() => {
             'range-preview': cell.isHoverPreview,
             'range-left-edge': cell.isRangeLeftEdge,
             'range-right-edge': cell.isRangeRightEdge,
+            'multi-selected': cell.isMultiSelected,
           }"
         >
           <button
             type="button"
             class="day-btn"
             :class="{
-              'day-selected': cell.isStart || cell.isEnd,
+              'day-selected': cell.isStart || cell.isEnd || cell.isMultiSelected,
               'day-in-range': cell.isInRange,
             }"
             :aria-label="cell.dateStr"
+            :aria-pressed="cell.isMultiSelected"
             @click="handleCellClick(cell)"
             @mouseenter="handleCellHover(cell.dateStr)"
           >
             <span class="day-num">{{ cell.dayNumber }}</span>
-            <span v-if="cell.isToday && !cell.isStart && !cell.isEnd" class="today-dot"></span>
+            <span v-if="cell.isToday && !cell.isStart && !cell.isEnd && !cell.isMultiSelected" class="today-dot"></span>
           </button>
         </div>
       </div>
     </div>
 
     <!-- Manual Inputs Toggle Link (For Screen Readers or Direct Typing) -->
-    <div class="calendar-footer">
+    <div v-if="!isMultiple" class="calendar-footer">
       <button
         type="button"
         class="toggle-inputs-btn"
@@ -504,6 +560,11 @@ const selectedDayCount = computed(() => {
 
 <style scoped>
 .leave-calendar-card {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  overflow: hidden;
   background: var(--bg-card-soft);
   border: 1px solid var(--border);
   border-radius: 10px;
@@ -512,6 +573,13 @@ const selectedDayCount = computed(() => {
   flex-direction: column;
   gap: 10px;
   user-select: none;
+}
+
+.leave-calendar-card > * {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 /* Reset all buttons within calendar to prevent global min-height: 44px stretching */
@@ -540,6 +608,7 @@ const selectedDayCount = computed(() => {
   align-items: center;
   gap: 6px;
   min-width: 0;
+  max-width: 100%;
 }
 
 .date-chip {
@@ -556,6 +625,13 @@ const selectedDayCount = computed(() => {
 .date-chip.chip-pending {
   border-color: var(--primary);
   background: var(--primary-soft);
+}
+
+.multi-date-chip { min-height: 24px; }
+
+.multi-date-chip .chip-date {
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .chip-tag {
@@ -632,6 +708,9 @@ const selectedDayCount = computed(() => {
   gap: 6px;
   font-size: 11px;
   color: var(--text-muted);
+  min-width: 0;
+  line-height: 1.45;
+  white-space: normal;
 }
 
 .hint-text.hint-active {
@@ -665,6 +744,9 @@ const selectedDayCount = computed(() => {
 
 /* Presets Row */
 .presets-row {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -868,6 +950,8 @@ const selectedDayCount = computed(() => {
 
 /* Calendar Weekdays & Grid */
 .calendar-body {
+  width: 100%;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -875,7 +959,7 @@ const selectedDayCount = computed(() => {
 
 .weekdays-row {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   text-align: center;
 }
 
@@ -890,7 +974,7 @@ const selectedDayCount = computed(() => {
 
 .calendar-grid {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   row-gap: 3px;
   column-gap: 0;
 }
@@ -1101,9 +1185,41 @@ const selectedDayCount = computed(() => {
   }
   .calendar-summary-strip {
     padding: 5px 8px;
+    align-items: stretch;
+  }
+  .summary-selection {
+    flex: 1 1 160px;
+  }
+  .summary-actions {
+    flex: 0 0 auto;
+    margin-left: auto;
+  }
+  .multi-date-chip {
+    width: 100%;
+    min-width: 0;
   }
   .chip-date {
     font-size: 10px;
+  }
+  .calendar-hint-row {
+    align-items: flex-start;
+  }
+  .presets-row {
+    padding-bottom: 4px;
+  }
+  .calendar-nav-header {
+    gap: 4px;
+  }
+  .month-title-wrapper {
+    min-width: 0;
+    gap: 3px;
+  }
+  .month-title-btn {
+    min-width: 0 !important;
+    padding-inline: 3px !important;
+  }
+  .nav-arrows {
+    flex: 0 0 auto;
   }
   .day-cell-wrapper {
     height: 34px;

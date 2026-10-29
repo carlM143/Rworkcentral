@@ -1,3 +1,4 @@
+<!-- employee layout -->
 <script setup lang="ts">
 import '~/assets/css/employee-theme.css'
 import {
@@ -33,7 +34,11 @@ const closeMore = () => {
   moreOpen.value = false
 }
 
-const moreActive = computed(() => ['/employee/profile', '/employee/leave-types', '/employee/loans'].includes(route.path))
+const moreActive = computed(() =>
+  ['/employee/profile', '/employee/leave-credit', '/employee/loans']
+    .includes(route.path)
+)
+
 const isDark = ref(false)
 const requestsOpen = ref(route.path === '/employee/requests')
 
@@ -49,7 +54,7 @@ const { profile, displayName, initials } = useEmployeePortal()
 const menuItems = [
   { label: 'Dashboard', icon: LayoutDashboard, to: '/employee' },
   { label: 'Attendance', icon: Clock3, to: '/employee/attendance' },
-  { label: 'Leave Credits', icon: CalendarDays, to: '/employee/leave-types' },
+  { label: 'Leave Credits', icon: CalendarDays, to: '/employee/leave-credit' },
   { label: 'Requests', icon: ClipboardCheck, to: '/employee/requests' },
   { label: 'Payslips', icon: WalletCards, to: '/employee/payslips' },
   { label: 'Loans', icon: Landmark, to: '/employee/loans' },
@@ -258,10 +263,15 @@ watch(() => route.fullPath, () => {
         </button>
       </div>
       <nav class="sheet-links" aria-label="More employee pages">
-        <NuxtLink to="/employee/leave-types" :aria-current="route.path === '/employee/leave-types' ? 'page' : undefined" @click="closeMore">
-          <CalendarDays :size="20" />
-          <span>Leave Credits</span>
-        </NuxtLink>
+        <NuxtLink
+            to="/employee/leave-credit"
+            :aria-current="route.path === '/employee/leave-credit' ? 'page' : undefined"
+            @click="closeMore"
+          >
+            <CalendarDays :size="20" />
+            <span>Leave Credits</span>
+          </NuxtLink>
+
         <NuxtLink to="/employee/loans" :aria-current="route.path === '/employee/loans' ? 'page' : undefined" @click="closeMore">
           <Landmark :size="20" />
           <span>Loans</span>

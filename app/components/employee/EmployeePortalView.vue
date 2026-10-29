@@ -40,7 +40,7 @@ const dateKey = computed(() => {
 const currentPunch = computed(() => punches.value[dateKey.value])
 const visibleRequests = computed(() => requests.value.filter(request => ['Leave', 'Undertime', 'Overtime'].includes(employeeRequestCategory(request.type) || '')))
 const pending = computed(() => visibleRequests.value.filter(r => r.status === 'Pending').length)
-const notice = ref('')
+const notice = ref(route.query.submitted === '1' ? 'Leave request submitted successfully to HR.' : '')
 const filter = ref('All')
 const requestCategories = ['Leave', 'Undertime', 'Overtime'] as const
 const activeCategory = ref<typeof requestCategories[number]>('Leave')
@@ -225,7 +225,11 @@ const quickActions = [
   { label: 'Request Overtime', type: 'Overtime', icon: TimerReset, color: 'orange' },
   { label: 'Request Undertime', type: 'Undertime', icon: Clock3, color: 'purple' },
 ]
-const openRequest = (type = 'Vacation Leave') => {
+const openRequest = (type = 'Vacation Leave', useDialog = false) => {
+  if (employeeRequestCategory(type) === 'Leave' && !useDialog) {
+    void router.push('/employee/leave-requests/create')
+    return
+  }
   if (employeeLeavePolicy(profile.value.employmentType).some(leave => leave.name === type && !leave.canRequest)) type = requestableLeaves.value[0]?.name || 'Leave Without Pay'
   Object.assign(form, { type, start: dateKey.value, end: dateKey.value, requestDate: dateKey.value, reason: '' })
   reportedAttendanceDate.value = ''
@@ -243,11 +247,33 @@ const openRequest = (type = 'Vacation Leave') => {
   }
   requestDialog.value?.showModal()
 }
+
+
 const editRequest = (request: EmployeeRequest) => {
   if (!canEditRequest(request)) return
+
+  // LEAVE REQUEST: Redirect directly to the new Edit page
+  if (employeeRequestCategory(request.type) === 'Leave') {
+    viewDialog.value?.close()
+    requestDialog.value?.close()
+
+    void router.push({
+      path: '/employee/leave-requests/edit',
+      query: {
+        id: String(request.id),
+      },
+    })
+
+    return
+  }
+
+  // OVERTIME / UNDERTIME: Continue using the existing modal
   viewDialog.value?.close()
-  openRequest(request.type)
+
+  openRequest(request.type, true)
+
   editingRequestId.value = request.id
+
   Object.assign(form, {
     type: request.type,
     start: request.start,
@@ -255,30 +281,27 @@ const editRequest = (request: EmployeeRequest) => {
     requestDate: request.requestDate || request.start || dateKey.value,
     reason: request.reason,
   })
+
   Object.assign(timing, {
     startTime: request.timing?.startTime || '',
-    endTime: request.timing?.endTime || (request.type === 'Undertime' ? request.timing?.scheduledTimeOut || selectedShift.value?.end || '' : ''),
+    endTime: request.timing?.endTime ||
+      (request.type === 'Undertime'
+        ? request.timing?.scheduledTimeOut ||
+          selectedShift.value?.end || ''
+        : ''),
     endsNextDay: request.timing?.endsNextDay || false,
-    requestedTimeOut: request.timing?.requestedTimeOut || request.timing?.startTime || '',
+    requestedTimeOut:
+      request.timing?.requestedTimeOut ||
+      request.timing?.startTime || '',
   })
-  requestImage.value = request.image ? { ...request.image } : undefined
 
-  if (request.category === 'Leave' || employeeRequestCategory(request.type) === 'Leave') {
-    suppressLeaveDateWatcher.value = true
-    if (request.dates && request.dates.length > 0) {
-      leaveDates.value = request.dates.map(d => ({
-        date: d.leave_date,
-        dayName: getDayName(d.leave_date),
-        dayType: d.day_type || 'whole_day',
-      }))
-    } else {
-      generateLeaveDates()
-    }
-    nextTick(() => {
-      suppressLeaveDateWatcher.value = false
-    })
-  }
+  requestImage.value = request.image
+    ? { ...request.image }
+    : undefined
 }
+
+
+
 const reportAttendance = (date: string) => {
   attendanceDetailsOpen.value = false
   openRequest('Attendance Report')
@@ -465,7 +488,6 @@ const submitRequest = async () => {
       </article>
     </div>
 
-    <EmployeeLeaveTypes v-if="section === 'leave-types'" />
     <EmployeePayslips v-if="section === 'payslips'" />
     <EmployeeLoans v-if="section === 'loans'" />
 
@@ -499,8 +521,67 @@ const submitRequest = async () => {
             <div><dt>Request Type</dt><dd>{{ employeeRequestCategory(viewedRequest.type) === 'Attendance Report' ? 'Attendance Report' : viewedRequest.type }}</dd></div>
             <div><dt>Status</dt><dd><span class="badge" :class="viewedRequest.status === 'Approved' ? 'green' : viewedRequest.status === 'Pending' ? 'orange' : 'neutral'">{{ viewedRequest.status }}</span></dd></div>
             <div v-if="viewedRequest.requestDate"><dt>Date of Request</dt><dd>{{ formatDate(viewedRequest.requestDate) }}</dd></div>
-            <div><dt>{{ employeeRequestCategory(viewedRequest.type) === 'Leave' ? 'Start Date' : (viewedRequest.end && viewedRequest.end !== viewedRequest.start ? 'Start Date' : 'Target Date') }}</dt><dd>{{ formatDate(viewedRequest.start) }}</dd></div>
-            <div v-if="employeeRequestCategory(viewedRequest.type) === 'Leave' || (viewedRequest.end && viewedRequest.end !== viewedRequest.start)"><dt>End Date</dt><dd>{{ formatDate(viewedRequest.end) }}</dd></div>
+            
+              <!-- LEAVE REQUEST: SHOW ACTUAL SELECTED DATES -->
+              <template v-if="employeeRequestCategory(viewedRequest.type) === 'Leave'">
+                <div class="full-width">
+                  <dt>
+                    Leave Dates
+                    ({{ viewedRequest.dates?.length || 0 }} Selected)
+                  </dt>
+
+                  <dd
+                    v-if="viewedRequest.dates?.length"
+                    class="request-leave-dates"
+                  >
+                    <div
+                      v-for="day in [...viewedRequest.dates].sort(
+                        (a, b) => a.leave_date.localeCompare(b.leave_date)
+                      )"
+                      :key="day.id || day.leave_date"
+                      class="request-leave-date-item"
+                    >
+                      <div class="request-leave-date-info">
+                        <strong>{{ formatDate(day.leave_date) }}</strong>
+                        <small>{{ getDayName(day.leave_date) }}</small>
+                      </div>
+
+                      <span
+                        class="day-type-badge"
+                        :class="day.day_type === 'half_day'
+                          ? 'badge-half'
+                          : 'badge-whole'"
+                      >
+                        {{ day.day_type === 'half_day'
+                          ? 'Half Day (0.5)'
+                          : 'Whole Day (1.0)' }}
+                      </span>
+                    </div>
+                  </dd>
+
+                  <dd v-else>
+                    No individual leave dates recorded.
+                  </dd>
+                </div>
+              </template>
+
+              <!-- OTHER REQUESTS: KEEP ORIGINAL DATE DISPLAY -->
+              <template v-else>
+                <div>
+                  <dt>
+                    {{ viewedRequest.end && viewedRequest.end !== viewedRequest.start
+                      ? 'Start Date'
+                      : 'Target Date' }}
+                  </dt>
+                  <dd>{{ formatDate(viewedRequest.start) }}</dd>
+                </div>
+
+                <div v-if="viewedRequest.end && viewedRequest.end !== viewedRequest.start">
+                  <dt>End Date</dt>
+                  <dd>{{ formatDate(viewedRequest.end) }}</dd>
+                </div>
+              </template>
+
             <template v-if="viewedRequest.type === 'Undertime' || viewedRequest.type === 'Overtime'">
               <div><dt>{{ viewedRequest.type }} Start Time</dt><dd>{{ requestClock(viewedRequest.timing?.startTime || viewedRequest.timing?.requestedTimeOut) }}</dd></div>
               <div><dt>{{ viewedRequest.type }} End Time</dt><dd>{{ requestClock(viewedRequest.timing?.endTime || viewedRequest.timing?.scheduledTimeOut) }}{{ viewedRequest.timing?.endsNextDay ? ' (next day)' : '' }}</dd></div>
@@ -510,21 +591,6 @@ const submitRequest = async () => {
             <div class="full-width"><dt>Reason / Details</dt><dd class="request-reason">{{ viewedRequest.reason }}</dd></div>
           </dl>
 
-          <!-- Leave Dates Breakdown in View Dialog -->
-          <div v-if="(viewedRequest.category === 'Leave' || employeeRequestCategory(viewedRequest.type) === 'Leave') && viewedRequest.dates && viewedRequest.dates.length > 0" class="view-leave-dates full-width">
-            <h3>Scheduled Leave Days ({{ viewedRequest.total_days ?? viewedRequest.dates.reduce((acc, curr) => acc + (Number(curr.day_value) || 1), 0) }} Total Day{{ (viewedRequest.total_days ?? 1) === 1 ? '' : 's' }})</h3>
-            <div class="view-dates-grid">
-              <div v-for="(d, dIdx) in viewedRequest.dates" :key="d.id || d.leave_date" class="view-date-item">
-                <div class="view-date-header">
-                  <span class="view-date-day">Day {{ dIdx + 1 }} · {{ getDayName(d.leave_date) }}</span>
-                  <span class="day-type-badge" :class="d.day_type === 'half_day' ? 'badge-half' : 'badge-whole'">
-                    {{ d.day_type === 'half_day' ? 'Half Day (0.5)' : 'Whole Day (1.0)' }}
-                  </span>
-                </div>
-                <strong class="view-date-val">{{ formatDate(d.leave_date) }}</strong>
-              </div>
-            </div>
-          </div>
 
           <div class="view-attachment"><h3>Supporting Image</h3><template v-if="viewedRequest.image"><a :href="viewedRequest.image.dataUrl" :download="viewedRequest.image.name" class="view-image-link"><img :src="viewedRequest.image.dataUrl" :alt="`Supporting image for request ${viewedRequest.id}`"><span><Download :size="14" />{{ viewedRequest.image.name }}</span></a></template><p v-else>No supporting image attached.</p></div>
           <p class="footnote">Official employee request record connected to HR database.</p>
@@ -548,10 +614,7 @@ const submitRequest = async () => {
         <div class="form-fields">
           <label v-if="formCategory === 'Leave'" class="full-width"><span>Leave Type</span><select v-model="form.type"><option v-for="leave in leaveFormOptions" :key="leave">{{ leave }}</option></select></label>
           <p v-if="formCategory === 'Leave' && originalRequest && !requestableLeaves.some(leave => leave.name === originalRequest?.type)" class="full-width leave-policy-warning">The existing leave type is preserved for this pending request. Its eligibility still requires HR confirmation under the current policy.</p>
-          <div v-if="formCategory === 'Leave'" class="leave-policy-note full-width">
-            <Info :size="14" class="note-icon" />
-            <span>Leave choices follow company policy. <NuxtLink to="/employee/leave-types" @click="requestDialog?.close()">View Leave Credits</NuxtLink></span>
-          </div>
+          
           <p v-if="formCategory === 'Attendance Report'" class="full-width locked-report-date">Attendance Date: <strong>{{ formatDate(reportedAttendanceDate) }}</strong><br>This report is linked to the attendance record you selected.</p>
           <template v-else>
             <template v-if="timedRequest">
@@ -1359,4 +1422,48 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--p
   .attendance-page .schedule-card { padding-bottom: 10px; }.attendance-page .schedule-card .panel-heading { padding-bottom: 6px; }.attendance-page .schedule-card > h3, .attendance-page .schedule-card > strong, .attendance-page .schedule-card > p { margin-left: 12px; margin-right: 12px; }.attendance-page .schedule-card > h3 { display: inline; font-size: 11px; font-weight: 500; }.attendance-page .schedule-card > strong { display: inline; margin-left: 0; font-size: 12px; }.attendance-page .schedule-card > p { margin-top: 4px; font-size: 11px; line-height: 1.5; }
   .attendance-page .portal-card .mobile-table-hint { padding: 7px 12px; font-size: 11px; }.attendance-page .table-scroll td { padding: 10px 12px; }.attendance-page .table-scroll th { padding: 10px 12px; }.attendance-page .table-scroll td small { font-size: 11px; }.attendance-page .table-scroll table { font-size: 12px; }.attendance-page .requests-panel .panel-heading select { width: auto; flex: 0 1 140px; padding: 7px 10px; font-size: 16px; }
 }
+
+
+
+.request-leave-dates {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.request-leave-date-item {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-card-soft);
+}
+
+.request-leave-date-info {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.request-leave-date-info strong {
+  color: var(--text-primary);
+  font-size: 12px;
+}
+
+.request-leave-date-info small {
+  color: var(--text-muted);
+  font-size: 10px;
+}
+
+@media (max-width: 520px) {
+  .request-leave-dates {
+    grid-template-columns: 1fr;
+  }
+}
+
 </style>
