@@ -1,397 +1,279 @@
+
 import type {
   TimeLogRecord,
   TimeLogStatus,
 } from '~/types/timekeeping'
 
+interface ApiTimeLog {
+  id: number
+  employee_id: number
+  employee_number: string | null
+  employee_name: string | null
+  department: string | null
+  work_date: string | null
+  schedule: string | null
+  time_in: string | null
+  break_out: string | null
+  break_in: string | null
+  time_out: string | null
+  late_minutes: number | null
+  undertime_minutes: number | null
+  worked_minutes: number | null
+  worked_hours: number | null
+  status: string | null
+}
+
+interface TimeLogsApiResponse {
+  success: boolean
+  message?: string
+  data: ApiTimeLog[]
+}
+
 export const useTimeLogs = () => {
-  const {
-    employees,
-  } = useEmployees()
+  const { $api } = useNuxtApp()
 
-  /* =========================================================
-     EMPLOYEE HELPER
-  ========================================================= */
+  const timeLogs = ref<TimeLogRecord[]>([])
+  const loading = ref(false)
+  const error = ref<string | null>(null)
 
-  const employeeById = (
-    id: number,
-  ) => {
-    return employees.value.find(
-      employee =>
-        employee.id === id,
-    )
-  }
+  // =====================================================
+  // FILTERS
+  // =====================================================
 
-  const createTimeLog = (
-    data: {
-      id: number
-      employeeId: number
+  const search = ref('')
+  const department = ref('')
+  const status = ref('')
 
-      date: string
+  // Sample records from the TimeLogSeeder.
+  const dateFrom = ref('2026-09-01')
+  const dateTo = ref('2026-09-05')
 
-      timeIn?: string
-      breakOut?: string
-      breakIn?: string
-      timeOut?: string
+  const currentPage = ref(1)
+  const perPage = ref(8)
 
-      lateMinutes?: number
-      undertimeMinutes?: number
+  // =====================================================
+  // STATUS MAPPING
+  // =====================================================
 
-      hoursWorked?: number
+  const mapStatus = (value: string | null): TimeLogStatus => {
+    const normalized = String(value ?? '')
+      .trim()
+      .toLowerCase()
 
-      status: TimeLogStatus
-    },
-  ): TimeLogRecord => {
-    const employee =
-      employeeById(
-        data.employeeId,
-      )
-
-    if (!employee) {
-      throw new Error(
-        `Employee ${data.employeeId} not found`,
-      )
+    if (normalized === 'missing' || normalized === 'absent') {
+      return 'Missing Log'
     }
 
-    return {
-      id: data.id,
+    if (normalized === 'incomplete') {
+      return 'Incomplete'
+    }
 
-      employeeId:
-        employee.id,
+    if (normalized === 'on leave') {
+      return 'On Leave'
+    }
+
+    if (normalized === 'rest day') {
+      return 'Rest Day'
+    }
+
+    // Late and undertime are tracked separately
+    // through lateMinutes and undertimeMinutes.
+    return 'Complete'
+  }
+
+  // =====================================================
+  // API RESPONSE TRANSFORMATION
+  // =====================================================
+
+  const transformTimeLog = (
+    record: ApiTimeLog,
+  ): TimeLogRecord => {
+    return {
+      id: record.id,
+
+      employeeId: record.employee_id,
 
       employeeNumber:
-        employee.employeeNumber,
+        record.employee_number ||
+        `EMP-${String(record.employee_id).padStart(3, '0')}`,
 
-      employeeName: [
-        employee.firstName,
-        employee.middleName,
-        employee.lastName,
-      ]
-        .filter(Boolean)
-        .join(' '),
+      employeeName:
+        record.employee_name ||
+        'Unknown Employee',
 
       department:
-        employee.department,
+        record.department ||
+        'Unassigned',
 
-      position:
-        employee.position,
+      // The Time Logs table does not display position.
+      // Keep the field for compatibility with the type.
+      position: '',
 
-      date:
-        data.date,
+      date: record.work_date || '',
 
       schedule:
-        employee.workSchedule ||
+        record.schedule ||
         '8:00 AM - 5:00 PM',
 
-      timeIn:
-        data.timeIn,
+      timeIn: record.time_in || undefined,
 
       breakOut:
-        data.breakOut,
+        record.break_out || undefined,
 
       breakIn:
-        data.breakIn,
+        record.break_in || undefined,
 
       timeOut:
-        data.timeOut,
+        record.time_out || undefined,
 
       lateMinutes:
-        data.lateMinutes ?? 0,
+        Number(record.late_minutes ?? 0),
 
       undertimeMinutes:
-        data.undertimeMinutes ?? 0,
+        Number(record.undertime_minutes ?? 0),
 
       hoursWorked:
-        data.hoursWorked,
+        record.worked_hours === null ||
+        record.worked_hours === undefined
+          ? undefined
+          : Number(record.worked_hours),
 
-      status:
-        data.status,
+      status: mapStatus(record.status),
     }
   }
 
-  /* =========================================================
-     MOCK TIME LOGS
-  ========================================================= */
+ // =====================================================
+// FETCH LARAVEL TIME LOGS
+// =====================================================
 
-  const timeLogs =
-    useState<TimeLogRecord[]>('rworkcentral-time-logs', () => [
-      createTimeLog({
-        id: 1,
-        employeeId: 1,
-        date: '2026-09-03',
-        timeIn: '7:55 AM',
-        breakOut: '12:00 PM',
-        breakIn: '1:00 PM',
-        timeOut: '5:02 PM',
-        hoursWorked: 8.12,
-        status: 'Complete',
-      }),
+let latestRequestId = 0
 
-      createTimeLog({
-        id: 2,
-        employeeId: 2,
-        date: '2026-09-03',
-        timeIn: '8:08 AM',
-        breakOut: '12:03 PM',
-        breakIn: '1:00 PM',
-        timeOut: '5:00 PM',
-        lateMinutes: 8,
-        hoursWorked: 7.87,
-        status: 'Complete',
-      }),
+const fetchTimeLogs = async (): Promise<void> => {
+  const requestId = ++latestRequestId
 
-      createTimeLog({
-        id: 3,
-        employeeId: 3,
-        date: '2026-09-03',
-        timeIn: '7:58 AM',
-        breakOut: '12:00 PM',
-        breakIn: '1:00 PM',
-        timeOut: '5:05 PM',
-        hoursWorked: 8.12,
-        status: 'Complete',
-      }),
+  loading.value = true
+  error.value = null
 
-      createTimeLog({
-        id: 4,
-        employeeId: 4,
-        date: '2026-09-03',
-        status: 'Missing Log',
-      }),
-
-      createTimeLog({
-        id: 5,
-        employeeId: 5,
-        date: '2026-09-03',
-        timeIn: '7:51 AM',
-        breakOut: '12:00 PM',
-        breakIn: '1:00 PM',
-        timeOut: '5:01 PM',
-        hoursWorked: 8.17,
-        status: 'Complete',
-      }),
-
-      createTimeLog({
-        id: 6,
-        employeeId: 6,
-        date: '2026-09-03',
-        timeIn: '7:59 AM',
-        breakOut: '12:00 PM',
-        breakIn: '1:00 PM',
-        timeOut: '5:10 PM',
-        hoursWorked: 8.18,
-        status: 'Complete',
-      }),
-
-      createTimeLog({
-        id: 7,
-        employeeId: 7,
-        date: '2026-09-03',
-        timeIn: '8:15 AM',
-        breakOut: '12:00 PM',
-        breakIn: '1:00 PM',
-        lateMinutes: 15,
-        status: 'Incomplete',
-      }),
-
-      createTimeLog({
-        id: 8,
-        employeeId: 8,
-        date: '2026-09-03',
-        timeIn: '7:52 AM',
-        breakOut: '12:00 PM',
-        breakIn: '1:00 PM',
-        timeOut: '5:00 PM',
-        hoursWorked: 8.13,
-        status: 'Complete',
-      }),
-
-      createTimeLog({
-        id: 9,
-        employeeId: 9,
-        date: '2026-09-02',
-        timeIn: '7:48 AM',
-        breakOut: '12:00 PM',
-        breakIn: '1:00 PM',
-        timeOut: '5:03 PM',
-        hoursWorked: 8.25,
-        status: 'Complete',
-      }),
-
-      createTimeLog({
-        id: 10,
-        employeeId: 10,
-        date: '2026-09-02',
-        status: 'On Leave',
-      }),
-
-      createTimeLog({
-        id: 11,
-        employeeId: 11,
-        date: '2026-09-02',
-        timeIn: '7:45 AM',
-        breakOut: '12:00 PM',
-        breakIn: '1:00 PM',
-        timeOut: '4:40 PM',
-        undertimeMinutes: 20,
-        hoursWorked: 7.92,
-        status: 'Complete',
-      }),
-
-      createTimeLog({
-        id: 12,
-        employeeId: 12,
-        date: '2026-09-02',
-        timeIn: '7:50 AM',
-        breakOut: '12:00 PM',
-        breakIn: '1:00 PM',
-        timeOut: '5:08 PM',
-        hoursWorked: 8.30,
-        status: 'Complete',
-      }),
-
-      createTimeLog({
-        id: 13,
-        employeeId: 1,
-        date: '2026-09-01',
-        timeIn: '8:04 AM',
-        breakOut: '12:00 PM',
-        breakIn: '1:00 PM',
-        timeOut: '5:00 PM',
-        lateMinutes: 4,
-        hoursWorked: 7.93,
-        status: 'Complete',
-      }),
-
-      createTimeLog({
-        id: 14,
-        employeeId: 2,
-        date: '2026-09-01',
-        timeIn: '7:55 AM',
-        breakOut: '12:00 PM',
-        breakIn: '1:00 PM',
-        timeOut: '5:02 PM',
-        hoursWorked: 8.12,
-        status: 'Complete',
-      }),
-
-      createTimeLog({
-        id: 15,
-        employeeId: 3,
-        date: '2026-09-01',
-        status: 'Rest Day',
-      }),
-    ])
-
-  /* =========================================================
-     FILTERS
-  ========================================================= */
-
-  const search =
-    ref('')
-
-  const department =
-    ref('')
-
-  const status =
-    ref('')
-
-  const dateFrom =
-    ref('2026-09-01')
-
-  const dateTo =
-    ref('2026-09-03')
-
-  const currentPage =
-    ref(1)
-
-  const perPage =
-    ref(8)
-
-  /* =========================================================
-     FILTERED LOGS
-  ========================================================= */
-
-  const filteredLogs =
-    computed(() => {
-      const keyword =
-        search.value
-          .trim()
-          .toLowerCase()
-
-      return timeLogs.value.filter(
-        log => {
-          const matchesSearch =
-            !keyword ||
-            log.employeeName
-              .toLowerCase()
-              .includes(keyword) ||
-            log.employeeNumber
-              .toLowerCase()
-              .includes(keyword)
-
-          const matchesDepartment =
-            !department.value ||
-            log.department ===
-              department.value
-
-          const matchesStatus =
-            !status.value ||
-            log.status ===
-              status.value
-
-          const matchesFrom =
-            !dateFrom.value ||
-            log.date >=
-              dateFrom.value
-
-          const matchesTo =
-            !dateTo.value ||
-            log.date <=
-              dateTo.value
-
-          return (
-            matchesSearch &&
-            matchesDepartment &&
-            matchesStatus &&
-            matchesFrom &&
-            matchesTo
-          )
+  try {
+    const response = await $api<TimeLogsApiResponse>(
+      '/admin/time-logs',
+      {
+        method: 'GET',
+        query: {
+          limit: 500,
+          _refresh: Date.now(),
         },
+      },
+    )
+
+    if (requestId !== latestRequestId) {
+      return
+    }
+
+    if (!response.success) {
+      throw new Error(
+        response.message || 'Failed to retrieve time logs.',
+      )
+    }
+
+    timeLogs.value = (
+      Array.isArray(response.data)
+        ? response.data
+        : []
+    ).map(transformTimeLog)
+  } catch (err: unknown) {
+    if (requestId !== latestRequestId) {
+      return
+    }
+
+    const apiError = err as {
+      data?: { message?: string }
+      message?: string
+    }
+
+    error.value =
+      apiError?.data?.message ||
+      apiError?.message ||
+      'Unable to load time logs from the server.'
+
+    console.error('Failed to fetch time logs:', err)
+  } finally {
+    if (requestId === latestRequestId) {
+      loading.value = false
+    }
+  }
+}
+
+  // =====================================================
+  // FILTERED LOGS
+  // =====================================================
+
+  const filteredLogs = computed(() => {
+    const keyword = search.value
+      .trim()
+      .toLowerCase()
+
+    return timeLogs.value.filter((log) => {
+      const matchesSearch =
+        !keyword ||
+        log.employeeName
+          .toLowerCase()
+          .includes(keyword) ||
+        log.employeeNumber
+          .toLowerCase()
+          .includes(keyword) ||
+        log.department
+          .toLowerCase()
+          .includes(keyword)
+
+      const matchesDepartment =
+        !department.value ||
+        log.department === department.value
+
+      const matchesStatus =
+        !status.value ||
+        log.status === status.value
+
+      const matchesFrom =
+        !dateFrom.value ||
+        log.date >= dateFrom.value
+
+      const matchesTo =
+        !dateTo.value ||
+        log.date <= dateTo.value
+
+      return (
+        matchesSearch &&
+        matchesDepartment &&
+        matchesStatus &&
+        matchesFrom &&
+        matchesTo
       )
     })
+  })
 
-  /* =========================================================
-     STATS
-  ========================================================= */
+  // =====================================================
+  // STATISTICS
+  // =====================================================
 
   const stats = computed(() => {
-    const logs =
-      filteredLogs.value
+    const logs = filteredLogs.value
 
-    const complete =
-      logs.filter(
-        log =>
-          log.status ===
-          'Complete',
-      ).length
+    const complete = logs.filter(
+      log => log.status === 'Complete',
+    ).length
 
-    const missing =
-      logs.filter(
-        log =>
-          log.status ===
-          'Missing Log',
-      ).length
+    const missing = logs.filter(
+      log => log.status === 'Missing Log',
+    ).length
 
-    const issues =
-      logs.filter(
-        log =>
-          log.status ===
-            'Incomplete' ||
-          log.status ===
-            'Missing Log' ||
-          log.lateMinutes > 0 ||
-          log.undertimeMinutes > 0,
-      ).length
+    const issues = logs.filter(
+      log =>
+        log.status === 'Incomplete' ||
+        log.status === 'Missing Log' ||
+        log.lateMinutes > 0 ||
+        log.undertimeMinutes > 0,
+    ).length
 
     return {
       total: logs.length,
@@ -401,99 +283,90 @@ export const useTimeLogs = () => {
     }
   })
 
-  /* =========================================================
-     OPTIONS
-  ========================================================= */
+  // =====================================================
+  // OPTIONS
+  // =====================================================
 
-  const departments =
-    computed(() => {
-      return [
-        ...new Set(
-          timeLogs.value.map(
-            log =>
-              log.department,
-          ),
+  const departments = computed(() => {
+    return [
+      ...new Set(
+        timeLogs.value.map(
+          log => log.department,
         ),
-      ].sort()
-    })
+      ),
+    ].sort()
+  })
 
-  const statusOptions:
-    TimeLogStatus[] = [
-      'Complete',
-      'Incomplete',
-      'Missing Log',
-      'On Leave',
-      'Rest Day',
-    ]
+  const statusOptions: TimeLogStatus[] = [
+    'Complete',
+    'Incomplete',
+    'Missing Log',
+    'On Leave',
+    'Rest Day',
+  ]
 
-  /* =========================================================
-     PAGINATION
-  ========================================================= */
+  // =====================================================
+  // PAGINATION
+  // =====================================================
 
-  const totalPages =
-    computed(() => {
-      return Math.max(
-        1,
-        Math.ceil(
-          filteredLogs.value.length /
-            perPage.value,
-        ),
-      )
-    })
-
-  const paginatedLogs =
-    computed(() => {
-      const start =
-        (currentPage.value - 1) *
-        perPage.value
-
-      return filteredLogs.value.slice(
-        start,
-        start +
+  const totalPages = computed(() => {
+    return Math.max(
+      1,
+      Math.ceil(
+        filteredLogs.value.length /
           perPage.value,
-      )
-    })
+      ),
+    )
+  })
 
-  const showingFrom =
-    computed(() => {
-      if (
-        !filteredLogs.value.length
-      ) {
-        return 0
-      }
+  const paginatedLogs = computed(() => {
+    const start =
+      (currentPage.value - 1) *
+      perPage.value
 
-      return (
-        (currentPage.value - 1) *
-          perPage.value +
-        1
-      )
-    })
+    return filteredLogs.value.slice(
+      start,
+      start + perPage.value,
+    )
+  })
 
-  const showingTo =
-    computed(() => {
-      return Math.min(
-        currentPage.value *
-          perPage.value,
+  const showingFrom = computed(() => {
+    if (!filteredLogs.value.length) {
+      return 0
+    }
 
-        filteredLogs.value.length,
-      )
-    })
+    return (
+      (currentPage.value - 1) *
+        perPage.value +
+      1
+    )
+  })
 
-  /* =========================================================
-     RESET
-  ========================================================= */
+  const showingTo = computed(() => {
+    return Math.min(
+      currentPage.value * perPage.value,
+      filteredLogs.value.length,
+    )
+  })
+
+  // =====================================================
+  // RESET FILTERS
+  // =====================================================
 
   const resetFilters = () => {
     search.value = ''
     department.value = ''
     status.value = ''
-    dateFrom.value =
-      '2026-09-01'
-    dateTo.value =
-      '2026-09-03'
+
+    dateFrom.value = '2026-09-01'
+    dateTo.value = '2026-09-05'
 
     currentPage.value = 1
   }
+
+  // =====================================================
+  // WATCH FILTERS
+  // =====================================================
 
   watch(
     [
@@ -508,21 +381,21 @@ export const useTimeLogs = () => {
     },
   )
 
-  watch(
-    totalPages,
-    () => {
-      if (
-        currentPage.value >
-        totalPages.value
-      ) {
-        currentPage.value =
-          totalPages.value
-      }
-    },
-  )
+  watch(totalPages, (pages) => {
+    if (currentPage.value > pages) {
+      currentPage.value = pages
+    }
+  })
+
+  // =====================================================
+  // RETURN
+  // =====================================================
 
   return {
     timeLogs,
+    loading,
+    error,
+    fetchTimeLogs,
 
     search,
     department,
@@ -537,12 +410,10 @@ export const useTimeLogs = () => {
     paginatedLogs,
 
     totalPages,
-
     showingFrom,
     showingTo,
 
     stats,
-
     departments,
     statusOptions,
 

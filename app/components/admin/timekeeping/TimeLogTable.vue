@@ -1,434 +1,233 @@
-<script setup lang="ts">
-import {
-  Clock3,
-  Users,
-} from 'lucide-vue-next'
 
-import type {
-  TimeLogRecord,
-} from '~/types/timekeeping'
+<script setup lang="ts">
+import { Clock3, Users } from 'lucide-vue-next'
+import type { TimeLogRecord } from '~/types/timekeeping'
 
 defineProps<{
   logs: TimeLogRecord[]
 }>()
 
-const formatDate = (
-  date: string,
-) => {
-  return new Intl.DateTimeFormat(
-    'en-US',
-    {
-      month: 'short',
-      day: '2-digit',
-      year: 'numeric',
-    },
-  ).format(
-    new Date(
-      `${date}T00:00:00`,
-    ),
-  )
-}
+const formatDate = (value: string) => {
+  if (!value) return '—'
 
-const minutesLabel = (
-  minutes: number,
-) => {
-  return minutes
-    ? `${minutes} min`
-    : '—'
-}
+  const date = new Date(`${value}T00:00:00`)
 
-const hoursLabel = (
-  hours?: number,
-) => {
-  if (
-    hours === undefined ||
-    hours === null
-  ) {
-    return '—'
+  if (Number.isNaN(date.getTime())) {
+    return value
   }
 
-  return `${hours.toFixed(2)} hrs`
+  return date.toLocaleDateString('en-US', {
+    month: 'short',
+    day: '2-digit',
+    year: 'numeric',
+  })
+}
+
+const displayTime = (value?: string | null) => {
+  return value || '—'
+}
+
+const displayMinutes = (value: number) => {
+  return value > 0 ? `${value} min` : '—'
+}
+
+const statusClass = (status: string) => {
+  if (status === 'Complete') return 'complete'
+  if (status === 'Missing Log') return 'missing'
+  if (status === 'Incomplete') return 'incomplete'
+  if (status === 'On Leave') return 'on-leave'
+  if (status === 'Rest Day') return 'rest-day'
+  return 'default'
 }
 </script>
 
 <template>
-  <div class="time-log-card">
+  <BaseDataTable
+    title="Employee Time Logs"
+    description="Review detailed attendance logs, schedules, late, undertime and worked hours."
+    :has-rows="logs.length > 0"
+    min-width="1200px"
+    empty-title="No time logs found"
+    empty-description="Try changing your filters or date range."
+  >
+    <template #headers>
+      <th>Employee</th>
+      <th>Date</th>
+      <th>Schedule</th>
+      <th>Time In</th>
+      <th>Break Out</th>
+      <th>Break In</th>
+      <th>Time Out</th>
+      <th>Late</th>
+      <th>Undertime</th>
+      <th>Hours</th>
+      <th>Status</th>
+      <th>Actions</th>
+    </template>
 
-    <div class="table-heading">
-      <div>
-        <h3>
-          Employee Time Logs
-        </h3>
+    <template #rows>
+      <tr v-for="log in logs" :key="log.id">
+        <td>
+          <div class="employee-cell">
+            <span class="employee-icon">
+              <Users :size="15" />
+            </span>
 
-        <p>
-          Review detailed attendance logs,
-          schedules, late, undertime and worked hours.
-        </p>
-      </div>
-    </div>
+            <div class="employee-details">
+              <strong>{{ log.employeeName }}</strong>
+              <small>
+                {{ log.employeeNumber }} · {{ log.department }}
+              </small>
+            </div>
+          </div>
+        </td>
 
-    <div
-      v-if="logs.length"
-      class="table-scroll"
-    >
-      <table class="time-log-table">
+        <td>
+          {{ formatDate(log.date) }}
+        </td>
 
-        <thead>
-          <tr>
-            <th>Employee</th>
-            <th>Date</th>
-            <th>Schedule</th>
-            <th>Time In</th>
-            <th>Break Out</th>
-            <th>Break In</th>
-            <th>Time Out</th>
-            <th>Late</th>
-            <th>Undertime</th>
-            <th>Hours</th>
-            <th>Status</th>
-            <th class="action-column" />
-          </tr>
-        </thead>
+        <td>
+          <span class="schedule-cell">
+            <Clock3 :size="13" />
+            {{ log.schedule }}
+          </span>
+        </td>
 
-        <tbody>
-          <tr
-            v-for="log in logs"
-            :key="log.id"
+        <td :class="{ 'issue-time': log.lateMinutes > 0 }">
+          {{ displayTime(log.timeIn) }}
+        </td>
+
+        <td>
+          {{ displayTime(log.breakOut) }}
+        </td>
+
+        <td>
+          {{ displayTime(log.breakIn) }}
+        </td>
+
+        <td :class="{ 'issue-time': log.undertimeMinutes > 0 }">
+          {{ displayTime(log.timeOut) }}
+        </td>
+
+        <td :class="{ 'issue-time': log.lateMinutes > 0 }">
+          {{ displayMinutes(log.lateMinutes) }}
+        </td>
+
+        <td :class="{ 'issue-time': log.undertimeMinutes > 0 }">
+          {{ displayMinutes(log.undertimeMinutes) }}
+        </td>
+
+        <td class="worked-hours">
+          {{
+            log.hoursWorked === undefined
+              ? '—'
+              : `${log.hoursWorked.toFixed(2)} hrs`
+          }}
+        </td>
+
+        <td>
+          <span
+            class="attendance-status"
+            :class="statusClass(log.status)"
           >
+            {{ log.status }}
+          </span>
+        </td>
 
-            <td>
-              <div class="employee-cell">
-
-                <div class="employee-icon">
-                  <Users :size="15" />
-                </div>
-
-                <div>
-                  <strong>
-                    {{ log.employeeName }}
-                  </strong>
-
-                  <span>
-                    {{ log.employeeNumber }}
-                    ·
-                    {{ log.department }}
-                  </span>
-                </div>
-
-              </div>
-            </td>
-
-            <td>
-              {{ formatDate(log.date) }}
-            </td>
-
-            <td>
-              <div class="schedule-cell">
-                <Clock3 :size="13" />
-
-                {{ log.schedule }}
-              </div>
-            </td>
-
-            <td>
-              <span
-                :class="{
-                  issue:
-                    log.lateMinutes > 0,
-                }"
-              >
-                {{ log.timeIn || '—' }}
-              </span>
-            </td>
-
-            <td>
-              {{ log.breakOut || '—' }}
-            </td>
-
-            <td>
-              {{ log.breakIn || '—' }}
-            </td>
-
-            <td>
-              <span
-                :class="{
-                  issue:
-                    log.undertimeMinutes > 0,
-                }"
-              >
-                {{ log.timeOut || '—' }}
-              </span>
-            </td>
-
-            <td>
-              <span
-                :class="{
-                  issue:
-                    log.lateMinutes > 0,
-                }"
-              >
-                {{
-                  minutesLabel(
-                    log.lateMinutes,
-                  )
-                }}
-              </span>
-            </td>
-
-            <td>
-              <span
-                :class="{
-                  issue:
-                    log.undertimeMinutes > 0,
-                }"
-              >
-                {{
-                  minutesLabel(
-                    log.undertimeMinutes,
-                  )
-                }}
-              </span>
-            </td>
-
-            <td>
-              <strong>
-                {{
-                  hoursLabel(
-                    log.hoursWorked,
-                  )
-                }}
-              </strong>
-            </td>
-
-            <td>
-              <StatusBadge
-                :status="log.status"
-              />
-            </td>
-
-            <td class="action-column">
-              <TimeLogActions
-                :log="log"
-              />
-            </td>
-
-          </tr>
-        </tbody>
-      </table>
-    </div>
-
-    <div
-      v-else
-      class="empty-state"
-    >
-      <div class="empty-icon">
-        <Clock3 :size="24" />
-      </div>
-
-      <strong>
-        No time logs found
-      </strong>
-
-      <p>
-        Try changing your filters or date range.
-      </p>
-    </div>
-
-  </div>
+        <td>
+          <TimeLogActions :log="log" />
+        </td>
+      </tr>
+    </template>
+  </BaseDataTable>
 </template>
 
 <style scoped>
-.time-log-card {
-  position: relative;
-
-  border: 1px solid var(--border);
-  border-radius: 11px;
-
-  background: var(--bg-card);
-
-  box-shadow: var(--shadow);
-}
-
-.table-heading {
-  padding: 15px 17px;
-
-  border-bottom:
-    1px solid var(--border-soft);
-}
-
-.table-heading h3 {
-  margin: 0;
-
-  color: var(--text-primary);
-
-  font-size: 13px;
-  font-weight: 700;
-}
-
-.table-heading p {
-  margin: 4px 0 0;
-
-  color: var(--text-muted);
-
-  font-size: 9px;
-}
-
-.table-scroll {
-  overflow-x: auto;
-}
-
-.time-log-table {
-  width: 100%;
-
-  min-width: 1450px;
-
-  border-collapse: collapse;
-}
-
-.time-log-table th {
-  padding: 11px 12px;
-
-  border-bottom:
-    1px solid var(--border);
-
-  background: var(--bg-card-soft);
-  color: var(--text-secondary);
-
-  font-size: 8px;
-  font-weight: 650;
-
-  text-align: left;
-  text-transform: uppercase;
-
-  white-space: nowrap;
-
-  letter-spacing: 0.3px;
-}
-
-.time-log-table td {
-  padding: 11px 12px;
-
-  border-bottom:
-    1px solid var(--border-soft);
-
-  color: var(--text-secondary);
-
-  font-size: 9px;
-
-  white-space: nowrap;
-}
-
-.time-log-table tbody
-tr:last-child td {
-  border-bottom: 0;
-}
-
-.time-log-table tbody tr:hover {
-  background: var(--bg-card-soft);
-}
-
 .employee-cell {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 9px;
+  min-width: 190px;
 }
 
 .employee-icon {
   display: flex;
-
-  width: 32px;
-  height: 32px;
-
+  width: 28px;
+  height: 28px;
   flex-shrink: 0;
-
   align-items: center;
   justify-content: center;
-
   border-radius: 8px;
-
   background: var(--primary-soft);
   color: var(--primary);
 }
 
-.employee-cell strong,
-.employee-cell span {
-  display: block;
+.employee-details {
+  min-width: 0;
 }
 
-.employee-cell strong {
+.employee-details strong {
+  display: block;
   color: var(--text-primary);
+  font-size: 10px;
+  font-weight: 700;
+}
 
+.employee-details small {
+  display: block;
+  margin-top: 4px;
+  color: var(--text-muted);
   font-size: 9px;
 }
 
-.employee-cell span {
-  margin-top: 3px;
-
-  color: var(--text-muted);
-
-  font-size: 7px;
-}
-
 .schedule-cell {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 6px;
+  white-space: nowrap;
 }
 
-.issue {
-  color: var(--orange);
+.issue-time {
+  color: var(--orange) !important;
+  font-weight: 700;
+}
 
+.worked-hours {
+  color: var(--text-primary) !important;
   font-weight: 650;
+  white-space: nowrap;
 }
 
-.action-column {
-  width: 45px;
-
-  text-align: right !important;
-}
-
-.empty-state {
-  display: flex;
-
-  min-height: 260px;
-
-  flex-direction: column;
+.attendance-status {
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-
-  padding: 30px;
-
-  text-align: center;
+  padding: 6px 10px;
+  border-radius: 20px;
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
 }
 
-.empty-icon {
-  display: flex;
+.attendance-status.complete {
+  background: var(--green-soft);
+  color: var(--green);
+}
 
-  width: 48px;
-  height: 48px;
+.attendance-status.incomplete,
+.attendance-status.missing {
+  background: var(--orange-soft);
+  color: var(--orange);
+}
 
-  align-items: center;
-  justify-content: center;
-
-  margin-bottom: 12px;
-
-  border-radius: 12px;
-
+.attendance-status.on-leave,
+.attendance-status.rest-day {
   background: var(--primary-soft);
   color: var(--primary);
 }
 
-.empty-state strong {
-  color: var(--text-primary);
-
-  font-size: 13px;
-}
-
-.empty-state p {
-  margin: 5px 0 0;
-
-  color: var(--text-muted);
-
-  font-size: 10px;
+.attendance-status.default {
+  background: var(--purple-soft);
+  color: var(--purple);
 }
 </style>
