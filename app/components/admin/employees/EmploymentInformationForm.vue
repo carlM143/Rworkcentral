@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { BriefcaseBusiness, Building2, UserRound, CalendarDays, Clock3, BadgeCheck } from 'lucide-vue-next'
+import { BriefcaseBusiness, Building2, UserRound, Clock3, BadgeCheck } from 'lucide-vue-next'
 import { useDepartmentApi, type DepartmentApiRecord } from '~/composables/admin/departments/useDepartmentApi'
 import { usePositionApi, type PositionApiRecord } from '~/composables/admin/departments/positions/usePositionApi'
 
@@ -9,49 +9,16 @@ const { error: showError } = useToast()
 const departmentApi = useDepartmentApi()
 const positionApi = usePositionApi()
 
-interface RestDayRecord { id: number; rest_day: string }
 interface EmploymentTypeRecord { id: number; name: string }
 interface ApiResponse<T> { success: boolean; message: string; data: T }
 
-const restDays = ref<RestDayRecord[]>([])
 const employmentTypes = ref<EmploymentTypeRecord[]>([])
 const departments = ref<DepartmentApiRecord[]>([])
 const positions = ref<PositionApiRecord[]>([])
 
-const loadingRestDays = ref(false)
 const loadingEmploymentTypes = ref(false)
 const loadingOrganization = ref(false)
 const organizationError = ref('')
-
-interface DaySchedule {
-  day: string
-  label: string
-  enabled: boolean
-  timeIn: string
-  timeOut: string
-}
-
-const weekDays = reactive<DaySchedule[]>([
-  { day: 'monday', label: 'Monday', enabled: true, timeIn: '08:00 AM', timeOut: '05:00 PM' },
-  { day: 'tuesday', label: 'Tuesday', enabled: true, timeIn: '08:00 AM', timeOut: '05:00 PM' },
-  { day: 'wednesday', label: 'Wednesday', enabled: true, timeIn: '08:00 AM', timeOut: '05:00 PM' },
-  { day: 'thursday', label: 'Thursday', enabled: true, timeIn: '08:00 AM', timeOut: '05:00 PM' },
-  { day: 'friday', label: 'Friday', enabled: true, timeIn: '08:00 AM', timeOut: '05:00 PM' },
-  { day: 'saturday', label: 'Saturday', enabled: false, timeIn: '08:00 AM', timeOut: '12:00 PM' },
-  { day: 'sunday', label: 'Sunday', enabled: false, timeIn: '08:00 AM', timeOut: '12:00 PM' },
-])
-
-const applyMonToWeekdays = () => {
-  const mon = weekDays.find(d => d.day === 'monday')
-  if (!mon) return
-  weekDays.forEach(d => {
-    if (['monday', 'tuesday', 'wednesday', 'thursday', 'friday'].includes(d.day)) {
-      d.timeIn = mon.timeIn
-      d.timeOut = mon.timeOut
-      d.enabled = true
-    }
-  })
-}
 
 const isActive = (status: boolean | number | string) =>
   status === true || status === 1 || status === '1' || status === 'true' || status === 'Active'
@@ -76,41 +43,31 @@ const {
   loadSchedules,
 } = useWorkSchedules()
 
+// Show active schedules, plus the employee's assigned template during Edit
+// even if that template has since been deactivated.
 const workScheduleOptions = computed(() =>
-  schedules.value.filter(schedule => schedule.status === 'Active')
+  schedules.value.filter(schedule =>
+    schedule.status === 'Active'
+    || schedule.id === Number(form.value.workScheduleId),
+  ),
 )
 
+// The employee stores the template ID; its working/rest days and shift times
+// are managed only in the Work Schedules module.
 const loadAvailableWorkSchedules = async () => {
   try {
     await loadSchedules()
 
-    if (!form.value.workScheduleId && workScheduleOptions.value.length > 0) {
-      const defaultSch = workScheduleOptions.value[0]
-      form.value.workScheduleId = defaultSch.id
-      form.value.workSchedule = defaultSch.name
-      if (defaultSch.timeIn && defaultSch.timeOut) {
-        weekDays.forEach(d => {
-          if (['monday', 'tuesday', 'wednesday', 'thursday', 'friday'].includes(d.day)) {
-            d.timeIn = defaultSch.timeIn
-            d.timeOut = defaultSch.timeOut
-            d.enabled = true
-          }
-        })
-      }
-    } else if (form.value.workScheduleId) {
-      const selected = schedules.value.find(s => s.id === form.value.workScheduleId)
-      if (selected) {
-        form.value.workSchedule = selected.name
-        if (selected.timeIn && selected.timeOut) {
-          weekDays.forEach(d => {
-            if (['monday', 'tuesday', 'wednesday', 'thursday', 'friday'].includes(d.day)) {
-              d.timeIn = selected.timeIn
-              d.timeOut = selected.timeOut
-              d.enabled = true
-            }
-          })
-        }
-      }
+    const selected = schedules.value.find(
+      schedule => schedule.id === Number(form.value.workScheduleId),
+    )
+
+    if (selected) {
+      // Retain an existing employee's assignment during Edit.
+      form.value.workSchedule = selected.name
+    } else if (!form.value.workScheduleId) {
+      // Create: leave unselected because employment.work_schedule_id is nullable.
+      form.value.workSchedule = ''
     }
   } catch {
     showError(
@@ -122,21 +79,18 @@ const loadAvailableWorkSchedules = async () => {
 
 const selectWorkSchedule = (event: Event) => {
   const value = (event.target as HTMLSelectElement).value
-  const schId = value ? Number(value) : null
-  form.value.workScheduleId = schId
-  const selected = schedules.value.find(s => s.id === schId)
-  form.value.workSchedule = selected?.name ?? ''
+  const id = value ? Number(value) : null
+  const selected = schedules.value.find(schedule => schedule.id === id)
 
-  if (selected && selected.timeIn && selected.timeOut) {
-    weekDays.forEach(d => {
-      if (['monday', 'tuesday', 'wednesday', 'thursday', 'friday'].includes(d.day)) {
-        d.timeIn = selected.timeIn
-        d.timeOut = selected.timeOut
-        d.enabled = true
-      }
-    })
-  }
+  form.value.workScheduleId = selected?.id ?? null
+  form.value.workSchedule = selected?.name ?? ''
 }
+
+// Keep the name synced when an existing employee's data arrives asynchronously.
+watch([() => form.value.workScheduleId, schedules], ([id]) => {
+  const selected = schedules.value.find(schedule => schedule.id === Number(id))
+  if (selected) form.value.workSchedule = selected.name
+}, { immediate: true })
 
 const employeeSummary = computed(() => {
   const name = [form.value.firstName, form.value.middleName, form.value.lastName].filter(Boolean).join(' ')
@@ -158,30 +112,6 @@ const loadEmploymentTypes = async () => {
   } finally {
     loadingEmploymentTypes.value = false
   }
-}
-
-// REST DAYS
-const loadRestDays = async () => {
-  loadingRestDays.value = true
-  try {
-    const response = await $api<ApiResponse<RestDayRecord[]>>('/admin/rest-days')
-    restDays.value = response.data
-
-    if (form.value.restDay && form.value.restDayId === null) {
-      const selected = response.data.find(day => day.rest_day === form.value.restDay)
-      form.value.restDayId = selected?.id ?? null
-    }
-  } catch {
-    restDays.value = []
-    showError('Rest Days Unavailable', 'Could not load rest days from the database.')
-  } finally {
-    loadingRestDays.value = false
-  }
-}
-
-const selectRestDay = (day: RestDayRecord) => {
-  form.value.restDayId = day.id
-  form.value.restDay = day.rest_day
 }
 
 watch(() => form.value.employmentType, name => {
@@ -273,7 +203,6 @@ const selectPosition = (event: Event) => {
 
 onMounted(() => {
   void loadEmploymentTypes()
-  void loadRestDays()
   void loadOrganization()
   void loadAvailableWorkSchedules()
 })
@@ -406,28 +335,19 @@ onMounted(() => {
           <button type="button" :disabled="loadingOrganization" @click="loadOrganization">Retry</button>
         </div>
 
-        <!-- WORK SCHEDULE -->
+        <!-- WORK SCHEDULE: Template assignment only. No per-employee shift editing. -->
         <div class="section-divider" />
 
         <div class="section-title">
           <div class="section-title-icon orange"><Clock3 :size="16" /></div>
-          <div class="heading-with-action">
-            <div>
-              <strong>Work Schedule &amp; Day-by-Day Shift Timings</strong>
-              <span>Select work schedule template or customize shift timings for each workday.</span>
-            </div>
-            <button
-              type="button"
-              class="btn-text-action"
-              @click="applyMonToWeekdays"
-            >
-              Apply Monday to Weekdays
-            </button>
+          <div>
+            <strong>Work Schedule</strong>
+            <span>Assign a preconfigured work schedule to this employee.</span>
           </div>
         </div>
 
-        <div class="form-field" style="margin-bottom: 14px;">
-          <label class="field-label" for="employee-work-schedule">Work Schedule Template <span>*</span></label>
+        <div class="form-field">
+          <label class="field-label" for="employee-work-schedule">Work Schedule Template</label>
           <select
             id="employee-work-schedule"
             class="lookup-select"
@@ -435,63 +355,11 @@ onMounted(() => {
             :disabled="loadingWorkSchedules"
             @change="selectWorkSchedule"
           >
-            <option value="">{{ loadingWorkSchedules ? 'Loading work schedules...' : 'Select work schedule template' }}</option>
+            <option value="">{{ loadingWorkSchedules ? 'Loading work schedules...' : 'No work schedule (optional)' }}</option>
             <option v-for="sch in workScheduleOptions" :key="sch.id" :value="sch.id">
-              {{ sch.name }} ({{ sch.code }} - {{ sch.timeIn }} to {{ sch.timeOut }})
+              {{ sch.name }} ({{ sch.code }})
             </option>
           </select>
-          <small class="field-hint">Selecting a template auto-fills shift times below. You can overwrite any day's timing freely.</small>
-        </div>
-
-        <!-- DAY BY DAY SHIFT TIMINGS -->
-        <div class="days-schedule-container">
-          <div
-            v-for="d in weekDays"
-            :key="d.day"
-            class="day-schedule-row"
-            :class="{ 'day-disabled': !d.enabled }"
-          >
-            <label class="day-checkbox-label">
-              <input
-                v-model="d.enabled"
-                type="checkbox"
-              >
-              <span class="day-name">{{ d.label }}</span>
-            </label>
-
-            <div class="day-times" v-if="d.enabled">
-              <div class="mini-field">
-                <span class="mini-label">In:</span>
-                <input
-                  v-model="d.timeIn"
-                  type="text"
-                  class="native-input mini"
-                  placeholder="08:00 AM"
-                >
-              </div>
-              <span class="time-dash">-</span>
-              <div class="mini-field">
-                <span class="mini-label">Out:</span>
-                <input
-                  v-model="d.timeOut"
-                  type="text"
-                  class="native-input mini"
-                  placeholder="05:00 PM"
-                >
-              </div>
-            </div>
-            <div class="day-rest-badge" v-else>
-              Rest Day / Off
-            </div>
-          </div>
-        </div>
-
-        <div class="integration-note">
-          <CalendarDays :size="18" />
-          <div>
-            <strong>HRIS Integration</strong>
-            <span>Department, position, and work schedule assignments are retrieved from Laravel and will be saved using their database IDs.</span>
-          </div>
         </div>
       </div>
     </div>
@@ -514,9 +382,6 @@ onMounted(() => {
 .summary-note{margin-top:13px;padding:10px;border-radius:8px;background:var(--primary-soft);color:var(--text-secondary);font-size:8px;line-height:1.55}
 .employment-form{min-width:0}
 .section-title{display:flex;align-items:center;gap:9px;margin-bottom:14px}
-.heading-with-action{display:flex;flex:1;align-items:center;justify-content:space-between;gap:12px}
-.btn-text-action{padding:4px 10px;border:1px solid var(--border);border-radius:6px;background:var(--bg-card);color:var(--primary);font-size:9px;font-weight:600;cursor:pointer;white-space:nowrap}
-.btn-text-action:hover{background:var(--primary-soft);border-color:var(--primary)}
 .section-title-icon{display:flex;width:31px;height:31px;flex-shrink:0;align-items:center;justify-content:center;border-radius:8px;background:var(--primary-soft);color:var(--primary)}
 .section-title-icon.green{background:var(--green-soft);color:var(--green)}
 .section-title-icon.orange{background:var(--orange-soft);color:var(--orange)}
@@ -536,37 +401,6 @@ onMounted(() => {
 .organization-error{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:12px;padding:10px;border:1px solid var(--red);border-radius:8px;color:var(--red);font-size:10px}
 .organization-error button{padding:6px 11px;border:1px solid var(--border);border-radius:6px;background:var(--bg-card);color:var(--text-primary);cursor:pointer}
 .section-divider{height:1px;margin:24px 0 18px;background:var(--border-soft)}
-.integration-note{display:flex;align-items:flex-start;gap:10px;margin-top:22px;padding:12px;border:1px solid color-mix(in srgb,var(--primary) 20%,var(--border));border-radius:9px;background:color-mix(in srgb,var(--primary-soft) 55%,var(--bg-card));color:var(--primary)}
-.integration-note svg{flex-shrink:0}
-.integration-note strong,.integration-note span{display:block}
-.integration-note strong{color:var(--text-primary);font-size:9px}
-.integration-note span{margin-top:3px;color:var(--text-secondary);font-size:8px;line-height:1.5}
-.rest-day-options{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px}
-.rest-day-option{position:relative;display:flex;min-height:38px;align-items:center;gap:8px;padding:0 10px;border:1px solid var(--border);border-radius:8px;background:var(--bg-card);color:var(--text-secondary);font-size:9px;cursor:pointer;transition:border-color .15s ease,background .15s ease,color .15s ease}
-.rest-day-option:hover{border-color:var(--primary)}
-.rest-day-option.selected{border-color:var(--primary);background:var(--primary-soft);color:var(--primary)}
-.rest-day-option input{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
-.radio-control{position:relative;width:15px;height:15px;flex-shrink:0;border:1.5px solid var(--border);border-radius:50%;background:var(--bg-card)}
-.rest-day-option.selected .radio-control{border-color:var(--primary)}
-.rest-day-option.selected .radio-control::after{position:absolute;top:50%;left:50%;width:7px;height:7px;transform:translate(-50%,-50%);border-radius:50%;background:var(--primary);content:''}
-.radio-label{font-weight:550}
-
-/* DAY BY DAY SHIFT TIMINGS */
-.days-schedule-container { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
-.day-schedule-row { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; border: 1px solid var(--border-soft); border-radius: 8px; background: var(--bg-card); transition: all 0.15s ease; }
-.day-schedule-row.day-disabled { opacity: 0.55; background: var(--bg-card-soft); }
-.day-checkbox-label { display: flex; align-items: center; gap: 10px; cursor: pointer; user-select: none; }
-.day-checkbox-label input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--primary); cursor: pointer; }
-.day-name { color: var(--text-primary); font-size: 10px; font-weight: 600; min-width: 75px; }
-.day-times { display: flex; align-items: center; gap: 8px; }
-.mini-field { display: flex; align-items: center; gap: 5px; }
-.mini-label { color: var(--text-muted); font-size: 9px; }
-.native-input.mini { width: 110px; height: 32px; padding: 0 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-card); color: var(--text-primary); font-size: 10px; outline: none; }
-.native-input.mini:focus { border-color: var(--primary); }
-.time-dash { color: var(--text-muted); font-size: 10px; }
-.day-rest-badge { padding: 3px 8px; border-radius: 4px; background: var(--bg-card-soft); color: var(--text-muted); font-size: 9px; font-weight: 500; }
-
-@media(max-width:1100px){.rest-day-options{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:900px){.employment-layout{grid-template-columns:1fr}.summary-column{width:100%;max-width:450px;margin:0 auto;padding-right:0;padding-bottom:20px;border-right:0;border-bottom:1px solid var(--border-soft)}}
-@media(max-width:600px){.two-column{grid-template-columns:1fr}.rest-day-options{grid-template-columns:1fr}}
+@media(max-width:600px){.two-column{grid-template-columns:1fr}}
 </style>

@@ -251,7 +251,7 @@ const menuItems = [
   children: [
     {
       label: 'Leave Balances',
-      to: '/admin/leave-balances',
+      to: '/admin/leave-management/leave-balances',
     },
     {
       label: 'Leave Types',

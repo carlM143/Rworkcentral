@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { ClipboardList, Eye, RotateCcw, UserRound } from 'lucide-vue-next'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { ClipboardList, Eye, MoreHorizontal, RotateCcw } from 'lucide-vue-next'
+import BaseDataTable from '~/components/shared-table/BaseDataTable.vue'
 import type { LeaveApproval } from '~/types/leaveApproval'
 
-withDefaults(defineProps<{
+const props = withDefaults(defineProps<{
   requests: LeaveApproval[]
   statusFilter?: string
   approving?: boolean
@@ -16,502 +18,262 @@ const emit = defineEmits<{
   revert: [request: LeaveApproval]
 }>()
 
+const openMenuId = ref<number | null>(null)
+const menuStyle = ref<Record<string, string>>({})
+const menuRef = ref<HTMLElement | null>(null)
+let triggerElement: HTMLElement | null = null
+
+const openRequest = computed(() =>
+  props.requests.find(item => item.id === openMenuId.value) ?? null,
+)
+
+const canShowUndo = computed(() =>
+  openRequest.value?.status === 'approved' || openRequest.value?.status === 'rejected',
+)
+
+// Position the menu outside the scrollable table so it is never clipped.
+const positionMenu = () => {
+  if (!triggerElement || !openRequest.value || !import.meta.client) return
+
+  const rect = triggerElement.getBoundingClientRect()
+  const width = 220
+  const height = canShowUndo.value ? 94 : 48
+  const spaceBelow = window.innerHeight - rect.bottom
+  const top = spaceBelow >= height + 12
+    ? rect.bottom + 6
+    : rect.top - height - 6
+  const left = Math.max(8, Math.min(rect.right - width, window.innerWidth - width - 8))
+
+  menuStyle.value = {
+    position: 'fixed',
+    left: `${left}px`,
+    top: `${Math.max(8, top)}px`,
+    width: `${width}px`,
+    zIndex: '10000',
+  }
+}
+
+const closeMenu = () => {
+  openMenuId.value = null
+  triggerElement = null
+}
+
+const toggleMenu = async (item: LeaveApproval, event: MouseEvent) => {
+  if (props.approving) return
+  if (openMenuId.value === item.id) {
+    closeMenu()
+    return
+  }
+
+  triggerElement = event.currentTarget as HTMLElement
+  openMenuId.value = item.id
+  await nextTick()
+  positionMenu()
+}
+
+const openDetails = (item: LeaveApproval | null) => {
+  if (!item) return
+  closeMenu()
+  emit('review', item)
+}
+
+const revertRequest = (item: LeaveApproval | null) => {
+  if (!item) return
+  closeMenu()
+  emit('revert', item)
+}
+
+const onPointerDown = (event: PointerEvent) => {
+  const target = event.target as Node | null
+  if (target && (menuRef.value?.contains(target) || triggerElement?.contains(target))) return
+  closeMenu()
+}
+
+const onKeyDown = (event: KeyboardEvent) => {
+  if (event.key === 'Escape') closeMenu()
+}
+
+onMounted(() => {
+  document.addEventListener('pointerdown', onPointerDown)
+  document.addEventListener('keydown', onKeyDown)
+  window.addEventListener('resize', closeMenu)
+  window.addEventListener('scroll', closeMenu, true)
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('pointerdown', onPointerDown)
+  document.removeEventListener('keydown', onKeyDown)
+  window.removeEventListener('resize', closeMenu)
+  window.removeEventListener('scroll', closeMenu, true)
+})
+
+watch(() => props.requests, closeMenu)
+
 const formatDate = (value: string | null | undefined) => {
   if (!value) return '—'
-
   const date = new Date(`${value.slice(0, 10)}T12:00:00`)
-
   return Number.isNaN(date.getTime())
     ? value
-    : new Intl.DateTimeFormat('en-US', {
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric',
+    : new Intl.DateTimeFormat('en-PH', {
+        month: 'short', day: 'numeric', year: 'numeric',
       }).format(date)
 }
 
-const formatLeaveRange = (item: LeaveApproval) => {
-  const dates = [...(item.dates ?? [])].sort((a, b) =>
-    a.leave_date.localeCompare(b.leave_date),
-  )
-
-  const start = item.start || dates[0]?.leave_date || item.request_date
-  const end = item.end || dates[dates.length - 1]?.leave_date || start
-
-  if (!start) return '—'
-
-  if (!end || start.slice(0, 10) === end.slice(0, 10)) {
-    return formatDate(start)
-  }
-
-  return `${formatDate(start)} – ${formatDate(end)}`
-}
-
-const formatTotalDays = (item: LeaveApproval) => {
-  const days = item.total_days
-    ?? item.dates?.reduce((total, date) => {
-      const value = Number(date.day_value)
-      return total + (Number.isFinite(value) ? value : 1)
-    }, 0)
-    ?? 1
-
-  return `${days} day${days === 1 ? '' : 's'}`
-}
-
-const formatRequestedPay = (payType: string | null | undefined) => {
-  switch (payType) {
-    case 'paid':
-      return 'Paid Leave'
-    case 'unpaid':
-      return 'Unpaid Leave'
-    case 'mixed':
-      return 'Mixed Leave'
-    default:
-      return 'Not specified'
-  }
-}
-
-const formatPolicyStatus = (status: string | null | undefined) => {
-  if (!status) return 'Not available'
-
-  return status
-}
-
-const isValidPolicyStatus = (status: string | null | undefined) => {
-  return status === 'active' || status === 'approved'
+const formatRequestedPay = (value: string | null | undefined) => {
+  if (value === 'paid') return 'Paid Leave'
+  if (value === 'unpaid') return 'Unpaid Leave'
+  if (value === 'mixed') return 'Mixed Leave'
+  return 'Not specified'
 }
 </script>
 
 <template>
-  <article class="table-card">
-    <div class="table-heading">
-      <h3>Leave Requests</h3>
-      <p>
-        Review employee leave requests and their requested payment treatment.
-      </p>
-    </div>
+  <BaseDataTable
+    title="Leave Requests"
+    description="Review employee leave requests and their requested payment treatment."
+    :has-rows="requests.length > 0"
+    min-width="1100px"
+  >
+    <template #headers>
+      <th>Request No.</th>
+      <th>Employee</th>
+      <th>Employee ID</th>
+      <th>Leave Type</th>
+      <th>Request Date</th>
+      <th>Requested Pay</th>
+      <th>Status</th>
+      <th class="actions-header">Actions</th>
+    </template>
 
-    <div v-if="requests.length" class="table-scroll">
-      <table>
-        <thead>
-          <tr>
-            <th>Request No.</th>
-            <th>Employee</th>
-            <th>Leave Type</th>
-            <th>Requested Pay</th>
-            <th>Request Date</th>
-            <th>Leave Policy</th>
-            <th>Leave Schedule</th>
-            <th>Reason</th>
-            <th>Status</th>
-            <th class="actions-header">Actions</th>
-          </tr>
-        </thead>
-
-        <tbody>
-          <tr
-            v-for="item in requests"
-            :key="item.id"
+    <template #rows>
+      <tr v-for="item in requests" :key="item.id">
+        <td><span class="request-number">{{ item.request_no }}</span></td>
+        <td><strong class="table-emphasis">{{ item.employee?.name || 'Unknown Employee' }}</strong></td>
+        <td>{{ item.employee?.emp_id ?? '—' }}</td>
+        <td>{{ item.leave_type }}</td>
+        <td>{{ formatDate(item.request_date) }}</td>
+        <td>
+          <span class="pay-badge" :class="item.requested_pay_type">
+            {{ formatRequestedPay(item.requested_pay_type) }}
+          </span>
+        </td>
+        <td>
+          <span class="status-badge" :class="item.status">
+            <span class="status-dot" />
+            {{ item.status }}
+          </span>
+        </td>
+        <td class="actions-cell">
+          <button
+            type="button"
+            class="table-action-button"
+            :disabled="approving"
+            :aria-label="`Actions for ${item.request_no}`"
+            :aria-expanded="openMenuId === item.id"
+            aria-haspopup="menu"
+            @click="toggleMenu(item, $event)"
           >
-            <!-- Request Number -->
-            <td>
-              <strong class="request-number">
-                {{ item.request_no }}
-              </strong>
-            </td>
+            <MoreHorizontal :size="17" />
+          </button>
+        </td>
+      </tr>
+    </template>
 
-            <!-- Employee -->
-            <td>
-              <div class="employee-cell">
-                <div class="employee-avatar">
-                  <UserRound :size="15" />
-                </div>
-
-                <div class="cell-info">
-                  <strong>
-                    {{ item.employee?.name || 'Unknown Employee' }}
-                  </strong>
-
-                  <span>
-                    ID: {{ item.employee?.emp_id ?? '—' }}
-                  </span>
-                </div>
-              </div>
-            </td>
-
-            <!-- Leave Type -->
-            <td>
-              <div class="cell-info">
-                <strong>
-                  {{ item.leave_type }}
-                </strong>
-
-                <span>
-                  {{ item.leave_code || '—' }}
-                </span>
-              </div>
-            </td>
-
-            <!-- Requested Pay -->
-            <td>
-              <span
-                class="badge"
-                :class="item.requested_pay_type"
-              >
-                {{ formatRequestedPay(item.requested_pay_type) }}
-              </span>
-            </td>
-
-            <!-- Request Date -->
-            <td>
-              {{ formatDate(item.request_date) }}
-            </td>
-
-            <!-- Leave Policy -->
-            <td>
-              <div class="cell-info">
-                <strong>
-                  {{
-                    item.leave_policy_id
-                      ? `Policy #${item.leave_policy_id}`
-                      : 'No policy assigned'
-                  }}
-                </strong>
-
-                <span
-                  :class="
-                    isValidPolicyStatus(item.policy_status)
-                      ? 'valid'
-                      : 'warning'
-                  "
-                >
-                  {{ formatPolicyStatus(item.policy_status) }}
-                </span>
-              </div>
-            </td>
-
-            <!-- Leave Schedule -->
-            <td>
-              <div class="cell-info">
-                <strong>
-                  {{ formatLeaveRange(item) }}
-                </strong>
-
-                <span>
-                  {{ formatTotalDays(item) }}
-                  · Filed {{ formatDate(item.request_date) }}
-                </span>
-              </div>
-            </td>
-
-            <!-- Reason -->
-            <td>
-              <p
-                class="reason"
-                :title="item.reason || ''"
-              >
-                {{ item.reason || 'No reason provided' }}
-              </p>
-            </td>
-
-            <!-- Status -->
-            <td>
-              <span
-                class="badge status"
-                :class="item.status"
-              >
-                <span class="status-dot" />
-                {{ item.status }}
-              </span>
-            </td>
-
-            <!-- Actions -->
-            <td class="actions-cell">
-              <div class="action-buttons-row">
-                <button
-                  type="button"
-                  class="review-button"
-                  @click="emit('review', item)"
-                >
-                  <Eye :size="13" />
-                  Preview
-                </button>
-
-                <!-- Undo disabled until backend revert is safe -->
-                <button
-                  v-if="
-                    item.status === 'approved'
-                    || item.status === 'rejected'
-                  "
-                  type="button"
-                  class="undo-button"
-                  disabled
-                  title="Undo temporarily unavailable until leave credit restoration is implemented"
-                >
-                  <RotateCcw :size="13" />
-                  Undo
-                </button>
-              </div>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-
-    <!-- Empty State -->
-    <div v-else class="empty-state">
-      <ClipboardList :size="30" />
-
-      <strong>
-        No Leave Requests Found
-      </strong>
-
-      <span>
-        {{
-          statusFilter === 'pending'
+    <template #empty>
+      <div class="empty-content">
+        <ClipboardList :size="30" />
+        <strong>No Leave Requests Found</strong>
+        <span>
+          {{ statusFilter === 'pending'
             ? 'There are no pending leave requests.'
-            : 'No records match your selected filters.'
-        }}
-      </span>
+            : 'No records match your selected filters.' }}
+        </span>
+      </div>
+    </template>
+  </BaseDataTable>
+
+  <!-- Teleport keeps the actions menu visible even on the bottom table row. -->
+  <Teleport to="body">
+    <div
+      v-if="openRequest"
+      ref="menuRef"
+      class="leave-actions-menu"
+      :style="menuStyle"
+      role="menu"
+      :aria-label="`Actions for ${openRequest.request_no}`"
+    >
+      <button type="button" role="menuitem" @click="openDetails(openRequest)">
+        <Eye :size="15" />
+        View Details
+      </button>
+
+      <button
+        v-if="canShowUndo"
+        type="button"
+        role="menuitem"
+        :disabled="approving"
+        @click="revertRequest(openRequest)"
+      >
+        <RotateCcw :size="15" />
+        Undo / Revert
+      </button>
     </div>
-  </article>
+  </Teleport>
 </template>
 
 <style scoped>
-.table-card {
-  overflow: hidden;
-  border: 1px solid var(--border);
-  border-radius: 11px;
-  background: var(--bg-card);
-  box-shadow: var(--shadow);
-}
-
-.table-heading {
-  padding: 16px 17px;
-  border-bottom: 1px solid var(--border-soft);
-}
-
-.table-heading h3 {
-  margin: 0;
-  color: var(--text-primary);
-  font-size: 14px;
-  font-weight: 700;
-}
-
-.table-heading p {
-  margin: 5px 0 0;
-  color: var(--text-muted);
-  font-size: 10px;
-}
-
-.table-scroll {
-  overflow-x: auto;
-}
-
-table {
-  width: 100%;
-  min-width: 1250px;
-  border-collapse: collapse;
-}
-
-th {
-  padding: 12px 13px;
-  background: var(--bg-card-soft);
-  color: var(--text-secondary);
-  font-size: 10px;
-  font-weight: 700;
-  text-align: left;
-  text-transform: uppercase;
-  white-space: nowrap;
-}
-
-td {
-  padding: 13px;
-  border-top: 1px solid var(--border-soft);
-  color: var(--text-secondary);
-  font-size: 10px;
-  vertical-align: middle;
-}
-
-tbody tr:hover {
-  background: var(--bg-card-soft);
-}
-
 .request-number {
-  color: var(--primary);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 600;
   white-space: nowrap;
 }
-
-.employee-cell {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  min-width: 170px;
-}
-
-.employee-avatar {
-  display: flex;
-  width: 31px;
-  height: 31px;
-  flex-shrink: 0;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  background: var(--primary-soft);
-  color: var(--primary);
-}
-
-.cell-info strong,
-.cell-info span {
-  display: block;
-}
-
-.cell-info strong {
-  color: var(--text-primary);
-  font-size: 10px;
-}
-
-.cell-info span {
-  margin-top: 4px;
-  color: var(--text-muted);
-  font-size: 9px;
-}
-
-.cell-info .valid {
-  color: var(--green);
-}
-
-.cell-info .warning {
-  color: var(--orange);
-}
-
-.badge {
+.table-emphasis { color: var(--text-primary); font-size: 13px; font-weight: 650; }
+.pay-badge, .status-badge {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   padding: 5px 9px;
-  border-radius: 20px;
-  font-size: 9px;
+  border-radius: 999px;
+  font-size: 12px;
   font-weight: 650;
   white-space: nowrap;
   text-transform: capitalize;
 }
-
-.badge.paid,
-.badge.approved {
-  background: var(--green-soft);
-  color: var(--green);
+.pay-badge.paid, .status-badge.approved { background: var(--green-soft, #0a3725); color: var(--green, #22c55e); }
+.pay-badge.unpaid, .status-badge.cancelled { background: var(--bg-card-soft); color: var(--text-secondary); }
+.pay-badge.mixed, .status-badge.pending { background: var(--orange-soft, #423019); color: var(--orange, #fbbf24); }
+.status-badge.rejected { background: var(--red-soft, #3f2028); color: var(--red, #f87171); }
+.status-dot { width: 6px; height: 6px; flex: 0 0 6px; border-radius: 50%; background: currentColor; }
+.actions-cell, .actions-header { text-align: right !important; }
+.actions-cell .table-action-button { display: inline-grid; }
+.empty-content { display: flex; flex-direction: column; align-items: center; gap: 9px; }
+.empty-content strong { font-size: 14px; }
+.empty-content span { font-size: 12px; }
+.leave-actions-menu {
+  padding: 6px;
+  border: 1px solid var(--border, #29364d);
+  border-radius: 10px;
+  background: var(--bg-card, #131e30);
+  box-shadow: 0 14px 32px rgb(0 0 0 / 25%);
 }
-
-.badge.unpaid,
-.badge.cancelled {
-  background: var(--bg-card-soft);
-  color: var(--text-secondary);
-}
-
-.badge.mixed {
-  background: var(--orange-soft);
-  color: var(--orange);
-}
-
-.badge.pending {
-  background: var(--orange-soft);
-  color: var(--orange);
-}
-
-.badge.rejected {
-  background: var(--red-soft);
-  color: var(--red);
-}
-
-.status-dot {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: currentColor;
-}
-
-.reason {
-  max-width: 190px;
-  margin: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.actions-header,
-.actions-cell {
-  text-align: right;
-}
-
-.action-buttons-row {
-  display: inline-flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 6px;
-}
-
-.review-button {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 11px;
-  border: 1px solid var(--primary);
-  border-radius: 7px;
-  background: var(--primary-soft);
-  color: var(--primary);
-  font-family: inherit;
-  font-size: 10px;
-  font-weight: 650;
-  cursor: pointer;
-}
-
-.review-button:hover {
-  background: var(--primary);
-  color: #fff;
-}
-
-.undo-button {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 11px;
-  border: 1px solid var(--orange);
-  border-radius: 7px;
-  background: var(--orange-soft);
-  color: var(--orange);
-  font-family: inherit;
-  font-size: 10px;
-  font-weight: 650;
-  cursor: pointer;
-}
-
-.undo-button:hover:not(:disabled) {
-  background: var(--orange);
-  color: #fff;
-}
-
-.undo-button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.empty-state {
+.leave-actions-menu button {
   display: flex;
-  min-height: 240px;
-  flex-direction: column;
+  width: 100%;
+  min-height: 40px;
   align-items: center;
-  justify-content: center;
-  gap: 8px;
-  color: var(--text-muted);
-}
-
-.empty-state strong {
-  color: var(--text-primary);
+  gap: 10px;
+  padding: 9px 10px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-primary, #f8fafc);
+  font: inherit;
   font-size: 12px;
+  text-align: left;
+  cursor: pointer;
 }
-
-.empty-state span {
-  font-size: 10px;
-}
+.leave-actions-menu button:hover:not(:disabled) { background: var(--bg-card-soft, #182438); color: var(--primary); }
+.menu-disabled-item { border-top: 1px solid var(--border-soft, #253247); padding-top: 3px; margin-top: 3px; }
+.menu-disabled-item button { color: var(--text-muted, #7c8da8); opacity: .6; cursor: not-allowed; }
 </style>

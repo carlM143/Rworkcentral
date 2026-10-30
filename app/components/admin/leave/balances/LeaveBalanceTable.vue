@@ -1,169 +1,277 @@
 
 <script setup lang="ts">
-import { SlidersHorizontal, UserRound } from 'lucide-vue-next'
+import { computed } from 'vue'
+import { Eye } from 'lucide-vue-next'
+import BaseDataTable from '~/components/shared-table/BaseDataTable.vue'
+
 import type {
   EmployeeLeaveBalance,
   LeaveBalance,
 } from '~/types/leaveBalance'
 
-defineProps<{
+const props = defineProps<{
   balances: EmployeeLeaveBalance[]
   leaveTypes: string[]
 }>()
 
-const emit = defineEmits<{
-  adjust: [record: LeaveBalance]
-}>()
+const router = useRouter()
 
-const format = (value: number) =>
-  Number(value.toFixed(2)).toLocaleString()
+const viewBalance = (employee: EmployeeLeaveBalance) => {
+  void router.push({
+    path: '/admin/leave-management/leave-balances/show',
+    query: { employee: String(employee.employee_id) },
+  })
+}
 
+// FORMAT NUMBERS
+const format = (value: number): string =>
+  Number(value.toFixed(2)).toLocaleString('en-US')
+
+// LEAVE RECORDS PER TYPE
 const recordsForType = (
   employee: EmployeeLeaveBalance,
   type: string,
-) => employee.records.filter(
-  item => (item.leave_type || `Policy #${item.leave_policy_id}`) === type,
-)
+): LeaveBalance[] =>
+  employee.records.filter(
+    item =>
+      (item.leave_type ||
+        `Policy #${item.leave_policy_id}`) === type,
+  )
 
-const statusLabel = (status: string) => ({
-  healthy: 'Healthy',
-  low: 'Low Balance',
-  none: 'No Credits',
-}[status] || status)
+// STATUS LABEL
+const statusLabel = (status: string): string =>
+  ({
+    healthy: 'Healthy',
+    low: 'Low Balance',
+    none: 'No Credits',
+  } as Record<string, string>)[status] || status
+
+// STATUS COLORS
+const statusStyle = (status: string) => {
+  const colors: Record<string, {
+    background: string
+    color: string
+  }> = {
+    healthy: {
+      background: 'var(--green-soft, rgba(16,185,129,.12))',
+      color: 'var(--green, #10b981)',
+    },
+    low: {
+      background: 'var(--orange-soft, rgba(245,158,11,.12))',
+      color: 'var(--orange, #f59e0b)',
+    },
+    none: {
+      background: 'var(--red-soft, rgba(239,68,68,.12))',
+      color: 'var(--red, #ef4444)',
+    },
+  }
+
+  return {
+    fontWeight: 500,
+    ...(colors[status] || {
+      background: 'var(--bg-card-soft)',
+      color: 'var(--text-secondary)',
+    }),
+  }
+}
+
+// TABLE WIDTH BASED ON LEAVE TYPES
+const tableMinWidth = computed(() =>
+  `${Math.max(800, 500 + props.leaveTypes.length * 180)}px`,
+)
 </script>
 
 <template>
-  <div class="table-card">
-    <div class="table-heading">
-      <h3>Employee Leave Balances</h3>
-      <p>Review allocated, used and remaining leave credits for each employee.</p>
-    </div>
+  <BaseDataTable
+    title="Employee Leave Balances"
+    description="Review remaining leave credits for each employee."
+    :has-rows="balances.length > 0"
+    :min-width="tableMinWidth"
+    empty-title="No employee leave balances found"
+    empty-description="No leave credit records are available."
+  >
+    <!-- TABLE HEADERS -->
+    <template #headers>
+      <th>Employee</th>
+      <th>Department</th>
 
-    <div class="table-scroll">
-      <table>
-        <thead>
-          <tr>
-            <th>Employee</th>
-            <th>Department</th>
-            <th v-for="type in leaveTypes" :key="type">{{ type }}</th>
-            <th>Total Allocated</th>
-            <th>Total Used</th>
-            <th>Available</th>
-            <th>Status</th>
-          </tr>
-        </thead>
+      <th
+        v-for="type in leaveTypes"
+        :key="type"
+      >
+        {{ type }}
+      </th>
 
-        <tbody>
-          <tr v-for="employee in balances" :key="employee.employee_id">
-            <td>
-              <div class="employee-cell">
-                <span class="avatar"><UserRound :size="15" /></span>
-                <div>
-                  <strong>{{ employee.employee }}</strong>
-                  <small>EMP-{{ employee.emp_id ?? employee.employee_id }}</small>
-                </div>
-              </div>
-            </td>
+      <th>Status</th>
+      <th style="text-align: right">Actions</th>
+    </template>
 
-            <td>
-              <span class="department">{{ employee.department || '—' }}</span>
-            </td>
+    <!-- TABLE ROWS -->
+    <template #rows>
+      <tr
+        v-for="employee in balances"
+        :key="employee.employee_id"
+      >
+        <!-- EMPLOYEE -->
+        <td>
+          <div
+            style="
+              display: flex;
+              flex-direction: column;
+              gap: 4px;
+              min-width: 170px;
+            "
+          >
+            <span
+              style="
+                color: var(--text-primary);
+                font-weight: 600;
+              "
+            >
+              {{ employee.employee }}
+            </span>
 
-            <td v-for="type in leaveTypes" :key="type">
-              <div
-                v-for="record in recordsForType(employee, type)"
-                :key="record.leave_policy_id"
-                class="credit-cell"
-              >
-                <div class="credit-heading">
-                  <strong :class="{ negative: record.available <= 0 }">
-                    {{ format(record.available) }}
-                  </strong>
+            <span
+              style="
+                color: var(--text-muted);
+                font-size: 12px;
+                font-weight: 400;
+              "
+            >
+              EMP-{{ employee.emp_id ?? employee.employee_id }}
+            </span>
+          </div>
+        </td>
 
-                  <button
-                    class="adjust-icon"
-                    type="button"
-                    title="Adjust this leave policy's credits"
-                    @click="emit('adjust', record)"
-                  >
-                    <SlidersHorizontal :size="13" />
-                  </button>
-                </div>
+        <!-- DEPARTMENT -->
+        <td>
+          {{ employee.department || '—' }}
+        </td>
 
-                <small>
-                  {{ format(Math.max(0, -record.deductions - Math.max(0, record.reversals))) }}
-                  used / {{ format(record.allocated) }} allocated
-                </small>
-
-                <small v-if="recordsForType(employee, type).length > 1">
-                  Policy #{{ record.leave_policy_id }}
-                  <template v-if="record.policy_paid !== null && record.policy_paid !== undefined">
-                    · {{ record.policy_paid ? 'Paid' : 'Unpaid' }}
-                  </template>
-                </small>
-              </div>
-
+        <!-- DYNAMIC LEAVE TYPE COLUMNS -->
+        <td
+          v-for="type in leaveTypes"
+          :key="type"
+        >
+          <div
+            v-for="record in recordsForType(employee, type)"
+            :key="record.leave_policy_id"
+            style="
+              min-width: 125px;
+              padding: 6px 0;
+              border-bottom: 1px solid var(--border-soft);
+            "
+          >
+            <!-- AVAILABLE CREDITS -->
+            <div
+              style="
+                display: flex;
+                align-items: center;
+                gap: 8px;
+              "
+            >
               <span
-                v-if="!recordsForType(employee, type).length"
-                class="empty-credit"
-              >—</span>
-            </td>
-
-            <td class="number">{{ format(employee.totalAllocated) }}</td>
-            <td class="number used">{{ format(employee.totalUsed) }}</td>
-            <td class="number available">{{ format(employee.totalAvailable) }}</td>
-
-            <td>
-              <span class="status" :class="employee.status">
-                <span class="dot" />
-                {{ statusLabel(employee.status) }}
+                :style="{
+                  color:
+                    record.available <= 0
+                      ? 'var(--red, #ef4444)'
+                      : 'var(--text-primary)',
+                  fontWeight: 600,
+                  fontVariantNumeric: 'tabular-nums',
+                }"
+              >
+                {{ format(record.available) }}
               </span>
-            </td>
-          </tr>
 
-          <tr v-if="!balances.length">
-            <td :colspan="leaveTypes.length + 6" class="empty-state">
-              No employee leave balances found.
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-  </div>
+            </div>
+
+            <!-- MULTIPLE POLICIES -->
+            <span
+              v-if="recordsForType(employee, type).length > 1"
+              style="
+                display: block;
+                margin-top: 4px;
+                color: var(--text-muted);
+                font-size: 12px;
+                font-weight: 400;
+              "
+            >
+              Policy #{{ record.leave_policy_id }}
+
+              <template
+                v-if="
+                  record.policy_paid !== null &&
+                  record.policy_paid !== undefined
+                "
+              >
+                ·
+                {{ record.policy_paid ? 'Paid' : 'Unpaid' }}
+              </template>
+            </span>
+          </div>
+
+          <!-- NO LEAVE CREDIT -->
+          <span
+            v-if="!recordsForType(employee, type).length"
+            style="color: var(--text-muted)"
+          >
+            —
+          </span>
+        </td>
+
+        <!-- STATUS -->
+        <td>
+          <span class="status-badge" :style="statusStyle(employee.status)">
+            {{ statusLabel(employee.status) }}
+          </span>
+        </td>
+
+        <!-- ACTIONS -->
+        <td style="text-align: right">
+          <button
+            type="button"
+            class="view-button"
+            :aria-label="`View leave balances for ${employee.employee}`"
+            title="View Leave Balance"
+            @click="viewBalance(employee)"
+          >
+            <Eye :size="16" />
+          </button>
+        </td>
+
+      </tr>
+    </template>
+  </BaseDataTable>
 </template>
 
 <style scoped>
-.table-card{overflow:hidden;border:1px solid var(--border,#29364b);border-radius:12px;background:var(--bg-card,#141e2d)}
-.table-heading{padding:18px 16px 15px;border-bottom:1px solid var(--border,#29364b)}
-.table-heading h3{margin:0;color:var(--text-primary,#fff);font-size:13px;font-weight:700}
-.table-heading p{margin:5px 0 0;color:var(--text-muted,#94a3b8);font-size:10px}
-.table-scroll{overflow-x:auto}
-table{width:100%;min-width:1050px;border-collapse:collapse}
-thead{background:var(--bg-secondary,#1a2637)}
-th{padding:13px 12px;text-align:left;white-space:nowrap;color:var(--text-secondary,#b0bdd0);font-size:9px;font-weight:700;text-transform:uppercase}
-td{padding:14px 12px;border-top:1px solid var(--border,#29364b);color:var(--text-primary,#fff);font-size:10px;vertical-align:middle}
-tbody tr:hover{background:rgba(100,116,139,.045)}
-.employee-cell{display:flex;align-items:center;gap:9px;min-width:170px}
-.avatar{display:flex;width:33px;height:33px;flex-shrink:0;align-items:center;justify-content:center;border-radius:9px;background:#18335d;color:#3b82f6}
-.employee-cell strong{display:block;font-size:10px}
-.employee-cell small{display:block;margin-top:4px;color:var(--text-muted,#94a3b8);font-size:9px}
-.department{white-space:nowrap;font-weight:600}
-.credit-cell{min-width:115px;padding:3px 0 6px}
-.credit-cell+.credit-cell{border-top:1px dashed var(--border,#29364b);padding-top:9px}
-.credit-heading{display:flex;justify-content:space-between;align-items:center;gap:8px}
-.credit-heading strong{font-size:12px}
-.credit-heading strong.negative{color:#ef4444}
-.credit-cell small{display:block;margin-top:3px;color:var(--text-muted,#94a3b8);font-size:9px;white-space:nowrap}
-.adjust-icon{display:inline-flex;align-items:center;justify-content:center;width:23px;height:23px;border:1px solid var(--border,#29364b);border-radius:6px;background:transparent;color:var(--text-secondary,#b0bdd0);cursor:pointer}
-.adjust-icon:hover{color:#3b82f6;border-color:#3b82f6}
-.number{font-weight:700;white-space:nowrap}
-.used{color:#f59e0b}
-.available{color:#10b981}
-.empty-credit{color:var(--text-muted,#94a3b8)}
-.status{display:inline-flex;align-items:center;gap:5px;padding:6px 9px;border-radius:20px;font-size:9px;font-weight:700;white-space:nowrap}
-.status.healthy{background:#123b2c;color:#10b981}
-.status.low{background:#453518;color:#f59e0b}
-.status.none{background:#481e29;color:#ef4444}
-.dot{width:5px;height:5px;border-radius:50%;background:currentColor}
-.empty-state{text-align:center;padding:35px;color:var(--text-muted,#94a3b8)}
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.view-button {
+  display: inline-flex;
+  width: 34px;
+  height: 34px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: border-color .18s ease, background .18s ease, color .18s ease;
+}
+
+.view-button:hover {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+  color: var(--primary);
+}
 </style>

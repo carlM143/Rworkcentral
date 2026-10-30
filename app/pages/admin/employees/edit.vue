@@ -121,11 +121,6 @@ const loadEmployee = async () => {
       'schedule_name', 'name'
     )
 
-    const restDayName = relationName(
-      employment.rest_day ?? employment.restDay ?? employment.restday,
-      'rest_day', 'day_name', 'name'
-    )
-
     const salaryTypeName = relationName(
       salarySetup.salary_type ?? salarySetup.salaryType,
       'type_name', 'name'
@@ -172,8 +167,6 @@ const loadEmployee = async () => {
       employmentType: employmentTypeName,
       workScheduleId: numericId(employment.work_schedule_id),
       workSchedule: scheduleName,
-      restDayId: numericId(employment.restday_id),
-      restDay: restDayName,
 
       // GOVERNMENT
       sssNumber: getGovernmentNumber(government, [
@@ -281,26 +274,25 @@ const warnMissing = (title: string, fields: string[]) => {
   return false
 }
 
+// Same required fields as Create Employee / StoreEmployeeRequest.
+// Gender, civil status and mobile number are optional.
 const validatePersonalStep = () => {
   const missing: string[] = []
   if (!form.value.firstName.trim()) missing.push('First Name')
   if (!form.value.lastName.trim()) missing.push('Last Name')
   if (!form.value.birthDate) missing.push('Birth Date')
-  if (!form.value.gender) missing.push('Gender')
-  if (!form.value.civilStatus) missing.push('Civil Status')
   if (!form.value.email.trim()) missing.push('Email Address')
-  if (!form.value.mobileNumber.trim()) missing.push('Mobile Number')
+  if (!form.value.address.trim()) missing.push('Residential Address')
   return warnMissing('Incomplete Personal Information', missing)
 }
 
+// Work Schedule is nullable in Laravel; rest days come from the template's days.
 const validateEmploymentStep = () => {
   const missing: string[] = []
   if (!form.value.dateHired) missing.push('Date Hired')
+  if (form.value.employmentTypeId == null) missing.push('Employment Type')
   if (form.value.departmentId == null) missing.push('Department')
   if (form.value.positionId == null) missing.push('Position')
-  if (form.value.employmentTypeId == null) missing.push('Employment Type')
-  if (form.value.workScheduleId == null) missing.push('Work Schedule')
-  if (form.value.restDayId == null) missing.push('Rest Day')
   return warnMissing('Incomplete Employment Information', missing)
 }
 
@@ -327,12 +319,13 @@ const validatePayrollStep = () => {
   return warnMissing('Incomplete Salary Setup', missing)
 }
 
+// Same required emergency fields as Create Employee.
+// Contact address is nullable.
 const validateEmergencyContactStep = () => {
   const missing: string[] = []
-  if (!form.value.emergencyContactName.trim()) missing.push('Emergency Contact Name')
-  if (!form.value.emergencyRelationship) missing.push('Relationship')
-  if (!form.value.emergencyMobileNumber.trim()) missing.push('Mobile Number')
-  if (!form.value.emergencyAddress.trim()) missing.push('Contact Address')
+  if (!form.value.emergencyContactName.trim()) missing.push('Contact Person Name')
+  if (!form.value.emergencyRelationship.trim()) missing.push('Relationship')
+  if (!form.value.emergencyMobileNumber.trim()) missing.push('Contact Number')
   return warnMissing('Incomplete Emergency Contact', missing)
 }
 
@@ -376,8 +369,8 @@ const buildUpdatePayload = (values: EmployeeForm) => {
     department_id: values.departmentId,
     position_id: values.positionId,
     employment_type_id: values.employmentTypeId,
-    work_schedule_id: values.workScheduleId,
-    restday_id: values.restDayId,
+    // Work Schedule is optional. No independent restday_id column exists.
+    work_schedule_id: values.workScheduleId ?? null,
     date_hired: values.dateHired,
   }
 

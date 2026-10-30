@@ -43,6 +43,236 @@ import {
   CalendarClock,
 } from 'lucide-vue-next'
 
+import type { Employee, EmployeeDocument, DocumentStatus } from '~/types/employee'
+
+/**
+ * GET /api/admin/employees/{id}
+ * Matches EmployeeController::show() and DETAIL_RELATIONSHIPS.
+ * These are API wire types, separate from the simplified Employee UI model.
+ */
+interface ApiEmployeeDocument {
+  id: number
+  file_name?: string | null
+  filename?: string | null
+  name?: string | null
+  file_path?: string | null
+  status?: string | null
+  submitted?: boolean | number | null
+  uploaded_at?: string | null
+  created_at?: string | null
+  expires_at?: string | null
+  employment_document?: {
+    name?: string | null
+    document_name?: string | null
+    type?: string | null
+  } | null
+}
+
+interface ApiEmployment {
+  id: number
+  date_hired?: string | null
+  employment_type?: {
+    name?: string | null
+    type_name?: string | null
+    employment_type?: string | null
+  } | null
+  department?: { department_name?: string | null } | null
+  position?: { position?: string | null } | null
+  work_schedule?: {
+    schedule_name?: string | null
+    schedule_code?: string | null
+    days?: Array<{
+      day_of_week: string
+      is_working_day?: boolean | number | null
+      time_in?: string | null
+      time_out?: string | null
+    }>
+  } | null
+}
+
+interface ApiEmployeeDetail {
+  id: number
+  emp_id: string | number
+  firstname: string
+  middlename?: string | null
+  lastname: string
+  birthday?: string | null
+  gender?: string | null
+  civil_status?: string | null
+  profile_photo?: string | null
+  status: boolean | number | string
+  updated_at?: string | null
+  department?: { department_name?: string | null } | null
+  contact_information?: {
+    email?: string | null
+    mobile?: string | null
+    residential_address?: string | null
+  } | null
+  employments?: ApiEmployment[] | null
+  government_requirements?: Array<{
+    id_name?: string | null
+    id_number?: string | null
+  }> | null
+  salary_setup?: {
+    basic_salary?: string | number | null
+    daily_rate?: string | number | null
+    hourly_rate?: string | number | null
+    allowance?: string | number | null
+    bank_name?: string | null
+    account_name?: string | null
+    account_number?: string | null
+    salary_type?: {
+      name?: string | null
+      type_name?: string | null
+      salary_type?: string | null
+    } | null
+  } | null
+  payrolls?: Array<{
+    id: number
+    payroll_group?: {
+      name?: string | null
+      group_name?: string | null
+    } | null
+  }> | null
+  contact_persons?: Array<{
+    name?: string | null
+    relationship?: string | null
+    contact_number?: string | null
+    address?: string | null
+  }> | null
+  documents?: ApiEmployeeDocument[] | null
+}
+
+interface EmployeeDetailResponse {
+  success: boolean
+  message?: string
+  data: ApiEmployeeDetail
+}
+
+const dateOnly = (date?: string | null): string => date?.slice(0, 10) ?? ''
+
+const numericOrUndefined = (value?: string | number | null): number | undefined => {
+  if (value === null || value === undefined || value === '') return undefined
+  const numberValue = Number(value)
+  return Number.isFinite(numberValue) ? numberValue : undefined
+}
+
+const validDocumentStatus = (status?: string | null): DocumentStatus => {
+  switch (status?.trim().toLowerCase().replace(/[\s-]+/g, '_')) {
+    case 'verified': return 'Verified'
+    case 'expired': return 'Expired'
+    case 'expiring_soon': return 'Expiring Soon'
+    default: return 'Pending'
+  }
+}
+
+const mapDocument = (record: ApiEmployeeDocument): EmployeeDocument => ({
+  id: record.id,
+  type: record.employment_document?.document_name
+    ?? record.employment_document?.name
+    ?? record.employment_document?.type
+    ?? 'Employment Document',
+  name: record.file_name
+    ?? record.filename
+    ?? record.name
+    ?? record.file_path?.split('/').pop()
+    ?? 'File not provided',
+  status: validDocumentStatus(record.status),
+  uploadedAt: dateOnly(record.uploaded_at ?? record.created_at) || undefined,
+  expiresAt: dateOnly(record.expires_at) || undefined,
+})
+
+const mapEmployeeDetail = (record: ApiEmployeeDetail): Employee => {
+  // Same employment selection convention used by LeaveCreditService:
+  // latest date_hired, breaking ties by the latest employment ID.
+  const employment = [...(record.employments ?? [])].sort((a, b) => {
+    const dateOrder = dateOnly(b.date_hired).localeCompare(dateOnly(a.date_hired))
+    return dateOrder || b.id - a.id
+  })[0]
+
+  const isActive = [true, 1, '1', 'true'].includes(record.status)
+  const schedule = employment?.work_schedule
+  const days = schedule?.days
+  const week = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Sat', 'Sun']
+  const normalizedWeekday = (value: string): string => {
+    const day = value.trim().toLowerCase()
+    return day === 'saturday' ? 'sat' : day === 'sunday' ? 'sun' : day
+  }
+  const workingDays = new Set(
+    (days ?? [])
+      .filter(day => day.is_working_day !== false && day.is_working_day !== 0)
+      .map(day => normalizedWeekday(day.day_of_week)),
+  )
+  const restDays = Array.isArray(days)
+    ? week.filter(day => !workingDays.has(normalizedWeekday(day)))
+    : []
+
+  const governmentNumber = (...keywords: string[]): string | undefined =>
+    (record.government_requirements ?? []).find(requirement => {
+      const name = requirement.id_name?.toLowerCase() ?? ''
+      return keywords.some(keyword => name.includes(keyword))
+    })?.id_number ?? undefined
+
+  const salary = record.salary_setup
+  const salaryType = salary?.salary_type?.type_name
+    ?? salary?.salary_type?.name
+    ?? salary?.salary_type?.salary_type
+  const emergencyContact = record.contact_persons?.[0]
+  const payroll = [...(record.payrolls ?? [])].sort((a, b) => b.id - a.id)[0]
+
+  return {
+    id: record.id,
+    employeeNumber: String(record.emp_id),
+    firstName: record.firstname,
+    middleName: record.middlename || undefined,
+    lastName: record.lastname,
+    email: record.contact_information?.email || 'Not provided',
+    phone: record.contact_information?.mobile || undefined,
+    avatar: record.profile_photo || undefined,
+    birthDate: dateOnly(record.birthday) || undefined,
+    gender: record.gender || undefined,
+    civilStatus: record.civil_status || undefined,
+    address: record.contact_information?.residential_address || undefined,
+    department: employment?.department?.department_name
+      ?? record.department?.department_name
+      ?? 'Not assigned',
+    position: employment?.position?.position ?? 'Not assigned',
+    employmentType: (employment?.employment_type?.type_name
+      ?? employment?.employment_type?.name
+      ?? employment?.employment_type?.employment_type
+      ?? 'Not assigned') as Employee['employmentType'],
+    status: isActive ? 'Active' : 'Inactive',
+    dateHired: dateOnly(employment?.date_hired),
+    workSchedule: schedule
+      ? [schedule.schedule_name, schedule.schedule_code ? `(${schedule.schedule_code})` : '']
+          .filter(Boolean).join(' ') || undefined
+      : undefined,
+    // Missing WorkScheduleDay rows mean rest days. No legacy restday table.
+    restDay: Array.isArray(days) ? restDays.join(', ') || 'None' : undefined,
+    inactiveDate: !isActive ? dateOnly(record.updated_at) || undefined : undefined,
+    salaryType: salaryType as Employee['salaryType'] | undefined,
+    basicSalary: numericOrUndefined(salary?.basic_salary),
+    dailyRate: numericOrUndefined(salary?.daily_rate),
+    hourlyRate: numericOrUndefined(salary?.hourly_rate),
+    allowance: numericOrUndefined(salary?.allowance),
+    bankName: salary?.bank_name || undefined,
+    accountName: salary?.account_name || undefined,
+    accountNumber: salary?.account_number || undefined,
+    payrollGroup: payroll?.payroll_group?.group_name
+      ?? payroll?.payroll_group?.name
+      ?? undefined,
+    sssNumber: governmentNumber('sss', 'social security'),
+    philHealthNumber: governmentNumber('philhealth'),
+    pagIbigNumber: governmentNumber('pag-ibig', 'hdmf'),
+    tinNumber: governmentNumber('tin', 'tax identification'),
+    emergencyContactName: emergencyContact?.name || undefined,
+    emergencyRelationship: emergencyContact?.relationship || undefined,
+    emergencyMobileNumber: emergencyContact?.contact_number || undefined,
+    emergencyAddress: emergencyContact?.address || undefined,
+    documents: (record.documents ?? []).map(mapDocument),
+  }
+}
+
 type ProfileTab =
   | 'overview'
   | 'employment'
@@ -53,23 +283,57 @@ type ProfileTab =
 const route = useRoute()
 const router = useRouter()
 
-const {
-  getEmployeeById,
-} = useEmployees()
-
-const {
-  info,
-} = useToast()
+const { $api } = useNuxtApp()
+const { info } = useToast()
 
 /* =========================================================
-   EMPLOYEE
+   EMPLOYEE — LOAD FROM LARAVEL, NEVER FROM MOCK RECORDS
 ========================================================= */
 
-const employee = computed(() => {
-  return getEmployeeById(
-    route.params.id as string,
-  )
-})
+const employee = ref<Employee | null>(null)
+const profileLoading = ref(true)
+const profileError = ref('')
+let latestRequest = 0
+
+const loadEmployeeProfile = async () => {
+  const requestNumber = ++latestRequest
+  const id = Number(route.params.id)
+  employee.value = null
+  profileError.value = ''
+
+  if (!Number.isInteger(id) || id <= 0) {
+    profileLoading.value = false
+    profileError.value = 'Invalid employee ID.'
+    return
+  }
+
+  profileLoading.value = true
+  try {
+    const response = await $api<EmployeeDetailResponse>(`/admin/employees/${id}`, {
+      method: 'GET',
+    })
+    if (response.success === false || !response.data || response.data.id !== id) {
+      throw new Error(response.message || 'Employee could not be loaded.')
+    }
+    if (requestNumber === latestRequest) employee.value = mapEmployeeDetail(response.data)
+  } catch (problem: unknown) {
+    if (requestNumber === latestRequest) {
+      const error = problem as {
+        data?: { message?: string }
+        response?: { _data?: { message?: string } }
+        message?: string
+      }
+      profileError.value = error.data?.message
+        ?? error.response?._data?.message
+        ?? error.message
+        ?? 'Could not load this employee from Laravel.'
+    }
+  } finally {
+    if (requestNumber === latestRequest) profileLoading.value = false
+  }
+}
+
+watch(() => route.params.id, () => { void loadEmployeeProfile() }, { immediate: true })
 
 const fullName = computed(() => {
   if (!employee.value) {
@@ -488,9 +752,7 @@ const goBack = () => {
 }
 
 const handleEdit = () => {
-  router.push(
-    `/admin/employees/${route.params.id}/edit`,
-  )
+  router.push({ path: '/admin/employees/edit', query: { id: String(route.params.id) } })
 }
 
 const handleMoreActions = () => {
@@ -510,10 +772,20 @@ const handleCompensationHistory = () => {
 <template>
   <section class="employee-profile-page">
 
+    <div v-if="profileLoading" class="profile-loading" role="status" aria-live="polite">
+      Loading employee profile from Laravel...
+    </div>
+
+    <div v-else-if="profileError" class="profile-loading profile-error" role="alert">
+      <strong>Unable to load employee profile</strong>
+      <p>{{ profileError }}</p>
+      <AppButton variant="secondary" @click="loadEmployeeProfile">Retry</AppButton>
+    </div>
+
     <!-- =====================================================
          EMPLOYEE FOUND
     ====================================================== -->
-    <template v-if="employee">
+    <template v-else-if="employee">
 
       <!-- BACK -->
       <button
@@ -854,11 +1126,9 @@ const handleCompensationHistory = () => {
                   Employment Type
                 </span>
 
-                <StatusBadge
-                  :status="
-                    employee.employmentType
-                  "
-                />
+                <strong>
+                  {{ employee.employmentType }}
+                </strong>
               </div>
 
               <div class="detail-item">
@@ -866,9 +1136,9 @@ const handleCompensationHistory = () => {
                   Employment Status
                 </span>
 
-                <StatusBadge
-                  :status="employee.status"
-                />
+                <strong>
+                  {{ employee.status }}
+                </strong>
               </div>
 
               <div class="detail-item">
@@ -1161,9 +1431,9 @@ const handleCompensationHistory = () => {
               Employment Type
             </span>
 
-            <StatusBadge
-              :status="employee.employmentType"
-            />
+            <strong>
+              {{ employee.employmentType }}
+            </strong>
           </div>
         </div>
 
@@ -1177,9 +1447,9 @@ const handleCompensationHistory = () => {
               Employment Status
             </span>
 
-            <StatusBadge
-              :status="employee.status"
-            />
+            <strong>
+              {{ employee.status }}
+            </strong>
           </div>
         </div>
 
@@ -2621,7 +2891,37 @@ const handleCompensationHistory = () => {
 </template>
 
 <style scoped>
+/* Consistent type scale for the entire employee profile and all five tabs. */
+.profile-loading {
+  display: flex;
+  min-height: 190px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 24px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+.profile-loading strong { color: var(--text-primary); font-size: 15px; }
+.profile-loading p { margin: 0; }
+.profile-error { color: var(--red); }
+
 .employee-profile-page {
+  --profile-page-title-size: 26px;
+  --profile-heading-size: 15px;
+  --profile-subheading-size: 14px;
+  --profile-description-size: 12px;
+  --profile-label-size: 12px;
+  --profile-value-size: 13px;
+  --profile-secondary-size: 11px;
+  --profile-caption-size: 12px;
+  --profile-control-size: 12px;
+  --profile-count-size: 20px;
+  line-height: 1.45;
   width: 100%;
   max-width: 1660px;
   margin: 0 auto;
@@ -2640,7 +2940,7 @@ const handleCompensationHistory = () => {
   background: transparent;
   color: var(--primary);
 
-  font-size: 10px;
+  font-size: var(--profile-control-size);
   font-weight: 600;
 }
 
@@ -2687,7 +2987,7 @@ const handleCompensationHistory = () => {
 
   color: white;
 
-  font-size: 17px;
+  font-size: 19px;
   font-weight: 750;
 
   box-shadow:
@@ -2710,7 +3010,7 @@ const handleCompensationHistory = () => {
 
   color: var(--text-primary);
 
-  font-size: 24px;
+  font-size: var(--profile-page-title-size);
   font-weight: 750;
   letter-spacing: -0.5px;
 }
@@ -2725,7 +3025,7 @@ const handleCompensationHistory = () => {
 
   color: var(--text-secondary);
 
-  font-size: 9px;
+  font-size: var(--profile-caption-size);
 }
 
 .meta-dot {
@@ -2839,7 +3139,7 @@ const handleCompensationHistory = () => {
 .quick-card span {
   color: var(--text-muted);
 
-  font-size: 7px;
+  font-size: var(--profile-secondary-size);
 }
 
 .quick-card strong {
@@ -2849,7 +3149,7 @@ const handleCompensationHistory = () => {
 
   color: var(--text-primary);
 
-  font-size: 10px;
+  font-size: var(--profile-value-size);
 
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -2878,7 +3178,7 @@ const handleCompensationHistory = () => {
 
 .tab-button {
   display: flex;
-  min-height: 34px;
+  min-height: 38px;
   align-items: center;
   gap: 6px;
 
@@ -2890,7 +3190,7 @@ const handleCompensationHistory = () => {
   background: transparent;
   color: var(--text-secondary);
 
-  font-size: 9px;
+  font-size: var(--profile-control-size);
   font-weight: 600;
 
   white-space: nowrap;
@@ -2979,7 +3279,7 @@ const handleCompensationHistory = () => {
 
   color: var(--text-primary);
 
-  font-size: 10px;
+  font-size: var(--profile-heading-size);
   font-weight: 700;
 }
 
@@ -2988,7 +3288,7 @@ const handleCompensationHistory = () => {
 
   color: var(--text-muted);
 
-  font-size: 7px;
+  font-size: var(--profile-description-size);
 }
 
 .edit-section,
@@ -3005,7 +3305,7 @@ const handleCompensationHistory = () => {
   background: transparent;
   color: var(--primary);
 
-  font-size: 8px;
+  font-size: var(--profile-control-size);
   font-weight: 600;
 }
 
@@ -3042,7 +3342,7 @@ const handleCompensationHistory = () => {
 
   color: var(--text-muted);
 
-  font-size: 7px;
+  font-size: var(--profile-label-size);
 }
 
 .detail-item strong {
@@ -3050,7 +3350,7 @@ const handleCompensationHistory = () => {
 
   color: var(--text-primary);
 
-  font-size: 9px;
+  font-size: var(--profile-value-size);
   font-weight: 600;
 
   word-break: break-word;
@@ -3091,13 +3391,13 @@ const handleCompensationHistory = () => {
 .status-row > span {
   color: var(--text-muted);
 
-  font-size: 8px;
+  font-size: var(--profile-label-size);
 }
 
 .status-row > strong {
   color: var(--text-primary);
 
-  font-size: 9px;
+  font-size: var(--profile-value-size);
   font-weight: 600;
 
   text-align: right;
@@ -3141,7 +3441,7 @@ const handleCompensationHistory = () => {
 .contact-item span {
   color: var(--text-muted);
 
-  font-size: 7px;
+  font-size: var(--profile-secondary-size);
 }
 
 .contact-item strong {
@@ -3151,7 +3451,7 @@ const handleCompensationHistory = () => {
 
   color: var(--text-primary);
 
-  font-size: 8px;
+  font-size: var(--profile-value-size);
 
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -3202,7 +3502,7 @@ const handleCompensationHistory = () => {
 
   color: var(--text-primary);
 
-  font-size: 12px;
+  font-size: var(--profile-heading-size);
 }
 
 .coming-soon p {
@@ -3210,7 +3510,7 @@ const handleCompensationHistory = () => {
 
   color: var(--text-muted);
 
-  font-size: 9px;
+  font-size: var(--profile-description-size);
 }
 
 /* ==============================
@@ -3249,7 +3549,7 @@ const handleCompensationHistory = () => {
 
   color: var(--text-primary);
 
-  font-size: 17px;
+  font-size: 20px;
 }
 
 .not-found p {
@@ -3257,7 +3557,7 @@ const handleCompensationHistory = () => {
 
   color: var(--text-muted);
 
-  font-size: 10px;
+  font-size: var(--profile-value-size);
 }
 
 /* ==============================
@@ -3352,13 +3652,13 @@ const handleCompensationHistory = () => {
 
   color: var(--text-muted);
 
-  font-size: 7px;
+  font-size: var(--profile-label-size);
 }
 
 .employment-detail strong {
   color: var(--text-primary);
 
-  font-size: 9px;
+  font-size: var(--profile-value-size);
   font-weight: 650;
 }
 
@@ -3388,7 +3688,7 @@ const handleCompensationHistory = () => {
 .assignment-item span {
   color: var(--text-muted);
 
-  font-size: 7px;
+  font-size: var(--profile-label-size);
 }
 
 .assignment-item strong {
@@ -3396,7 +3696,7 @@ const handleCompensationHistory = () => {
 
   color: var(--text-primary);
 
-  font-size: 9px;
+  font-size: var(--profile-value-size);
   font-weight: 600;
 }
 
@@ -3467,7 +3767,7 @@ const handleCompensationHistory = () => {
 .schedule-card span {
   color: var(--text-muted);
 
-  font-size: 7px;
+  font-size: var(--profile-label-size);
 }
 
 .schedule-card strong {
@@ -3477,7 +3777,7 @@ const handleCompensationHistory = () => {
 
   color: var(--text-primary);
 
-  font-size: 9px;
+  font-size: var(--profile-value-size);
 
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -3488,7 +3788,7 @@ const handleCompensationHistory = () => {
 
   color: var(--text-muted);
 
-  font-size: 7px;
+  font-size: var(--profile-secondary-size);
 }
 
 /* RIGHT SUMMARY */
@@ -3516,7 +3816,7 @@ const handleCompensationHistory = () => {
 .employment-summary-row span {
   color: var(--text-muted);
 
-  font-size: 8px;
+  font-size: var(--profile-label-size);
 }
 
 .employment-summary-row strong {
@@ -3524,7 +3824,7 @@ const handleCompensationHistory = () => {
 
   color: var(--text-primary);
 
-  font-size: 9px;
+  font-size: var(--profile-value-size);
   font-weight: 600;
 
   text-align: right;
@@ -3553,7 +3853,7 @@ const handleCompensationHistory = () => {
 .employment-status-main span {
   color: var(--text-muted);
 
-  font-size: 8px;
+  font-size: var(--profile-label-size);
 }
 
 /* TIMELINE */
@@ -3625,7 +3925,7 @@ const handleCompensationHistory = () => {
 
   color: var(--text-muted);
 
-  font-size: 7px;
+  font-size: var(--profile-secondary-size);
 }
 
 .timeline-content strong {
@@ -3633,7 +3933,7 @@ const handleCompensationHistory = () => {
 
   color: var(--text-primary);
 
-  font-size: 9px;
+  font-size: var(--profile-value-size);
 }
 
 .timeline-content p {
@@ -3641,7 +3941,7 @@ const handleCompensationHistory = () => {
 
   color: var(--text-secondary);
 
-  font-size: 8px;
+  font-size: var(--profile-description-size);
 }
 
 .history-note {
@@ -3655,7 +3955,7 @@ const handleCompensationHistory = () => {
   background: var(--primary-soft);
   color: var(--text-secondary);
 
-  font-size: 7px;
+  font-size: var(--profile-description-size);
   line-height: 1.5;
 }
 
@@ -3749,7 +4049,7 @@ const handleCompensationHistory = () => {
 .compensation-card span {
   color: var(--text-muted);
 
-  font-size: 7px;
+  font-size: var(--profile-label-size);
 }
 
 .compensation-card strong {
@@ -3759,7 +4059,7 @@ const handleCompensationHistory = () => {
 
   color: var(--text-primary);
 
-  font-size: 10px;
+  font-size: var(--profile-subheading-size);
   font-weight: 650;
 
   white-space: nowrap;
@@ -3795,7 +4095,7 @@ const handleCompensationHistory = () => {
 .payment-detail span {
   color: var(--text-muted);
 
-  font-size: 7px;
+  font-size: var(--profile-label-size);
 }
 
 .payment-detail strong {
@@ -3803,7 +4103,7 @@ const handleCompensationHistory = () => {
 
   color: var(--text-primary);
 
-  font-size: 9px;
+  font-size: var(--profile-value-size);
   font-weight: 600;
 
   word-break: break-word;
@@ -3842,7 +4142,7 @@ const handleCompensationHistory = () => {
 
   color: var(--text-primary);
 
-  font-size: 8px;
+  font-size: var(--profile-value-size);
 }
 
 .bank-security-note p {
@@ -3850,7 +4150,7 @@ const handleCompensationHistory = () => {
 
   color: var(--text-secondary);
 
-  font-size: 7px;
+  font-size: var(--profile-description-size);
   line-height: 1.5;
 }
 
@@ -3880,7 +4180,7 @@ const handleCompensationHistory = () => {
 .payroll-summary-primary span {
   color: var(--green);
 
-  font-size: 7px;
+  font-size: var(--profile-label-size);
   font-weight: 600;
 }
 
@@ -3889,7 +4189,7 @@ const handleCompensationHistory = () => {
 
   color: var(--text-primary);
 
-  font-size: 16px;
+  font-size: var(--profile-count-size);
   font-weight: 750;
 }
 
@@ -3898,7 +4198,7 @@ const handleCompensationHistory = () => {
 
   color: var(--text-secondary);
 
-  font-size: 7px;
+  font-size: var(--profile-secondary-size);
 }
 
 .payroll-summary-row {
@@ -3920,7 +4220,7 @@ const handleCompensationHistory = () => {
 .payroll-summary-row span {
   color: var(--text-muted);
 
-  font-size: 8px;
+  font-size: var(--profile-label-size);
 }
 
 .payroll-summary-row strong {
@@ -3928,7 +4228,7 @@ const handleCompensationHistory = () => {
 
   color: var(--text-primary);
 
-  font-size: 9px;
+  font-size: var(--profile-value-size);
   font-weight: 600;
 
   text-align: right;
@@ -3968,7 +4268,7 @@ const handleCompensationHistory = () => {
 .government-label > span:last-child {
   color: var(--text-muted);
 
-  font-size: 8px;
+  font-size: var(--profile-label-size);
 }
 
 .government-badge {
@@ -3987,7 +4287,7 @@ const handleCompensationHistory = () => {
   background: var(--primary-soft);
   color: var(--primary);
 
-  font-size: 7px;
+  font-size: var(--profile-secondary-size);
   font-weight: 700;
 }
 
@@ -4011,7 +4311,7 @@ const handleCompensationHistory = () => {
 
   color: var(--text-primary);
 
-  font-size: 8px;
+  font-size: var(--profile-value-size);
   font-weight: 600;
 
   text-align: right;
@@ -4060,7 +4360,7 @@ const handleCompensationHistory = () => {
 .bank-details span {
   color: var(--text-muted);
 
-  font-size: 7px;
+  font-size: var(--profile-label-size);
 }
 
 .bank-details strong {
@@ -4070,7 +4370,7 @@ const handleCompensationHistory = () => {
 
   color: var(--text-primary);
 
-  font-size: 11px;
+  font-size: var(--profile-subheading-size);
   letter-spacing: 0.7px;
 
   white-space: nowrap;
@@ -4084,7 +4384,7 @@ const handleCompensationHistory = () => {
 
   color: var(--text-secondary);
 
-  font-size: 7px;
+  font-size: var(--profile-secondary-size);
 
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -4128,7 +4428,7 @@ const handleCompensationHistory = () => {
 .payroll-empty-state strong {
   color: var(--text-primary);
 
-  font-size: 10px;
+  font-size: var(--profile-subheading-size);
 }
 
 .payroll-empty-state p {
@@ -4138,7 +4438,7 @@ const handleCompensationHistory = () => {
 
   color: var(--text-muted);
 
-  font-size: 8px;
+  font-size: var(--profile-description-size);
   line-height: 1.5;
 }
 
@@ -4225,7 +4525,7 @@ const handleCompensationHistory = () => {
 .document-file-info strong {
   color: var(--text-primary);
 
-  font-size: 9px;
+  font-size: var(--profile-value-size);
   font-weight: 650;
 }
 
@@ -4236,7 +4536,7 @@ const handleCompensationHistory = () => {
 
   color: var(--text-secondary);
 
-  font-size: 8px;
+  font-size: var(--profile-description-size);
 
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -4253,7 +4553,7 @@ const handleCompensationHistory = () => {
 .document-meta span {
   color: var(--text-muted);
 
-  font-size: 7px;
+  font-size: var(--profile-secondary-size);
 }
 
 /* STATUS */
@@ -4270,7 +4570,7 @@ const handleCompensationHistory = () => {
 
   border-radius: 20px;
 
-  font-size: 7px;
+  font-size: var(--profile-secondary-size);
   font-weight: 650;
 
   white-space: nowrap;
@@ -4360,7 +4660,7 @@ const handleCompensationHistory = () => {
 .documents-empty strong {
   color: var(--text-primary);
 
-  font-size: 10px;
+  font-size: var(--profile-subheading-size);
 }
 
 .documents-empty p {
@@ -4368,7 +4668,7 @@ const handleCompensationHistory = () => {
 
   color: var(--text-muted);
 
-  font-size: 8px;
+  font-size: var(--profile-description-size);
 }
 
 /* SUMMARY */
@@ -4411,7 +4711,7 @@ const handleCompensationHistory = () => {
 .document-summary-card span {
   color: var(--text-muted);
 
-  font-size: 7px;
+  font-size: var(--profile-label-size);
 }
 
 .document-summary-card strong {
@@ -4419,7 +4719,7 @@ const handleCompensationHistory = () => {
 
   color: var(--text-primary);
 
-  font-size: 14px;
+  font-size: var(--profile-count-size);
   font-weight: 750;
 }
 
@@ -4476,14 +4776,14 @@ const handleCompensationHistory = () => {
 .required-document-name span {
   color: var(--text-primary);
 
-  font-size: 8px;
+  font-size: var(--profile-label-size);
   font-weight: 600;
 }
 
 .required-document-row > strong {
   color: var(--red);
 
-  font-size: 7px;
+  font-size: var(--profile-secondary-size);
   font-weight: 650;
 }
 
@@ -4514,7 +4814,7 @@ const handleCompensationHistory = () => {
 .document-note span {
   color: var(--text-secondary);
 
-  font-size: 7px;
+  font-size: var(--profile-description-size);
   line-height: 1.5;
 }
 
@@ -4563,7 +4863,7 @@ const handleCompensationHistory = () => {
 
   color: var(--text-secondary);
 
-  font-size: 8px;
+  font-size: var(--profile-control-size);
   font-weight: 600;
 }
 
@@ -4584,7 +4884,7 @@ const handleCompensationHistory = () => {
   background: var(--bg-card);
   color: var(--text-secondary);
 
-  font-size: 8px;
+  font-size: var(--profile-control-size);
   font-weight: 600;
 }
 
@@ -4666,7 +4966,7 @@ const handleCompensationHistory = () => {
 .activity-item-heading strong {
   color: var(--text-primary);
 
-  font-size: 9px;
+  font-size: var(--profile-value-size);
   font-weight: 650;
 }
 
@@ -4675,7 +4975,7 @@ const handleCompensationHistory = () => {
 
   color: var(--text-muted);
 
-  font-size: 7px;
+  font-size: var(--profile-secondary-size);
 }
 
 .activity-category {
@@ -4689,7 +4989,7 @@ const handleCompensationHistory = () => {
 
   border-radius: 20px;
 
-  font-size: 7px;
+  font-size: var(--profile-secondary-size);
   font-weight: 650;
 }
 
@@ -4708,7 +5008,7 @@ const handleCompensationHistory = () => {
 
   color: var(--text-secondary);
 
-  font-size: 8px;
+  font-size: var(--profile-description-size);
   line-height: 1.5;
 }
 
@@ -4748,7 +5048,7 @@ const handleCompensationHistory = () => {
 .activity-empty strong {
   color: var(--text-primary);
 
-  font-size: 10px;
+  font-size: var(--profile-subheading-size);
 }
 
 .activity-empty p {
@@ -4756,7 +5056,7 @@ const handleCompensationHistory = () => {
 
   color: var(--text-muted);
 
-  font-size: 8px;
+  font-size: var(--profile-description-size);
 }
 
 /* SUMMARY */
@@ -4782,7 +5082,7 @@ const handleCompensationHistory = () => {
 .activity-summary-primary span {
   color: var(--primary);
 
-  font-size: 7px;
+  font-size: var(--profile-label-size);
   font-weight: 600;
 }
 
@@ -4791,7 +5091,7 @@ const handleCompensationHistory = () => {
 
   color: var(--text-primary);
 
-  font-size: 18px;
+  font-size: var(--profile-count-size);
   font-weight: 750;
 }
 
@@ -4821,13 +5121,13 @@ const handleCompensationHistory = () => {
 .activity-summary-row span {
   color: var(--text-secondary);
 
-  font-size: 8px;
+  font-size: var(--profile-label-size);
 }
 
 .activity-summary-row strong {
   color: var(--text-primary);
 
-  font-size: 9px;
+  font-size: var(--profile-value-size);
 }
 
 .summary-dot {
@@ -4877,7 +5177,7 @@ const handleCompensationHistory = () => {
 
   color: var(--text-primary);
 
-  font-size: 9px;
+  font-size: var(--profile-value-size);
 }
 
 .audit-info p {
@@ -4885,7 +5185,7 @@ const handleCompensationHistory = () => {
 
   color: var(--text-secondary);
 
-  font-size: 7px;
+  font-size: var(--profile-description-size);
   line-height: 1.55;
 }
 
@@ -4967,7 +5267,7 @@ const handleCompensationHistory = () => {
 }
 
   .name-row h1 {
-    font-size: 20px;
+    font-size: 22px;
   }
 }
 
