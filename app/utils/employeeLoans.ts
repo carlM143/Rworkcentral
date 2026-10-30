@@ -7,7 +7,7 @@ export interface EmployeeLoanPayment {
   remarks: string
 }
 
-export interface EmployeeLoan {
+export interface EmployeePortalLoan {
   id: string
   type: string
   principal: number
@@ -22,14 +22,14 @@ export interface EmployeeLoan {
   payments: EmployeeLoanPayment[]
 }
 
-export const loanSummary = (loan: EmployeeLoan) => {
+export const loanSummary = (loan: EmployeePortalLoan) => {
   const totalDue = Math.round((loan.principal + loan.interest) * 100)
   const paid = loan.payments.reduce((sum, payment) => sum + Math.round(payment.amount * 100), 0)
   const outstanding = Math.max(0, totalDue - paid)
   return { totalDue: totalDue / 100, paid: paid / 100, outstanding: outstanding / 100, status: outstanding === 0 ? 'Fully Paid' : 'Active', progress: totalDue > 0 ? Math.min(100, paid / totalDue * 100) : 100 }
 }
 
-export const loanRepayments = (loan: EmployeeLoan) => {
+export const loanRepayments = (loan: EmployeePortalLoan) => {
   let balance = Math.round((loan.principal + loan.interest) * 100)
   return [...loan.payments].sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id)).map(payment => {
     balance -= Math.round(payment.amount * 100)
@@ -39,7 +39,7 @@ export const loanRepayments = (loan: EmployeeLoan) => {
 
 // Fictional employee-only loan data, not official lending or payroll records.
 // These examples use bank transfers; they are not deductions from payslips.
-export const createEmployeeLoans = (): EmployeeLoan[] => [
+export const createEmployeeLoans = (): EmployeePortalLoan[] => [
   {
     id: 'LN-2026-001', type: 'Salary Loan', principal: 30000, interest: 0, installment: 2500, frequency: 'Monthly',
     grantedAt: '2026-06-25', firstPaymentAt: '2026-07-01', nextDueAt: '2026-11-01', method: 'Bank transfer',

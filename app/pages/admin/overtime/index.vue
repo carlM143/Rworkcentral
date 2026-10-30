@@ -29,18 +29,6 @@ const handleExport = () => {
   )
 }
 
-const handleFileOvertime = () => {
-  router.push(
-    '/admin/ot-requests',
-  )
-}
-
-const handleApproved = () => {
-  router.push(
-    '/admin/approved-overtime',
-  )
-}
-
 const handleHistory = () => {
   router.push(
     '/admin/overtime-history',
@@ -63,13 +51,6 @@ const handleHistory = () => {
         @click="handleExport"
       >
         Export
-      </AppButton>
-
-      <AppButton
-        :icon="Plus"
-        @click="handleFileOvertime"
-      >
-        File Overtime
       </AppButton>
 
     </PageHeader>
@@ -99,8 +80,6 @@ const handleHistory = () => {
       <OvertimeSidePanel
         :pending-requests="pendingRequests"
         :today-overtime="todayOvertime"
-        @file-overtime="handleFileOvertime"
-        @approved="handleApproved"
         @history="handleHistory"
       />
 

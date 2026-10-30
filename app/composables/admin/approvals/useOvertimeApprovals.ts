@@ -2,8 +2,8 @@ import type {
   OvertimeApproval,
   OvertimeApprovalApiRecord,
   OvertimeApprovalStatus,
-  OvertimeApprovalType,
 } from '~/types/overtimeApproval'
+import { hasActiveFilter, resolveExportRecords } from '~/utils/approvalExport'
 import { useOvertimeApprovalApi } from './useOvertimeApprovalApi'
 
 const statusLabel = (status: string): OvertimeApprovalStatus => {
@@ -11,7 +11,6 @@ const statusLabel = (status: string): OvertimeApprovalStatus => {
   if (value === 'approved') return 'Approved'
   if (value === 'rejected') return 'Rejected'
   if (value === 'cancelled') return 'Cancelled'
-  if (value === 'for_review') return 'For Review'
   return 'Pending'
 }
 
@@ -21,17 +20,25 @@ const mapRequest = (record: OvertimeApprovalApiRecord): OvertimeApproval => {
     Math.round(((new Date(record.end_at).getTime() - new Date(record.start_at).getTime()) / 3_600_000) * 100) / 100,
   )
   const status = statusLabel(record.status)
+  const employments = [...(record.employee?.employments ?? [])].sort((a, b) => a.id - b.id)
+  const latestEmployment = employments[employments.length - 1]
+  const department = latestEmployment?.department?.department_name
+    ?? record.employee?.department?.department_name
+    ?? '—'
+  const position = latestEmployment?.position?.position
+    ?? record.work_schedule?.schedule_name
+    ?? '—'
 
   return {
     id: record.id,
     requestNumber: record.request_no,
     employeeId: record.employee_id,
-    employeeNumber: record.employee?.emp_id ?? `EMP-${record.employee_id}`,
+    employeeNumber: record.employee?.emp_id ? String(record.employee.emp_id) : `EMP-${record.employee_id}`,
     employeeName: record.employee
-      ? `${record.employee.firstname} ${record.employee.lastname}`.trim()
+      ? [record.employee.firstname, record.employee.middlename, record.employee.lastname].filter(Boolean).join(' ')
       : 'Unknown employee',
-    department: '—',
-    position: record.work_schedule?.schedule_name ?? '—',
+    department,
+    position,
     overtimeDate: record.ot_date?.slice(0, 10) ?? '',
     startTime: record.start_at?.slice(11, 16) || '00:00',
     endTime: record.end_at?.slice(11, 16) || '00:00',
@@ -48,14 +55,13 @@ const mapRequest = (record: OvertimeApprovalApiRecord): OvertimeApproval => {
 }
 
 export const useOvertimeApprovals = () => {
-  const { getOvertimeApprovals, approveOvertimeRequest } = useOvertimeApprovalApi()
+  const { getOvertimeApprovals, approveOvertimeRequest, rejectOvertimeRequest, revertOvertimeRequest } = useOvertimeApprovalApi()
   const requests = ref<OvertimeApproval[]>([])
   const loading = ref(false)
   const loadError = ref('')
   const approvingId = ref<number | null>(null)
   const search = ref('')
   const department = ref('')
-  const overtimeType = ref('')
   const status = ref('')
   const dateFrom = ref('')
   const dateTo = ref('')
@@ -91,11 +97,36 @@ export const useOvertimeApprovals = () => {
     }
   }
 
+  const rejectRequest = async (requestId: number) => {
+    approvingId.value = requestId
+    try {
+      const response = await rejectOvertimeRequest(requestId)
+      if (response.success === false) throw new Error(response.message)
+      const index = requests.value.findIndex(item => item.id === requestId)
+      if (index >= 0) requests.value[index] = mapRequest(response.data)
+      return response.message
+    } finally {
+      approvingId.value = null
+    }
+  }
+
+  const revertRequest = async (requestId: number) => {
+    approvingId.value = requestId
+    try {
+      const response = await revertOvertimeRequest(requestId)
+      if (response.success === false) throw new Error(response.message)
+      const index = requests.value.findIndex(item => item.id === requestId)
+      if (index >= 0) requests.value[index] = mapRequest(response.data)
+      return response.message
+    } finally {
+      approvingId.value = null
+    }
+  }
+
   const departmentOptions = computed(() => [
     ...new Set(requests.value.map(item => item.department).filter(value => value !== '—')),
   ].sort())
-  const overtimeTypeOptions: OvertimeApprovalType[] = ['Regular OT', 'Rest Day OT', 'Holiday OT']
-  const statusOptions: OvertimeApprovalStatus[] = ['Pending', 'For Review', 'Approved', 'Rejected', 'Cancelled']
+  const statusOptions: OvertimeApprovalStatus[] = ['Pending', 'Approved', 'Rejected', 'Cancelled']
   const filteredRequests = computed(() => {
     const keyword = search.value.trim().toLowerCase()
     return requests.value.filter(item => (
@@ -105,15 +136,28 @@ export const useOvertimeApprovals = () => {
         || item.employeeNumber.toLowerCase().includes(keyword)
         || item.reason.toLowerCase().includes(keyword))
       && (!department.value || item.department === department.value)
-      && (!overtimeType.value || item.overtimeType === overtimeType.value)
       && (!status.value || item.status === status.value)
       && (!dateFrom.value || item.overtimeDate >= dateFrom.value)
       && (!dateTo.value || item.overtimeDate <= dateTo.value)
     ))
   })
+  const hasFilters = computed(() => hasActiveFilter([
+    search.value,
+    department.value,
+    status.value,
+    dateFrom.value,
+    dateTo.value,
+  ]))
+
+  const exportRecords = computed(() => resolveExportRecords(
+    requests.value,
+    filteredRequests.value,
+    hasFilters.value,
+  ))
+
   const stats = computed(() => ({
     totalRequests: filteredRequests.value.length,
-    pending: filteredRequests.value.filter(item => ['Pending', 'For Review'].includes(item.status)).length,
+    pending: filteredRequests.value.filter(item => item.status === 'Pending').length,
     approved: filteredRequests.value.filter(item => item.status === 'Approved').length,
     approvedHours: filteredRequests.value.reduce((sum, item) => sum + (item.approvedHours ?? 0), 0),
   }))
@@ -125,17 +169,17 @@ export const useOvertimeApprovals = () => {
   const showingFrom = computed(() => filteredRequests.value.length ? (currentPage.value - 1) * perPage.value + 1 : 0)
   const showingTo = computed(() => Math.min(currentPage.value * perPage.value, filteredRequests.value.length))
   const resetFilters = () => {
-    search.value = ''; department.value = ''; overtimeType.value = ''; status.value = ''
+    search.value = ''; department.value = ''; status.value = ''
     dateFrom.value = ''; dateTo.value = ''; currentPage.value = 1
   }
 
-  watch([search, department, overtimeType, status, dateFrom, dateTo], () => { currentPage.value = 1 })
+  watch([search, department, status, dateFrom, dateTo], () => { currentPage.value = 1 })
   watch(totalPages, value => { if (currentPage.value > value) currentPage.value = value })
 
   return {
-    requests, loading, loadError, approvingId, loadRequests, approveRequest,
-    search, department, overtimeType, status, dateFrom, dateTo, currentPage,
+    requests, loading, loadError, approvingId, loadRequests, approveRequest, rejectRequest, revertRequest,
+    search, department, status, dateFrom, dateTo, currentPage,
     filteredRequests, paginatedRequests, totalPages, showingFrom, showingTo, stats,
-    departmentOptions, overtimeTypeOptions, statusOptions, resetFilters,
+    departmentOptions, statusOptions, hasFilters, exportRecords, resetFilters,
   }
 }

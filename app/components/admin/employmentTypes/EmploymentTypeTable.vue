@@ -54,11 +54,23 @@ const isStatusActive = (status: string | boolean | number) =>
             </td>
             <td class="text-right">
               <div class="row-actions">
-                <button type="button" class="action-btn" title="Edit employment type" @click="emit('edit', item)">
-                  <Pencil :size="14" />
+                <button
+                  type="button"
+                  class="action-btn edit"
+                  title="Edit employment type"
+                  @click="emit('edit', item)"
+                >
+                  <Pencil :size="12" />
+                  <span>Edit</span>
                 </button>
-                <button type="button" class="action-btn delete" title="Delete employment type" @click="emit('delete', item)">
-                  <Trash2 :size="14" />
+                <button
+                  type="button"
+                  class="action-btn delete"
+                  title="Delete employment type"
+                  @click="emit('delete', item)"
+                >
+                  <Trash2 :size="12" />
+                  <span>Delete</span>
                 </button>
               </div>
             </td>
@@ -70,23 +82,143 @@ const isStatusActive = (status: string | boolean | number) =>
 </template>
 
 <style scoped>
-.card { border: 1px solid var(--border); border-radius: 12px; background: var(--bg-card); box-shadow: var(--shadow); overflow: hidden; }
-.table-scroll { overflow-x: auto; }
-.data-table { width: 100%; border-collapse: collapse; text-align: left; font-size: 11px; }
-th, td { padding: 13px 16px; border-top: 1px solid var(--border-soft); color: var(--text-secondary); }
-thead th { background: var(--bg-card-soft); color: var(--text-primary); font-weight: 600; white-space: nowrap; }
-tbody tr:first-child td { border-top: 0; }
-.empty-state { text-align: center; padding: 36px; color: var(--text-muted); }
-.cell-primary { display: flex; align-items: center; gap: 8px; color: var(--text-primary); }
-.cell-icon { color: var(--primary); flex-shrink: 0; }
-.cell-secondary { color: var(--text-muted); }
-.badge { display: inline-flex; align-items: center; gap: 5px; padding: 4px 8px; border-radius: 6px; font-size: 10px; font-weight: 500; white-space: nowrap; }
-.badge.active { background: var(--green-soft); color: var(--green); }
-.badge.inactive { background: var(--bg-card-soft); color: var(--text-muted); }
-.count-badge { background: var(--primary-soft); color: var(--primary); }
-.text-right { text-align: right; }
-.row-actions { display: inline-flex; align-items: center; gap: 6px; }
-.action-btn { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-card); color: var(--text-secondary); cursor: pointer; transition: all 0.15s ease; }
-.action-btn:hover { background: var(--primary-soft); color: var(--primary); border-color: var(--primary); }
-.action-btn.delete:hover { background: var(--red-soft, rgba(239, 68, 68, 0.1)); color: var(--red, #ef4444); border-color: var(--red, #ef4444); }
+.card {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-card);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+.table-scroll {
+  overflow-x: auto;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 11px;
+}
+
+th, td {
+  padding: 13px 16px;
+  border-top: 1px solid var(--border-soft);
+  color: var(--text-secondary);
+  vertical-align: middle;
+}
+
+thead th {
+  background: var(--bg-card-soft);
+  color: var(--text-primary);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+tbody tr:first-child td {
+  border-top: 0;
+}
+
+tbody tr:hover {
+  background: var(--bg-card-soft);
+}
+
+.empty-state {
+  text-align: center;
+  padding: 36px;
+  color: var(--text-muted);
+}
+
+.cell-primary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-primary);
+}
+
+.cell-icon {
+  color: var(--primary);
+  flex-shrink: 0;
+}
+
+.cell-secondary {
+  color: var(--text-muted);
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.badge.active {
+  background: var(--green-soft);
+  color: var(--green);
+}
+
+.badge.inactive {
+  background: var(--bg-card-soft);
+  color: var(--text-muted);
+}
+
+.count-badge {
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+
+.text-right {
+  text-align: right;
+}
+
+.row-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 11px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.action-btn.edit {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+
+.action-btn.edit:hover {
+  background: var(--primary);
+  color: #fff;
+}
+
+.action-btn.delete {
+  border-color: rgba(239, 68, 68, 0.35);
+  background: rgba(239, 68, 68, 0.08);
+  color: #ef4444;
+}
+
+.action-btn.delete:hover {
+  background: #ef4444;
+  border-color: #ef4444;
+  color: #fff;
+}
 </style>

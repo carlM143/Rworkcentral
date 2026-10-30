@@ -11,7 +11,7 @@ defineProps<{
     total: number
     leaves: number
     overtime: number
-    corrections: number
+    undertime: number
   }
 }>()
 </script>
@@ -44,9 +44,9 @@ defineProps<{
     />
 
     <StatCard
-      label="Time Corrections"
-      :value="stats.corrections"
-      description="Pending time adjustments"
+      label="Undertime Requests"
+      :value="stats.undertime"
+      description="Pending undertime approvals"
       :icon="Clock3"
       tone="purple"
     />

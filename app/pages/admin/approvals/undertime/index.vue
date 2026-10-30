@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { ArrowLeft, RefreshCw } from 'lucide-vue-next'
+import { Download, Plus, RefreshCw } from 'lucide-vue-next'
 
 import UndertimeApprovalFilters from '~/components/admin/approvals/undertime/UndertimeApprovalFilters.vue'
 import UndertimeApprovalStats from '~/components/admin/approvals/undertime/UndertimeApprovalStats.vue'
 import UndertimeApprovalTable from '~/components/admin/approvals/undertime/UndertimeApprovalTable.vue'
+import FileApprovalRequestModal from '~/components/admin/approvals/FileApprovalRequestModal.vue'
 import { useUndertimeApprovals } from '~/composables/admin/approvals/useUndertimeApprovals'
 import type { UndertimeRequest } from '~/types/undertimeRequest'
 
@@ -12,7 +13,6 @@ definePageMeta({
   alias: ['/admin/undertime-requests'],
 })
 
-const router = useRouter()
 const { success, warning } = useToast()
 const {
   requests,
@@ -21,10 +21,13 @@ const {
   approvingId,
   search,
   status,
+  department,
+  departmentOptions,
   dateFrom,
   dateTo,
   currentPage,
   statusOptions,
+  exportRecords,
   filteredRequests,
   paginatedRequests,
   stats,
@@ -33,8 +36,25 @@ const {
   showingTo,
   loadRequests,
   approveRequest,
+  rejectRequest,
+  revertRequest,
   resetFilters,
 } = useUndertimeApprovals()
+
+const exportOpen = ref(false)
+const fileRequestOpen = ref(false)
+const requestOpen = ref(false)
+const requestMode = ref('view')
+const selectedRequest = ref<UndertimeRequest | null>(null)
+
+const handleExport = () => { exportOpen.value = true }
+const handleFileRequestSuccess = () => { void loadRequests() }
+
+const handleReview = (item: UndertimeRequest) => {
+  selectedRequest.value = item
+  requestMode.value = 'view'
+  requestOpen.value = true
+}
 
 const handleApprove = async (request: UndertimeRequest) => {
   try {
@@ -54,23 +74,81 @@ const handleApprove = async (request: UndertimeRequest) => {
   }
 }
 
+const handleReject = async (request: UndertimeRequest) => {
+  try {
+    const message = await rejectRequest(request.id)
+    success('Undertime Rejected', message)
+  } catch (problem: any) {
+    warning(
+      'Rejection Failed',
+      problem?.data?.message
+        ?? problem?.response?._data?.message
+        ?? problem?.message
+        ?? 'Unable to reject the undertime request.',
+    )
+  }
+}
+
+const handleRevert = async (request: UndertimeRequest) => {
+  try {
+    const message = await revertRequest(request.id)
+    success('Undertime Reverted', message)
+  } catch (problem: any) {
+    warning(
+      'Undo Failed',
+      problem?.data?.message
+        ?? problem?.response?._data?.message
+        ?? problem?.message
+        ?? 'Unable to revert the undertime request.',
+    )
+  }
+}
+
+const handleDialogApprove = async () => {
+  if (!selectedRequest.value) return
+  await handleApprove(selectedRequest.value)
+  requestOpen.value = false
+}
+
+const handleDialogReject = async () => {
+  if (!selectedRequest.value) return
+  await handleReject(selectedRequest.value)
+  requestOpen.value = false
+}
+
+const handleDialogRevert = async () => {
+  if (!selectedRequest.value) return
+  await handleRevert(selectedRequest.value)
+  requestOpen.value = false
+}
+
 onMounted(() => { void loadRequests() })
 </script>
 
 <template>
   <section class="undertime-approvals-page">
-    <button type="button" class="back-button" @click="router.push('/admin/approvals')">
-      <ArrowLeft :size="15" />
-      Back to Approval Center
-    </button>
-
     <PageHeader
       title="Undertime Approvals"
       description="Review employee undertime schedules, requested minutes, reasons and approval status."
     >
-      <AppButton variant="secondary" :icon="RefreshCw" :disabled="loading" @click="loadRequests">
-        {{ loading ? 'Refreshing...' : 'Refresh' }}
-      </AppButton>
+      <div class="header-actions">
+        <AppButton
+          :icon="Plus"
+          @click="fileRequestOpen = true"
+        >
+          File Request
+        </AppButton>
+        <AppButton
+          variant="secondary"
+          :icon="Download"
+          @click="handleExport"
+        >
+          Export
+        </AppButton>
+        <AppButton variant="secondary" :icon="RefreshCw" :disabled="loading" @click="loadRequests">
+          {{ loading ? 'Refreshing...' : 'Refresh' }}
+        </AppButton>
+      </div>
     </PageHeader>
 
     <UndertimeApprovalStats :stats="stats" />
@@ -78,9 +156,11 @@ onMounted(() => { void loadRequests() })
     <UndertimeApprovalFilters
       v-model:search="search"
       v-model:status="status"
+      v-model:department="department"
       v-model:date-from="dateFrom"
       v-model:date-to="dateTo"
       :statuses="statusOptions"
+      :departments="departmentOptions"
       @reset="resetFilters"
     />
 
@@ -100,17 +180,49 @@ onMounted(() => { void loadRequests() })
     <UndertimeApprovalTable
       :requests="paginatedRequests"
       :approving-id="approvingId"
-      @approve="handleApprove"
+      @review="handleReview"
+      @revert="handleRevert"
     />
 
     <div class="table-footer">
       <p>Showing <strong>{{ showingFrom }}–{{ showingTo }}</strong> of <strong>{{ filteredRequests.length }}</strong> requests</p>
       <AppPagination v-model="currentPage" :total-pages="totalPages" />
     </div>
+
+    <PayrollExportDialog
+      :open="exportOpen"
+      title="Undertime Approvals"
+      :records="exportRecords"
+      :sample="false"
+      :date-from="dateFrom"
+      :date-to="dateTo"
+      :filters="{ Search: search, Status: status, Department: department }"
+      @close="exportOpen = false"
+    />
+
+    <ApprovalRequestDialog
+      :open="requestOpen"
+      kind="Undertime"
+      :mode="requestMode"
+      :request="selectedRequest"
+      :processing="approvingId !== null"
+      @close="requestOpen = false"
+      @approve="handleDialogApprove"
+      @reject="handleDialogReject"
+      @revert="handleDialogRevert"
+    />
+
+    <FileApprovalRequestModal
+      :open="fileRequestOpen"
+      default-type="Undertime"
+      @close="fileRequestOpen = false"
+      @success="handleFileRequestSuccess"
+    />
   </section>
 </template>
 
 <style scoped>
+.header-actions{display:flex;align-items:center;gap:8px}
 .undertime-approvals-page{width:100%;max-width:1660px;margin:0 auto}
 .back-button{display:inline-flex;align-items:center;gap:6px;margin-bottom:10px;padding:0;border:0;background:transparent;color:var(--primary);font-size:10px;font-weight:600;cursor:pointer}.back-button:hover{color:var(--primary-dark)}
 .table-footer{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:13px 3px 0}.table-footer p{margin:0;color:var(--text-muted);font-size:10px}.table-footer strong{color:var(--text-primary);font-weight:650}

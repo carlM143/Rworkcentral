@@ -3,7 +3,7 @@ import {
   UserRound,
   Eye,
   Check,
-  X,
+  RotateCcw,
 } from 'lucide-vue-next'
 
 import type {
@@ -12,17 +12,21 @@ import type {
 
 defineProps<{
   requests: ApprovalRequest[]
+  processingId?: number | null
 }>()
 
 const emit = defineEmits<{
-  approve: [request: ApprovalRequest]
-  reject: [request: ApprovalRequest]
+  revert: [request: ApprovalRequest]
   view: [request: ApprovalRequest]
 }>()
 
 const formatDate = (
   date: string,
 ) => {
+  if (!date) return '—'
+  const parsed = new Date(`${date.slice(0, 10)}T00:00:00`)
+  if (Number.isNaN(parsed.getTime())) return date
+
   return new Intl.DateTimeFormat(
     'en-US',
     {
@@ -30,11 +34,7 @@ const formatDate = (
       day: 'numeric',
       year: 'numeric',
     },
-  ).format(
-    new Date(
-      `${date}T00:00:00`,
-    ),
-  )
+  ).format(parsed)
 }
 
 const typeClass = (
@@ -52,11 +52,11 @@ const typeClass = (
     <div class="table-heading">
       <div>
         <h3>
-          Pending Requests
+          Approval Requests
         </h3>
 
         <p>
-          Review employee requests requiring approval.
+          Review employee requests requiring approval or manage reviewed requests.
         </p>
       </div>
     </div>
@@ -73,16 +73,16 @@ const typeClass = (
             <th>Request</th>
             <th>Reference</th>
             <th>Request Date</th>
-            <th>Priority</th>
+            <th>Status</th>
             <th>Approver</th>
-            <th>Actions</th>
+            <th class="actions-header">Actions</th>
           </tr>
         </thead>
 
         <tbody>
           <tr
             v-for="request in requests"
-            :key="request.id"
+            :key="`${request.type}-${request.sourceId ?? request.id}`"
           >
 
             <!-- EMPLOYEE -->
@@ -146,16 +146,14 @@ const typeClass = (
               {{ formatDate(request.requestDate) }}
             </td>
 
-            <!-- PRIORITY -->
+            <!-- STATUS -->
             <td>
               <span
-                class="priority"
-                :class="
-                  request.priority
-                    .toLowerCase()
-                "
+                class="status-pill"
+                :class="request.status.toLowerCase()"
               >
-                {{ request.priority }}
+                <span class="status-dot" />
+                {{ request.status }}
               </span>
             </td>
 
@@ -168,13 +166,13 @@ const typeClass = (
             </td>
 
             <!-- ACTIONS -->
-            <td>
+            <td class="actions-cell">
               <div class="row-actions">
 
                 <button
                   type="button"
-                  class="action-button view"
-                  title="View request" aria-label="View request"
+                  class="preview-button"
+                  title="Preview request"
                   @click="
                     emit(
                       'view',
@@ -182,35 +180,25 @@ const typeClass = (
                     )
                   "
                 >
-                  <Eye :size="14" />
+                  <Eye :size="13" />
+                  <span>Preview</span>
                 </button>
 
                 <button
+                  v-if="request.status !== 'Pending'"
                   type="button"
-                  class="action-button approve"
-                  title="Approve request" aria-label="Approve request"
+                  class="undo-button"
+                  title="Undo approval and revert to pending"
+                  :disabled="processingId === request.id"
                   @click="
                     emit(
-                      'approve',
+                      'revert',
                       request,
                     )
                   "
                 >
-                  <Check :size="14" />
-                </button>
-
-                <button
-                  type="button"
-                  class="action-button reject"
-                  title="Reject request" aria-label="Reject request"
-                  @click="
-                    emit(
-                      'reject',
-                      request,
-                    )
-                  "
-                >
-                  <X :size="14" />
+                  <RotateCcw :size="13" />
+                  <span>Undo</span>
                 </button>
 
               </div>
@@ -231,11 +219,11 @@ const typeClass = (
       </div>
 
       <strong>
-        No pending requests
+        No requests found
       </strong>
 
       <p>
-        All requests have been reviewed.
+        No requests match the selected filters.
       </p>
     </div>
 
@@ -259,7 +247,7 @@ const typeClass = (
 }
 
 .table-heading {
-  padding: 13px 15px;
+  padding: 16px 17px;
 
   border-bottom:
     1px solid var(--border-soft);
@@ -271,16 +259,17 @@ const typeClass = (
   color:
     var(--text-primary);
 
-  font-size: 11px;
+  font-size: 14px;
+  font-weight: 700;
 }
 
 .table-heading p {
-  margin: 3px 0 0;
+  margin: 5px 0 0;
 
   color:
     var(--text-muted);
 
-  font-size: 8px;
+  font-size: 10px;
 }
 
 .table-scroll {
@@ -290,13 +279,13 @@ const typeClass = (
 .approval-table {
   width: 100%;
 
-  min-width: 1150px;
+  min-width: 1100px;
 
   border-collapse: collapse;
 }
 
 .approval-table th {
-  padding: 10px 12px;
+  padding: 12px 13px;
 
   border-bottom:
     1px solid var(--border);
@@ -307,16 +296,21 @@ const typeClass = (
   color:
     var(--text-secondary);
 
-  font-size: 8px;
+  font-size: 10px;
 
-  font-weight: 650;
+  font-weight: 700;
 
   text-align: left;
   text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.approval-table th.actions-header {
+  text-align: right;
 }
 
 .approval-table td {
-  padding: 11px 12px;
+  padding: 13px;
 
   border-bottom:
     1px solid var(--border-soft);
@@ -324,7 +318,7 @@ const typeClass = (
   color:
     var(--text-secondary);
 
-  font-size: 9px;
+  font-size: 10px;
 
   vertical-align: middle;
 }
@@ -348,7 +342,7 @@ td {
 
   align-items: center;
 
-  gap: 8px;
+  gap: 9px;
 }
 
 .employee-icon {
@@ -380,22 +374,22 @@ td {
   color:
     var(--text-primary);
 
-  font-size: 9px;
+  font-size: 10px;
 }
 
 .employee-cell span {
-  margin-top: 2px;
+  margin-top: 3px;
 
   color:
     var(--text-muted);
 
-  font-size: 7px;
+  font-size: 9px;
 }
 
 /* REQUEST */
 
 .request-cell {
-  max-width: 275px;
+  max-width: 285px;
 }
 
 .request-cell strong,
@@ -409,7 +403,7 @@ td {
   color:
     var(--text-primary);
 
-  font-size: 9px;
+  font-size: 10px;
 }
 
 .request-cell small {
@@ -420,7 +414,7 @@ td {
   color:
     var(--text-muted);
 
-  font-size: 7px;
+  font-size: 9px;
 
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -430,11 +424,11 @@ td {
   display: inline-flex;
 
   padding:
-    3px 6px;
+    3px 7px;
 
   border-radius: 5px;
 
-  font-size: 7px;
+  font-size: 8px;
   font-weight: 650;
 }
 
@@ -454,7 +448,8 @@ td {
     var(--orange);
 }
 
-.request-type.time-log-correction {
+.request-type.time-log-correction,
+.request-type.undertime {
   background:
     var(--purple-soft);
 
@@ -477,95 +472,97 @@ td {
   font-weight: 600;
 }
 
-/* PRIORITY */
-
-.priority {
+/* STATUS PILL */
+.status-pill {
   display: inline-flex;
-
-  padding:
-    4px 7px;
-
+  align-items: center;
+  gap: 6px;
+  padding: 5px 9px;
   border-radius: 20px;
-
-  font-size: 7px;
+  font-size: 9px;
   font-weight: 650;
+  white-space: nowrap;
 }
-
-.priority.normal {
-  background:
-    var(--bg-card-soft);
-
-  color:
-    var(--text-secondary);
+.status-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
 }
-
-.priority.urgent {
-  background:
-    var(--red-soft);
-
-  color:
-    var(--red);
+.status-pill.pending {
+  background: var(--orange-soft);
+  color: var(--orange);
+}
+.status-pill.approved {
+  background: var(--green-soft);
+  color: var(--green);
+}
+.status-pill.rejected {
+  background: var(--red-soft);
+  color: var(--red);
 }
 
 /* ACTIONS */
 
+.actions-header {
+  text-align: right;
+}
+
+.actions-cell {
+  text-align: right;
+}
+
 .row-actions {
-  display: flex;
-
+  display: inline-flex;
   align-items: center;
-
-  gap: 5px;
+  justify-content: flex-end;
+  gap: 6px;
 }
 
-.action-button {
-  display: flex;
-
-  width: 29px;
-  height: 29px;
-
+.preview-button {
+  display: inline-flex;
   align-items: center;
-  justify-content: center;
-
-  border:
-    1px solid var(--border);
-
-  border-radius: 6px;
-
-  background:
-    transparent;
-
-  color:
-    var(--text-secondary);
+  gap: 6px;
+  padding: 8px 12px;
+  border: 1px solid var(--primary);
+  border-radius: 7px;
+  background: var(--primary-soft);
+  color: var(--primary);
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 650;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
 }
 
-.action-button.view:hover {
-  background:
-    var(--primary-soft);
-
-  color:
-    var(--primary);
+.preview-button:hover {
+  background: var(--primary);
+  color: #fff;
 }
 
-.action-button.approve:hover {
-  border-color:
-    var(--green);
-
-  background:
-    var(--green-soft);
-
-  color:
-    var(--green);
+.undo-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 11px;
+  border: 1px solid var(--orange);
+  border-radius: 7px;
+  background: var(--orange-soft);
+  color: var(--orange);
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 650;
+  cursor: pointer;
 }
 
-.action-button.reject:hover {
-  border-color:
-    var(--red);
+.undo-button:hover {
+  background: var(--orange);
+  color: #fff;
+}
 
-  background:
-    var(--red-soft);
-
-  color:
-    var(--red);
+.undo-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 /* EMPTY */
@@ -618,6 +615,6 @@ td {
   color:
     var(--text-muted);
 
-  font-size: 8px;
+  font-size: 10px;
 }
 </style>

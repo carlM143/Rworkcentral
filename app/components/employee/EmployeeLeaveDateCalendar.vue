@@ -3,6 +3,7 @@ import { ref, computed, watch } from 'vue'
 import {
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   CalendarDays,
   Sparkles,
   RotateCcw,
@@ -10,14 +11,24 @@ import {
 
 const start = defineModel<string>('start', { required: true })
 const end = defineModel<string>('end', { default: '' })
-const selectedDates = defineModel<string[]>('selectedDates', { default: () => [] })
+
+const selectedDates = defineModel<string[]>('selectedDates', {
+  default: () => [],
+})
 
 const props = withDefaults(defineProps<{
   minDate?: string
   maxDate?: string
   activeDates?: string[]
+  totalDays?: number
+  readonly?: boolean
+  hidePresets?: boolean
   selectionMode?: 'range' | 'multiple'
-}>(), { selectionMode: 'range' })
+}>(), {
+  readonly: false,
+  hidePresets: false,
+  selectionMode: 'range',
+})
 
 const isMultiple = computed(() => props.selectionMode === 'multiple')
 
@@ -34,6 +45,13 @@ const formatDateString = (date: Date): string => {
   const m = String(date.getMonth() + 1).padStart(2, '0')
   const d = String(date.getDate()).padStart(2, '0')
   return `${y}-${m}-${d}`
+}
+
+const getAdjacentDateStr = (dateStr: string, offsetDays: number): string => {
+  const d = parseDateString(dateStr)
+  if (!d) return ''
+  d.setDate(d.getDate() + offsetDays)
+  return formatDateString(d)
 }
 
 const formatPrettyDate = (dateStr: string) => {
@@ -56,13 +74,13 @@ const monthNames = [
 ]
 const shortMonthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 const weekdays = [
-  { short: 'Su', full: 'Sunday' },
-  { short: 'Mo', full: 'Monday' },
-  { short: 'Tu', full: 'Tuesday' },
-  { short: 'We', full: 'Wednesday' },
-  { short: 'Th', full: 'Thursday' },
-  { short: 'Fr', full: 'Friday' },
-  { short: 'Sa', full: 'Saturday' },
+  { short: 'SU', full: 'Sunday' },
+  { short: 'MO', full: 'Monday' },
+  { short: 'TU', full: 'Tuesday' },
+  { short: 'WE', full: 'Wednesday' },
+  { short: 'TH', full: 'Thursday' },
+  { short: 'FR', full: 'Friday' },
+  { short: 'SA', full: 'Saturday' },
 ]
 
 // Sync viewDate to start date when opening or when start updates externally
@@ -74,6 +92,16 @@ watch(() => start.value, (newStart) => {
       if (d.getFullYear() !== viewDate.value.getFullYear() || d.getMonth() !== viewDate.value.getMonth()) {
         viewDate.value = new Date(d.getFullYear(), d.getMonth(), 1, 12, 0, 0)
       }
+    }
+  }
+}, { immediate: true })
+
+// Jump to activeDates month if start is not explicitly provided
+watch(() => props.activeDates, (dates) => {
+  if (dates && dates.length > 0 && !start.value) {
+    const first = parseDateString(dates[0])
+    if (first) {
+      viewDate.value = new Date(first.getFullYear(), first.getMonth(), 1, 12, 0, 0)
     }
   }
 }, { immediate: true })
@@ -136,6 +164,13 @@ const calendarCells = computed<CalendarCell[]>(() => {
   const startingDayOfWeek = firstDay.getDay()
 
   const todayStr = formatDateString(new Date())
+  const hasActiveDatesList = Boolean(props.activeDates && props.activeDates.length > 0)
+  const activeDateSet = new Set(
+    (props.activeDates || [])
+      .map(d => (d || '').slice(0, 10))
+      .filter(Boolean),
+  )
+
   const rawStart = start.value || ''
   const rawEnd = end.value || rawStart
 
@@ -157,6 +192,33 @@ const calendarCells = computed<CalendarCell[]>(() => {
 
   // Helper to build a cell
   const makeCell = (dateStr: string, dayNum: number, isCurrent: boolean, dayOfWeek: number): CalendarCell => {
+    // Display filed individual dates when supplied, without losing multi-select editing.
+    // In multiple edit mode, selectedDates is the selection source; readonly views
+    // can still show the explicit filed activeDates.
+    const showActiveDates = hasActiveDatesList && (!isMultiple.value || props.readonly)
+    if (showActiveDates) {
+      const isSelected = activeDateSet.has(dateStr)
+      const hasPrev = isSelected && activeDateSet.has(getAdjacentDateStr(dateStr, -1))
+      const hasNext = isSelected && activeDateSet.has(getAdjacentDateStr(dateStr, 1))
+
+      return {
+        dateStr,
+        dayNumber: dayNum,
+        isCurrentMonth: isCurrent,
+        isToday: dateStr === todayStr,
+        isWeekend: dayOfWeek === 0 || dayOfWeek === 6,
+        isStart: isSelected && !hasPrev,
+        isEnd: isSelected && !hasNext,
+        isInRange: isSelected && hasPrev && hasNext,
+        isSingleDay: isSelected && !hasPrev && !hasNext,
+        isHoverPreview: false,
+        isRangeLeftEdge: isSelected && (!hasPrev || dayOfWeek === 0),
+        isRangeRightEdge: isSelected && (!hasNext || dayOfWeek === 6),
+        isMultiSelected: false,
+      }
+    }
+
+    // Continuous start/end range, or independently selected dates in multiple mode.
     const isStart = !isMultiple.value && activeStart !== '' && dateStr === activeStart
     const isEnd = !isMultiple.value && activeEnd !== '' && dateStr === activeEnd
     const isSingleDay = isStart && isEnd
@@ -212,8 +274,15 @@ const calendarCells = computed<CalendarCell[]>(() => {
   return cells
 })
 
+// Existing min/max props apply to selectable dates in both modes.
+const isDateOutsideBounds = (dateStr: string) =>
+  Boolean((props.minDate && dateStr < props.minDate.slice(0, 10)) ||
+    (props.maxDate && dateStr > props.maxDate.slice(0, 10)))
+
 // Date selection interactions
 const handleCellClick = (cell: CalendarCell) => {
+  if (props.readonly || isDateOutsideBounds(cell.dateStr)) return
+
   // If clicked a cell outside current month, smoothly navigate to that month
   if (!cell.isCurrentMonth) {
     const d = parseDateString(cell.dateStr)
@@ -252,6 +321,7 @@ const handleCellClick = (cell: CalendarCell) => {
 }
 
 const handleCellHover = (dateStr: string) => {
+  if (props.readonly) return
   if (!isMultiple.value && isSelectingEnd.value) {
     hoverDate.value = dateStr
   }
@@ -268,6 +338,7 @@ const resetToSingleDay = () => {
 }
 
 const clearSelection = () => {
+  if (props.readonly) return
   if (isMultiple.value) {
     selectedDates.value = []
     start.value = ''
@@ -289,6 +360,7 @@ const datesBetween = (first: Date, last: Date) => {
 
 // Quick Presets
 const setPreset = (type: 'today' | 'tomorrow' | 'next3' | 'nextWeek') => {
+  if (props.readonly) return
   const now = new Date()
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 12, 0, 0)
 
@@ -336,7 +408,14 @@ const setPreset = (type: 'today' | 'tomorrow' | 'next3' | 'nextWeek') => {
 
 // Selected day count
 const selectedDayCount = computed(() => {
+  if (props.totalDays !== undefined && props.totalDays >= 0) {
+    return props.totalDays
+  }
+  if (props.readonly && props.activeDates?.length) {
+    return props.activeDates.length
+  }
   if (isMultiple.value) return selectedDates.value.length
+  if (props.activeDates?.length) return props.activeDates.length
   if (!start.value) return 0
   const s = parseDateString(start.value)
   const e = parseDateString(end.value || start.value)
@@ -349,7 +428,7 @@ const selectedDayCount = computed(() => {
 <template>
   <div class="leave-calendar-card" :aria-label="isMultiple ? 'Select individual leave dates' : 'Leave date range calendar'">
     <!-- Summary Header Strip -->
-    <div class="calendar-summary-strip">
+    <div v-if="!hidePresets" class="calendar-summary-strip">
       <div class="summary-selection">
         <div v-if="isMultiple" class="date-chip multi-date-chip">
           <span class="chip-tag">DATES</span>
@@ -372,7 +451,7 @@ const selectedDayCount = computed(() => {
           {{ selectedDayCount }} day{{ selectedDayCount === 1 ? '' : 's' }}
         </span>
         <button
-          v-if="isMultiple ? selectedDayCount > 0 : start !== (end || start)"
+          v-if="!readonly && (isMultiple ? selectedDates.length > 0 : start !== (end || start))"
           type="button"
           class="reset-single-btn"
           :title="isMultiple ? 'Clear selected dates' : 'Reset to 1-day leave'"
@@ -385,7 +464,7 @@ const selectedDayCount = computed(() => {
     </div>
 
     <!-- Interactive Instruction / Hint -->
-    <div class="calendar-hint-row">
+    <div v-if="!readonly && !hidePresets" class="calendar-hint-row">
       <span v-if="isMultiple" class="hint-text hint-active">
         <CalendarDays :size="12" class="hint-icon" />
         Tap each date you need. Tap a selected date again to remove it.
@@ -401,7 +480,7 @@ const selectedDayCount = computed(() => {
     </div>
 
     <!-- Quick Presets -->
-    <div class="presets-row">
+    <div v-if="!readonly && !hidePresets" class="presets-row">
       <div class="presets-label">
         <Sparkles :size="11" />
         <span>Quick:</span>
@@ -424,7 +503,7 @@ const selectedDayCount = computed(() => {
           @click="showMonthPicker = !showMonthPicker"
         >
           <strong>{{ currentMonthLabel }}</strong>
-          <span class="dropdown-caret">▾</span>
+          <ChevronDown :size="14" class="dropdown-caret-icon" />
         </button>
         <button
           type="button"
@@ -523,7 +602,8 @@ const selectedDayCount = computed(() => {
               'day-in-range': cell.isInRange,
             }"
             :aria-label="cell.dateStr"
-            :aria-pressed="cell.isMultiSelected"
+            :aria-pressed="cell.isMultiSelected || cell.isStart || cell.isEnd || cell.isInRange"
+            :disabled="readonly || isDateOutsideBounds(cell.dateStr)"
             @click="handleCellClick(cell)"
             @mouseenter="handleCellHover(cell.dateStr)"
           >
@@ -535,7 +615,7 @@ const selectedDayCount = computed(() => {
     </div>
 
     <!-- Manual Inputs Toggle Link (For Screen Readers or Direct Typing) -->
-    <div v-if="!isMultiple" class="calendar-footer">
+    <div v-if="!readonly && !isMultiple" class="calendar-footer">
       <button
         type="button"
         class="toggle-inputs-btn"
@@ -547,11 +627,11 @@ const selectedDayCount = computed(() => {
       <div v-if="showManualInputs" class="manual-inputs-container">
         <label class="manual-field">
           <span>Start Date</span>
-          <input v-model="start" type="date" required>
+          <input v-model="start" type="date" :min="minDate" :max="maxDate" required>
         </label>
         <label class="manual-field">
           <span>End Date</span>
-          <input v-model="end" type="date" :min="start" required>
+          <input v-model="end" type="date" :min="start || minDate" :max="maxDate" required>
         </label>
       </div>
     </div>
@@ -1089,8 +1169,12 @@ const selectedDayCount = computed(() => {
   color: var(--text-secondary);
 }
 
-.day-btn:hover {
+.day-btn:hover:not(:disabled) {
   background: var(--border-soft);
+}
+
+.day-btn:disabled {
+  cursor: default;
 }
 
 .day-cell-wrapper.range-mid .day-btn {

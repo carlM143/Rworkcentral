@@ -56,12 +56,6 @@ const handleExport = () => {
     'Overtime history export functionality will be connected later.',
   )
 }
-
-const handleApprovedOvertime = () => {
-  router.push(
-    '/admin/approved-overtime',
-  )
-}
 </script>
 
 <template>
@@ -102,15 +96,6 @@ const handleApprovedOvertime = () => {
           "
         >
           Export
-        </AppButton>
-
-        <AppButton
-          :icon="CheckCircle2"
-          @click="
-            handleApprovedOvertime
-          "
-        >
-          Approved Overtime
         </AppButton>
 
       </div>

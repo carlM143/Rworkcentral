@@ -1,21 +1,22 @@
-
 <script setup lang="ts">
-import { ArrowLeft, RefreshCw } from 'lucide-vue-next'
+import { Download, Plus, RefreshCw } from 'lucide-vue-next'
 
 import LeaveApprovalStats from '~/components/admin/approvals/leaves/LeaveApprovalStats.vue'
 import LeaveApprovalFilters from '~/components/admin/approvals/leaves/LeaveApprovalFilters.vue'
 import LeaveApprovalTable from '~/components/admin/approvals/leaves/LeaveApprovalTable.vue'
 import LeaveApprovalReviewModal from '~/components/admin/approvals/leaves/LeaveApprovalReviewModal.vue'
+import FileApprovalRequestModal from '~/components/admin/approvals/FileApprovalRequestModal.vue'
 import { useLeaveApprovals } from '~/composables/admin/approvals/useLeaveApprovals'
 
 definePageMeta({ layout: 'admin' })
-
-const router = useRouter()
 
 const {
   requests,
   search,
   statusFilter,
+  department,
+  dateFrom,
+  dateTo,
   currentPage,
   stats,
   paginatedRequests,
@@ -28,12 +29,21 @@ const {
   selectedRequest,
   approving,
   approvalProblem,
+  departmentOptions,
+  exportRecords,
   loadRequests,
   resetFilters,
   openApproval,
   closeApproval,
   handleApprove,
+  handleReject,
+  handleRevert,
 } = useLeaveApprovals()
+
+const exportOpen = ref(false)
+const fileRequestOpen = ref(false)
+const handleExport = () => { exportOpen.value = true }
+const handleFileRequestSuccess = () => { void loadRequests() }
 
 onMounted(() => { void loadRequests() })
 </script>
@@ -41,29 +51,34 @@ onMounted(() => { void loadRequests() })
 <template>
   <section class="leave-approvals-page">
 
-    <!-- BACK -->
-    <button
-      type="button"
-      class="back-button"
-      @click="router.push('/admin/approvals')"
-    >
-      <ArrowLeft :size="15" />
-      Back to Approval Center
-    </button>
-
     <!-- HEADER -->
     <PageHeader
       title="Leave Approvals"
       description="Review employee leave applications, payment classifications and approval status."
     >
-      <AppButton
-        variant="secondary"
-        :icon="RefreshCw"
-        :disabled="loading"
-        @click="loadRequests"
-      >
-        {{ loading ? 'Refreshing...' : 'Refresh' }}
-      </AppButton>
+      <div class="header-actions">
+        <AppButton
+          :icon="Plus"
+          @click="fileRequestOpen = true"
+        >
+          File Request
+        </AppButton>
+        <AppButton
+          variant="secondary"
+          :icon="Download"
+          @click="handleExport"
+        >
+          Export
+        </AppButton>
+        <AppButton
+          variant="secondary"
+          :icon="RefreshCw"
+          :disabled="loading"
+          @click="loadRequests"
+        >
+          {{ loading ? 'Refreshing...' : 'Refresh' }}
+        </AppButton>
+      </div>
     </PageHeader>
 
     <!-- STATISTICS -->
@@ -73,6 +88,10 @@ onMounted(() => { void loadRequests() })
     <LeaveApprovalFilters
       v-model:search="search"
       v-model:status="statusFilter"
+      v-model:department="department"
+      v-model:date-from="dateFrom"
+      v-model:date-to="dateTo"
+      :departments="departmentOptions"
       @reset="resetFilters"
     />
 
@@ -110,7 +129,9 @@ onMounted(() => { void loadRequests() })
     <LeaveApprovalTable
       :requests="paginatedRequests"
       :status-filter="statusFilter"
+      :approving="approving"
       @review="openApproval"
+      @revert="handleRevert"
     />
 
     <!-- PAGINATION -->
@@ -136,12 +157,33 @@ onMounted(() => { void loadRequests() })
       :blocked-reason="approvalProblem"
       @close="closeApproval"
       @approve="handleApprove"
+      @reject="handleReject"
+      @revert="handleRevert"
+    />
+
+    <PayrollExportDialog
+      :open="exportOpen"
+      title="Leave Approvals"
+      :records="exportRecords"
+      :sample="false"
+      :date-from="dateFrom"
+      :date-to="dateTo"
+      :filters="{ Search: search, Status: statusFilter, Department: department }"
+      @close="exportOpen = false"
+    />
+
+    <FileApprovalRequestModal
+      :open="fileRequestOpen"
+      default-type="Leave"
+      @close="fileRequestOpen = false"
+      @success="handleFileRequestSuccess"
     />
 
   </section>
 </template>
 
 <style scoped>
+.header-actions{display:flex;align-items:center;gap:8px}
 .leave-approvals-page{width:100%;max-width:1660px;margin:0 auto}
 .back-button{display:inline-flex;align-items:center;gap:6px;margin-bottom:10px;padding:0;border:0;background:transparent;color:var(--primary);font-size:10px;font-weight:600;cursor:pointer}
 .back-button:hover{color:var(--primary-dark)}

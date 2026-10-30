@@ -57,7 +57,18 @@ export interface OvertimeApprovalApiRecord {
   status: string
   approved_at: string | null
   created_at: string
-  employee?: { emp_id: string; firstname: string; lastname: string } | null
+  employee?: {
+    emp_id: string | number
+    firstname: string
+    middlename?: string | null
+    lastname: string
+    department?: { department_name?: string | null } | null
+    employments?: Array<{
+      id: number
+      department?: { department_name?: string | null } | null
+      position?: { position?: string | null } | null
+    }>
+  } | null
   work_schedule?: { schedule_name?: string } | null
   approver?: { name: string } | null
 }

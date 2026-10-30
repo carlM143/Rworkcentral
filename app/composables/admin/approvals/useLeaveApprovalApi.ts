@@ -1,4 +1,3 @@
-
 import type { LeaveApproval, LeaveApprovalApiResponse } from '~/types/leaveApproval'
 
 export const useLeaveApprovalApi = () => {
@@ -15,5 +14,15 @@ export const useLeaveApprovalApi = () => {
       method: 'PATCH',
     })
 
-  return { getLeaveApprovals, approveLeaveRequest }
+  const rejectLeaveRequest = (id: number) =>
+    $api<LeaveApprovalApiResponse<LeaveApproval>>(`${endpoint}/${id}/reject`, {
+      method: 'PATCH',
+    })
+
+  const revertLeaveRequest = (id: number) =>
+    $api<LeaveApprovalApiResponse<LeaveApproval>>(`${endpoint}/${id}/revert`, {
+      method: 'PATCH',
+    })
+
+  return { getLeaveApprovals, approveLeaveRequest, rejectLeaveRequest, revertLeaveRequest }
 }

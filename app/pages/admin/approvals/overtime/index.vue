@@ -1,16 +1,15 @@
 <script setup lang="ts">
 import {
-  CheckCircle2,
   Download,
+  Plus,
+  RefreshCw,
 } from 'lucide-vue-next'
 
 import OvertimeApprovalStats from '~/components/admin/approvals/overtime/OvertimeApprovalStats.vue'
 import OvertimeApprovalFilters from '~/components/admin/approvals/overtime/OvertimeApprovalFilters.vue'
 import OvertimeApprovalTable from '~/components/admin/approvals/overtime/OvertimeApprovalTable.vue'
+import FileApprovalRequestModal from '~/components/admin/approvals/FileApprovalRequestModal.vue'
 import { useOvertimeApprovals } from '~/composables/admin/approvals/useOvertimeApprovals'
-
-const router =
-  useRouter()
 
 const {
   success,
@@ -20,7 +19,6 @@ const {
 const {
   search,
   department,
-  overtimeType,
   status,
   dateFrom,
   dateTo,
@@ -37,8 +35,8 @@ const {
   stats,
 
   departmentOptions,
-  overtimeTypeOptions,
   statusOptions,
+  exportRecords,
 
   resetFilters,
   loading,
@@ -46,19 +44,23 @@ const {
   approvingId,
   loadRequests,
   approveRequest,
+  rejectRequest,
+  revertRequest,
 } = useOvertimeApprovals()
 
 const exportOpen = ref(false)
+const fileRequestOpen = ref(false)
 const requestOpen = ref(false)
 const requestMode = ref('view')
 const selectedRequest = ref<Record<string, any> | null>(null)
+const handleFileRequestSuccess = () => { void loadRequests() }
 const apiError = (problem: any) => (
   problem?.data?.errors?.status?.[0]
   ?? problem?.data?.errors?.end_at?.[0]
   ?? problem?.data?.message
   ?? problem?.response?._data?.message
   ?? problem?.message
-  ?? 'Unable to approve the overtime request.'
+  ?? 'Unable to process the overtime request.'
 )
 
 const openRequest = async (mode: string, request: Record<string, any>) => {
@@ -75,7 +77,26 @@ const openRequest = async (mode: string, request: Record<string, any>) => {
   }
 
   if (mode === 'reject') {
-    warning('Reject Not Available', 'The backend currently provides an approve endpoint only.')
+    if (approvingId.value !== null) return
+
+    try {
+      const message = await rejectRequest(Number(request.id))
+      success('Overtime Rejected', message)
+    } catch (problem: any) {
+      warning('Rejection Failed', apiError(problem))
+    }
+    return
+  }
+
+  if (mode === 'revert') {
+    if (approvingId.value !== null) return
+
+    try {
+      const message = await revertRequest(Number(request.id))
+      success('Overtime Reverted', message)
+    } catch (problem: any) {
+      warning('Undo Failed', apiError(problem))
+    }
     return
   }
 
@@ -84,13 +105,40 @@ const openRequest = async (mode: string, request: Record<string, any>) => {
   requestOpen.value = true
 }
 
-const handleExport = () => { exportOpen.value = true }
-
-const handleApprovedOvertime = () => {
-  router.push(
-    '/admin/approved-overtime',
-  )
+const handleDialogApprove = async () => {
+  if (!selectedRequest.value || approvingId.value !== null) return
+  try {
+    const message = await approveRequest(Number(selectedRequest.value.id))
+    requestOpen.value = false
+    success('Overtime Approved', message)
+  } catch (problem: any) {
+    warning('Approval Failed', apiError(problem))
+  }
 }
+
+const handleDialogReject = async () => {
+  if (!selectedRequest.value || approvingId.value !== null) return
+  try {
+    const message = await rejectRequest(Number(selectedRequest.value.id))
+    requestOpen.value = false
+    success('Overtime Rejected', message)
+  } catch (problem: any) {
+    warning('Rejection Failed', apiError(problem))
+  }
+}
+
+const handleDialogRevert = async () => {
+  if (!selectedRequest.value || approvingId.value !== null) return
+  try {
+    const message = await revertRequest(Number(selectedRequest.value.id))
+    requestOpen.value = false
+    success('Overtime Reverted', message)
+  } catch (problem: any) {
+    warning('Undo Failed', apiError(problem))
+  }
+}
+
+const handleExport = () => { exportOpen.value = true }
 
 onMounted(() => { void loadRequests() })
 </script>
@@ -108,6 +156,13 @@ onMounted(() => { void loadRequests() })
       <div class="header-actions">
 
         <AppButton
+          :icon="Plus"
+          @click="fileRequestOpen = true"
+        >
+          File Request
+        </AppButton>
+
+        <AppButton
           variant="secondary"
           :icon="Download"
           @click="
@@ -118,12 +173,14 @@ onMounted(() => { void loadRequests() })
         </AppButton>
 
         <AppButton
-          :icon="CheckCircle2"
+          variant="secondary"
+          :icon="RefreshCw"
+          :disabled="loading"
           @click="
-            handleApprovedOvertime
+            loadRequests
           "
         >
-          Approved Overtime
+          {{ loading ? 'Refreshing...' : 'Refresh' }}
         </AppButton>
 
       </div>
@@ -147,9 +204,6 @@ onMounted(() => { void loadRequests() })
       v-model:department="
         department
       "
-      v-model:overtime-type="
-        overtimeType
-      "
       v-model:status="
         status
       "
@@ -161,9 +215,6 @@ onMounted(() => { void loadRequests() })
       "
       :departments="
         departmentOptions
-      "
-      :overtime-types="
-        overtimeTypeOptions
       "
       :statuses="
         statusOptions
@@ -227,8 +278,24 @@ onMounted(() => { void loadRequests() })
 
     </div>
 
-    <PayrollExportDialog :open="exportOpen" title="OT Approvals" :records="filteredRequests" :sample="false" :date-from="dateFrom" :date-to="dateTo" :filters="{ Search: search, Department: department, Type: overtimeType, Status: status }" @close="exportOpen = false" />
-    <ApprovalRequestDialog :open="requestOpen" kind="Overtime" :mode="requestMode" :request="selectedRequest" @close="requestOpen = false" />
+    <PayrollExportDialog :open="exportOpen" title="OT Approvals" :records="exportRecords" :sample="false" :date-from="dateFrom" :date-to="dateTo" :filters="{ Search: search, Department: department, Status: status }" @close="exportOpen = false" />
+    <ApprovalRequestDialog
+      :open="requestOpen"
+      kind="Overtime"
+      :mode="requestMode"
+      :request="selectedRequest"
+      :processing="approvingId !== null"
+      @close="requestOpen = false"
+      @approve="handleDialogApprove"
+      @reject="handleDialogReject"
+      @revert="handleDialogRevert"
+    />
+    <FileApprovalRequestModal
+      :open="fileRequestOpen"
+      default-type="Overtime"
+      @close="fileRequestOpen = false"
+      @success="handleFileRequestSuccess"
+    />
   </section>
 </template>
 
@@ -283,12 +350,13 @@ onMounted(() => { void loadRequests() })
   min-height: 130px;
   align-items: center;
   justify-content: center;
-  gap: 12px;
+  gap: 10px;
+  padding: 16px;
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: 11px;
   background: var(--bg-card);
-  color: var(--text-muted);
-  font-size: 12px;
+  color: var(--text-secondary);
+  font-size: 11px;
 }
 
 .request-error {
@@ -296,14 +364,6 @@ onMounted(() => { void loadRequests() })
 }
 
 @media (max-width: 650px) {
-  .header-actions {
-    width: 100%;
-
-    align-items: stretch;
-
-    flex-direction: column;
-  }
-
   .table-footer {
     align-items: flex-start;
 

@@ -283,6 +283,11 @@ const menuItems = [
         label: 'Positions',
         to: '/admin/positions',
       },
+      {
+        label: 'Employment Types',
+        to: '/admin/employment-types',
+      },
+      // Employee Assignment remains hidden until the route is needed.
       // {
       //   label: 'Employee Assignment',
       //   to: '/admin/department-assignments',
@@ -308,8 +313,8 @@ const menuItems = [
       to: '/admin/approvals/overtime',
     },
     {
-      label: 'Time Log Corrections',
-      to: '/admin/approvals/time-logs',
+      label: 'Undertime Approvals',
+      to: '/admin/approvals/undertime',
     },
   ],
 },

@@ -14,5 +14,15 @@ export const useUndertimeApprovalApi = () => {
       method: 'PATCH',
     })
 
-  return { getUndertimeApprovals, approveUndertimeRequest }
+  const rejectUndertimeRequest = (id: number) =>
+    $api<UndertimeApprovalApiResponse<UndertimeApprovalApiRecord>>(`${endpoint}/${id}/reject`, {
+      method: 'PATCH',
+    })
+
+  const revertUndertimeRequest = (id: number) =>
+    $api<UndertimeApprovalApiResponse<UndertimeApprovalApiRecord>>(`${endpoint}/${id}/revert`, {
+      method: 'PATCH',
+    })
+
+  return { getUndertimeApprovals, approveUndertimeRequest, rejectUndertimeRequest, revertUndertimeRequest }
 }
