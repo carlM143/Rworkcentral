@@ -1,4 +1,3 @@
-
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 
@@ -28,6 +27,7 @@ type Field = {
   label: string
   type?: 'text' | 'number' | 'date' | 'select'
   options?: string[]
+  optionLabels?: Record<string, string>
   required?: boolean
 }
 
@@ -38,29 +38,108 @@ type Column = {
 }
 
 // =====================================================
-// PROPS
+// SECTION CONFIG
 // =====================================================
 
-const props = defineProps<{
-  title: string
-  subtitle: string
-  columns: Column[]
-  fields: Field[]
-  initialRows: Row[]
-  addLabel: string
-}>()
+const title = 'Contribution History'
+const subtitle = 'Review and manage contribution rate bracket records (historical rate schedules).'
+const addLabel = 'Add Rate Bracket'
+
+const { rateSchedules, loadRateSchedules } = useContributionRateSchedules()
+const {
+  rateBrackets,
+  errorMessage,
+  loadRateBrackets,
+  createRateBracket,
+  updateRateBracket,
+  deleteRateBracket,
+} = useContributionRateBrackets()
+
+const localError = ref('')
+
+const activeSchedulesCount = computed(() =>
+  rateSchedules.value.filter(s => s.is_status).length,
+)
+
+const scheduleOptions = computed(() =>
+  rateSchedules.value.map(s => String(s.id)),
+)
+
+const scheduleLabels = computed<Record<string, string>>(() =>
+  Object.fromEntries(
+    rateSchedules.value.map(s => {
+      const typeCode = s.contribution_type?.contribution_code ?? 'Type'
+      return [
+        String(s.id),
+        `${typeCode} — ${s.salary_basis} (${s.calculation_method}, Effective: ${s.effective_from})`,
+      ]
+    }),
+  ),
+)
+
+const columns: Column[] = [
+  { key: 'schedule_name', label: 'Rate Schedule' },
+  { key: 'salary_from', label: 'Salary From', format: 'money' },
+  { key: 'salary_to', label: 'Salary To', format: 'money' },
+  { key: 'monthly_salary_credit', label: 'Monthly Salary Credit', format: 'money' },
+  { key: 'employee_rate', label: 'Employee Rate', format: 'percent' },
+  { key: 'employer_rate', label: 'Employer Rate', format: 'percent' },
+  { key: 'employee_amount', label: 'Employee Amount', format: 'money' },
+  { key: 'employer_amount', label: 'Employer Amount', format: 'money' },
+  { key: 'employer_ec_amount', label: 'Employer EC', format: 'money' },
+]
+
+const fields = computed<Field[]>(() => [
+  {
+    key: 'contribution_rate_schedule_id',
+    label: 'Rate Schedule',
+    type: 'select',
+    options: scheduleOptions.value,
+    optionLabels: scheduleLabels.value,
+    required: true,
+  },
+  { key: 'salary_from', label: 'Salary From (₱)', type: 'number', required: true },
+  { key: 'salary_to', label: 'Salary To (₱ - Leave empty for and above)', type: 'number' },
+  { key: 'monthly_salary_credit', label: 'Monthly Salary Credit (MSC ₱)', type: 'number' },
+  { key: 'employee_rate', label: 'Employee Rate (%)', type: 'number' },
+  { key: 'employer_rate', label: 'Employer Rate (%)', type: 'number' },
+  { key: 'employee_amount', label: 'Employee Amount (₱)', type: 'number' },
+  { key: 'employer_amount', label: 'Employer Amount (₱)', type: 'number' },
+  { key: 'employer_ec_amount', label: 'Employer EC Amount (₱)', type: 'number' },
+])
+
+const numberOrNull = (value: Row[string]) => {
+  if (value === null || value === undefined || value === '') return null
+  const parsed = Number(value)
+  return Number.isNaN(parsed) ? null : parsed
+}
+
+const initialRows = computed<Row[]>(() =>
+  rateBrackets.value.map(item => ({
+    id: item.id,
+    contribution_rate_schedule_id: String(item.contribution_rate_schedule_id),
+    schedule_name: scheduleLabels.value[String(item.contribution_rate_schedule_id)]
+      ?? (item.rate_schedule?.contribution_type?.contribution_code
+        ? `${item.rate_schedule.contribution_type.contribution_code} (#${item.contribution_rate_schedule_id})`
+        : `Schedule #${item.contribution_rate_schedule_id}`),
+    salary_from: item.salary_from,
+    salary_to: item.salary_to,
+    monthly_salary_credit: item.monthly_salary_credit,
+    employee_rate: item.employee_rate,
+    employer_rate: item.employer_rate,
+    employee_amount: item.employee_amount,
+    employer_amount: item.employer_amount,
+    employer_ec_amount: item.employer_ec_amount,
+  })),
+)
 
 // =====================================================
 // TABLE STATE
 // =====================================================
 
-const records = ref<Row[]>(
-  props.initialRows.map((row) => ({ ...row }))
-)
-
+const records = ref<Row[]>([])
 const search = ref('')
-const filterStatus = ref('all')
-
+const filterSchedule = ref('all')
 const page = ref(1)
 const perPage = 6
 
@@ -71,7 +150,6 @@ const perPage = 6
 const modalOpen = ref(false)
 const editingId = ref<number | null>(null)
 const deletingId = ref<number | null>(null)
-
 const form = ref<Row>({})
 
 // =====================================================
@@ -95,7 +173,6 @@ const updateActionPosition = () => {
   if (!actionButtonRef.value) return
 
   const rect = actionButtonRef.value.getBoundingClientRect()
-
   const menuWidth = 230
   const menuHeight = 112
   const gap = 6
@@ -104,13 +181,11 @@ const updateActionPosition = () => {
     8,
     Math.min(
       rect.right - menuWidth,
-      window.innerWidth - menuWidth - 8
-    )
+      window.innerWidth - menuWidth - 8,
+    ),
   )
 
-  const showAbove =
-    rect.bottom + menuHeight + gap > window.innerHeight
-
+  const showAbove = rect.bottom + menuHeight + gap > window.innerHeight
   const top = showAbove
     ? rect.top - menuHeight - gap
     : rect.bottom + gap
@@ -123,7 +198,7 @@ const updateActionPosition = () => {
 
 const toggleActions = async (
   id: number,
-  event: MouseEvent
+  event: MouseEvent,
 ) => {
   if (openActionId.value === id) {
     closeActions()
@@ -138,40 +213,34 @@ const toggleActions = async (
 }
 
 const handleDocumentClick = (event: MouseEvent) => {
-  const target = event.target
+  const target = event.target as HTMLElement | null
 
-  if (!(target instanceof Element)) return
-
-  if (
-    target.closest('.cw-more-btn') ||
-    target.closest('.cw-action-dropdown')
-  ) {
-    return
-  }
+  if (!target) return
+  if (actionButtonRef.value?.contains(target)) return
+  if (target.closest('.cw-action-dropdown')) return
 
   closeActions()
 }
 
 const handleEscape = (event: KeyboardEvent) => {
   if (event.key !== 'Escape') return
-
   closeActions()
   modalOpen.value = false
   deletingId.value = null
 }
 
-onMounted(() => {
+onMounted(async () => {
   document.addEventListener('click', handleDocumentClick)
   document.addEventListener('keydown', handleEscape)
-
   window.addEventListener('scroll', closeActions, true)
   window.addEventListener('resize', closeActions)
+
+  await Promise.all([loadRateSchedules(), loadRateBrackets()])
 })
 
 onUnmounted(() => {
   document.removeEventListener('click', handleDocumentClick)
   document.removeEventListener('keydown', handleEscape)
-
   window.removeEventListener('scroll', closeActions, true)
   window.removeEventListener('resize', closeActions)
 })
@@ -185,43 +254,33 @@ const filtered = computed(() => {
 
   return records.value.filter((row) => {
     const matchesSearch = Object.values(row).some((value) =>
-      String(value ?? '').toLowerCase().includes(keyword)
+      String(value ?? '').toLowerCase().includes(keyword),
     )
 
-    const matchesStatus =
-      filterStatus.value === 'all' ||
-      (
-        filterStatus.value === 'active'
-          ? row.status === 'Active'
-          : row.status === 'Inactive'
-      )
+    const matchesSchedule =
+      filterSchedule.value === 'all' ||
+      String(row.contribution_rate_schedule_id) === filterSchedule.value
 
-    return matchesSearch && matchesStatus
+    return matchesSearch && matchesSchedule
   })
 })
 
-const activeCount = computed(() =>
-  records.value.filter((row) => row.status === 'Active').length
-)
-
 const totalPages = computed(() =>
-  Math.max(1, Math.ceil(filtered.value.length / perPage))
+  Math.max(1, Math.ceil(filtered.value.length / perPage)),
 )
 
 const visibleRows = computed(() => {
   const start = (page.value - 1) * perPage
-
   return filtered.value.slice(start, start + perPage)
 })
 
 const paginationStart = computed(() => {
   if (filtered.value.length === 0) return 0
-
   return (page.value - 1) * perPage + 1
 })
 
 const paginationEnd = computed(() =>
-  Math.min(page.value * perPage, filtered.value.length)
+  Math.min(page.value * perPage, filtered.value.length),
 )
 
 const pageNumbers = computed(() => {
@@ -230,14 +289,14 @@ const pageNumbers = computed(() => {
 
   const start = Math.max(
     1,
-    Math.min(page.value - 2, total - maxVisible + 1)
+    Math.min(page.value - 2, total - maxVisible + 1),
   )
 
   const end = Math.min(total, start + maxVisible - 1)
 
   return Array.from(
     { length: end - start + 1 },
-    (_, index) => start + index
+    (_, index) => start + index,
   )
 })
 
@@ -245,7 +304,7 @@ const pageNumbers = computed(() => {
 // WATCHERS
 // =====================================================
 
-watch([search, filterStatus], () => {
+watch([search, filterSchedule], () => {
   page.value = 1
   closeActions()
 })
@@ -255,12 +314,13 @@ watch(page, () => {
 })
 
 watch(
-  () => props.initialRows,
+  initialRows,
   (rows) => {
     records.value = rows.map((row) => ({ ...row }))
     page.value = 1
     closeActions()
-  }
+  },
+  { immediate: true },
 )
 
 // =====================================================
@@ -269,6 +329,7 @@ watch(
 
 const startForm = (record?: Row) => {
   closeActions()
+  localError.value = ''
 
   editingId.value = record
     ? Number(record.id)
@@ -276,20 +337,55 @@ const startForm = (record?: Row) => {
 
   form.value = record
     ? { ...record }
-    : { status: 'Active' }
+    : {
+        contribution_rate_schedule_id: scheduleOptions.value[0] ?? '',
+      }
 
   modalOpen.value = true
 }
 
+let calculatingBracket = false
+
+// When MSC or Employee Rate changes, auto-calculate Employee Amount
+watch(
+  [() => form.value.monthly_salary_credit, () => form.value.employee_rate],
+  ([msc, eeRate]) => {
+    if (!modalOpen.value || calculatingBracket) return
+    const m = Number(msc)
+    const r = Number(eeRate)
+    if (!Number.isNaN(m) && m > 0 && !Number.isNaN(r) && r >= 0) {
+      calculatingBracket = true
+      form.value.employee_amount = Number(((m * r) / 100).toFixed(2))
+      nextTick(() => { calculatingBracket = false })
+    }
+  },
+)
+
+// When MSC or Employer Rate changes, auto-calculate Employer Amount
+watch(
+  [() => form.value.monthly_salary_credit, () => form.value.employer_rate],
+  ([msc, erRate]) => {
+    if (!modalOpen.value || calculatingBracket) return
+    const m = Number(msc)
+    const r = Number(erRate)
+    if (!Number.isNaN(m) && m > 0 && !Number.isNaN(r) && r >= 0) {
+      calculatingBracket = true
+      form.value.employer_amount = Number(((m * r) / 100).toFixed(2))
+      nextTick(() => { calculatingBracket = false })
+    }
+  },
+)
+
 const closeForm = () => {
   modalOpen.value = false
   editingId.value = null
+  localError.value = ''
   form.value = {}
 }
 
 const editSelectedRecord = () => {
   const record = records.value.find(
-    (row) => Number(row.id) === openActionId.value
+    (row) => Number(row.id) === openActionId.value,
   )
 
   if (!record) {
@@ -300,42 +396,60 @@ const editSelectedRecord = () => {
   startForm(record)
 }
 
-const save = () => {
-  const hasMissingFields = props.fields.some((field) => {
-    if (!field.required) return false
+const persistRecord = async (row: Row) => {
+  const scheduleId = Number(row.contribution_rate_schedule_id)
+  const salaryFrom = numberOrNull(row.salary_from)
+  const salaryTo = numberOrNull(row.salary_to)
 
-    const value = form.value[field.key]
-
-    return (
-      value === undefined ||
-      value === null ||
-      String(value).trim() === ''
-    )
-  })
-
-  if (hasMissingFields) return
-
-  if (editingId.value !== null) {
-    records.value = records.value.map((row) =>
-      Number(row.id) === editingId.value
-        ? { ...form.value, id: editingId.value }
-        : row
-    )
-  } else {
-    const nextId =
-      Math.max(
-        0,
-        ...records.value.map((row) => Number(row.id) || 0)
-      ) + 1
-
-    records.value.unshift({
-      ...form.value,
-      id: nextId,
-    })
+  if (!scheduleId) {
+    localError.value = 'Please select a valid Rate Schedule.'
+    return
   }
 
-  closeForm()
-  page.value = 1
+  if (salaryFrom === null || salaryFrom < 0) {
+    localError.value = 'Salary From is required and must be 0 or greater.'
+    return
+  }
+
+  if (salaryTo !== null && salaryTo < salaryFrom) {
+    localError.value = 'Salary To must be greater than or equal to Salary From.'
+    return
+  }
+
+  const payload = {
+    contribution_rate_schedule_id: scheduleId,
+    salary_from: salaryFrom,
+    salary_to: salaryTo,
+    monthly_salary_credit: numberOrNull(row.monthly_salary_credit),
+    employee_rate: numberOrNull(row.employee_rate),
+    employer_rate: numberOrNull(row.employer_rate),
+    employee_amount: numberOrNull(row.employee_amount),
+    employer_amount: numberOrNull(row.employer_amount),
+    employer_ec_amount: numberOrNull(row.employer_ec_amount),
+  }
+
+  try {
+    if (row.id) {
+      await updateRateBracket(Number(row.id), payload)
+    } else {
+      await createRateBracket(payload)
+    }
+    closeForm()
+  } catch {
+    // errorMessage is handled by composable
+  }
+}
+
+const save = async () => {
+  localError.value = ''
+
+  if (editingId.value !== null) {
+    const payload: Row = { ...form.value, id: editingId.value }
+    await persistRecord(payload)
+  } else {
+    const payload: Row = { ...form.value }
+    await persistRecord(payload)
+  }
 }
 
 // =====================================================
@@ -344,20 +458,22 @@ const save = () => {
 
 const confirmDelete = () => {
   if (openActionId.value === null) return
-
   deletingId.value = openActionId.value
   closeActions()
 }
 
-const remove = () => {
+const remove = async () => {
   if (deletingId.value === null) return
+  const deletedId = deletingId.value
 
-  records.value = records.value.filter(
-    (row) => Number(row.id) !== deletingId.value
-  )
-
-  deletingId.value = null
-  page.value = Math.min(page.value, totalPages.value)
+  try {
+    await deleteRateBracket(deletedId)
+  } catch {
+    // errorMessage handled by composable
+  } finally {
+    deletingId.value = null
+    page.value = Math.min(page.value, totalPages.value)
+  }
 }
 
 // =====================================================
@@ -366,7 +482,7 @@ const remove = () => {
 
 const fmt = (
   value: Row[string],
-  format?: Column['format']
+  format?: Column['format'],
 ) => {
   if (
     value === null ||
@@ -401,30 +517,29 @@ const csvValue = (value: unknown) =>
   `"${String(value ?? '').replace(/"/g, '""')}"`
 
 const exportCsv = () => {
-  const header = props.columns
+  const header = columns
     .map((column) => csvValue(column.label))
     .join(',')
 
   const rows = filtered.value.map((row) =>
-    props.columns
+    columns
       .map((column) => csvValue(row[column.key]))
-      .join(',')
+      .join(','),
   )
 
   const csv = [header, ...rows].join('\r\n')
 
   const blob = new Blob(
     ['\ufeff' + csv],
-    { type: 'text/csv;charset=utf-8;' }
+    { type: 'text/csv;charset=utf-8;' },
   )
 
   const url = URL.createObjectURL(blob)
   const anchor = document.createElement('a')
 
   anchor.href = url
-
   anchor.download =
-    props.title.toLowerCase().replace(/\W+/g, '-') + '.csv'
+    title.toLowerCase().replace(/\W+/g, '-') + '.csv'
 
   document.body.appendChild(anchor)
   anchor.click()
@@ -436,6 +551,10 @@ const exportCsv = () => {
 
 <template>
   <section class="cw">
+    <div v-if="errorMessage || localError" class="cw-error-banner" role="alert">
+      {{ localError || errorMessage }}
+    </div>
+
     <!-- =================================================
          PAGE HEADER
     ================================================== -->
@@ -485,7 +604,7 @@ const exportCsv = () => {
 
       <div class="cw-stat">
         <span>Active Records</span>
-        <strong>{{ activeCount }}</strong>
+        <strong>{{ activeSchedulesCount }}</strong>
 
         <small class="cw-green">
           <CheckCircle2 :size="13" />
@@ -495,7 +614,7 @@ const exportCsv = () => {
 
       <div class="cw-stat">
         <span>Inactive Records</span>
-        <strong>{{ records.length - activeCount }}</strong>
+        <strong>{{ rateSchedules.length - activeSchedulesCount }}</strong>
         <small>Currently disabled</small>
       </div>
     </div>
@@ -509,10 +628,7 @@ const exportCsv = () => {
 
       <div class="cw-panel-head">
         <h2>{{ title }} Directory</h2>
-
-        <p>
-          View and manage contribution configuration records.
-        </p>
+        <p>View and manage salary bracket limits, MSC values, and contribution amounts.</p>
       </div>
 
       <!-- SEARCH AND FILTER -->
@@ -533,12 +649,17 @@ const exportCsv = () => {
           <Filter :size="15" />
 
           <select
-            v-model="filterStatus"
-            aria-label="Filter by status"
+            v-model="filterSchedule"
+            aria-label="Filter by schedule"
           >
-            <option value="all">All Status</option>
-            <option value="active">Active</option>
-            <option value="inactive">Inactive</option>
+            <option value="all">All Rate Schedules</option>
+            <option
+              v-for="sId in scheduleOptions"
+              :key="sId"
+              :value="sId"
+            >
+              {{ scheduleLabels[sId] ?? sId }}
+            </option>
           </select>
         </div>
       </div>
@@ -575,25 +696,7 @@ const exportCsv = () => {
                 v-for="column in columns"
                 :key="column.key"
               >
-                <!-- STATUS BADGE -->
-
                 <span
-                  v-if="column.format === 'status'"
-                  class="cw-pill"
-                  :class="
-                    row[column.key] === 'Active'
-                      ? 'cw-active'
-                      : 'cw-inactive'
-                  "
-                >
-                  <span class="cw-status-dot"></span>
-                  {{ row[column.key] }}
-                </span>
-
-                <!-- NORMAL CELL -->
-
-                <span
-                  v-else
                   class="cw-cell-value"
                   :class="{
                     'cw-money': column.format === 'money',
@@ -604,33 +707,25 @@ const exportCsv = () => {
               </td>
 
               <!-- THREE DOTS ACTIONS -->
-
               <td class="cw-actions-cell">
                 <button
                   type="button"
                   class="cw-more-btn"
-                  aria-label="More actions"
-                  aria-haspopup="menu"
-                  :aria-expanded="
-                    openActionId === Number(row.id)
-                  "
-                  @click.stop="
-                    toggleActions(Number(row.id), $event)
-                  "
+                  aria-label="Actions menu"
+                  :aria-expanded="openActionId === Number(row.id)"
+                  @click.stop="toggleActions(Number(row.id), $event)"
                 >
-                  <MoreHorizontal :size="18" />
+                  <MoreHorizontal :size="16" />
                 </button>
               </td>
             </tr>
 
-            <!-- EMPTY STATE -->
-
-            <tr v-if="visibleRows.length === 0">
+            <tr v-if="filtered.length === 0">
               <td
                 :colspan="columns.length + 1"
                 class="cw-empty"
               >
-                No matching records found.
+                No rate bracket records found.
               </td>
             </tr>
           </tbody>
@@ -645,9 +740,7 @@ const exportCsv = () => {
     <div class="cw-pagination">
       <div class="cw-pagination-info">
         Showing
-        <strong>
-          {{ paginationStart }}–{{ paginationEnd }}
-        </strong>
+        <strong>{{ paginationStart }}–{{ paginationEnd }}</strong>
         of
         <strong>{{ filtered.length }}</strong>
         contribution records
@@ -756,7 +849,7 @@ const exportCsv = () => {
                 }}
               </h2>
 
-              <p>Fill in the contribution details below.</p>
+              <p>Fill in the salary bracket tier and contribution details below.</p>
             </div>
 
             <button
@@ -794,7 +887,7 @@ const exportCsv = () => {
                     :key="option"
                     :value="option"
                   >
-                    {{ option }}
+                    {{ field.optionLabels?.[option] ?? option }}
                   </option>
                 </select>
 
@@ -808,6 +901,7 @@ const exportCsv = () => {
                       ? 'any'
                       : undefined
                   "
+                  :min="field.type === 'number' ? '0' : undefined"
                   :placeholder="field.label"
                 />
               </label>
@@ -857,9 +951,7 @@ const exportCsv = () => {
           <h2>Delete this record?</h2>
 
           <p>
-            This removes the record from the current
-            frontend demonstration. The Laravel database
-            will not be changed.
+            This will permanently delete the rate bracket tier from the database.
           </p>
 
           <div class="cw-modal-footer">
@@ -882,15 +974,20 @@ const exportCsv = () => {
         </div>
       </div>
     </Teleport>
-
-    <p class="cw-demo-note">
-      Frontend demonstration only — changes are not yet
-      saved to the Laravel API.
-    </p>
   </section>
 </template>
 
 <style scoped>
+.cw-error-banner {
+  padding: 12px;
+  margin-bottom: 14px;
+  border: 1px solid var(--red);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--red) 10%, var(--bg-card));
+  color: var(--red);
+  font-size: 11px;
+}
+
 /* =====================================================
    MAIN LAYOUT
 ===================================================== */
@@ -1122,6 +1219,12 @@ const exportCsv = () => {
   color: var(--text-primary, #172033);
   font-size: 12px;
   cursor: pointer;
+  color-scheme: light dark;
+}
+
+.cw-filter select option {
+  background-color: var(--bg-card, #ffffff);
+  color: var(--text-primary, #172033);
 }
 
 /* =====================================================
@@ -1181,39 +1284,6 @@ const exportCsv = () => {
 
 .cw-money {
   font-weight: 700;
-}
-
-/* =====================================================
-   STATUS BADGES
-===================================================== */
-
-.cw-pill {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
-  padding: 6px 11px;
-  border-radius: 999px;
-  font-size: 11px;
-  font-weight: 650;
-}
-
-.cw-status-dot {
-  width: 6px;
-  height: 6px;
-  flex-shrink: 0;
-  border-radius: 50%;
-  background: currentColor;
-}
-
-.cw-active {
-  background: rgba(22, 163, 74, 0.14);
-  color: #16a34a;
-}
-
-.cw-inactive {
-  background: rgba(239, 68, 68, 0.12);
-  color: #ef4444;
 }
 
 /* =====================================================
@@ -1319,15 +1389,6 @@ const exportCsv = () => {
 .cw-page-arrow:disabled {
   opacity: 0.4;
   cursor: not-allowed;
-}
-
-/* =====================================================
-   DEMO NOTE
-===================================================== */
-
-.cw-demo-note {
-  padding: 12px 0;
-  font-size: 11px !important;
 }
 
 /* =====================================================
@@ -1527,6 +1588,12 @@ const exportCsv = () => {
   background: var(--bg-card-soft, #f8fafc);
   color: var(--text-primary, #172033);
   font-size: 12px;
+  color-scheme: light dark;
+}
+
+.cw-fields select option {
+  background-color: var(--bg-card, #ffffff);
+  color: var(--text-primary, #172033);
 }
 
 .cw-fields input:focus,
