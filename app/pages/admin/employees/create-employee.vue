@@ -196,7 +196,6 @@ const handleSaveEmployee = async () => {
       departmentId: form.value.departmentId,
       positionId: form.value.positionId,
       workScheduleId: form.value.workScheduleId,
-      restDayId: form.value.restDayId,
     })
 
     console.groupEnd()

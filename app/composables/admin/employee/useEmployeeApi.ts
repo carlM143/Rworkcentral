@@ -11,17 +11,25 @@ export interface EmployeeApiResponse {
   }
 }
 
+export interface EmployeeStatusResponse {
+  success: boolean
+  message: string
+  data: {
+    id: number
+    status: boolean | number | string
+  }
+}
+
 const appendText = (
   payload: FormData,
   key: string,
-  value: string | number | null,
+  value: string | number | null | undefined,
 ) => {
-  if (value === null) return
-
+  if (value == null) return
   payload.append(key, String(value).trim())
 }
 
-const buildEmployeePayload = (form: EmployeeForm) => {
+const buildEmployeePayload = (form: EmployeeForm): FormData => {
   const payload = new FormData()
 
   appendText(payload, 'employee[firstname]', form.firstName)
@@ -44,9 +52,10 @@ const buildEmployeePayload = (form: EmployeeForm) => {
   appendText(payload, 'employment[department_id]', form.departmentId)
   appendText(payload, 'employment[position_id]', form.positionId)
   appendText(payload, 'employment[work_schedule_id]', form.workScheduleId)
-  appendText(payload, 'employment[restday_id]', form.restDayId)
   appendText(payload, 'employment[date_hired]', form.dateHired)
 
+  // Rest days come from the selected work schedule's days relation.
+  // Never send the removed employment[restday_id] field.
   const governmentRequirements = [
     { name: 'Tax Identification Number (TIN)', number: form.tinNumber },
     { name: 'SSS Number', number: form.sssNumber },
@@ -70,7 +79,7 @@ const buildEmployeePayload = (form: EmployeeForm) => {
       appendText(
         payload,
         `documents[${index}][employment_document_id]`,
-        document.employmentDocumentId ?? null,
+        document.employmentDocumentId,
       )
       appendText(payload, `documents[${index}][submitted]`, 1)
 
@@ -79,50 +88,84 @@ const buildEmployeePayload = (form: EmployeeForm) => {
       }
     })
 
-  // Payroll is intentionally omitted for now. Laravel requires payroll_period_id,
-  // but the frontend has no payroll-period field and the backend exposes no
-  // payroll-period endpoint. Sending a partial payroll object causes a 422.
+  // Salary setup is added by the Create Employee page when supplied.
   return payload
 }
 
 export const useEmployeeApi = () => {
   const { $api } = useNuxtApp()
-
   const loading = ref(false)
   const errors = ref<Record<string, string[]>>({})
 
-  // CREATE EMPLOYEE
-  const createEmployee = async (payload: FormData) => {
+  const createEmployee = async (payload: FormData): Promise<EmployeeApiResponse> => {
     loading.value = true
     errors.value = {}
 
     try {
-      const response = await $api<EmployeeApiResponse>(
-        '/admin/employees',
-        {
-          method: 'POST',
-          body: payload,
-        },
-      )
-
-      return response
+      return await $api<EmployeeApiResponse>('/admin/employees', {
+        method: 'POST',
+        body: payload,
+      })
     } catch (error: any) {
       const status = error?.statusCode ?? error?.status ?? error?.response?.status
-
       if (status === 422) {
-        errors.value = error?.data?.errors || {}
+        errors.value = error?.data?.errors ?? error?.response?._data?.errors ?? {}
       }
-
       throw error
     } finally {
       loading.value = false
     }
   }
 
+  const changeEmployeeStatus = async (
+    id: number,
+    action: 'deactivate' | 'reactivate',
+  ): Promise<EmployeeStatusResponse> => {
+    if (!Number.isInteger(id) || id < 1) {
+      throw new Error('Invalid employee ID.')
+    }
+
+    loading.value = true
+    errors.value = {}
+
+    try {
+      const response = await $api<EmployeeStatusResponse>(
+        `/admin/employees/${id}/${action}`,
+        { method: 'PATCH' },
+      )
+
+      const returnedStatus = response.data?.status
+      const active = returnedStatus === true
+        || returnedStatus === 1
+        || returnedStatus === '1'
+        || returnedStatus === 'true'
+      const expectedActive = action === 'reactivate'
+
+      if (response.success !== true || returnedStatus == null || active !== expectedActive) {
+        throw new Error(`Employee ${action} was not confirmed by the API.`)
+      }
+
+      return response
+    } catch (error: any) {
+      const status = error?.statusCode ?? error?.status ?? error?.response?.status
+      if (status === 422) {
+        errors.value = error?.data?.errors ?? error?.response?._data?.errors ?? {}
+      }
+      throw error
+    } finally {
+      loading.value = false
+    }
+  }
+
+  const deactivateEmployee = (id: number) => changeEmployeeStatus(id, 'deactivate')
+  const reactivateEmployee = (id: number) => changeEmployeeStatus(id, 'reactivate')
+
   return {
     loading,
     errors,
     buildEmployeePayload,
     createEmployee,
+    deactivateEmployee,
+    reactivateEmployee,
   }
 }

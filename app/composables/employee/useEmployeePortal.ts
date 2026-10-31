@@ -91,6 +91,7 @@ export interface EmployeeProfileData {
   scheduleTimeOut: string
   breakTime?: string
   restDays: string
+  restDayNames: string[]
   workDays: Array<{ day: string; start: string; end: string }>
   sssNumber: string
   philhealthNumber: string
@@ -144,16 +145,9 @@ const defaultProfile = (): EmployeeProfileData => ({
   scheduleTimeIn: '08:00',
   scheduleTimeOut: '17:00',
   breakTime: '12:00 – 13:00',
-  restDays: 'Sunday',
-  workDays: [
-    { day: 'Monday', start: '08:00', end: '17:00' },
-    { day: 'Tuesday', start: '08:00', end: '17:00' },
-    { day: 'Wednesday', start: '08:00', end: '17:00' },
-    { day: 'Thursday', start: '08:00', end: '17:00' },
-    { day: 'Friday', start: '08:00', end: '17:00' },
-    { day: 'Saturday', start: '08:00', end: '17:00' },
-    { day: 'Sunday', start: '', end: '' },
-  ],
+  restDays: '',
+  restDayNames: [],
+  workDays: [],
   sssNumber: '',
   philhealthNumber: '',
   pagibigNumber: '',
@@ -184,18 +178,46 @@ const mapBackendProfile = (data: any, fallbackUser?: any): EmployeeProfileData =
     : null
 
   const salary = data?.salary_setup || {}
-  const workSchedule = latestEmployment?.work_schedule || {}
-  const restDayName = latestEmployment?.restday?.rest_day || 'Sunday'
-
-  const timeIn = workSchedule.time_in ? workSchedule.time_in.slice(0, 5) : '08:00'
-  const timeOut = workSchedule.time_out ? workSchedule.time_out.slice(0, 5) : '17:00'
-
   const daysOfWeek = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
-  const workDays = daysOfWeek.map(day => ({
-    day,
-    start: day.toLowerCase() === restDayName.toLowerCase() ? '' : timeIn,
-    end: day.toLowerCase() === restDayName.toLowerCase() ? '' : timeOut,
-  }))
+  const dayAliases: Record<string, string> = {
+    mon: 'Monday', monday: 'Monday',
+    tue: 'Tuesday', tues: 'Tuesday', tuesday: 'Tuesday',
+    wed: 'Wednesday', wednesday: 'Wednesday',
+    thu: 'Thursday', thur: 'Thursday', thurs: 'Thursday', thursday: 'Thursday',
+    fri: 'Friday', friday: 'Friday',
+    sat: 'Saturday', saturday: 'Saturday',
+    sun: 'Sunday', sunday: 'Sunday',
+  }
+  const normalizeDayName = (value: unknown) => dayAliases[String(value || '').trim().toLowerCase()] || ''
+  const workSchedule = data?.work_schedule || latestEmployment?.work_schedule || {}
+  const scheduleDays = Array.isArray(workSchedule?.days) ? workSchedule.days : []
+  const responseRestDays = Array.isArray(data?.rest_days)
+    ? data.rest_days
+        .filter((item: any) => item?.is_working_day === false)
+        .map((item: any) => normalizeDayName(item?.day_of_week))
+        .filter(Boolean)
+    : []
+  const legacyRestDay = normalizeDayName(latestEmployment?.restday?.rest_day)
+  const restDayNames = [...new Set(responseRestDays.length ? responseRestDays : (legacyRestDay ? [legacyRestDay] : []))]
+  const firstScheduleDay = scheduleDays[0] || {}
+  const timeIn = String(workSchedule.time_in || firstScheduleDay.time_in || '').slice(0, 5)
+  const timeOut = String(workSchedule.time_out || firstScheduleDay.time_out || '').slice(0, 5)
+  const workDays = scheduleDays.length
+    ? daysOfWeek.map(day => {
+        const scheduleDay = scheduleDays.find((item: any) => normalizeDayName(item?.day_of_week) === day)
+        return {
+          day,
+          start: scheduleDay?.time_in ? String(scheduleDay.time_in).slice(0, 5) : '',
+          end: scheduleDay?.time_out ? String(scheduleDay.time_out).slice(0, 5) : '',
+        }
+      })
+    : (timeIn && timeOut
+        ? daysOfWeek.map(day => ({
+            day,
+            start: restDayNames.includes(day) ? '' : timeIn,
+            end: restDayNames.includes(day) ? '' : timeOut,
+          }))
+        : [])
 
   const govtList: Array<{ id: number; name: string; number: string }> = Array.isArray(data?.government_requirements)
     ? data.government_requirements.map((g: any) => ({
@@ -276,7 +298,8 @@ const mapBackendProfile = (data: any, fallbackUser?: any): EmployeeProfileData =
     scheduleTimeIn: timeIn,
     scheduleTimeOut: timeOut,
     breakTime: workSchedule.break_start && workSchedule.break_end ? `${workSchedule.break_start.slice(0, 5)} – ${workSchedule.break_end.slice(0, 5)}` : '',
-    restDays: restDayName,
+    restDays: restDayNames.join(', '),
+    restDayNames,
     workDays,
     sssNumber,
     philhealthNumber,

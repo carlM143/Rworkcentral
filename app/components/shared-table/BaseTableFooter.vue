@@ -11,15 +11,31 @@ const currentPage = defineModel<number>({ default: 1 })
 </script>
 
 <template>
-  <div class="table-footer">
-    <p>Showing <strong>{{ showingFrom }}–{{ showingTo }}</strong> of <strong>{{ totalItems }}</strong> {{ itemLabel }}</p>
+  <footer class="table-footer">
+    <p>
+      Showing <strong>{{ totalItems ? showingFrom : 0 }}–{{ totalItems ? showingTo : 0 }}</strong>
+      of <strong>{{ totalItems }}</strong> {{ itemLabel }}
+    </p>
     <AppPagination v-model="currentPage" :total-pages="totalPages" />
-  </div>
+  </footer>
 </template>
 
 <style scoped>
-.table-footer { display: flex; justify-content: space-between; align-items: center; gap: 20px; padding: 14px 3px 0; }
-.table-footer p { margin: 0; color: var(--text-muted); font-size: 11px; }
-.table-footer strong { color: var(--text-primary); font-weight: 650; }
-@media (max-width: 650px) { .table-footer { flex-direction: column; align-items: stretch; } }
+.table-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 2px 0;
+}
+.table-footer p {
+  margin: 0;
+  color: var(--text-muted, #7c8da8);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.table-footer strong { color: var(--text-primary, #f8fafc); font-weight: 700; }
+@media (max-width: 650px) {
+  .table-footer { flex-wrap: wrap; align-items: flex-start; }
+}
 </style>

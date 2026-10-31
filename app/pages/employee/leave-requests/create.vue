@@ -2,6 +2,7 @@
 import { ArrowLeft, CalendarDays, Info, Send, X, Wallet, WalletCards, WandSparkles } from 'lucide-vue-next'
 import type { EmployeeRequest } from '~/composables/employee/useEmployeePortal'
 import { useEmployeeLeaveTypes } from '~/composables/employee/leave-types/useEmployeeLeaveTypes'
+import RequestValidationModal from '~/components/employee/modals/requestvalidationmodal.vue'
 
 definePageMeta({ layout: false })
 useHead({ title: 'New Leave Request | Employee Portal — RWorkCentral' })
@@ -24,6 +25,34 @@ interface CreditResponse {
   data: { leave_year: number; leave_types: CreditItem[] }
 }
 
+// The Laravel employee profile response wraps the schedule under `data`.
+interface ProfileWorkDay {
+  day_of_week: string
+  time_in: string
+  time_out: string
+}
+interface ProfileRestDay {
+  day_of_week: string
+  is_working_day: boolean
+  source?: string
+}
+interface ProfileWorkSchedule {
+  id: number
+  schedule_code: string
+  days: ProfileWorkDay[]
+}
+interface EmployeeProfileResponse {
+  success?: boolean
+  message?: string
+  data?: {
+    work_schedule: ProfileWorkSchedule | null
+    rest_days?: ProfileRestDay[]
+  }
+}
+
+// Adjust this path only if the backend has registered its profile route differently.
+const PROFILE_ENDPOINT = '/employee/profile'
+
 const router = useRouter()
 const { $api } = useNuxtApp()
 const { fetchRequests } = useEmployeePortal()
@@ -45,10 +74,51 @@ const creditRows = ref<CreditItem[]>([])
 const creditYear = ref(new Date().getFullYear())
 const loadingCredits = ref(false)
 const creditError = ref('')
+const showPolicyValidationModal = ref(false)
+const workSchedule = ref<ProfileWorkSchedule | null>(null)
+const profileRestDays = ref<ProfileRestDay[] | null>(null)
+const loadingSchedule = ref(true)
+const scheduleLoaded = ref(false)
+const scheduleError = ref('')
 
 const selectedType = computed(() => leaveTypes.value.find(item => item.id === Number(form.leaveTypeId)))
+// JavaScript weekday indexes: Sun=0, Mon=1, ..., Sat=6.
+// Matching the first 3 letters supports the backend's 'Sat'/'Sun' as well as full names.
+const weekdayIndexes: Record<string, number> = {
+  sun: 0, mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6,
+}
+const weekdayLabels = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+const toWeekdayIndex = (day: unknown): number | null => {
+  if (typeof day !== 'string') return null
+  const key = day.trim().toLowerCase().replace(/[^a-z]/g, '').slice(0, 3)
+  return weekdayIndexes[key] ?? null
+}
+const restDayIndexes = computed<number[]>(() => {
+  if (!scheduleLoaded.value) return []
+
+  // Use the backend-computed rest_days list as the single source of truth.
+  if (profileRestDays.value !== null) {
+    const indexes = profileRestDays.value
+      .filter(day => day.is_working_day === false)
+      .map(day => toWeekdayIndex(day.day_of_week))
+      .filter((day): day is number => day !== null)
+    return [...new Set(indexes)].sort((a, b) => a - b)
+  }
+
+  // Backward-compatible fallback only if the endpoint does not send rest_days.
+  const scheduledDays = new Set((workSchedule.value?.days ?? [])
+    .map(day => toWeekdayIndex(day.day_of_week))
+    .filter((day): day is number => day !== null))
+  return weekdayLabels.map((_, index) => index).filter(index => !scheduledDays.has(index))
+})
+const restDayText = computed(() => restDayIndexes.value.map(day => weekdayLabels[day]).join(', '))
+const isRestDay = (date: string) => restDayIndexes.value.includes(new Date(`${date}T12:00:00`).getDay())
 const credit = computed(() => creditRows.value.find(item => item.leave_type_id === Number(form.leaveTypeId) && item.pay.toLowerCase() === 'paid'))
 const paidPolicyAvailable = computed(() => credit.value?.status === 'eligible' && Number(credit.value?.leave_policy_id) > 0)
+const paidOptionsDisabled = computed(() => Boolean(form.leaveTypeId)
+  && !loadingCredits.value
+  && !creditError.value
+  && !paidPolicyAvailable.value)
 const availableCredits = computed(() => paidPolicyAvailable.value ? Math.max(0, Number(credit.value?.available_credits || 0)) : 0)
 const annualCredits = computed(() => paidPolicyAvailable.value ? Number(credit.value?.annual_credits || 0) : 0)
 const datesWithinCreditYear = computed(() => leaveDates.value.every(item => Number(item.date.slice(0, 4)) === creditYear.value))
@@ -85,15 +155,58 @@ const loadCredits = async () => {
   } finally { loadingCredits.value = false }
 }
 
-onMounted(async () => { await Promise.all([loadLeaveTypes(), loadCredits()]) })
+const loadProfileSchedule = async () => {
+  loadingSchedule.value = true
+  scheduleLoaded.value = false
+  scheduleError.value = ''
+  try {
+    const response = await $api<EmployeeProfileResponse>(PROFILE_ENDPOINT, { method: 'GET' })
+    const data = response?.data
+    if (response?.success === false) throw new Error(response.message || 'Could not load your employee profile.')
+    if (!data || (!Array.isArray(data.rest_days) && !Array.isArray(data.work_schedule?.days))) {
+      throw new Error('The employee profile does not include work_schedule.days or rest_days.')
+    }
+
+    // Do not silently enable a rest day if the backend returns an unknown day name.
+    const dayNames = Array.isArray(data.rest_days)
+      ? data.rest_days.map(day => day.day_of_week)
+      : (data.work_schedule?.days ?? []).map(day => day.day_of_week)
+    if (dayNames.some(day => toWeekdayIndex(day) === null)) {
+      throw new Error('The employee schedule contains an unrecognized weekday.')
+    }
+
+    workSchedule.value = data.work_schedule ?? null
+    profileRestDays.value = Array.isArray(data.rest_days) ? data.rest_days : null
+    scheduleLoaded.value = true
+  } catch (error: unknown) {
+    const err = error as { data?: { message?: string }; message?: string }
+    workSchedule.value = null
+    profileRestDays.value = null
+    scheduleError.value = err?.data?.message || err?.message || 'Could not load your work schedule.'
+  } finally {
+    loadingSchedule.value = false
+  }
+}
+
+onMounted(async () => { await Promise.all([loadLeaveTypes(), loadCredits(), loadProfileSchedule()]) })
 watch(() => form.leaveTypeId, () => { form.payMode = ''; confirmedMixed.value = false })
+watch([() => form.leaveTypeId, paidOptionsDisabled], ([leaveTypeId, disabled]) => {
+  if (leaveTypeId && disabled) {
+    form.payMode = 'unpaid'
+    confirmedMixed.value = false
+  }
+}, { immediate: true })
 watch(() => form.payMode, mode => {
   if (mode === 'paid' || mode === 'unpaid') leaveDates.value.forEach(item => { item.payType = mode })
   confirmedMixed.value = false
 })
+watch(restDayIndexes, () => {
+  const workDates = selectedDates.value.filter(date => !isRestDay(date))
+  if (workDates.length !== selectedDates.value.length) selectedDates.value = workDates
+}, { immediate: true })
 watch(selectedDates, dates => {
   const previous = new Map(leaveDates.value.map(item => [item.date, item]))
-  leaveDates.value = [...new Set(dates)].sort().map(date => ({
+  leaveDates.value = [...new Set(dates)].filter(date => !isRestDay(date)).sort().map(date => ({
     date, dayName: getDayName(date),
     dayType: previous.get(date)?.dayType || 'whole_day',
     payType: previous.get(date)?.payType || (form.payMode === 'paid' ? 'paid' : 'unpaid'),
@@ -132,13 +245,15 @@ const validateForm = (): boolean => {
   if (loadingLeaveTypes.value || leaveTypeError.value || !selectedType.value) { formError.value = 'Please select a valid leave type from the database.'; return false }
   if (!form.requestDate) { formError.value = 'Please select the filing date.'; return false }
   if (!form.payMode) { formError.value = 'Please choose Paid, Unpaid, or Mixed leave.'; return false }
+  if (loadingSchedule.value || !scheduleLoaded.value) { formError.value = scheduleError.value || 'Your assigned work schedule must load before you can submit leave.'; return false }
   if (!leaveDates.value.length) { formError.value = 'Please select at least one leave date.'; return false }
+  if (leaveDates.value.some(item => isRestDay(item.date))) { formError.value = 'Remove rest days from the selected leave dates.'; return false }
   if (!form.reason.trim()) { formError.value = 'Please provide a reason.'; return false }
   if (form.payMode !== requestedPayType.value) { formError.value = 'Your payment choice does not match the dates. For Mixed, select at least one Paid and one Unpaid date.'; return false }
   if (form.payMode === 'mixed' && !confirmedMixed.value) { formError.value = 'Please confirm the paid/unpaid breakdown before submitting.'; return false }
   if (totalPaidDays.value > 0) {
     if (loadingCredits.value || creditError.value) { formError.value = 'Paid leave credits could not be verified. Refresh the credits or choose Unpaid.'; return false }
-    if (!paidPolicyAvailable.value) { formError.value = 'No eligible paid leave policy is available. You can still request Unpaid leave.'; return false }
+    if (!paidPolicyAvailable.value) { showPolicyValidationModal.value = true; return false }
     if (!datesWithinCreditYear.value) { formError.value = `The displayed credit balance covers ${creditYear.value} only. Please select dates in that year.`; return false }
     if (overCredits.value) { formError.value = `Insufficient paid credits: ${availableCredits.value} available, ${totalPaidDays.value} requested. Use "Apply Suggested Split" or change dates to Unpaid.`; return false }
   }
@@ -207,8 +322,8 @@ const saveRequest = async () => {
             <div><h2>Leave Payment Type</h2><p>Mixed leave supports Paid and Unpaid days in one request.</p></div>
           </div>
           <div class="payment-options" role="radiogroup" aria-label="Leave Payment Type">
-            <label class="payment-option" :class="{ selected: form.payMode === 'paid' }">
-              <input v-model="form.payMode" type="radio" name="leave-pay-mode" value="paid" />
+            <label class="payment-option" :class="{ selected: form.payMode === 'paid', disabled: paidOptionsDisabled }">
+              <input v-model="form.payMode" type="radio" name="leave-pay-mode" value="paid" :disabled="paidOptionsDisabled" />
               <span class="payment-option-icon"><Wallet :size="19" /></span>
               <span class="payment-option-content"><strong>Paid Leave</strong><small>All selected dates are paid, subject to credits and HR approval.</small></span>
             </label>
@@ -217,8 +332,8 @@ const saveRequest = async () => {
               <span class="payment-option-icon"><CalendarDays :size="19" /></span>
               <span class="payment-option-content"><strong>Unpaid Leave</strong><small>All dates are unpaid. No paid credits will be deducted.</small></span>
             </label>
-            <label class="payment-option" :class="{ selected: form.payMode === 'mixed' }">
-              <input v-model="form.payMode" type="radio" name="leave-pay-mode" value="mixed" />
+            <label class="payment-option" :class="{ selected: form.payMode === 'mixed', disabled: paidOptionsDisabled }">
+              <input v-model="form.payMode" type="radio" name="leave-pay-mode" value="mixed" :disabled="paidOptionsDisabled" />
               <span class="payment-option-icon"><WandSparkles :size="19" /></span>
               <span class="payment-option-content"><strong>Mixed Leave</strong><small>Choose Paid or Unpaid for every selected date.</small></span>
             </label>
@@ -228,10 +343,27 @@ const saveRequest = async () => {
 
         <div class="calendar-field">
           <span class="field-label">Leave Period <em>*</em></span>
-          <EmployeeLeaveDateCalendar v-model:start="form.start" v-model:end="form.end" v-model:selected-dates="selectedDates" selection-mode="multiple" />
+          <p v-if="loadingSchedule" class="schedule-state" role="status">Loading your assigned work schedule...</p>
+          <div v-else-if="scheduleError" class="schedule-error" role="alert">
+            <p>{{ scheduleError }} Rest days cannot be validated until your profile is loaded.</p>
+            <button type="button" @click="loadProfileSchedule">Retry</button>
+          </div>
+          <template v-else>
+            <div class="schedule-summary" role="note">
+              <Info :size="16" />
+              <span><strong>{{ workSchedule?.schedule_code || 'Assigned schedule' }}</strong> · Rest days (disabled): {{ restDayText || 'None' }}</span>
+            </div>
+            <EmployeeLeaveDateCalendar
+              v-model:start="form.start"
+              v-model:end="form.end"
+              v-model:selected-dates="selectedDates"
+              :disabled-weekdays="restDayIndexes"
+              selection-mode="multiple"
+            />
+          </template>
         </div>
 
-        <div v-if="leaveDates.length" class="selected-days">
+        <div v-if="scheduleLoaded && leaveDates.length" class="selected-days">
           <div class="selected-days-header">
             <div><h3>Selected Days</h3><p>{{ breakdownText }}</p></div>
             <strong>{{ totalLeaveDays }} day{{ totalLeaveDays === 1 ? '' : 's' }}</strong>
@@ -252,12 +384,12 @@ const saveRequest = async () => {
           </div>
         </div>
 
-        <div v-if="form.payMode === 'mixed'" class="mix-help">
+        <div v-if="scheduleLoaded && form.payMode === 'mixed'" class="mix-help">
           <div><strong>Suggested split</strong><p>Assign Paid to the earliest dates that fit the available credits; assign the rest Unpaid. Nothing changes until you click the button.</p></div>
           <button type="button" class="suggest-button" :disabled="!selectedType || loadingCredits || !!creditError" @click="suggestSplit"><WandSparkles :size="15" /> Apply Suggested Split</button>
         </div>
 
-        <div v-if="leaveDates.length && form.payMode" class="breakdown-panel">
+        <div v-if="scheduleLoaded && leaveDates.length && form.payMode" class="breakdown-panel">
           <div class="breakdown-metrics">
             <div><span>Available Credits</span><strong>{{ availableCredits }}</strong></div>
             <div><span>Paid Days</span><strong>{{ totalPaidDays }}</strong></div>
@@ -278,12 +410,13 @@ const saveRequest = async () => {
       </div>
       <div class="action-bar">
         <button type="button" class="cancel-button" :disabled="isSubmitting" @click="goBack">Cancel</button>
-        <button type="submit" class="submit-button" :disabled="isSubmitting || imageLoading || loadingLeaveTypes || !!leaveTypeError">
+        <button type="submit" class="submit-button" :disabled="isSubmitting || imageLoading || loadingLeaveTypes || !!leaveTypeError || loadingSchedule || !scheduleLoaded">
           <Send :size="18" /> {{ isSubmitting ? 'Submitting...' : imageLoading ? 'Preparing image...' : 'Submit Request' }}
         </button>
       </div>
     </form>
   </section>
+  <RequestValidationModal v-model="showPolicyValidationModal" />
 </template>
 
 <style scoped>
@@ -490,6 +623,19 @@ textarea:focus {
 .payment-option.selected {
   border-color: var(--primary);
   background: var(--primary-soft);
+}
+
+.payment-option.disabled {
+  opacity: .52;
+  cursor: not-allowed;
+}
+
+.payment-option.disabled:hover {
+  border-color: var(--border);
+}
+
+.payment-option.disabled input[type="radio"] {
+  cursor: not-allowed;
 }
 
 .payment-option input[type="radio"] {
@@ -843,4 +989,35 @@ textarea:focus {
 .mixed-confirm span { color: var(--text-secondary); font-size: 11px; line-height: 1.5; }
 @media (max-width: 950px) { .payment-options { grid-template-columns: 1fr; } .breakdown-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); } .mix-help { align-items: stretch; flex-direction: column; } .suggest-button { align-self: flex-start; } }
 @media (max-width: 520px) { .day-controls select { flex: 1; min-width: 0; max-width: none; } }
+
+/* Employee profile schedule status */
+.schedule-state,
+.schedule-summary,
+.schedule-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin: 0;
+  padding: 11px 12px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--bg-card-soft);
+  color: var(--text-secondary);
+  font-size: 11px;
+  line-height: 1.5;
+}
+.schedule-summary svg { flex: 0 0 16px; margin-top: 1px; color: var(--primary); }
+.schedule-summary strong { color: var(--text-primary); }
+.schedule-error { align-items: center; justify-content: space-between; border-color: #ef444440; }
+.schedule-error p { margin: 0; }
+.schedule-error button {
+  flex: 0 0 auto;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--bg-card);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
 </style>

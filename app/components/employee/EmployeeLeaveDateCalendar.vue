@@ -20,6 +20,8 @@ const props = withDefaults(defineProps<{
   minDate?: string
   maxDate?: string
   activeDates?: string[]
+  disabledDates?: string[]
+  disabledWeekdays?: number[]
   totalDays?: number
   readonly?: boolean
   hidePresets?: boolean
@@ -136,6 +138,16 @@ const goToToday = () => {
   viewDate.value = new Date(today.getFullYear(), today.getMonth(), 1, 12, 0, 0)
 }
 
+const isDateOutsideBounds = (dateStr: string) =>
+  Boolean((props.minDate && dateStr < props.minDate.slice(0, 10)) ||
+    (props.maxDate && dateStr > props.maxDate.slice(0, 10)))
+
+const isDateDisabled = (dateStr: string) => {
+  if (isDateOutsideBounds(dateStr) || props.disabledDates?.includes(dateStr)) return true
+  const date = parseDateString(dateStr)
+  return Boolean(date && props.disabledWeekdays?.includes(date.getDay()))
+}
+
 // Days Calculation
 interface CalendarCell {
   dateStr: string
@@ -151,6 +163,7 @@ interface CalendarCell {
   isRangeLeftEdge: boolean
   isRangeRightEdge: boolean
   isMultiSelected: boolean
+  isDisabled: boolean
 }
 
 const calendarCells = computed<CalendarCell[]>(() => {
@@ -215,6 +228,7 @@ const calendarCells = computed<CalendarCell[]>(() => {
         isRangeLeftEdge: isSelected && (!hasPrev || dayOfWeek === 0),
         isRangeRightEdge: isSelected && (!hasNext || dayOfWeek === 6),
         isMultiSelected: false,
+        isDisabled: isDateDisabled(dateStr),
       }
     }
 
@@ -243,6 +257,7 @@ const calendarCells = computed<CalendarCell[]>(() => {
       isRangeLeftEdge,
       isRangeRightEdge,
       isMultiSelected: isMultiple.value && selectedDates.value.includes(dateStr),
+      isDisabled: isDateDisabled(dateStr),
     }
   }
 
@@ -274,14 +289,9 @@ const calendarCells = computed<CalendarCell[]>(() => {
   return cells
 })
 
-// Existing min/max props apply to selectable dates in both modes.
-const isDateOutsideBounds = (dateStr: string) =>
-  Boolean((props.minDate && dateStr < props.minDate.slice(0, 10)) ||
-    (props.maxDate && dateStr > props.maxDate.slice(0, 10)))
-
 // Date selection interactions
 const handleCellClick = (cell: CalendarCell) => {
-  if (props.readonly || isDateOutsideBounds(cell.dateStr)) return
+  if (props.readonly || cell.isDisabled) return
 
   // If clicked a cell outside current month, smoothly navigate to that month
   if (!cell.isCurrentMonth) {
@@ -394,7 +404,7 @@ const setPreset = (type: 'today' | 'tomorrow' | 'next3' | 'nextWeek') => {
   if (isMultiple.value) {
     const first = parseDateString(start.value)
     const last = parseDateString(end.value || start.value)
-    selectedDates.value = first && last ? datesBetween(first, last) : []
+    selectedDates.value = first && last ? datesBetween(first, last).filter(date => !isDateDisabled(date)) : []
   }
 
   isSelectingEnd.value = false
@@ -592,6 +602,7 @@ const selectedDayCount = computed(() => {
             'range-left-edge': cell.isRangeLeftEdge,
             'range-right-edge': cell.isRangeRightEdge,
             'multi-selected': cell.isMultiSelected,
+            'is-disabled': cell.isDisabled,
           }"
         >
           <button
@@ -603,7 +614,8 @@ const selectedDayCount = computed(() => {
             }"
             :aria-label="cell.dateStr"
             :aria-pressed="cell.isMultiSelected || cell.isStart || cell.isEnd || cell.isInRange"
-            :disabled="readonly || isDateOutsideBounds(cell.dateStr)"
+            :disabled="readonly || cell.isDisabled"
+            :title="cell.isDisabled ? `${cell.dateStr} is a rest day or unavailable` : cell.dateStr"
             @click="handleCellClick(cell)"
             @mouseenter="handleCellHover(cell.dateStr)"
           >
@@ -1175,6 +1187,12 @@ const selectedDayCount = computed(() => {
 
 .day-btn:disabled {
   cursor: default;
+}
+
+.day-cell-wrapper.is-disabled .day-btn {
+  opacity: .3;
+  cursor: not-allowed;
+  text-decoration: line-through;
 }
 
 .day-cell-wrapper.range-mid .day-btn {

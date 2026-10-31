@@ -198,22 +198,40 @@ export const useWorkSchedules = () => {
     }
   }
 
+
   const toggleScheduleStatus = async (schedule: WorkSchedule) => {
+    // Laravel stores only working days.
+    // Missing days must be restored as rest days before updating.
+    const savedDays = new Map(
+      schedule.days.map(day => [day.day_of_week, day]),
+    )
+
+    const normalizedDays: WorkScheduleDayFormData[] =
+      WORK_SCHEDULE_DAYS.map(dayName => {
+        const saved = savedDays.get(dayName)
+        const isWorking = Boolean(saved?.is_working_day)
+
+        return {
+          day_of_week: dayName,
+          is_working_day: isWorking,
+          time_in: isWorking ? saved?.time_in ?? null : null,
+          time_out: isWorking ? saved?.time_out ?? null : null,
+        }
+      })
+
     return updateSchedule(schedule.id, {
       code: schedule.code,
       name: schedule.name,
       type: schedule.type,
       workHours: schedule.workHours,
       gracePeriod: schedule.gracePeriod,
-      status: schedule.status === 'Active' ? 'Inactive' : 'Active',
-      days: schedule.days.map(day => ({
-        day_of_week: day.day_of_week,
-        is_working_day: day.is_working_day,
-        time_in: day.time_in,
-        time_out: day.time_out,
-      })),
+      status: schedule.status === 'Active'
+        ? 'Inactive'
+        : 'Active',
+      days: normalizedDays,
     })
   }
+
 
   const deleteSchedule = async (schedule: WorkSchedule) => {
     if (saving.value) return

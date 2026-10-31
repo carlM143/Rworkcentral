@@ -22,6 +22,22 @@ option {
   font: inherit;
 }
 
+select {
+  color-scheme: light dark;
+}
+
+select option {
+  background-color: var(--bg-card, #ffffff);
+  color: var(--text-primary, #172033);
+}
+
+html.dark select,
+html.dark select option {
+  color-scheme: dark;
+  background-color: var(--bg-card, #141d2c);
+  color: var(--text-primary, #f1f5f9);
+}
+
 /* =========================================
    GLOBAL FONT SMOOTHING
 ========================================= */
