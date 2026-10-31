@@ -33,13 +33,10 @@ const handleOpenModule = (
   module: SettingsModule,
 ) => {
   if (
-    module.route ===
-    '/admin/settings/users'
+    module.route === '/admin/settings/users' ||
+    module.route === '/admin/settings/company'
   ) {
-    router.push(
-      module.route,
-    )
-
+    router.push(module.route)
     return
   }
 
@@ -63,10 +60,7 @@ const handleManageRoles = () => {
 }
 
 const handleCompany = () => {
-  info(
-    'Company Settings',
-    'Company information settings UI will be implemented later.',
-  )
+  router.push('/admin/settings/company')
 }
 
 const handleApprovals = () => {
