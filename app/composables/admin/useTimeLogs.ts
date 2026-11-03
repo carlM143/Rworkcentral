@@ -11,16 +11,30 @@ interface ApiTimeLog {
   employee_name: string | null
   department: string | null
   work_date: string | null
+
+  work_schedule_id?: number | null
   schedule: string | null
+  scheduled_time_in?: string | null
+  scheduled_time_out?: string | null
+
   time_in: string | null
   break_out: string | null
   break_in: string | null
   time_out: string | null
+
   late_minutes: number | null
+  raw_late_minutes?: number | null
+  grace_period_minutes?: number | null
+  chargeable_late_minutes?: number | null
+  effective_late_minutes?: number | null
+
   undertime_minutes: number | null
   worked_minutes: number | null
   worked_hours: number | null
+
   status: string | null
+  attendance_status?: string | null
+  has_issues?: boolean
 }
 
 interface TimeLogsApiResponse {
@@ -44,9 +58,10 @@ export const useTimeLogs = () => {
   const department = ref('')
   const status = ref('')
 
-  // Sample records from the TimeLogSeeder.
-  const dateFrom = ref('2026-09-01')
-  const dateTo = ref('2026-09-05')
+  // Empty dates display all available attendance records.
+  // Users can still filter by a selected date range.
+  const dateFrom = ref('')
+  const dateTo = ref('')
 
   const currentPage = ref(1)
   const perPage = ref(8)
@@ -55,12 +70,18 @@ export const useTimeLogs = () => {
   // STATUS MAPPING
   // =====================================================
 
-  const mapStatus = (value: string | null): TimeLogStatus => {
+  const mapStatus = (
+    value: string | null | undefined,
+  ): TimeLogStatus => {
     const normalized = String(value ?? '')
       .trim()
       .toLowerCase()
 
-    if (normalized === 'missing' || normalized === 'absent') {
+    if (
+      normalized === 'missing' ||
+      normalized === 'absent' ||
+      normalized === 'missing log'
+    ) {
       return 'Missing Log'
     }
 
@@ -68,7 +89,10 @@ export const useTimeLogs = () => {
       return 'Incomplete'
     }
 
-    if (normalized === 'on leave') {
+    if (
+      normalized === 'on leave' ||
+      normalized === 'leave'
+    ) {
       return 'On Leave'
     }
 
@@ -76,8 +100,8 @@ export const useTimeLogs = () => {
       return 'Rest Day'
     }
 
-    // Late and undertime are tracked separately
-    // through lateMinutes and undertimeMinutes.
+    // Late and undertime remain separate from
+    // attendance punch completeness.
     return 'Complete'
   }
 
@@ -88,6 +112,20 @@ export const useTimeLogs = () => {
   const transformTimeLog = (
     record: ApiTimeLog,
   ): TimeLogRecord => {
+    const rawLate = Number(
+      record.raw_late_minutes ??
+      record.late_minutes ??
+      0,
+    )
+
+    // Use the saved grace-adjusted value when available.
+    // Older records retain their original late minutes.
+    const effectiveLate = Number(
+      record.effective_late_minutes ??
+      record.chargeable_late_minutes ??
+      rawLate,
+    )
+
     return {
       id: record.id,
 
@@ -105,17 +143,17 @@ export const useTimeLogs = () => {
         record.department ||
         'Unassigned',
 
-      // The Time Logs table does not display position.
-      // Keep the field for compatibility with the type.
       position: '',
 
       date: record.work_date || '',
 
+      // Never show a fabricated historical schedule.
       schedule:
         record.schedule ||
-        '8:00 AM - 5:00 PM',
+        'Not recorded',
 
-      timeIn: record.time_in || undefined,
+      timeIn:
+        record.time_in || undefined,
 
       breakOut:
         record.break_out || undefined,
@@ -126,11 +164,11 @@ export const useTimeLogs = () => {
       timeOut:
         record.time_out || undefined,
 
-      lateMinutes:
-        Number(record.late_minutes ?? 0),
+      lateMinutes: effectiveLate,
 
-      undertimeMinutes:
-        Number(record.undertime_minutes ?? 0),
+      undertimeMinutes: Number(
+        record.undertime_minutes ?? 0,
+      ),
 
       hoursWorked:
         record.worked_hours === null ||
@@ -138,71 +176,79 @@ export const useTimeLogs = () => {
           ? undefined
           : Number(record.worked_hours),
 
-      status: mapStatus(record.status),
+      status: mapStatus(
+        record.attendance_status ?? record.status,
+      ),
     }
   }
 
- // =====================================================
-// FETCH LARAVEL TIME LOGS
-// =====================================================
+  // =====================================================
+  // FETCH LARAVEL TIME LOGS
+  // =====================================================
 
-let latestRequestId = 0
+  let latestRequestId = 0
 
-const fetchTimeLogs = async (): Promise<void> => {
-  const requestId = ++latestRequestId
+  const fetchTimeLogs = async (): Promise<void> => {
+    const requestId = ++latestRequestId
 
-  loading.value = true
-  error.value = null
+    loading.value = true
+    error.value = null
 
-  try {
-    const response = await $api<TimeLogsApiResponse>(
-      '/admin/time-logs',
-      {
-        method: 'GET',
-        query: {
-          limit: 500,
-          _refresh: Date.now(),
+    try {
+      const response = await $api<TimeLogsApiResponse>(
+        '/admin/time-logs',
+        {
+          method: 'GET',
+          query: {
+            limit: 500,
+            _refresh: Date.now(),
+          },
         },
-      },
-    )
-
-    if (requestId !== latestRequestId) {
-      return
-    }
-
-    if (!response.success) {
-      throw new Error(
-        response.message || 'Failed to retrieve time logs.',
       )
-    }
 
-    timeLogs.value = (
-      Array.isArray(response.data)
-        ? response.data
-        : []
-    ).map(transformTimeLog)
-  } catch (err: unknown) {
-    if (requestId !== latestRequestId) {
-      return
-    }
+      if (requestId !== latestRequestId) {
+        return
+      }
 
-    const apiError = err as {
-      data?: { message?: string }
-      message?: string
-    }
+      if (!response.success) {
+        throw new Error(
+          response.message ||
+          'Failed to retrieve time logs.',
+        )
+      }
 
-    error.value =
-      apiError?.data?.message ||
-      apiError?.message ||
-      'Unable to load time logs from the server.'
+      timeLogs.value = (
+        Array.isArray(response.data)
+          ? response.data
+          : []
+      ).map(transformTimeLog)
+    } catch (err: unknown) {
+      if (requestId !== latestRequestId) {
+        return
+      }
 
-    console.error('Failed to fetch time logs:', err)
-  } finally {
-    if (requestId === latestRequestId) {
-      loading.value = false
+      const apiError = err as {
+        data?: {
+          message?: string
+        }
+        message?: string
+      }
+
+      error.value =
+        apiError?.data?.message ||
+        apiError?.message ||
+        'Unable to load time logs from the server.'
+
+      console.error(
+        'Failed to fetch time logs:',
+        err,
+      )
+    } finally {
+      if (requestId === latestRequestId) {
+        loading.value = false
+      }
     }
   }
-}
 
   // =====================================================
   // FILTERED LOGS
@@ -253,7 +299,7 @@ const fetchTimeLogs = async (): Promise<void> => {
   })
 
   // =====================================================
-  // STATISTICS
+  // DYNAMIC STATISTICS
   // =====================================================
 
   const stats = computed(() => {
@@ -284,7 +330,7 @@ const fetchTimeLogs = async (): Promise<void> => {
   })
 
   // =====================================================
-  // OPTIONS
+  // DEPARTMENT AND STATUS OPTIONS
   // =====================================================
 
   const departments = computed(() => {
@@ -314,7 +360,7 @@ const fetchTimeLogs = async (): Promise<void> => {
       1,
       Math.ceil(
         filteredLogs.value.length /
-          perPage.value,
+        perPage.value,
       ),
     )
   })
@@ -337,7 +383,7 @@ const fetchTimeLogs = async (): Promise<void> => {
 
     return (
       (currentPage.value - 1) *
-        perPage.value +
+      perPage.value +
       1
     )
   })
@@ -358,14 +404,14 @@ const fetchTimeLogs = async (): Promise<void> => {
     department.value = ''
     status.value = ''
 
-    dateFrom.value = '2026-09-01'
-    dateTo.value = '2026-09-05'
+    dateFrom.value = ''
+    dateTo.value = ''
 
     currentPage.value = 1
   }
 
   // =====================================================
-  // WATCH FILTERS
+  // WATCH FILTERS AND PAGINATION
   // =====================================================
 
   watch(
