@@ -91,9 +91,9 @@ const fields = computed<Field[]>(() => [
   { key: 'employee_rate', label: form.value.method === 'fixed' ? 'Employee Fixed Amount' : 'Employee Rate (%)', type: 'number', visibleWhen: m => m !== 'bracket' },
   { key: 'employer_rate', label: form.value.method === 'fixed' ? 'Employer Fixed Amount' : 'Employer Rate (%)', type: 'number', visibleWhen: m => m !== 'bracket' },
 
-  // Percentage salary boundaries
-  { key: 'minimum_salary_base', label: 'Minimum Salary Base', type: 'number', visibleWhen: m => m === 'percentage' },
-  { key: 'maximum_salary_base', label: 'Maximum Salary Base', type: 'number', visibleWhen: m => m === 'percentage' },
+  // Salary boundaries (active for percentage and bracket methods)
+  { key: 'minimum_salary_base', label: 'Minimum Salary Base', type: 'number', visibleWhen: m => m === 'percentage' || m === 'bracket' },
+  { key: 'maximum_salary_base', label: 'Maximum Salary Base', type: 'number', visibleWhen: m => m === 'percentage' || m === 'bracket' },
 
   // Common metadata
   { key: 'effective_from', label: 'Effective From', type: 'date', required: true },
@@ -145,8 +145,8 @@ const persistRecord = async (row: Row) => {
     salary_basis: String(row.salary_basis ?? ''),
     employee_rate: method !== 'bracket' ? numberOrNull(row.employee_rate) : null,
     employer_rate: method !== 'bracket' ? numberOrNull(row.employer_rate) : null,
-    minimum_salary_base: method === 'percentage' ? numberOrNull(row.minimum_salary_base) : null,
-    maximum_salary_base: method === 'percentage' ? numberOrNull(row.maximum_salary_base) : null,
+    minimum_salary_base: (method === 'percentage' || method === 'bracket') ? numberOrNull(row.minimum_salary_base) : null,
+    maximum_salary_base: (method === 'percentage' || method === 'bracket') ? numberOrNull(row.maximum_salary_base) : null,
     effective_from: String(row.effective_from ?? ''),
     effective_to: row.effective_to ? String(row.effective_to) : null,
     is_status: row.status === 'Active',
@@ -1026,13 +1026,13 @@ const exportCsv = () => {
           aria-modal="true"
           aria-label="Define Rate Brackets Prompt"
         >
-          <h2>Setup Rate Brackets Now?</h2>
+          <h2>View Rate Brackets?</h2>
 
           <p>
             You saved a bracket-based rate schedule for
             <strong>{{ bracketPromptSchedule?.typeName }}</strong>.
-            The rates and salary ranges are defined in the child table.
-            Would you like to open <strong>Contribution History</strong> to configure the brackets now?
+            The rates and salary ranges are defined in the brackets table.
+            Would you like to open <strong>Contribution History</strong> to view the brackets?
           </p>
 
           <div class="cw-modal-footer">
@@ -1050,7 +1050,7 @@ const exportCsv = () => {
               @click="bracketPromptOpen = false"
             >
               <Table :size="16" />
-              <span>Open Brackets</span>
+              <span>View Brackets</span>
             </NuxtLink>
           </div>
         </div>

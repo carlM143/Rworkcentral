@@ -10,7 +10,6 @@ import {
   Landmark,
   MoreHorizontal,
   Pencil,
-  Plus,
   Search,
   Trash2,
   X,
@@ -43,14 +42,12 @@ type Column = {
 
 const title = 'Contribution History'
 const subtitle = 'Review and manage contribution rate bracket records (historical rate schedules).'
-const addLabel = 'Add Rate Bracket'
 
 const { rateSchedules, loadRateSchedules } = useContributionRateSchedules()
 const {
   rateBrackets,
   errorMessage,
   loadRateBrackets,
-  createRateBracket,
   updateRateBracket,
   deleteRateBracket,
 } = useContributionRateBrackets()
@@ -327,20 +324,12 @@ watch(
 // FORM ACTIONS
 // =====================================================
 
-const startForm = (record?: Row) => {
+const startForm = (record: Row) => {
   closeActions()
   localError.value = ''
 
-  editingId.value = record
-    ? Number(record.id)
-    : null
-
-  form.value = record
-    ? { ...record }
-    : {
-        contribution_rate_schedule_id: scheduleOptions.value[0] ?? '',
-      }
-
+  editingId.value = Number(record.id)
+  form.value = { ...record }
   modalOpen.value = true
 }
 
@@ -431,8 +420,6 @@ const persistRecord = async (row: Row) => {
   try {
     if (row.id) {
       await updateRateBracket(Number(row.id), payload)
-    } else {
-      await createRateBracket(payload)
     }
     closeForm()
   } catch {
@@ -445,9 +432,6 @@ const save = async () => {
 
   if (editingId.value !== null) {
     const payload: Row = { ...form.value, id: editingId.value }
-    await persistRecord(payload)
-  } else {
-    const payload: Row = { ...form.value }
     await persistRecord(payload)
   }
 }
@@ -578,15 +562,6 @@ const exportCsv = () => {
         >
           <Download :size="16" />
           <span>Export CSV</span>
-        </button>
-
-        <button
-          type="button"
-          class="cw-btn cw-primary"
-          @click="startForm()"
-        >
-          <Plus :size="16" />
-          <span>{{ addLabel }}</span>
         </button>
       </div>
     </div>
@@ -822,7 +797,7 @@ const exportCsv = () => {
     </Teleport>
 
     <!-- =================================================
-         ADD / EDIT MODAL
+         EDIT MODAL
     ================================================== -->
 
     <Teleport to="body">
@@ -835,21 +810,12 @@ const exportCsv = () => {
           class="cw-modal"
           role="dialog"
           aria-modal="true"
-          :aria-label="
-            editingId === null ? addLabel : 'Edit Record'
-          "
+          aria-label="Edit Record"
         >
           <div class="cw-modal-head">
             <div>
-              <h2>
-                {{
-                  editingId === null
-                    ? addLabel
-                    : 'Edit Record'
-                }}
-              </h2>
-
-              <p>Fill in the salary bracket tier and contribution details below.</p>
+              <h2>Edit Record</h2>
+              <p>Update the salary bracket tier and contribution details below.</p>
             </div>
 
             <button
@@ -920,11 +886,7 @@ const exportCsv = () => {
                 type="submit"
                 class="cw-btn cw-primary"
               >
-                {{
-                  editingId === null
-                    ? 'Save Record'
-                    : 'Save Changes'
-                }}
+                Save Changes
               </button>
             </div>
           </form>
