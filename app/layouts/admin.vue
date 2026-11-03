@@ -1,3 +1,4 @@
+
 <script setup lang="ts">
 import {
   LayoutDashboard,
@@ -11,7 +12,6 @@ import {
   CalendarDays,
   House,
   CalendarClock,
-  // ReceiptText,
   Building2,
   BarChart3,
   Settings,
@@ -25,23 +25,30 @@ import {
   Sun,
   UserRound,
   BriefcaseBusiness,
-  FileText,
   ClipboardCheck,
   MapPin,
   LogOut,
 } from 'lucide-vue-next'
-// import App from '~/app.vue'
 
 const route = useRoute()
 const router = useRouter()
 
+const {
+  user,
+  roleName,
+  hydrate,
+  refreshUser,
+  isHydrated,
+  isAuthenticated,
+  canAccessAdminTimekeeping,
+  clearSession,
+} = useAuth()
+
 const sidebarOpen = ref(false)
 const isDark = ref(false)
-
 const companyMenuOpen = ref(false)
-
-const companyMenuRef =
-  ref<HTMLElement | null>(null)
+const companyMenuRef = ref<HTMLElement | null>(null)
+const permissionsLoading = ref(true)
 
 const openMenus = reactive<Record<string, boolean>>({
   employees: false,
@@ -51,7 +58,6 @@ const openMenus = reactive<Record<string, boolean>>({
   loans: false,
   drivers: false,
   leave: false,
-  // overtime: false,
   departments: false,
   approvals: false,
   wfh: false,
@@ -60,13 +66,50 @@ const openMenus = reactive<Record<string, boolean>>({
   reports: false,
 })
 
+// =====================================================
+// AUTHENTICATED USER
+// =====================================================
+
+const displayName = computed(() => {
+  return user.value?.name?.trim() || 'User'
+})
+
+const displayRole = computed(() => {
+  const labels: Record<string, string> = {
+    administrator: 'Administrator',
+    'human resources': 'Human Resources',
+    manager: 'Manager',
+    supervisor: 'Supervisor',
+    employee: 'Employee',
+  }
+
+  return labels[roleName.value] ||
+    roleName.value ||
+    'No assigned role'
+})
+
+const userInitials = computed(() => {
+  const parts = displayName.value
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+
+  return parts
+    .map(part => part.charAt(0))
+    .join('')
+    .toUpperCase() || 'U'
+})
+
+// =====================================================
+// SIDEBAR MENU
+// =====================================================
+
 const menuItems = [
   {
     label: 'Dashboard',
     icon: LayoutDashboard,
     to: '/admin',
   },
-
   {
     label: 'Employees',
     key: 'employees',
@@ -83,26 +126,18 @@ const menuItems = [
       {
         label: 'Inactive Employees',
         to: '/admin/employees/inactive',
-      }
+      },
     ],
   },
-
-  // =====================================================
-  // TIMEKEEPING
-  // =====================================================
   {
     label: 'Timekeeping',
     key: 'timekeeping',
     icon: Clock3,
     children: [
-       {
+      {
         label: 'Time Logs',
         to: '/admin/time-logs',
       },
-      // {
-      //   label: 'Overtime Requests',
-      //   to: '/admin/timekeeping/overtime-requests',
-      // },
       {
         label: 'Time Log Correction Requests',
         to: '/admin/timekeeping/time-log-correction-requests',
@@ -133,13 +168,11 @@ const menuItems = [
       },
     ],
   },
-
   {
     label: 'Work Schedules',
     icon: CalendarClock,
     to: '/admin/work-schedules',
   },
-
   {
     label: 'Payroll',
     key: 'payroll',
@@ -153,8 +186,6 @@ const menuItems = [
         label: 'Wage Adjustments',
         to: '/admin/payroll/wage-adjustments',
       },
-
-      // PAY PERIODS
       {
         label: 'Driver Pay Periods',
         to: '/admin/driver-pay-periods',
@@ -163,7 +194,6 @@ const menuItems = [
         label: 'Employee Pay Periods',
         to: '/admin/employee-pay-periods',
       },
-      // OLD SYSTEM PAYROLL SUBMENU
       {
         label: 'Pending Drivers Payroll',
         to: '/admin/pending-drivers-payroll',
@@ -180,14 +210,12 @@ const menuItems = [
         label: 'Completed Employees Payroll',
         to: '/admin/completed-employees-payroll',
       },
-
       {
         label: 'Employee Payroll',
         to: '/admin/employee-payroll',
       },
     ],
   },
-
   {
     label: 'Contributions',
     key: 'contributions',
@@ -211,65 +239,72 @@ const menuItems = [
       },
     ],
   },
-
-  // =====================================================
-  // LOANS
-  // =====================================================
   {
     label: 'Loans',
     key: 'loans',
     icon: HandCoins,
     children: [
-      { label: 'Loan Transactions', to: '/admin/loans/transactions' },
-      { label: 'Loan Types', to: '/admin/loans/types' },
-      { label: 'Employee Loans', to: '/admin/loans/employees' },
+      {
+        label: 'Loan Transactions',
+        to: '/admin/loans/transactions',
+      },
+      {
+        label: 'Loan Types',
+        to: '/admin/loans/types',
+      },
+      {
+        label: 'Employee Loans',
+        to: '/admin/loans/employees',
+      },
     ],
   },
-
-  // =====================================================
-  // ALL DRIVERS
-  // =====================================================
   {
     label: 'All Drivers',
     key: 'drivers',
     icon: Truck,
     children: [
-      { label: 'Drivers Directory', to: '/admin/drivers' },
-      { label: 'Driver Pay Periods', to: '/admin/driver-pay-periods' },
-      { label: 'Pending Drivers Payroll', to: '/admin/pending-drivers-payroll' },
-      { label: 'Completed Drivers Payroll', to: '/admin/completed-drivers-payroll' },
+      {
+        label: 'Drivers Directory',
+        to: '/admin/drivers',
+      },
+      {
+        label: 'Driver Pay Periods',
+        to: '/admin/driver-pay-periods',
+      },
+      {
+        label: 'Pending Drivers Payroll',
+        to: '/admin/pending-drivers-payroll',
+      },
+      {
+        label: 'Completed Drivers Payroll',
+        to: '/admin/completed-drivers-payroll',
+      },
     ],
   },
-
-  // =====================================================
-  // LEAVE
-  // =====================================================
   {
-  label: 'Leave Management',
-  key: 'leave',
-  icon: Umbrella,
-  children: [
-    {
-      label: 'Leave Balances',
-      to: '/admin/leave-management/leave-balances',
-    },
-    {
-      label: 'Leave Types',
-      to: '/admin/leave-management/leave-types',
-    },
-    {
-      label: 'Leave Policies',
-      to: '/admin/leave-management/leave-policies',
-    },
-  ],
-},
-
+    label: 'Leave Management',
+    key: 'leave',
+    icon: Umbrella,
+    children: [
+      {
+        label: 'Leave Balances',
+        to: '/admin/leave-management/leave-balances',
+      },
+      {
+        label: 'Leave Types',
+        to: '/admin/leave-management/leave-types',
+      },
+      {
+        label: 'Leave Policies',
+        to: '/admin/leave-management/leave-policies',
+      },
+    ],
+  },
   {
     label: 'Holiday Leave',
     icon: CalendarDays,
     to: '/admin/holiday-leave',
   },
-
   {
     label: 'Departments',
     key: 'departments',
@@ -287,101 +322,90 @@ const menuItems = [
         label: 'Employment Types',
         to: '/admin/employment-types',
       },
-      // Employee Assignment remains hidden until the route is needed.
-      // {
-      //   label: 'Employee Assignment',
-      //   to: '/admin/department-assignments',
-      // },
       {
         label: 'Employee Transfers',
         to: '/admin/employee-transfers',
       },
     ],
   },
-
   {
-  label: 'Approval Center',
-  key: 'approvals',
-  icon: ClipboardCheck,
-  children: [
-    {
-      label: 'Leave Approvals',
-      to: '/admin/approvals/leaves',
-    },
-    {
-      label: 'OT Approvals',
-      to: '/admin/approvals/overtime',
-    },
-    {
-      label: 'Undertime Approvals',
-      to: '/admin/approvals/undertime',
-    },
-  ],
-},
-
-  // =====================================================
-  // WFH (SEPARATE FRONTEND-ONLY MODULE)
-  // =====================================================
+    label: 'Approval Center',
+    key: 'approvals',
+    icon: ClipboardCheck,
+    children: [
+      {
+        label: 'Leave Approvals',
+        to: '/admin/approvals/leaves',
+      },
+      {
+        label: 'OT Approvals',
+        to: '/admin/approvals/overtime',
+      },
+      {
+        label: 'Undertime Approvals',
+        to: '/admin/approvals/undertime',
+      },
+    ],
+  },
   {
     label: 'Work From Home',
     key: 'wfh',
     icon: House,
     children: [
-      { label: 'WFH Requests', to: '/admin/wfh/requests' },
-      { label: 'WFH List', to: '/admin/wfh/list' },
-      { label: 'WFH Attach Documents', to: '/admin/wfh/documents' },
+      {
+        label: 'WFH Requests',
+        to: '/admin/wfh/requests',
+      },
+      {
+        label: 'WFH List',
+        to: '/admin/wfh/list',
+      },
+      {
+        label: 'WFH Attach Documents',
+        to: '/admin/wfh/documents',
+      },
     ],
   },
-
-  // =====================================================
-  // PERFORMANCE
-  // =====================================================
   {
     label: 'Evaluation Templates',
     icon: ClipboardCheck,
     to: '/admin/performance/templates',
   },
-
   {
-  label: 'Employee Lifecycle',
-  key: 'employee-lifecycle',
-  icon: UserRound,
-  children: [
-
-    {
-      label: 'Onboarding',
-      to: '/admin/employee-lifecycle/onboarding',
-    },
-    {
-      label: 'Regularization',
-      to: '/admin/employee-lifecycle/regularization',
-    },
-    {
-      label: 'Employee Transfers',
-      to: '/admin/employee-lifecycle/transfers',
-    },
-    {
-      label: 'Promotions',
-      to: '/admin/employee-lifecycle/promotions',
-    },
-    {
-      label: 'Employment Changes',
-      to: '/admin/employee-lifecycle/changes',
-    },
-    {
-      label: 'Offboarding',
-      to: '/admin/employee-lifecycle/offboarding',
-    },
-    {
-      label: 'Lifecycle History',
-      to: '/admin/employee-lifecycle/history',
-    },
-  ],
-},
-
-  // =====================================================
-  // REPORTS
-  // =====================================================
+    label: 'Employee Lifecycle',
+    key: 'employee-lifecycle',
+    icon: UserRound,
+    children: [
+      {
+        label: 'Onboarding',
+        to: '/admin/employee-lifecycle/onboarding',
+      },
+      {
+        label: 'Regularization',
+        to: '/admin/employee-lifecycle/regularization',
+      },
+      {
+        label: 'Employee Transfers',
+        to: '/admin/employee-lifecycle/transfers',
+      },
+      {
+        label: 'Promotions',
+        to: '/admin/employee-lifecycle/promotions',
+      },
+      {
+        label: 'Employment Changes',
+        to: '/admin/employee-lifecycle/changes',
+      },
+      {
+        label: 'Offboarding',
+        to: '/admin/employee-lifecycle/offboarding',
+      },
+      {
+        label: 'Lifecycle History',
+        to: '/admin/employee-lifecycle/history',
+      },
+    ],
+  },
   {
     label: 'Reports & Analytics',
     key: 'reports',
@@ -423,8 +447,27 @@ const menuItems = [
   },
 ]
 
+// =====================================================
+// DYNAMIC PERMISSION-BASED SIDEBAR
+// =====================================================
+
+const visibleMenuItems = computed(() => {
+  return menuItems.filter((item) => {
+    if (item.key === 'timekeeping') {
+      return canAccessAdminTimekeeping.value
+    }
+
+    return true
+  })
+})
+
+// =====================================================
+// NAVIGATION
+// =====================================================
+
 const toggleMenu = (key?: string) => {
   if (!key) return
+
   openMenus[key] = !openMenus[key]
 }
 
@@ -438,9 +481,7 @@ const hasActiveChild = (
   children?: { to: string }[],
 ) => {
   return children?.some((child) => {
-    if (route.path === child.to) {
-      return true
-    }
+    if (route.path === child.to) return true
 
     if (
       child.to === '/admin/employees' &&
@@ -453,11 +494,34 @@ const hasActiveChild = (
   }) ?? false
 }
 
+const expandActiveMenu = () => {
+  visibleMenuItems.value.forEach((item) => {
+    if (
+      item.key &&
+      item.children &&
+      hasActiveChild(item.children)
+    ) {
+      openMenus[item.key] = true
+    }
+  })
+}
+
+// =====================================================
+// THEME
+// =====================================================
+
 const applyTheme = () => {
   if (!import.meta.client) return
 
-  document.documentElement.classList.toggle('dark', isDark.value)
-  localStorage.setItem('hris-theme', isDark.value ? 'dark' : 'light')
+  document.documentElement.classList.toggle(
+    'dark',
+    isDark.value,
+  )
+
+  localStorage.setItem(
+    'hris-theme',
+    isDark.value ? 'dark' : 'light',
+  )
 }
 
 const toggleDarkMode = () => {
@@ -465,119 +529,115 @@ const toggleDarkMode = () => {
   applyTheme()
 }
 
+// =====================================================
+// COMPANY MENU
+// =====================================================
+
 const toggleCompanyMenu = () => {
-  companyMenuOpen.value =
-    !companyMenuOpen.value
+  companyMenuOpen.value = !companyMenuOpen.value
 }
 
 const closeCompanyMenu = () => {
-  companyMenuOpen.value =
-    false
+  companyMenuOpen.value = false
 }
 
 const goToCompanySettings = async () => {
   closeCompanyMenu()
 
-  await router.push(
-    '/admin/settings',
-  )
+  await router.push('/admin/settings')
 }
 
 const handleAdminLogout = async () => {
   closeCompanyMenu()
+  clearSession()
 
-  if (import.meta.client) {
-    sessionStorage.removeItem(
-      'rworkcentral-auth',
-    )
-  }
-
-  await router.replace(
-    '/auth/login',
-  )
+  await router.replace('/auth/login')
 }
 
-const handleClickOutside = (
-  event: MouseEvent,
-) => {
-  const target =
-    event.target as Node | null
+const handleClickOutside = (event: MouseEvent) => {
+  const target = event.target as Node | null
 
   if (
     companyMenuRef.value &&
     target &&
-    !companyMenuRef.value.contains(
-      target,
-    )
+    !companyMenuRef.value.contains(target)
   ) {
-    companyMenuOpen.value =
-      false
+    companyMenuOpen.value = false
   }
 }
 
-onMounted(() => {
-  const savedTheme =
-    localStorage.getItem(
-      'hris-theme',
-    )
+// =====================================================
+// LIFECYCLE — SINGLE ONMOUNTED ONLY
+// =====================================================
+
+onMounted(async () => {
+  hydrate()
+
+  // Initialize theme without waiting for API.
+  const savedTheme = localStorage.getItem('hris-theme')
 
   if (savedTheme) {
-    isDark.value =
-      savedTheme === 'dark'
+    isDark.value = savedTheme === 'dark'
   } else {
-    isDark.value =
-      window.matchMedia(
-        '(prefers-color-scheme: dark)',
-      ).matches
+    isDark.value = window.matchMedia(
+      '(prefers-color-scheme: dark)',
+    ).matches
   }
 
   applyTheme()
-
-  menuItems.forEach(
-    (item) => {
-      if (
-        item.key &&
-        item.children &&
-        hasActiveChild(
-          item.children,
-        )
-      ) {
-        openMenus[item.key] =
-          true
-      }
-    },
-  )
 
   document.addEventListener(
     'click',
     handleClickOutside,
   )
+
+  // Refresh role and privileges from Laravel.
+  try {
+    if (isAuthenticated.value) {
+      const refreshed = await refreshUser()
+
+      if (!refreshed) {
+        console.warn(
+          'Unable to refresh account permissions.',
+        )
+      }
+    }
+  } finally {
+    permissionsLoading.value = false
+  }
+
+  expandActiveMenu()
 })
 
+watch(
+  [
+    () => route.path,
+    canAccessAdminTimekeeping,
+  ],
+  () => {
+    sidebarOpen.value = false
+    expandActiveMenu()
+  },
+  { immediate: true },
+)
+
 onBeforeUnmount(() => {
+  if (!import.meta.client) return
+
   document.removeEventListener(
     'click',
     handleClickOutside,
   )
 })
-
 </script>
-
-
 
 <template>
   <div class="app-shell">
-
-    <!-- =====================================================
-         GLOBAL TOAST
-    ====================================================== -->
     <ClientOnly>
       <AppToast />
     </ClientOnly>
 
-    <!-- =====================================================
-         MOBILE OVERLAY
-    ====================================================== -->
+    <!-- MOBILE OVERLAY -->
     <Transition name="fade">
       <div
         v-if="sidebarOpen"
@@ -586,40 +646,37 @@ onBeforeUnmount(() => {
       />
     </Transition>
 
-    <!-- =====================================================
-         SIDEBAR
-    ====================================================== -->
+    <!-- SIDEBAR -->
     <aside
       class="sidebar"
-      :class="{ 'sidebar-mobile-open': sidebarOpen }"
+      :class="{
+        'sidebar-mobile-open': sidebarOpen,
+      }"
     >
       <!-- BRAND -->
       <div class="brand">
+        <NuxtLink
+          to="/admin"
+          class="brand-image-link"
+          @click="sidebarOpen = false"
+        >
+          <img
+            src="/logo-white.png"
+            alt="RWorkCentral"
+            class="brand-image"
+          >
+        </NuxtLink>
 
-  <NuxtLink
-  to="/admin"
-  class="brand-image-link"
-  @click="sidebarOpen = false"
->
-  <img
-    src="/logo-white.png"
-    alt="RWorkCentral"
-    class="brand-image"
-  >
-</NuxtLink>
-
-  <button
-    class="mobile-close"
-    type="button"
-    @click="sidebarOpen = false"
-  >
-    <X :size="21" />
-  </button>
+        <button
+          type="button"
+          class="mobile-close"
+          @click="sidebarOpen = false"
+        >
+          <X :size="21" />
+        </button>
       </div>
 
-      <!-- =====================================================
-           NAVIGATION
-      ====================================================== -->
+      <!-- WORKSPACE NAVIGATION -->
       <div class="sidebar-content">
         <p class="menu-section-title">
           Workspace
@@ -627,7 +684,7 @@ onBeforeUnmount(() => {
 
         <nav class="sidebar-menu">
           <template
-            v-for="item in menuItems"
+            v-for="item in visibleMenuItems"
             :key="item.label"
           >
             <!-- SIMPLE MENU -->
@@ -646,12 +703,10 @@ onBeforeUnmount(() => {
                 :stroke-width="1.9"
               />
 
-              <span>
-                {{ item.label }}
-              </span>
+              <span>{{ item.label }}</span>
             </NuxtLink>
 
-            <!-- MENU WITH SUBMENU -->
+            <!-- MENU WITH CHILDREN -->
             <div
               v-else
               class="menu-group"
@@ -670,13 +725,11 @@ onBeforeUnmount(() => {
                   :stroke-width="1.9"
                 />
 
-                <span>
-                  {{ item.label }}
-                </span>
+                <span>{{ item.label }}</span>
 
                 <component
                   :is="
-                    openMenus[item.key]
+                    openMenus[item.key ?? '']
                       ? ChevronDown
                       : ChevronRight
                   "
@@ -687,7 +740,7 @@ onBeforeUnmount(() => {
 
               <Transition name="submenu">
                 <div
-                  v-show="openMenus[item.key]"
+                  v-show="openMenus[item.key ?? '']"
                   class="submenu"
                 >
                   <NuxtLink
@@ -701,7 +754,6 @@ onBeforeUnmount(() => {
                     @click="sidebarOpen = false"
                   >
                     <span class="submenu-dot" />
-
                     {{ child.label }}
                   </NuxtLink>
                 </div>
@@ -710,9 +762,7 @@ onBeforeUnmount(() => {
           </template>
         </nav>
 
-        <!-- =====================================================
-             SYSTEM
-        ====================================================== -->
+        <!-- SYSTEM -->
         <p class="menu-section-title system-label">
           System
         </p>
@@ -729,20 +779,16 @@ onBeforeUnmount(() => {
             :size="19"
             :stroke-width="1.9"
           />
-
-          <span>
-            Settings
-          </span>
+          <span>Settings</span>
         </NuxtLink>
 
         <NuxtLink
           to="/admin/settings/compensation/wage-orders"
           class="menu-link"
           :class="{
-            active:
-              isRouteActive(
-                '/admin/settings/compensation/wage-orders',
-              ),
+            active: isRouteActive(
+              '/admin/settings/compensation/wage-orders',
+            ),
           }"
           @click="sidebarOpen = false"
         >
@@ -750,46 +796,30 @@ onBeforeUnmount(() => {
             :size="19"
             :stroke-width="1.9"
           />
-
-          <span>
-            Wage Orders
-          </span>
+          <span>Wage Orders</span>
         </NuxtLink>
       </div>
 
-      <!-- =====================================================
-           USER PROFILE
-      ====================================================== -->
+      <!-- LOGGED-IN USER -->
       <div class="sidebar-user">
         <div class="user-avatar">
-          MS
+          {{ userInitials }}
         </div>
 
         <div class="sidebar-user-info">
-          <strong>
-            Maria Santos
-          </strong>
-
-          <span>
-            HR Administrator
-          </span>
+          <strong>{{ displayName }}</strong>
+          <span>{{ displayRole }}</span>
         </div>
 
         <ChevronDown :size="17" />
       </div>
     </aside>
 
-    <!-- =====================================================
-         MAIN AREA
-    ====================================================== -->
+    <!-- MAIN AREA -->
     <div class="main-area">
-
-      <!-- =====================================================
-           TOPBAR
-      ====================================================== -->
+      <!-- TOP BAR -->
       <header class="topbar">
         <div class="topbar-left">
-          <!-- MOBILE MENU BUTTON -->
           <button
             type="button"
             class="icon-button menu-toggle"
@@ -798,7 +828,6 @@ onBeforeUnmount(() => {
             <Menu :size="21" />
           </button>
 
-          <!-- SEARCH -->
           <div class="search-box">
             <Search
               :size="19"
@@ -810,297 +839,173 @@ onBeforeUnmount(() => {
               placeholder="Search employees, features..."
             >
 
-            <kbd>
-              ⌘ K
-            </kbd>
+            <kbd>⌘ K</kbd>
           </div>
         </div>
 
-       <!-- =====================================================
-     TOPBAR RIGHT
-====================================================== -->
-
-<div class="topbar-right">
-
-  <!-- =====================================================
-       DARK MODE
-  ====================================================== -->
-
-  <button
-    type="button"
-    class="icon-button"
-    :title="
-      isDark
-        ? 'Switch to light mode'
-        : 'Switch to dark mode'
-    "
-    @click="
-      toggleDarkMode
-    "
-  >
-
-    <Sun
-      v-if="isDark"
-      :size="20"
-    />
-
-    <Moon
-      v-else
-      :size="20"
-    />
-
-  </button>
-
-  <!-- =====================================================
-       NOTIFICATION
-  ====================================================== -->
-
-  <button
-    type="button"
-    class="
-      icon-button
-      notification-button
-    "
-    title="Notifications"
-  >
-
-    <Bell
-      :size="20"
-    />
-
-    <span class="notification-count">
-      8
-    </span>
-
-  </button>
-
-  <!-- SEPARATOR -->
-
-  <div class="topbar-separator" />
-
-  <!-- =====================================================
-       COMPANY MENU
-  ====================================================== -->
-
-  <div
-    ref="companyMenuRef"
-    class="company-menu"
-  >
-
-    <!-- COMPANY BUTTON -->
-
-    <button
-      type="button"
-      class="company-selector"
-      :class="{
-        'company-selector-open':
-          companyMenuOpen,
-      }"
-      @click.stop="
-        toggleCompanyMenu
-      "
-    >
-
-      <div class="company-icon">
-
-        <Building2
-          :size="18"
-        />
-
-      </div>
-
-      <div class="company-info">
-
-        <strong>
-          RWorkCentral Inc.
-        </strong>
-
-        <span>
-          Main Branch
-        </span>
-
-      </div>
-
-      <ChevronDown
-        :size="16"
-        class="company-chevron"
-        :class="{
-          rotated:
-            companyMenuOpen,
-        }"
-      />
-
-    </button>
-
-    <!-- DROPDOWN -->
-
-    <Transition name="company-dropdown">
-
-      <div
-        v-if="
-          companyMenuOpen
-        "
-        class="company-dropdown"
-        @click.stop
-      >
-
-        <!-- COMPANY HEADER -->
-
-        <div class="company-dropdown-header">
-
-          <div class="dropdown-company-logo">
-
-            <Building2
-              :size="18"
+        <div class="topbar-right">
+          <!-- DARK MODE -->
+          <button
+            type="button"
+            class="icon-button"
+            :title="
+              isDark
+                ? 'Switch to light mode'
+                : 'Switch to dark mode'
+            "
+            @click="toggleDarkMode"
+          >
+            <Sun
+              v-if="isDark"
+              :size="20"
             />
 
-          </div>
+            <Moon
+              v-else
+              :size="20"
+            />
+          </button>
 
-          <div>
+          <!-- NOTIFICATIONS -->
+          <button
+            type="button"
+            class="icon-button notification-button"
+            title="Notifications"
+          >
+            <Bell :size="20" />
 
-            <strong>
-              RWorkCentral Inc.
-            </strong>
-
-            <span>
-              Main Branch
+            <span class="notification-count">
+              8
             </span>
+          </button>
 
+          <div class="topbar-separator" />
+
+          <!-- COMPANY MENU -->
+          <div
+            ref="companyMenuRef"
+            class="company-menu"
+          >
+            <button
+              type="button"
+              class="company-selector"
+              :class="{
+                'company-selector-open': companyMenuOpen,
+              }"
+              @click.stop="toggleCompanyMenu"
+            >
+              <div class="company-icon">
+                <Building2 :size="18" />
+              </div>
+
+              <div class="company-info">
+                <strong>RWorkCentral Inc.</strong>
+                <span>Main Branch</span>
+              </div>
+
+              <ChevronDown
+                :size="16"
+                class="company-chevron"
+                :class="{
+                  rotated: companyMenuOpen,
+                }"
+              />
+            </button>
+
+            <Transition name="company-dropdown">
+              <div
+                v-if="companyMenuOpen"
+                class="company-dropdown"
+                @click.stop
+              >
+                <div class="company-dropdown-header">
+                  <div class="dropdown-company-logo">
+                    <Building2 :size="18" />
+                  </div>
+
+                  <div>
+                    <strong>RWorkCentral Inc.</strong>
+                    <span>Main Branch</span>
+                  </div>
+                </div>
+
+                <div class="dropdown-divider" />
+
+                <button
+                  type="button"
+                  class="dropdown-item"
+                  @click="closeCompanyMenu"
+                >
+                  <UserRound :size="16" />
+
+                  <div>
+                    <strong>My Account</strong>
+                    <span>{{ displayName }}</span>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  class="dropdown-item"
+                  @click="goToCompanySettings"
+                >
+                  <Settings :size="16" />
+
+                  <div>
+                    <strong>Company Settings</strong>
+                    <span>Company information</span>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  class="dropdown-item"
+                  @click="closeCompanyMenu"
+                >
+                  <MapPin :size="16" />
+
+                  <div>
+                    <strong>Main Branch</strong>
+                    <span>Current branch</span>
+                  </div>
+
+                  <span class="current-badge">
+                    Current
+                  </span>
+                </button>
+
+                <div class="dropdown-divider" />
+
+                <button
+                  type="button"
+                  class="dropdown-item logout-item"
+                  @click="handleAdminLogout"
+                >
+                  <LogOut :size="16" />
+
+                  <div>
+                    <strong>Sign Out</strong>
+                    <span>Return to login</span>
+                  </div>
+                </button>
+              </div>
+            </Transition>
           </div>
-
         </div>
-
-        <div class="dropdown-divider" />
-
-        <!-- ACCOUNT -->
-
-        <button
-          type="button"
-          class="dropdown-item"
-          @click="
-            closeCompanyMenu
-          "
-        >
-
-          <UserRound
-            :size="16"
-          />
-
-          <div>
-
-            <strong>
-              My Account
-            </strong>
-
-            <span>
-              Administrator profile
-            </span>
-
-          </div>
-
-        </button>
-
-        <!-- COMPANY SETTINGS -->
-
-        <button
-          type="button"
-          class="dropdown-item"
-          @click="
-            goToCompanySettings
-          "
-        >
-
-          <Settings
-            :size="16"
-          />
-
-          <div>
-
-            <strong>
-              Company Settings
-            </strong>
-
-            <span>
-              Company information
-            </span>
-
-          </div>
-
-        </button>
-
-        <!-- CURRENT BRANCH -->
-
-        <button
-          type="button"
-          class="dropdown-item"
-          @click="
-            closeCompanyMenu
-          "
-        >
-
-          <MapPin
-            :size="16"
-          />
-
-          <div>
-
-            <strong>
-              Main Branch
-            </strong>
-
-            <span>
-              Current branch
-            </span>
-
-          </div>
-
-          <span class="current-badge">
-            Current
-          </span>
-
-        </button>
-
-        <div class="dropdown-divider" />
-
-        <!-- LOGOUT -->
-
-        <button
-          type="button"
-          class="
-            dropdown-item
-            logout-item
-          "
-          @click="
-            handleAdminLogout
-          "
-        >
-          <LogOut
-            :size="16"
-          />
-
-          <div>
-
-            <strong>
-              Sign Out
-            </strong>
-            <span>
-              Return to admin login
-            </span>
-          </div>
-        </button>
-      </div>
-    </Transition>
-  </div>
-</div>
       </header>
 
-      <!-- =====================================================
-           PAGE CONTENT
-      ====================================================== -->
+      <!-- PAGE CONTENT -->
       <main class="page-content">
-        <slot />
-      </main>
+        <div
+          v-if="!isHydrated || permissionsLoading"
+          class="layout-loading"
+        >
+          <span class="loading-spinner" />
+          <span>Loading account permissions...</span>
+        </div>
 
+        <slot v-else />
+      </main>
     </div>
   </div>
 </template>
@@ -1112,6 +1017,7 @@ onBeforeUnmount(() => {
   --bg-main: #f5f7fb;
   --bg-card: #ffffff;
   --bg-card-soft: #f8fafc;
+
   --bg-sidebar: #062d67;
   --bg-sidebar-secondary: #073977;
 
@@ -1180,16 +1086,12 @@ body,
   margin: 0;
 }
 
-html {
-  transition:
-    background-color 0.2s ease,
-    color 0.2s ease;
-}
-
 body {
   margin: 0;
+
   background: var(--bg-main);
   color: var(--text-primary);
+
   font-family:
     Inter,
     ui-sans-serif,
@@ -1219,9 +1121,9 @@ a {
   background: var(--bg-main);
 }
 
-/* =========================
+/* =====================================================
    SIDEBAR
-========================= */
+===================================================== */
 
 .sidebar {
   position: fixed;
@@ -1232,141 +1134,56 @@ a {
   width: 264px;
   flex-direction: column;
 
-  background:
-    linear-gradient(
-      180deg,
-      #062f6c 0%,
-      #06285d 55%,
-      #041f4c 100%
-    );
+  background: linear-gradient(
+    180deg,
+    #062f6c 0%,
+    #06285d 55%,
+    #041f4c 100%
+  );
 
-  color: white;
+  color: #ffffff;
 }
 
 .brand {
   display: flex;
-
   width: 100%;
   height: 88px;
-
   flex-shrink: 0;
-
   align-items: center;
-
   gap: 10px;
-
   padding: 0 18px;
-
-  background: transparent;
-
-  border-bottom: 0;
 }
 
 .brand-image-link {
   display: flex;
-
   width: 100%;
-  min-width: 0;
-
   height: 100%;
-
   align-items: center;
-  justify-content: flex-start;
-
   overflow: hidden;
-
-  text-decoration: none;
 }
 
 .brand-image {
   display: block;
-
   width: 150px;
   max-width: 100%;
-
   height: 46px;
-
   object-fit: contain;
   object-position: left center;
-
-  background: transparent;
-}
-
-.brand-logo {
-  display: flex;
-  width: 40px;
-  height: 40px;
-  flex-shrink: 0;
-  align-items: center;
-  justify-content: center;
-
-  border-radius: 11px;
-  background:
-    linear-gradient(
-      135deg,
-      #4f8cff,
-      #1762ef
-    );
-
-  box-shadow:
-    0 6px 18px rgba(16, 92, 240, 0.35);
-}
-
-.brand-text {
-  min-width: 0;
-}
-
-.brand-text h1 {
-  margin: 0;
-
-  font-size: 16px;
-  font-weight: 700;
-  letter-spacing: -0.2px;
-}
-
-.brand-text span {
-  display: block;
-  margin-top: 2px;
-
-  color: #bdd0ea;
-
-  font-size: 11px;
-  font-weight: 500;
-  letter-spacing: 0.5px;
 }
 
 .mobile-close {
   display: none;
-
   margin-left: auto;
-
   padding: 7px;
-
   border: 0;
-
   border-radius: 8px;
-
-  background:
-    rgba(255, 255, 255, 0.10);
-
-  color: #ffffff;
-
-  cursor: pointer;
-}
-
-.mobile-close:hover {
-  background:
-    rgba(255, 255, 255, 0.16);
-}
-
-.mobile-close:hover {
-  background: #dce9ff;
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
 }
 
 .sidebar-content {
   flex: 1;
   overflow-y: auto;
-
   padding: 14px 12px 20px;
 }
 
@@ -1381,9 +1198,7 @@ a {
 
 .menu-section-title {
   margin: 10px 10px 8px;
-
   color: #8eacd0;
-
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 1.2px;
@@ -1401,16 +1216,13 @@ a {
 }
 
 .menu-link {
-  position: relative;
-
   display: flex;
   min-height: 44px;
+  width: 100%;
   align-items: center;
   gap: 12px;
 
-  width: 100%;
   padding: 0 13px;
-
   border: 0;
   border-radius: 9px;
 
@@ -1419,36 +1231,29 @@ a {
 
   font-size: 13px;
   font-weight: 500;
+  text-align: left;
 
   transition:
     background 0.18s ease,
-    color 0.18s ease,
-    transform 0.18s ease;
+    color 0.18s ease;
 }
 
 .menu-link:hover {
-  background:
-    rgba(255, 255, 255, 0.07);
-
+  background: rgba(255, 255, 255, 0.07);
   color: white;
 }
 
 .menu-link.active {
-  background:
-    linear-gradient(
-      90deg,
-      #1e6df3,
-      #327cff
-    );
+  background: linear-gradient(
+    90deg,
+    #1e6df3,
+    #327cff
+  );
 
   color: white;
 
   box-shadow:
     0 5px 14px rgba(12, 86, 212, 0.25);
-}
-
-.menu-button {
-  text-align: left;
 }
 
 .menu-arrow {
@@ -1477,11 +1282,9 @@ a {
   gap: 9px;
 
   padding: 5px 10px;
-
   border-radius: 7px;
 
   color: #aac0dc;
-
   font-size: 12px;
 
   transition:
@@ -1490,9 +1293,7 @@ a {
 }
 
 .submenu-link:hover {
-  background:
-    rgba(255, 255, 255, 0.05);
-
+  background: rgba(255, 255, 255, 0.05);
   color: white;
 }
 
@@ -1504,11 +1305,8 @@ a {
 .submenu-dot {
   width: 5px;
   height: 5px;
-
   flex-shrink: 0;
-
-  border-radius: 100%;
-
+  border-radius: 100px;
   background: #7797bd;
 }
 
@@ -1519,9 +1317,9 @@ a {
     0 0 0 3px rgba(80, 162, 255, 0.15);
 }
 
-/* =========================
+/* =====================================================
    SIDEBAR USER
-========================= */
+===================================================== */
 
 .sidebar-user {
   display: flex;
@@ -1535,9 +1333,7 @@ a {
     1px solid rgba(255, 255, 255, 0.12);
 
   border-radius: 11px;
-
-  background:
-    rgba(255, 255, 255, 0.045);
+  background: rgba(255, 255, 255, 0.045);
 }
 
 .user-avatar {
@@ -1550,15 +1346,13 @@ a {
 
   border-radius: 50%;
 
-  background:
-    linear-gradient(
-      135deg,
-      #ddeaff,
-      #b8d1ff
-    );
+  background: linear-gradient(
+    135deg,
+    #ddeaff,
+    #b8d1ff
+  );
 
   color: #164b9b;
-
   font-size: 12px;
   font-weight: 700;
 }
@@ -1572,7 +1366,6 @@ a {
 .sidebar-user-info span {
   display: block;
   overflow: hidden;
-
   white-space: nowrap;
   text-overflow: ellipsis;
 }
@@ -1584,15 +1377,13 @@ a {
 
 .sidebar-user-info span {
   margin-top: 2px;
-
   color: #9eb9da;
-
   font-size: 10px;
 }
 
-/* =========================
-   MAIN / TOP BAR
-========================= */
+/* =====================================================
+   MAIN AREA
+===================================================== */
 
 .main-area {
   min-height: 100vh;
@@ -1610,16 +1401,13 @@ a {
   justify-content: space-between;
 
   padding: 0 28px;
+  border-bottom: 1px solid var(--border);
 
-  border-bottom:
-    1px solid var(--border);
-
-  background:
-    color-mix(
-      in srgb,
-      var(--bg-card) 94%,
-      transparent
-    );
+  background: color-mix(
+    in srgb,
+    var(--bg-card) 94%,
+    transparent
+  );
 
   backdrop-filter: blur(15px);
 }
@@ -1645,17 +1433,10 @@ a {
   align-items: center;
 
   padding: 0 11px;
-
-  border:
-    1px solid var(--border);
-
+  border: 1px solid var(--border);
   border-radius: 9px;
 
   background: var(--bg-card-soft);
-
-  transition:
-    border-color 0.18s ease,
-    box-shadow 0.18s ease;
 }
 
 .search-box:focus-within {
@@ -1673,7 +1454,6 @@ a {
 .search-box input {
   width: 100%;
   height: 100%;
-
   margin-left: 9px;
 
   border: 0;
@@ -1681,7 +1461,6 @@ a {
 
   background: transparent;
   color: var(--text-primary);
-
   font-size: 13px;
 }
 
@@ -1692,13 +1471,10 @@ a {
 .search-box kbd {
   padding: 3px 6px;
 
-  border:
-    1px solid var(--border);
-
+  border: 1px solid var(--border);
   border-radius: 5px;
 
   background: var(--bg-card);
-
   color: var(--text-muted);
 
   font-size: 10px;
@@ -1714,17 +1490,11 @@ a {
   align-items: center;
   justify-content: center;
 
-  border:
-    1px solid transparent;
-
+  border: 1px solid transparent;
   border-radius: 9px;
 
   background: transparent;
   color: var(--text-secondary);
-
-  transition:
-    background 0.18s ease,
-    color 0.18s ease;
 }
 
 .icon-button:hover {
@@ -1743,9 +1513,7 @@ a {
   align-items: center;
   justify-content: center;
 
-  border:
-    2px solid var(--bg-card);
-
+  border: 2px solid var(--bg-card);
   border-radius: 100px;
 
   background: #ef4444;
@@ -1758,10 +1526,16 @@ a {
 .topbar-separator {
   width: 1px;
   height: 25px;
-
   margin: 0 5px;
-
   background: var(--border);
+}
+
+/* =====================================================
+   COMPANY MENU
+===================================================== */
+
+.company-menu {
+  position: relative;
 }
 
 .company-selector {
@@ -1771,17 +1545,16 @@ a {
   gap: 9px;
 
   padding: 5px 8px;
-
   border: 0;
   border-radius: 9px;
 
   background: transparent;
   color: var(--text-primary);
-
   text-align: left;
 }
 
-.company-selector:hover {
+.company-selector:hover,
+.company-selector-open {
   background: var(--bg-card-soft);
 }
 
@@ -1815,87 +1588,55 @@ a {
 
 .company-info span {
   margin-top: 2px;
-
   color: var(--text-secondary);
-
   font-size: 9px;
 }
 
-.company-menu {
-  position: relative;
-}
-
-.company-selector-open {
-  background:
-    var(--bg-card-soft);
-}
-
 .company-chevron {
-  transition:
-    transform 0.18s ease;
+  transition: transform 0.18s ease;
 }
 
 .company-chevron.rotated {
-  transform:
-    rotate(180deg);
+  transform: rotate(180deg);
 }
 
 .company-dropdown {
   position: absolute;
-
-  top:
-    calc(100% + 9px);
-
+  top: calc(100% + 9px);
   right: 0;
-
   z-index: 200;
 
   width: 270px;
-
   padding: 8px;
 
-  border:
-    1px solid var(--border);
-
+  border: 1px solid var(--border);
   border-radius: 11px;
 
-  background:
-    var(--bg-card);
+  background: var(--bg-card);
 
   box-shadow:
-    0 18px 45px
-    rgba(0, 0, 0, 0.2);
+    0 18px 45px rgba(0, 0, 0, 0.2);
 }
 
 .company-dropdown-header {
   display: flex;
-
   align-items: center;
-
   gap: 9px;
-
-  padding:
-    9px 8px 11px;
+  padding: 9px 8px 11px;
 }
 
 .dropdown-company-logo {
   display: flex;
-
   width: 37px;
   height: 37px;
-
   flex-shrink: 0;
-
   align-items: center;
   justify-content: center;
 
   border-radius: 9px;
 
-  background:
-    var(--primary-soft);
-
-  color:
-    var(--primary);
+  background: var(--primary-soft);
+  color: var(--primary);
 }
 
 .company-dropdown-header strong,
@@ -1904,68 +1645,40 @@ a {
 }
 
 .company-dropdown-header strong {
-  color:
-    var(--text-primary);
-
+  color: var(--text-primary);
   font-size: 10px;
 }
 
 .company-dropdown-header span {
   margin-top: 2px;
-
-  color:
-    var(--text-muted);
-
+  color: var(--text-muted);
   font-size: 8px;
 }
 
 .dropdown-divider {
   height: 1px;
-
-  margin:
-    5px 0;
-
-  background:
-    var(--border-soft);
+  margin: 5px 0;
+  background: var(--border-soft);
 }
 
 .dropdown-item {
   display: flex;
-
   width: 100%;
-
   align-items: center;
-
   gap: 10px;
 
-  padding:
-    9px 8px;
-
+  padding: 9px 8px;
   border: 0;
-
   border-radius: 7px;
 
-  background:
-    transparent;
-
-  color:
-    var(--text-secondary);
-
+  background: transparent;
+  color: var(--text-secondary);
   text-align: left;
-
-  cursor: pointer;
-
-  transition:
-    background 0.16s ease,
-    color 0.16s ease;
 }
 
 .dropdown-item:hover {
-  background:
-    var(--bg-card-soft);
-
-  color:
-    var(--text-primary);
+  background: var(--bg-card-soft);
+  color: var(--text-primary);
 }
 
 .dropdown-item > svg {
@@ -1974,7 +1687,6 @@ a {
 
 .dropdown-item > div {
   min-width: 0;
-
   flex: 1;
 }
 
@@ -1984,87 +1696,77 @@ a {
 }
 
 .dropdown-item strong {
-  color:
-    var(--text-primary);
-
+  color: var(--text-primary);
   font-size: 9px;
-
   font-weight: 600;
 }
 
 .dropdown-item span {
   margin-top: 2px;
-
-  color:
-    var(--text-muted);
-
+  color: var(--text-muted);
   font-size: 7px;
 }
 
 .current-badge {
-  padding:
-    3px 6px;
-
+  padding: 3px 6px;
   border-radius: 20px;
 
-  background:
-    var(--green-soft);
+  background: var(--green-soft);
+  color: var(--green) !important;
 
-  color:
-    var(--green) !important;
-
-  font-size:
-    7px !important;
-
+  font-size: 7px !important;
   font-weight: 700;
 }
 
-.logout-item {
-  color:
-    var(--red);
-}
-
+.logout-item,
 .logout-item strong {
-  color:
-    var(--red);
+  color: var(--red);
 }
 
 .logout-item:hover {
-  background:
-    var(--red-soft);
+  background: var(--red-soft);
 }
 
-/* ANIMATION */
-
-.company-dropdown-enter-active,
-.company-dropdown-leave-active {
-  transition:
-    opacity 0.15s ease,
-    transform 0.15s ease;
-}
-
-.company-dropdown-enter-from,
-.company-dropdown-leave-to {
-  opacity: 0;
-
-  transform:
-    translateY(-6px);
-}
-
-.menu-toggle {
-  display: none;
-}
+/* =====================================================
+   CONTENT & LOADING
+===================================================== */
 
 .page-content {
-  min-height:
-    calc(100vh - 68px);
-
+  min-height: calc(100vh - 68px);
   padding: 28px;
 }
 
-/* =========================
+.layout-loading {
+  display: flex;
+  min-height: 250px;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.loading-spinner {
+  width: 16px;
+  height: 16px;
+
+  border: 2px solid var(--border);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+
+  animation: layout-spin 0.7s linear infinite;
+}
+
+@keyframes layout-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* =====================================================
    TRANSITIONS
-========================= */
+===================================================== */
 
 .fade-enter-active,
 .fade-leave-active {
@@ -2087,11 +1789,28 @@ a {
   transform: translateY(-5px);
 }
 
-/* =========================
+.company-dropdown-enter-active,
+.company-dropdown-leave-active {
+  transition:
+    opacity 0.15s ease,
+    transform 0.15s ease;
+}
+
+.company-dropdown-enter-from,
+.company-dropdown-leave-to {
+  opacity: 0;
+  transform: translateY(-6px);
+}
+
+/* =====================================================
    RESPONSIVE
-========================= */
+===================================================== */
 
 .sidebar-overlay {
+  display: none;
+}
+
+.menu-toggle {
   display: none;
 }
 
@@ -2112,9 +1831,7 @@ a {
 @media (max-width: 850px) {
   .sidebar {
     transform: translateX(-100%);
-
-    transition:
-      transform 0.25s ease;
+    transition: transform 0.25s ease;
   }
 
   .sidebar-mobile-open {
@@ -2125,10 +1842,7 @@ a {
     margin-left: 0;
   }
 
-  .menu-toggle {
-    display: flex;
-  }
-
+  .menu-toggle,
   .mobile-close {
     display: flex;
   }
@@ -2137,12 +1851,9 @@ a {
     position: fixed;
     inset: 0;
     z-index: 40;
-
     display: block;
 
-    background:
-      rgba(5, 15, 30, 0.55);
-
+    background: rgba(5, 15, 30, 0.55);
     backdrop-filter: blur(2px);
   }
 
@@ -2172,8 +1883,7 @@ a {
 
 @media (max-width: 460px) {
   .search-box {
-    width:
-      calc(100vw - 160px);
+    width: calc(100vw - 160px);
   }
 
   .topbar {

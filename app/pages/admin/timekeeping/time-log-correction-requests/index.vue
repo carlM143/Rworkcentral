@@ -64,6 +64,7 @@ const message = ref('')
 
 const statusFilter = ref('pending')
 const page = ref(1)
+const search = ref('')
 const lastPage = ref(1)
 const records = ref<Correction[]>([])
 
@@ -180,6 +181,7 @@ const fetchRecords = async () => {
       '/admin/time-log-corrections',
       {
         query: {
+          search: search.value.trim() || undefined,
           status: statusFilter.value || undefined,
           page: page.value,
         },
@@ -310,6 +312,28 @@ watch([statusFilter], () => {
 
 watch(page, fetchRecords)
 
+let searchTimer: ReturnType<typeof setTimeout> | null = null
+
+watch(search, () => {
+  if (searchTimer) {
+    clearTimeout(searchTimer)
+  }
+
+  searchTimer = setTimeout(() => {
+    if (page.value !== 1) {
+      page.value = 1
+    } else {
+      fetchRecords()
+    }
+  }, 300)
+})
+
+onBeforeUnmount(() => {
+  if (searchTimer) {
+    clearTimeout(searchTimer)
+  }
+})
+
 onMounted(() => {
   fetchRecords()
 
@@ -343,16 +367,28 @@ onBeforeUnmount(() => {
     <CorrectionStats :stats="stats" />
     <!-- END DYNAMIC STATISTICS -->
     <div class="review-filters">
-      <label>
-        Status
-        <select v-model="statusFilter">
-          <option value="pending">Pending</option>
-          <option value="approved">Approved</option>
-          <option value="rejected">Rejected</option>
-          <option value="">All Requests</option>
-        </select>
-      </label>
+    <div class="filter-search">
+      <Search :size="16" />
+
+      <input
+        v-model="search"
+        type="search"
+        placeholder="Search employee or employee ID..."
+        autocomplete="off"
+      />
     </div>
+
+    <label>
+      Status
+
+      <select v-model="statusFilter">
+        <option value="pending">Pending</option>
+        <option value="approved">Approved</option>
+        <option value="rejected">Rejected</option>
+        <option value="">All Requests</option>
+      </select>
+    </label>
+  </div>
 
     <p v-if="message" class="review-success">{{ message }}</p>
     <p v-if="error && !action" class="review-error">{{ error }}</p>
@@ -1104,5 +1140,45 @@ onBeforeUnmount(() => {
 .status-pill.rejected {
   background: var(--red-soft);
   color: var(--red);
+}
+
+.review-filters {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.filter-search {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex: 1;
+  min-width: 230px;
+  min-height: 38px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--bg-card-soft);
+  color: var(--text-muted);
+}
+
+.filter-search:focus-within {
+  border-color: var(--primary);
+}
+
+.filter-search input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 11px;
+}
+
+.filter-search input::placeholder {
+  color: var(--text-muted);
 }
 </style>

@@ -255,48 +255,45 @@ export const useTimeLogs = () => {
   // =====================================================
 
   const filteredLogs = computed(() => {
-    const keyword = search.value
-      .trim()
-      .toLowerCase()
+  const keyword = search.value.trim().toLowerCase()
 
-    return timeLogs.value.filter((log) => {
-      const matchesSearch =
-        !keyword ||
-        log.employeeName
-          .toLowerCase()
-          .includes(keyword) ||
-        log.employeeNumber
-          .toLowerCase()
-          .includes(keyword) ||
-        log.department
-          .toLowerCase()
-          .includes(keyword)
+  return timeLogs.value.filter((log) => {
+    const searchableText = [
+      log.employeeName,
+      log.employeeNumber,
+      log.department,
+    ]
+      .map(value => String(value ?? '').toLowerCase())
+      .join(' ')
 
-      const matchesDepartment =
-        !department.value ||
-        log.department === department.value
+    const matchesSearch =
+      !keyword || searchableText.includes(keyword)
 
-      const matchesStatus =
-        !status.value ||
-        log.status === status.value
+    const matchesDepartment =
+      !department.value ||
+      log.department === department.value
 
-      const matchesFrom =
-        !dateFrom.value ||
-        log.date >= dateFrom.value
+    const matchesStatus =
+      !status.value ||
+      log.status === status.value
 
-      const matchesTo =
-        !dateTo.value ||
-        log.date <= dateTo.value
+    const matchesFrom =
+      !dateFrom.value ||
+      log.date >= dateFrom.value
 
-      return (
-        matchesSearch &&
-        matchesDepartment &&
-        matchesStatus &&
-        matchesFrom &&
-        matchesTo
-      )
-    })
+    const matchesTo =
+      !dateTo.value ||
+      log.date <= dateTo.value
+
+    return (
+      matchesSearch &&
+      matchesDepartment &&
+      matchesStatus &&
+      matchesFrom &&
+      matchesTo
+    )
   })
+})
 
   // =====================================================
   // DYNAMIC STATISTICS

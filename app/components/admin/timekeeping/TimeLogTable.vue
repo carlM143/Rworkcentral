@@ -55,8 +55,6 @@ const statusClass = (status: string) => {
       <th>Date</th>
       <th>Schedule</th>
       <th>Time In</th>
-      <th>Break Out</th>
-      <th>Break In</th>
       <th>Time Out</th>
       <th>Late</th>
       <th>Undertime</th>
@@ -69,9 +67,6 @@ const statusClass = (status: string) => {
       <tr v-for="log in logs" :key="log.id">
         <td>
           <div class="employee-cell">
-            <span class="employee-icon">
-              <Users :size="15" />
-            </span>
 
             <div class="employee-details">
               <strong>{{ log.employeeName }}</strong>
@@ -95,14 +90,6 @@ const statusClass = (status: string) => {
 
         <td :class="{ 'issue-time': log.lateMinutes > 0 }">
           {{ displayTime(log.timeIn) }}
-        </td>
-
-        <td>
-          {{ displayTime(log.breakOut) }}
-        </td>
-
-        <td>
-          {{ displayTime(log.breakIn) }}
         </td>
 
         <td :class="{ 'issue-time': log.undertimeMinutes > 0 }">

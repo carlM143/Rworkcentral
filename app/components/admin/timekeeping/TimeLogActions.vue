@@ -20,7 +20,7 @@ const props = defineProps<{
 
 const { $api } = useNuxtApp()
 
-type ModalName = 'view' | 'correction' | 'history' | 'employee' | null
+type ModalName = 'view' | 'history' | 'employee' | null
 
 interface ApiResponse<T> {
   success: boolean
@@ -386,14 +386,6 @@ const submitCorrection = async () => {
       <button @click="openModal('view')">
         <Eye :size="15" />
         View Time Log
-      </button>
-
-      <button
-        class="correction-action"
-        @click="openModal('correction')"
-      >
-        <Pencil :size="15" />
-        Request Correction
       </button>
 
       <button @click="openModal('history')">
