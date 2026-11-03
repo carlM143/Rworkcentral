@@ -309,7 +309,7 @@ const menuItems = [
       to: '/admin/approvals/leaves',
     },
     {
-      label: 'OT Approvals',
+      label: 'OverTime Approvals',
       to: '/admin/approvals/overtime',
     },
     {

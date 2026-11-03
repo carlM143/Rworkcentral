@@ -7,6 +7,9 @@ export interface LeaveBalance {
   employee: string
   emp_id: string | number | null
   department?: string | null
+  position?: string | null
+  employment_type?: string | null
+  employment_type_name?: string | null
   leave_policy_id: number
   leave_type: string | null
   policy_paid?: boolean | null
@@ -26,6 +29,8 @@ export interface EmployeeLeaveBalance {
   employee: string
   emp_id: string | number | null
   department: string | null
+  position: string | null
+  employmentType: string | null
   records: LeaveBalance[]
   totalAllocated: number
   totalUsed: number

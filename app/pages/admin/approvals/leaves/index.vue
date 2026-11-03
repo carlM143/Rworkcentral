@@ -3,7 +3,6 @@ import { Download, Plus, RefreshCw } from 'lucide-vue-next'
 import LeaveApprovalStats from '~/components/admin/approvals/leaves/LeaveApprovalStats.vue'
 import LeaveApprovalFilters from '~/components/admin/approvals/leaves/LeaveApprovalFilters.vue'
 import LeaveApprovalTable from '~/components/admin/approvals/leaves/LeaveApprovalTable.vue'
-import FileApprovalRequestModal from '~/components/admin/approvals/FileApprovalRequestModal.vue'
 import { useLeaveApprovals } from '~/composables/admin/approvals/useLeaveApprovals'
 import type { LeaveApproval } from '~/types/leaveApproval'
 
@@ -19,8 +18,9 @@ const {
 } = useLeaveApprovals()
 
 const exportOpen = ref(false)
-const fileRequestOpen = ref(false)
-const handleFileRequestSuccess = () => { void loadRequests() }
+const handleFileRequest = () => {
+  void router.push('/admin/approvals/leaves/create-leave')
+}
 
 const handleReview = (request: LeaveApproval) => {
   void router.push({
@@ -44,7 +44,7 @@ onMounted(() => { void loadRequests() })
       description="Review employee leave applications, payment classifications and approval status."
     >
       <div class="header-actions">
-        <AppButton :icon="Plus" @click="fileRequestOpen = true">File Request</AppButton>
+        <AppButton :icon="Plus" @click="handleFileRequest">File Request</AppButton>
         <AppButton variant="secondary" :icon="Download" @click="exportOpen = true">Export</AppButton>
         <AppButton variant="secondary" :icon="RefreshCw" :disabled="loading" @click="loadRequests">
           {{ loading ? 'Refreshing...' : 'Refresh' }}
@@ -99,12 +99,6 @@ onMounted(() => { void loadRequests() })
       @close="exportOpen = false"
     />
 
-    <FileApprovalRequestModal
-      :open="fileRequestOpen"
-      default-type="Leave"
-      @close="fileRequestOpen = false"
-      @success="handleFileRequestSuccess"
-    />
   </section>
 </template>
 
