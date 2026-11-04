@@ -2,12 +2,34 @@
 import { BriefcaseBusiness, Building2, UserRound, Clock3, BadgeCheck } from 'lucide-vue-next'
 import { useDepartmentApi, type DepartmentApiRecord } from '~/composables/admin/departments/useDepartmentApi'
 import { usePositionApi, type PositionApiRecord } from '~/composables/admin/departments/positions/usePositionApi'
+import { useCompanyApi, type CompanyLocation } from '~/composables/admin/useCompanyApi'
 
 const { form } = useEmployeeForm()
 const { $api } = useNuxtApp()
 const { error: showError } = useToast()
 const departmentApi = useDepartmentApi()
 const positionApi = usePositionApi()
+const companyApi = useCompanyApi()
+const workLocations = ref<CompanyLocation[]>([])
+const loadingLocations = ref(false)
+const locationError = ref('')
+const loadWorkLocations = async () => {
+  loadingLocations.value = true
+  locationError.value = ''
+  try {
+    const response = await companyApi.getCompanies()
+    workLocations.value = response.data.flatMap(company => company.locations ?? [])
+  } catch {
+    locationError.value = 'Unable to load work locations. Please retry.'
+  } finally {
+    loadingLocations.value = false
+  }
+}
+watch([() => form.value.workLocationId, workLocations], ([id]) => {
+  const location = workLocations.value.find(item => item.id === id)
+  if (location) form.value.workLocation = `${location.location_name} (${location.city})`
+  else if (!id) form.value.workLocation = ''
+}, { immediate: true })
 
 interface EmploymentTypeRecord { id: number; name: string }
 interface ApiResponse<T> { success: boolean; message: string; data: T }
@@ -202,6 +224,7 @@ const selectPosition = (event: Event) => {
 }
 
 onMounted(() => {
+  void loadWorkLocations()
   void loadEmploymentTypes()
   void loadOrganization()
   void loadAvailableWorkSchedules()
@@ -336,6 +359,21 @@ onMounted(() => {
         </div>
 
         <!-- WORK SCHEDULE: Template assignment only. No per-employee shift editing. -->
+        <div class="section-divider" />
+        <div class="form-field">
+          <label class="field-label" for="employee-work-location">Work Location</label>
+          <select id="employee-work-location" v-model="form.workLocationId" class="lookup-select" :disabled="loadingLocations || !!locationError">
+            <option :value="null">{{ loadingLocations ? 'Loading locations...' : 'Select work location' }}</option>
+            <option v-for="location in workLocations" :key="location.id" :value="location.id">
+              {{ location.location_name }} ({{ location.city }}{{ location.province ? `, ${location.province}` : '' }})
+            </option>
+          </select>
+          <small v-if="!loadingLocations && !locationError && !workLocations.length" class="field-hint">Add locations in Company Information first.</small>
+          <div v-if="locationError" class="organization-error" role="alert">
+            {{ locationError }}
+            <button type="button" @click="loadWorkLocations">Retry</button>
+          </div>
+        </div>
         <div class="section-divider" />
 
         <div class="section-title">

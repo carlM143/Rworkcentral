@@ -1,7 +1,14 @@
+export interface CompanyLocation {
+  id?: number
+  location_name: string
+  city: string
+  province: string | null
+}
+
 export interface CompanyRecord {
   id: number
   company_name: string
-  location?: string
+  locations?: CompanyLocation[]
   status?: boolean
   created_at?: string
   updated_at?: string
@@ -18,7 +25,7 @@ export interface CompanyRecord {
 
 export interface CompanyPayload {
   company_name: string
-  location: string
+  locations: CompanyLocation[]
   status?: boolean
 }
 

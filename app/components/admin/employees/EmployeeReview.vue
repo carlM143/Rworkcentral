@@ -357,6 +357,11 @@ const finalDescription = computed(() => {
             </div>
 
             <div class="detail-item">
+              <span>Work Location</span>
+              <strong>{{ displayValue(form.workLocation) }}</strong>
+            </div>
+
+            <div class="detail-item">
               <span>Rest Day</span>
               <strong>
                 {{ displayValue(form.restDay) }}

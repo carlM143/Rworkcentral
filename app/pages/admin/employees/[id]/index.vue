@@ -69,6 +69,7 @@ interface ApiEmployeeDocument {
 }
 
 interface ApiEmployment {
+  location?: { location_name: string; city: string } | null
   id: number
   date_hired?: string | null
   employment_type?: {
@@ -247,6 +248,7 @@ const mapEmployeeDetail = (record: ApiEmployeeDetail): Employee => {
       ? [schedule.schedule_name, schedule.schedule_code ? `(${schedule.schedule_code})` : '']
           .filter(Boolean).join(' ') || undefined
       : undefined,
+    workLocation: employment?.location ? `${employment.location.location_name} (${employment.location.city})` : undefined,
     // Missing WorkScheduleDay rows mean rest days. No legacy restday table.
     restDay: Array.isArray(days) ? restDays.join(', ') || 'None' : undefined,
     inactiveDate: !isActive ? dateOnly(record.updated_at) || undefined : undefined,
@@ -1516,13 +1518,13 @@ const handleCompensationHistory = () => {
 
         <div class="assignment-item">
           <span>
-            Branch / Work Location
+            Work Location
           </span>
 
           <strong>
             {{
               valueOrFallback(
-                employee.branch,
+                employee.workLocation,
               )
             }}
           </strong>

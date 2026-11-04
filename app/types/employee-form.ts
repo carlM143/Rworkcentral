@@ -31,6 +31,8 @@ export interface EmployeeForm {
   employmentTypeId: number | null
   employmentType: string
   workScheduleId: number | null
+  workLocationId: number | null
+  workLocation: string
   workSchedule: string
   restDayId: number | null
   restDay: string

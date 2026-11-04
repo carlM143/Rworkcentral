@@ -45,7 +45,7 @@ const handleBalances = () => {
 }
 
 const handleCalendar = () => {
-  return navigateTo('/admin/holiday-leave')
+  return navigateTo('/admin/work-calendar')
 }
 </script>
 

@@ -21,6 +21,8 @@ const createInitialForm = (): EmployeeForm => ({
   positionId: null,
   position: '',
   employmentTypeId: null,
+  workLocationId: null,
+  workLocation: '',
   employmentType: '',
   workScheduleId: null,
   workSchedule: '',

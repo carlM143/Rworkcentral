@@ -49,6 +49,7 @@ const buildEmployeePayload = (form: EmployeeForm): FormData => {
   appendText(payload, 'contact[residential_address]', form.address)
 
   appendText(payload, 'employment[employment_type_id]', form.employmentTypeId)
+  appendText(payload, 'employment[location_id]', form.workLocationId)
   appendText(payload, 'employment[department_id]', form.departmentId)
   appendText(payload, 'employment[position_id]', form.positionId)
   appendText(payload, 'employment[work_schedule_id]', form.workScheduleId)

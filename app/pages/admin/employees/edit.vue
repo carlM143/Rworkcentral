@@ -164,6 +164,8 @@ const loadEmployee = async () => {
       positionId: numericId(employment.position_id),
       position: positionName,
       employmentTypeId: numericId(employment.employment_type_id),
+      workLocationId: numericId(employment.location_id),
+      workLocation: employment.location ? `${employment.location.location_name} (${employment.location.city})` : '',
       employmentType: employmentTypeName,
       workScheduleId: numericId(employment.work_schedule_id),
       workSchedule: scheduleName,
@@ -369,6 +371,7 @@ const buildUpdatePayload = (values: EmployeeForm) => {
     department_id: values.departmentId,
     position_id: values.positionId,
     employment_type_id: values.employmentTypeId,
+    location_id: values.workLocationId ?? null,
     // Work Schedule is optional. No independent restday_id column exists.
     work_schedule_id: values.workScheduleId ?? null,
     date_hired: values.dateHired,
