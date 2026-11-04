@@ -1,977 +1,442 @@
+
 import type {
   ManualTimeEntry,
-  ManualTimeEntryFormData,
   ManualTimeEntryStatus,
   ManualTimeEntryType,
 } from '~/types/manualTimeEntry'
 
+interface ManualTimeApiRecord {
+  id: number
+  employee_id: number
+  employee_number: string | null
+  employee_name: string | null
+  work_date: string
+  time_in: string | null
+  time_out: string | null
+  scheduled_time_in: string | null
+  scheduled_time_out: string | null
+  raw_late_minutes: number
+  grace_period_minutes: number
+  chargeable_late_minutes: number
+  undertime_minutes: number
+  worked_minutes: number
+  source: string
+  remarks: string | null
+  status: string
+  created_at: string | null
+  updated_at: string | null
+}
+
+interface ApiResponse<T> {
+  success: boolean
+  message?: string
+  data: T
+}
+
+export interface SaveManualAttendancePayload {
+  employee_id: number
+  work_date: string
+  time_in?: string | null
+  time_out?: string | null
+  remarks?: string | null
+}
+
 export const useManualTimeEntries = () => {
-  const {
-    employees,
-  } = useEmployees()
-
-  /* =========================================================
-     MOCK DATA
-  ========================================================= */
-
-  const entries =
-    useState<
-      ManualTimeEntry[]
-    >(
-      'manual-time-entries',
-      () => [
-        {
-          id: 1,
-
-          entryNumber:
-            'MTE-2026-001',
-
-          employeeId: 7,
-          employeeNumber:
-            'EMP-007',
-          employeeName:
-            'Mark Lopez',
-
-          department:
-            'Operations',
-
-          position:
-            'Driver',
-
-          attendanceDate:
-            '2026-09-11',
-
-          schedule:
-            '8:00 AM - 5:00 PM',
-
-          entryType:
-            'Time In',
-
-          time:
-            '8:02 AM',
-
-          reason:
-            'Biometric device was temporarily unavailable during employee arrival.',
-
-          status:
-            'Pending',
-
-          encodedBy:
-            'Maria Santos',
-
-          encodedAt:
-            '2026-09-11T08:10:00',
-        },
-
-        {
-          id: 2,
-
-          entryNumber:
-            'MTE-2026-002',
-
-          employeeId: 4,
-          employeeNumber:
-            'EMP-004',
-          employeeName:
-            'Ana Garcia',
-
-          department:
-            'Operations',
-
-          position:
-            'Dispatcher',
-
-          attendanceDate:
-            '2026-09-11',
-
-          schedule:
-            '8:00 AM - 5:00 PM',
-
-          entryType:
-            'Time Out',
-
-          time:
-            '5:03 PM',
-
-          reason:
-            'Manual entry was requested after the biometric terminal failed to record time out.',
-
-          attachment: {
-            name:
-              'supervisor-confirmation.pdf',
-          },
-
-          status:
-            'Completed',
-
-          encodedBy:
-            'Maria Santos',
-
-          encodedAt:
-            '2026-09-11T17:10:00',
-
-          validatedBy:
-            'Maria Santos',
-
-          validatedAt:
-            '2026-09-11T17:20:00',
-        },
-
-        {
-          id: 3,
-
-          entryNumber:
-            'MTE-2026-003',
-
-          employeeId: 2,
-          employeeNumber:
-            'EMP-002',
-          employeeName:
-            'Maria Santos',
-
-          department:
-            'Human Resources',
-
-          position:
-            'HR Officer',
-
-          attendanceDate:
-            '2026-09-10',
-
-          schedule:
-            '8:00 AM - 5:00 PM',
-
-          entryType:
-            'Time In',
-
-          time:
-            '7:58 AM',
-
-          reason:
-            'Attendance terminal was being maintained during office opening.',
-
-          status:
-            'Completed',
-
-          encodedBy:
-            'HR Administrator',
-
-          encodedAt:
-            '2026-09-10T08:20:00',
-
-          validatedBy:
-            'HR Administrator',
-
-          validatedAt:
-            '2026-09-10T09:00:00',
-        },
-
-        {
-          id: 4,
-
-          entryNumber:
-            'MTE-2026-004',
-
-          employeeId: 5,
-          employeeNumber:
-            'EMP-005',
-          employeeName:
-            'Carlo Mendoza',
-
-          department:
-            'Operations',
-
-          position:
-            'Driver',
-
-          attendanceDate:
-            '2026-09-10',
-
-          schedule:
-            '8:00 AM - 5:00 PM',
-
-          entryType:
-            'Time Out',
-
-          time:
-            '5:08 PM',
-
-          reason:
-            'Employee returned from an assigned client trip after the biometric device was already offline.',
-
-          status:
-            'Pending',
-
-          encodedBy:
-            'Maria Santos',
-
-          encodedAt:
-            '2026-09-10T17:25:00',
-        },
-
-        {
-          id: 5,
-
-          entryNumber:
-            'MTE-2026-005',
-
-          employeeId: 3,
-          employeeNumber:
-            'EMP-003',
-          employeeName:
-            'Pedro Reyes',
-
-          department:
-            'Finance',
-
-          position:
-            'Accountant',
-
-          attendanceDate:
-            '2026-09-09',
-
-          schedule:
-            '8:00 AM - 5:00 PM',
-
-          entryType:
-            'Break Out',
-
-          time:
-            '12:03 PM',
-
-          reason:
-            'Break out was not captured by the attendance device.',
-
-          status:
-            'Completed',
-
-          encodedBy:
-            'Maria Santos',
-
-          encodedAt:
-            '2026-09-09T13:05:00',
-
-          validatedBy:
-            'Maria Santos',
-
-          validatedAt:
-            '2026-09-09T14:00:00',
-        },
-
-        {
-          id: 6,
-
-          entryNumber:
-            'MTE-2026-006',
-
-          employeeId: 6,
-          employeeNumber:
-            'EMP-006',
-          employeeName:
-            'Angela Flores',
-
-          department:
-            'Billing',
-
-          position:
-            'Billing Officer',
-
-          attendanceDate:
-            '2026-09-08',
-
-          schedule:
-            '8:00 AM - 5:00 PM',
-
-          entryType:
-            'Break In',
-
-          time:
-            '1:02 PM',
-
-          reason:
-            'Manual break-in entry was filed because the biometric terminal temporarily lost network connectivity.',
-
-          status:
-            'Completed',
-
-          encodedBy:
-            'Maria Santos',
-
-          encodedAt:
-            '2026-09-08T13:20:00',
-
-          validatedBy:
-            'Maria Santos',
-
-          validatedAt:
-            '2026-09-08T14:10:00',
-        },
-
-        {
-          id: 7,
-
-          entryNumber:
-            'MTE-2026-007',
-
-          employeeId: 1,
-          employeeNumber:
-            'EMP-001',
-          employeeName:
-            'Juan Dela Cruz',
-
-          department:
-            'Operations',
-
-          position:
-            'Driver',
-
-          attendanceDate:
-            '2026-09-07',
-
-          schedule:
-            '8:00 AM - 5:00 PM',
-
-          entryType:
-            'Time In',
-
-          time:
-            '8:05 AM',
-
-          reason:
-            'Entry was initially encoded without sufficient supporting verification.',
-
-          status:
-            'Cancelled',
-
-          encodedBy:
-            'Maria Santos',
-
-          encodedAt:
-            '2026-09-07T08:30:00',
-
-          validationNotes:
-            'Cancelled after verification of the original attendance record.',
-        },
-
-        {
-          id: 8,
-
-          entryNumber:
-            'MTE-2026-008',
-
-          employeeId: 8,
-          employeeNumber:
-            'EMP-008',
-          employeeName:
-            'Jenny Ramos',
-
-          department:
-            'Human Resources',
-
-          position:
-            'HR Assistant',
-
-          attendanceDate:
-            '2026-09-06',
-
-          schedule:
-            '8:00 AM - 5:00 PM',
-
-          entryType:
-            'Time Out',
-
-          time:
-            '5:00 PM',
-
-          reason:
-            'Employee was unable to scan out because the attendance device restarted during closing time.',
-
-          status:
-            'Pending',
-
-          encodedBy:
-            'Maria Santos',
-
-          encodedAt:
-            '2026-09-06T17:15:00',
-        },
-      ],
-    )
-
-  /* =========================================================
-     FILTERS
-  ========================================================= */
-
-  const search =
-    ref('')
-
-  const department =
-    ref('')
-
-  const entryType =
-    ref('')
-
-  const status =
-    ref('')
-
-  const dateFrom =
-    ref('')
-
-  const dateTo =
-    ref('')
-
-  /* =========================================================
-     PAGINATION
-  ========================================================= */
-
-  const currentPage =
-    ref(1)
-
-  const perPage =
-    ref(6)
-
-  /* =========================================================
-     FILTER
-  ========================================================= */
-
-  const filteredEntries =
-    computed(() => {
-      const keyword =
-        search.value
-          .trim()
-          .toLowerCase()
-
-      return entries.value.filter(
-        entry => {
-          const matchesSearch =
-            !keyword ||
-            entry.employeeName
-              .toLowerCase()
-              .includes(keyword) ||
-            entry.employeeNumber
-              .toLowerCase()
-              .includes(keyword) ||
-            entry.entryNumber
-              .toLowerCase()
-              .includes(keyword)
-
-          const matchesDepartment =
-            !department.value ||
-            entry.department ===
-              department.value
-
-          const matchesEntryType =
-            !entryType.value ||
-            entry.entryType ===
-              entryType.value
-
-          const matchesStatus =
-            !status.value ||
-            entry.status ===
-              status.value
-
-          const matchesFrom =
-            !dateFrom.value ||
-            entry.attendanceDate >=
-              dateFrom.value
-
-          const matchesTo =
-            !dateTo.value ||
-            entry.attendanceDate <=
-              dateTo.value
-
-          return (
-            matchesSearch &&
-            matchesDepartment &&
-            matchesEntryType &&
-            matchesStatus &&
-            matchesFrom &&
-            matchesTo
-          )
-        },
-      )
-    })
-
-  /* =========================================================
-     STATS
-  ========================================================= */
-
-  const stats =
-    computed(() => {
-      const today =
-        new Date()
-          .toLocaleDateString(
-            'en-CA',
-          )
-
-      const manualToday =
-        entries.value.filter(
-          entry =>
-            entry.attendanceDate ===
-            today,
-        ).length
-
-      const pending =
-        entries.value.filter(
-          entry =>
-            entry.status ===
-            'Pending',
-        ).length
-
-      const completed =
-        entries.value.filter(
-          entry =>
-            entry.status ===
-            'Completed',
-        ).length
-
-      /*
-       * UI mock value for employees that
-       * still need a missing attendance log.
-       * Backend/time-log integration can
-       * replace this later.
-       */
-      const missingLogs =
-        entries.value.filter(
-          entry =>
-            entry.status ===
-              'Pending' &&
-            (
-              entry.entryType ===
-                'Time In' ||
-              entry.entryType ===
-                'Time Out'
-            ),
-        ).length
-
-      return {
-        today:
-          manualToday,
-
-        pending,
-
-        completed,
-
-        missingLogs,
-      }
-    })
-
-  /* =========================================================
-     OPTIONS
-  ========================================================= */
-
-  const departments =
-    computed(() => {
-      return [
-        ...new Set(
-          entries.value.map(
-            entry =>
-              entry.department,
-          ),
-        ),
-      ].sort()
-    })
-
-  const entryTypeOptions:
-    ManualTimeEntryType[] = [
-      'Time In',
-      'Break Out',
-      'Break In',
-      'Time Out',
-    ]
-
-  const statusOptions:
-    ManualTimeEntryStatus[] = [
-      'Pending',
-      'Completed',
-      'Cancelled',
-    ]
-
-  /* =========================================================
-     PAGINATION
-  ========================================================= */
-
-  const totalPages =
-    computed(() => {
-      return Math.max(
-        1,
-        Math.ceil(
-          filteredEntries
-            .value.length /
-            perPage.value,
-        ),
-      )
-    })
-
-  const paginatedEntries =
-    computed(() => {
-      const start =
-        (
-          currentPage.value -
-          1
-        ) *
-        perPage.value
-
-      return filteredEntries
-        .value
-        .slice(
-          start,
-          start +
-            perPage.value,
-        )
-    })
-
-  const showingFrom =
-    computed(() => {
-      if (
-        !filteredEntries
-          .value.length
-      ) {
-        return 0
-      }
-
-      return (
-        (
-          currentPage.value -
-          1
-        ) *
-          perPage.value +
-        1
-      )
-    })
-
-  const showingTo =
-    computed(() => {
-      return Math.min(
-        currentPage.value *
-          perPage.value,
-
-        filteredEntries
-          .value.length,
-      )
-    })
-
-  /* =========================================================
-     FORMAT TIME
-  ========================================================= */
-
-  const formatTime = (
+  const { $api } = useNuxtApp()
+  const { employees } = useEmployees()
+
+  const entries = useState<ManualTimeEntry[]>(
+    'manual-time-entries',
+    () => [],
+  )
+
+  const loading = useState<boolean>(
+    'manual-time-loading',
+    () => false,
+  )
+
+  const fetchError = useState<string | null>(
+    'manual-time-error',
+    () => null,
+  )
+
+  const search = ref('')
+  const department = ref('')
+  const entryType = ref('')
+  const status = ref('')
+  const dateFrom = ref('')
+  const dateTo = ref('')
+
+  const currentPage = ref(1)
+  const perPage = ref(6)
+
+  const formatTime = (value?: string | null): string => {
+    if (!value) return ''
+
+    const [hourText = '0', minute = '00'] =
+      value.slice(0, 5).split(':')
+
+    const hour = Number(hourText)
+
+    return `${hour % 12 || 12}:${minute} ${
+      hour >= 12 ? 'PM' : 'AM'
+    }`
+  }
+
+  const formatSchedule = (
+    timeIn?: string | null,
+    timeOut?: string | null,
+  ): string => {
+    if (!timeIn || !timeOut) return 'Not recorded'
+
+    return `${formatTime(timeIn)} - ${formatTime(timeOut)}`
+  }
+
+  const normalizeStatus = (
     value: string,
-  ) => {
-    if (!value) {
-      return ''
+  ): ManualTimeEntryStatus => {
+    if (value.toLowerCase() === 'cancelled') {
+      return 'Cancelled'
     }
 
-    const [
-      hourString = '0',
-      minute = '00',
-    ] =
-      value.split(':')
-
-    const hour =
-      Number(hourString)
-
-    const period =
-      hour >= 12
-        ? 'PM'
-        : 'AM'
-
-    const displayHour =
-      hour % 12 || 12
-
-    return `${displayHour}:${minute} ${period}`
+    // This API currently saves directly to time_logs.
+    return 'Completed'
   }
 
-  /* =========================================================
-     CREATE
-  ========================================================= */
-
-  const createEntry = (
-    data:
-      ManualTimeEntryFormData,
-  ) => {
-    if (
-      data.employeeId ===
-      null
-    ) {
-      return null
-    }
-
-    const employee =
-      employees.value.find(
-        employee =>
-          employee.id ===
-          data.employeeId,
-      )
-
-    if (!employee) {
-      return null
-    }
-
-    const nextId =
-      entries.value.length
-        ? Math.max(
-            ...entries.value.map(
-              entry =>
-                entry.id,
-            ),
-          ) + 1
-        : 1
-
-    const year =
-      new Date()
-        .getFullYear()
-
-    const entryNumber =
-      `MTE-${year}-${String(
-        nextId,
-      ).padStart(
-        3,
-        '0',
-      )}`
-
-    const employeeName =
-      [
-        employee.firstName,
-        employee.middleName,
-        employee.lastName,
-      ]
-        .filter(Boolean)
-        .join(' ')
-
-    const entry:
-      ManualTimeEntry = {
-        id:
-          nextId,
-
-        entryNumber,
-
-        employeeId:
-          employee.id,
-
-        employeeNumber:
-          employee.employeeNumber,
-
-        employeeName,
-
-        department:
-          employee.department,
-
-        position:
-          employee.position,
-
-        attendanceDate:
-          data.attendanceDate,
-
-        schedule:
-          employee.workSchedule ||
-          '8:00 AM - 5:00 PM',
-
-        entryType:
-          data.entryType,
-
-        time:
-          formatTime(
-            data.time,
-          ),
-
-        reason:
-          data.reason,
-
-        attachment:
-          data.attachmentName
-            ? {
-                name:
-                  data.attachmentName,
-              }
-            : undefined,
-
-        status:
-          'Pending',
-
-        encodedBy:
-          'Maria Santos',
-
-        encodedAt:
-          new Date()
-            .toISOString(),
-      }
-
-    entries.value.unshift(
-      entry,
+  const mapRecord = (
+    record: ManualTimeApiRecord,
+  ): ManualTimeEntry => {
+    const employee = employees.value.find(item =>
+      item.employeeNumber === record.employee_number,
     )
 
-    return entry
+    const attendanceType: ManualTimeEntryType =
+      record.time_in ? 'Time In' : 'Time Out'
+
+    const attendanceTime =
+      record.time_in || record.time_out || ''
+
+    return {
+      id: record.id,
+
+      entryNumber:
+        `MTL-${String(record.id).padStart(5, '0')}`,
+
+      employeeId: record.employee_id,
+
+      employeeNumber:
+        record.employee_number ?? '',
+
+      employeeName:
+        record.employee_name ?? 'Unknown Employee',
+
+      department:
+        employee?.department ?? '',
+
+      position:
+        employee?.position ?? '',
+
+      
+      attendanceDate: record.work_date,
+
+      schedule: formatSchedule(
+        record.scheduled_time_in,
+        record.scheduled_time_out,
+      ),
+
+      // Actual attendance values from Laravel
+      timeIn: record.time_in,
+      timeOut: record.time_out,
+
+      attendanceStatus: record.status,
+
+      remarks: record.remarks ?? '',
+
+
+      entryType: attendanceType,
+
+      time: formatTime(attendanceTime),
+
+      reason: record.remarks ?? '',
+
+      status: normalizeStatus(record.status),
+
+      encodedBy: 'HR / Administrator',
+
+      encodedAt:
+        record.created_at ?? '',
+
+      validatedBy: undefined,
+      validatedAt: undefined,
+    }
   }
 
-  /* =========================================================
-     UPDATE
-  ========================================================= */
-
-  const updateEntry = (
-    id: number,
-    data:
-      ManualTimeEntryFormData,
-  ) => {
-    const entry =
-      entries.value.find(
-        item =>
-          item.id === id,
-      )
-
-    if (!entry) {
-      return null
+  const getApiMessage = (err: unknown): string => {
+    const apiError = err as {
+      data?: {
+        message?: string
+        errors?: Record<string, string[]>
+      }
+      message?: string
     }
 
-    if (
-      data.employeeId !==
-      null
-    ) {
-      const employee =
-        employees.value.find(
-          employee =>
-            employee.id ===
-            data.employeeId,
-        )
+    const validationErrors = apiError.data?.errors
 
-      if (employee) {
-        entry.employeeId =
-          employee.id
+    if (validationErrors) {
+      const firstGroup = Object.values(validationErrors)[0]
 
-        entry.employeeNumber =
-          employee.employeeNumber
-
-        entry.employeeName =
-          [
-            employee.firstName,
-            employee.middleName,
-            employee.lastName,
-          ]
-            .filter(Boolean)
-            .join(' ')
-
-        entry.department =
-          employee.department
-
-        entry.position =
-          employee.position
-
-        entry.schedule =
-          employee.workSchedule ||
-          entry.schedule
+      if (firstGroup?.[0]) {
+        return firstGroup[0]
       }
     }
 
-    entry.attendanceDate =
-      data.attendanceDate
-
-    entry.entryType =
-      data.entryType
-
-    entry.time =
-      formatTime(
-        data.time,
-      )
-
-    entry.reason =
-      data.reason
-
-    entry.attachment =
-      data.attachmentName
-        ? {
-            name:
-              data.attachmentName,
-          }
-        : undefined
-
-    entry.status =
-      'Pending'
-
-    entry.encodedAt =
-      new Date()
-        .toISOString()
-
-    entry.validatedBy =
-      undefined
-
-    entry.validatedAt =
-      undefined
-
-    return entry
+    return apiError.data?.message ??
+      apiError.message ??
+      'Unable to complete the request.'
   }
 
-  /* =========================================================
-     VALIDATE
-  ========================================================= */
+  const fetchEntries = async (): Promise<void> => {
+    loading.value = true
+    fetchError.value = null
 
-  const validateEntry = (
-    id: number,
-  ) => {
-    const entry =
-      entries.value.find(
-        item =>
-          item.id === id,
+    try {
+      const response = await $api<
+        ApiResponse<ManualTimeApiRecord[]>
+      >('/admin/manual-time-entries', {
+        method: 'GET',
+      })
+
+      entries.value = Array.isArray(response.data)
+        ? response.data.map(mapRecord)
+        : []
+    } catch (err: unknown) {
+      fetchError.value = getApiMessage(err)
+      entries.value = []
+    } finally {
+      loading.value = false
+    }
+  }
+
+  const saveManualAttendance = async (
+    payload: SaveManualAttendancePayload,
+  ): Promise<ManualTimeEntry> => {
+    const response = await $api<
+      ApiResponse<ManualTimeApiRecord>
+    >('/admin/manual-time-entries', {
+      method: 'POST',
+      body: payload,
+    })
+
+    if (!response.success || !response.data) {
+      throw new Error(
+        response.message ?? 'Unable to save manual attendance.',
       )
-
-    if (!entry) {
-      return false
     }
 
-    entry.status =
-      'Completed'
+    const saved = mapRecord(response.data)
 
-    entry.validatedBy =
-      'Maria Santos'
+    const existingIndex = entries.value.findIndex(
+      item => item.id === saved.id,
+    )
 
-    entry.validatedAt =
-      new Date()
-        .toISOString()
-
-    return true
-  }
-
-  /* =========================================================
-     CANCEL
-  ========================================================= */
-
-  const cancelEntry = (
-    id: number,
-  ) => {
-    const entry =
-      entries.value.find(
-        item =>
-          item.id === id,
-      )
-
-    if (!entry) {
-      return false
+    if (existingIndex >= 0) {
+      entries.value.splice(existingIndex, 1, saved)
+    } else {
+      entries.value.unshift(saved)
     }
 
-    entry.status =
-      'Cancelled'
-
-    return true
+    return saved
   }
 
-  /* =========================================================
-     RESET
-  ========================================================= */
+  
+const getManualEntry = async (
+  id: number,
+): Promise<ManualTimeEntry> => {
+  const response = await $api<
+    ApiResponse<ManualTimeApiRecord>
+  >(`/admin/manual-time-entries/${id}`, {
+    method: 'GET',
+  })
+
+  if (!response.success || !response.data) {
+    throw new Error(
+      response.message ?? 'Manual attendance not found.',
+    )
+  }
+
+  const entry = mapRecord(response.data)
+
+  const index = entries.value.findIndex(
+    item => item.id === entry.id,
+  )
+
+  if (index >= 0) {
+    entries.value.splice(index, 1, entry)
+  } else {
+    entries.value.push(entry)
+  }
+
+  return entry
+}
+
+const updateManualAttendance = async (
+  id: number,
+  payload: {
+    time_in: string | null
+    time_out: string | null
+    remarks?: string | null
+  },
+): Promise<ManualTimeEntry> => {
+  const response = await $api<
+    ApiResponse<ManualTimeApiRecord>
+  >(`/admin/manual-time-entries/${id}`, {
+    method: 'PATCH',
+    body: payload,
+  })
+
+  if (!response.success || !response.data) {
+    throw new Error(
+      response.message ?? 'Unable to update manual attendance.',
+    )
+  }
+
+  const updated = mapRecord(response.data)
+
+  const index = entries.value.findIndex(
+    item => item.id === updated.id,
+  )
+
+  if (index >= 0) {
+    entries.value.splice(index, 1, updated)
+  } else {
+    entries.value.push(updated)
+  }
+
+  return updated
+}
+
+  const validateEntry = (_id: number): boolean => false
+  const cancelEntry = (_id: number): boolean => false
+
+  const filteredEntries = computed(() => {
+    const keyword = search.value.trim().toLowerCase()
+
+    return entries.value.filter(entry => {
+      const matchesSearch =
+        !keyword ||
+        [
+          entry.employeeName,
+          entry.employeeNumber,
+          entry.entryNumber,
+        ].some(item =>
+          item.toLowerCase().includes(keyword),
+        )
+
+      const matchesDepartment =
+        !department.value ||
+        entry.department === department.value
+
+      const matchesType =
+        !entryType.value ||
+        entry.entryType === entryType.value
+
+      const matchesStatus =
+        !status.value ||
+        entry.status === status.value
+
+      const matchesDateFrom =
+        !dateFrom.value ||
+        entry.attendanceDate >= dateFrom.value
+
+      const matchesDateTo =
+        !dateTo.value ||
+        entry.attendanceDate <= dateTo.value
+
+      return matchesSearch &&
+        matchesDepartment &&
+        matchesType &&
+        matchesStatus &&
+        matchesDateFrom &&
+        matchesDateTo
+    })
+  })
+
+  const departments = computed(() =>
+    [...new Set(
+      entries.value
+        .map(entry => entry.department)
+        .filter(Boolean),
+    )].sort(),
+  )
+
+  const entryTypeOptions: ManualTimeEntryType[] = [
+    'Time In',
+    'Time Out',
+  ]
+
+  const statusOptions: ManualTimeEntryStatus[] = [
+    'Completed',
+  ]
+
+  const stats = computed(() => {
+    const today = new Date(
+      Date.now() - new Date().getTimezoneOffset() * 60000,
+    ).toISOString().slice(0, 10)
+
+    return {
+      today: entries.value.filter(
+        entry => entry.attendanceDate === today,
+      ).length,
+
+      pending: 0,
+
+      completed: entries.value.filter(
+        entry => entry.status === 'Completed',
+      ).length,
+
+      // Actual missing time logs belong to Time Logs.
+      // This listing contains manually saved records only.
+      missingLogs: 0,
+    }
+  })
+
+  const totalPages = computed(() =>
+    Math.max(
+      1,
+      Math.ceil(filteredEntries.value.length / perPage.value),
+    ),
+  )
+
+  const paginatedEntries = computed(() => {
+    const start = (currentPage.value - 1) * perPage.value
+
+    return filteredEntries.value.slice(
+      start,
+      start + perPage.value,
+    )
+  })
+
+  const showingFrom = computed(() =>
+    filteredEntries.value.length === 0
+      ? 0
+      : (currentPage.value - 1) * perPage.value + 1,
+  )
+
+  const showingTo = computed(() =>
+    Math.min(
+      currentPage.value * perPage.value,
+      filteredEntries.value.length,
+    ),
+  )
 
   const resetFilters = () => {
     search.value = ''
-
     department.value = ''
-
     entryType.value = ''
-
     status.value = ''
-
     dateFrom.value = ''
-
     dateTo.value = ''
-
-    currentPage.value =
-      1
+    currentPage.value = 1
   }
 
   watch(
@@ -984,55 +449,48 @@ export const useManualTimeEntries = () => {
       dateTo,
     ],
     () => {
-      currentPage.value =
-        1
+      currentPage.value = 1
     },
   )
 
-  watch(
-    totalPages,
-    () => {
-      if (
-        currentPage.value >
-        totalPages.value
-      ) {
-        currentPage.value =
-          totalPages.value
-      }
-    },
-  )
+  watch(totalPages, pages => {
+    if (currentPage.value > pages) {
+      currentPage.value = pages
+    }
+  })
 
-  return {
-    entries,
+  
+return {
+  entries,
+  loading,
+  error: fetchError,
 
-    search,
-    department,
-    entryType,
-    status,
-    dateFrom,
-    dateTo,
+  search,
+  department,
+  entryType,
+  status,
+  dateFrom,
+  dateTo,
 
-    currentPage,
-    perPage,
+  currentPage,
+  perPage,
+  filteredEntries,
+  paginatedEntries,
+  totalPages,
+  showingFrom,
+  showingTo,
 
-    filteredEntries,
-    paginatedEntries,
+  stats,
+  departments,
+  entryTypeOptions,
+  statusOptions,
 
-    totalPages,
-    showingFrom,
-    showingTo,
-
-    stats,
-
-    departments,
-    entryTypeOptions,
-    statusOptions,
-
-    createEntry,
-    updateEntry,
-    validateEntry,
-    cancelEntry,
-
-    resetFilters,
-  }
+  fetchEntries,
+  getManualEntry,
+  saveManualAttendance,
+  updateManualAttendance,
+  validateEntry,
+  cancelEntry,
+  resetFilters,
+ }
 }

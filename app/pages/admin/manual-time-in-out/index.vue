@@ -1,3 +1,4 @@
+
 <script setup lang="ts">
 import {
   ArrowLeft,
@@ -6,26 +7,19 @@ import {
 } from 'lucide-vue-next'
 
 import ManualTimeStats from '~/components/admin/timekeeping/manual-time-in-out/ManualTimeStats.vue'
-
 import ManualTimeFilters from '~/components/admin/timekeeping/manual-time-in-out/ManualTimeFilters.vue'
-
 import ManualTimeTable from '~/components/admin/timekeeping/manual-time-in-out/ManualTimeTable.vue'
-
-import AddManualTimeModal from '~/components/admin/timekeeping/manual-time-in-out/AddManualTimeModal.vue'
-
 import ManualTimeDetailsModal from '~/components/admin/timekeeping/manual-time-in-out/ManualTimeDetailsModal.vue'
 
 import type {
   ManualTimeEntry,
-  ManualTimeEntryFormData,
 } from '~/types/manualTimeEntry'
 
-const router =
-  useRouter()
+definePageMeta({
+  layout: 'admin',
+})
 
-const {
-  employees,
-} = useEmployees()
+const router = useRouter()
 
 const {
   search,
@@ -34,268 +28,105 @@ const {
   status,
   dateFrom,
   dateTo,
-
   currentPage,
-
   filteredEntries,
   paginatedEntries,
-
   totalPages,
   showingFrom,
   showingTo,
-
   stats,
-
   departments,
   entryTypeOptions,
   statusOptions,
-
-  createEntry,
-  updateEntry,
-  validateEntry,
-  cancelEntry,
-
   resetFilters,
+  loading,
+  error: fetchError,
+  fetchEntries,
 } = useManualTimeEntries()
 
-const {
-  info,
-  success,
-} = useToast()
+onMounted(async () => {
+  await fetchEntries()
+})
 
-/* =========================================================
-   ADD / EDIT MODAL
-========================================================= */
+const { info } = useToast()
 
-const formModalOpen =
-  ref(false)
+// =============================================
+// VIEW DETAILS
+// =============================================
 
-const editingEntry =
-  ref<
-    ManualTimeEntry |
-    null
-  >(null)
+const detailsModalOpen = ref(false)
 
-/* =========================================================
-   DETAILS MODAL
-========================================================= */
+const selectedEntry = ref<ManualTimeEntry | null>(null)
 
-const detailsModalOpen =
-  ref(false)
-
-const selectedEntry =
-  ref<
-    ManualTimeEntry |
-    null
-  >(null)
-
-/* =========================================================
-   ADD
-========================================================= */
-
-const handleAdd = () => {
-  editingEntry.value =
-    null
-
-  formModalOpen.value =
-    true
-}
-
-/* =========================================================
-   EDIT
-========================================================= */
-
-const handleEdit = (
-  entry:
-    ManualTimeEntry,
-) => {
-  editingEntry.value =
-    entry
-
-  formModalOpen.value =
-    true
-}
-
-/* =========================================================
-   SAVE
-========================================================= */
-
-const handleSave = (
-  data:
-    ManualTimeEntryFormData,
-) => {
-  if (
-    editingEntry.value
-  ) {
-    const updated =
-      updateEntry(
-        editingEntry.value.id,
-        data,
-      )
-
-    if (!updated) {
-      info(
-        'Entry Not Found',
-        'The selected manual time entry could not be found.',
-      )
-
-      return
-    }
-
-    formModalOpen.value =
-      false
-
-    editingEntry.value =
-      null
-
-    success(
-      'Manual Entry Updated',
-      `${updated.employeeName}'s manual time entry has been updated.`,
-    )
-
-    return
-  }
-
-  const created =
-    createEntry(data)
-
-  if (!created) {
-    info(
-      'Unable to Save',
-      'The selected employee could not be found.',
-    )
-
-    return
-  }
-
-  formModalOpen.value =
-    false
-
-  success(
-    'Manual Entry Added',
-    `${created.entryNumber} has been submitted for validation.`,
-  )
-}
-
-/* =========================================================
-   CLOSE FORM
-========================================================= */
-
-const closeFormModal = () => {
-  formModalOpen.value =
-    false
-
-  editingEntry.value =
-    null
-}
-
-/* =========================================================
-   DETAILS
-========================================================= */
-
-const handleView = (
-  entry:
-    ManualTimeEntry,
-) => {
-  selectedEntry.value =
-    entry
-
-  detailsModalOpen.value =
-    true
+const handleView = (entry: ManualTimeEntry) => {
+  selectedEntry.value = entry
+  detailsModalOpen.value = true
 }
 
 const closeDetails = () => {
-  detailsModalOpen.value =
-    false
-
-  selectedEntry.value =
-    null
+  detailsModalOpen.value = false
+  selectedEntry.value = null
 }
 
-/* =========================================================
-   VALIDATE
-========================================================= */
+// =============================================
+// ADD NEW ENTRY - SEPARATE PAGE
+// =============================================
 
-const handleValidate = (
-  entry:
-    ManualTimeEntry,
-) => {
-  const result =
-    validateEntry(
-      entry.id,
-    )
+const handleAdd = () => {
+  router.push('/admin/manual-time-in-out/create')
+}
 
-  if (!result) {
-    return
-  }
+const handleEdit = (entry: ManualTimeEntry) => {
+  router.push(`/admin/manual-time-in-out/${entry.id}/edit`)
+}
 
-  success(
-    'Entry Validated',
-    `${entry.employeeName}'s ${entry.entryType.toLowerCase()} entry has been validated.`,
+// =============================================
+// VALIDATE ENTRY
+// =============================================
+
+const handleValidate = (_entry: ManualTimeEntry) => {
+  info(
+    'Already Recorded',
+    'Manual attendance is saved directly to Time Logs. Separate validation is not yet available.',
   )
 }
 
-/* =========================================================
-   CANCEL
-========================================================= */
+// =============================================
+// CANCEL ENTRY
+// =============================================
 
-const handleCancel = (
-  entry:
-    ManualTimeEntry,
-) => {
-  const result =
-    cancelEntry(
-      entry.id,
-    )
-
-  if (!result) {
-    return
-  }
-
-  success(
-    'Entry Cancelled',
-    `${entry.entryNumber} has been cancelled.`,
+const handleCancel = (_entry: ManualTimeEntry) => {
+  info(
+    'Cancellation Not Available',
+    'Cancelling manual attendance requires backend support and an audit trail.',
   )
 }
 
-/* =========================================================
-   EMPLOYEE
-========================================================= */
+// =============================================
+// VIEW EMPLOYEE
+// =============================================
 
-const handleEmployee = (
-  entry:
-    ManualTimeEntry,
-) => {
-  router.push(
-    `/admin/employees/${entry.employeeId}`,
-  )
+const handleEmployee = (entry: ManualTimeEntry) => {
+  router.push(`/admin/employees/${entry.employeeId}`)
 }
 
-/* =========================================================
-   TIME LOG
-========================================================= */
+// =============================================
+// VIEW TIME LOG
+// =============================================
 
-const handleTimeLog = (
-  entry:
-    ManualTimeEntry,
-) => {
+const handleTimeLog = (entry: ManualTimeEntry) => {
   router.push({
-    path:
-      '/admin/time-logs',
-
+    path: '/admin/time-logs',
     query: {
-      employee:
-        entry.employeeNumber,
-
-      date:
-        entry.attendanceDate,
+      employee: entry.employeeNumber,
+      date: entry.attendanceDate,
     },
   })
 }
 
-/* =========================================================
-   EXPORT
-========================================================= */
+// =============================================
+// EXPORT
+// =============================================
 
 const handleExport = () => {
   info(
@@ -304,30 +135,26 @@ const handleExport = () => {
   )
 }
 
-/* =========================================================
-   BACK
-========================================================= */
+// =============================================
+// BACK
+// =============================================
 
 const handleBack = () => {
-  router.push(
-    '/admin/timekeeping',
-  )
+  router.push('/admin/time-logs')
 }
 </script>
 
 <template>
   <section class="manual-time-page">
+    <!-- BACK -->
 
     <button
       type="button"
       class="back-button"
-      @click="
-        handleBack
-      "
+      @click="handleBack"
     >
       <ArrowLeft :size="15" />
-
-      Back to Timekeeping
+      Back to Time Logs
     </button>
 
     <!-- HEADER -->
@@ -336,39 +163,34 @@ const handleBack = () => {
       title="Manual Time In / Out"
       description="Record and validate employee attendance entries when biometric or automatic time logs are unavailable."
     >
-
       <div class="header-actions">
-
         <AppButton
           variant="secondary"
           :icon="Download"
-          @click="
-            handleExport
-          "
+          @click="handleExport"
         >
           Export
         </AppButton>
 
         <AppButton
           :icon="Plus"
-          @click="
-            handleAdd
-          "
+          @click="handleAdd"
         >
           Add Manual Entry
         </AppButton>
-
       </div>
-
     </PageHeader>
+   <!-- API ERROR -->
+    <div v-if="fetchError" class="manual-api-error">
+      <span>{{ fetchError }}</span>
+      <button type="button" @click="fetchEntries">
+        Retry
+      </button>
+    </div>
+    <!-- STATISTICS -->
+    <ManualTimeStats :stats="stats" />
 
-    <!-- STATS -->
-
-    <ManualTimeStats
-      :stats="stats"
-    />
-
-    <!-- FILTER -->
+    <!-- FILTERS -->
 
     <ManualTimeFilters
       v-model:search="search"
@@ -380,195 +202,153 @@ const handleBack = () => {
       :departments="departments"
       :entry-type-options="entryTypeOptions"
       :status-options="statusOptions"
-      @reset="
-        resetFilters
-      "
+      @reset="resetFilters"
     />
+
+    <!-- TABLE LOADING -->
+
+    <div v-if="loading" class="manual-loading">
+      Loading manual attendance records...
+    </div>
 
     <!-- TABLE -->
 
     <ManualTimeTable
-      :entries="
-        paginatedEntries
-      "
-      @view="
-        handleView
-      "
-      @edit="
-        handleEdit
-      "
-      @validate="
-        handleValidate
-      "
-      @employee="
-        handleEmployee
-      "
-      @time-log="
-        handleTimeLog
-      "
-      @cancel="
-        handleCancel
-      "
+      v-else
+      :entries="paginatedEntries"
+      @view="handleView"
+      @edit="handleEdit"
+      @validate="handleValidate"
+      @employee="handleEmployee"
+      @time-log="handleTimeLog"
+      @cancel="handleCancel"
     />
 
     <!-- PAGINATION -->
 
     <div class="table-footer">
-
       <p>
         Showing
-
         <strong>
-          {{
-            showingFrom
-          }}–{{
-            showingTo
-          }}
+          {{ showingFrom }}–{{ showingTo }}
         </strong>
-
         of
-
-        <strong>
-          {{
-            filteredEntries.length
-          }}
-        </strong>
-
+        <strong>{{ filteredEntries.length }}</strong>
         manual time entries
       </p>
 
       <AppPagination
-        v-model="
-          currentPage
-        "
-        :total-pages="
-          totalPages
-        "
+        v-model="currentPage"
+        :total-pages="totalPages"
       />
-
     </div>
 
-    <!-- ADD / EDIT -->
-
-    <AddManualTimeModal
-      :open="
-        formModalOpen
-      "
-      :employees="
-        employees
-      "
-      :entry="
-        editingEntry
-      "
-      @close="
-        closeFormModal
-      "
-      @save="
-        handleSave
-      "
-    />
-
-    <!-- DETAILS -->
+    <!-- VIEW DETAILS ONLY -->
 
     <ManualTimeDetailsModal
-      :open="
-        detailsModalOpen
-      "
-      :entry="
-        selectedEntry
-      "
-      @close="
-        closeDetails
-      "
+      :open="detailsModalOpen"
+      :entry="selectedEntry"
+      @close="closeDetails"
     />
-
   </section>
 </template>
 
 <style scoped>
 .manual-time-page {
   width: 100%;
-
   max-width: 1660px;
-
   margin: 0 auto;
 }
 
 .back-button {
   display: inline-flex;
-
   align-items: center;
-
   gap: 6px;
-
   margin-bottom: 10px;
-
   padding: 0;
-
   border: 0;
-
-  background:
-    transparent;
-
-  color:
-    var(--primary);
-
+  background: transparent;
+  color: var(--primary);
   font-family: inherit;
-
   font-size: 10px;
   font-weight: 600;
-
   cursor: pointer;
+}
+
+.back-button:hover {
+  opacity: 0.8;
 }
 
 .header-actions {
   display: flex;
-
   align-items: center;
-
   gap: 8px;
+  flex-wrap: wrap;
 }
 
 .table-footer {
   display: flex;
-
   align-items: center;
   justify-content: space-between;
-
   gap: 20px;
-
-  padding:
-    13px 3px 0;
+  padding: 13px 3px 0;
 }
 
 .table-footer p {
   margin: 0;
-
-  color:
-    var(--text-muted);
-
+  color: var(--text-muted);
   font-size: 10px;
 }
 
 .table-footer strong {
-  color:
-    var(--text-primary);
-
+  color: var(--text-primary);
   font-weight: 650;
+}
+
+.manual-api-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 15px;
+  padding: 13px 15px;
+  border: 1px solid var(--red, #ef4444);
+  border-radius: 9px;
+  background: var(--red-soft, rgba(239, 68, 68, 0.1));
+  color: var(--red, #ef4444);
+  font-size: 12px;
+}
+
+.manual-api-error button {
+  border: none;
+  background: transparent;
+  color: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.manual-loading {
+  display: flex;
+  min-height: 180px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: var(--bg-card);
+  color: var(--text-muted);
+  font-size: 12px;
 }
 
 @media (max-width: 650px) {
   .header-actions {
     width: 100%;
-
     align-items: stretch;
-
     flex-direction: column;
   }
 
   .table-footer {
     align-items: flex-start;
-
     flex-direction: column;
   }
 }
