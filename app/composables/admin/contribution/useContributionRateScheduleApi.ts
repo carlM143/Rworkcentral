@@ -1,3 +1,6 @@
+export type ContributionCalculationMethod = 'percentage' | 'fixed' | 'bracket'
+export type ContributionFrequency = 'monthly' | 'semi_monthly' | 'weekly' | 'per_payroll'
+
 export interface ContributionTypeSummary {
   id: number
   contribution_code: string
@@ -10,9 +13,13 @@ export interface ContributionRateScheduleRecord {
   id: number
   contribution_type_id: number
   calculation_method: 'percentage' | 'bracket' | 'fixed'
-  salary_basis: string
+  salary_basis: string | null
   employee_rate: string | number | null
   employer_rate: string | number | null
+  employee_amount: string | number | null
+  employer_amount: string | number | null
+  frequency: ContributionFrequency | null
+  brackets_count?: number
   minimum_salary_base: string | number | null
   maximum_salary_base: string | number | null
   effective_from: string
@@ -26,9 +33,12 @@ export interface ContributionRateScheduleRecord {
 export interface ContributionRateSchedulePayload {
   contribution_type_id: number
   calculation_method: string
-  salary_basis: string
+  salary_basis: string | null
   employee_rate: number | null
   employer_rate: number | null
+  employee_amount: number | null
+  employer_amount: number | null
+  frequency: ContributionFrequency | null
   minimum_salary_base: number | null
   maximum_salary_base: number | null
   effective_from: string

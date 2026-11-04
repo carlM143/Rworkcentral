@@ -1,937 +1,497 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
-
+import { computed, onMounted, ref, watch } from 'vue'
 import {
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
   Download,
+  Eye,
   Filter,
+  History,
   Landmark,
-  MoreHorizontal,
-  Pencil,
+  Layers,
   Search,
-  Trash2,
   X,
 } from 'lucide-vue-next'
-
-// =====================================================
-// TYPES
-// =====================================================
-
-type Row = Record<string, string | number | boolean | null>
-
-type Field = {
-  key: string
-  label: string
-  type?: 'text' | 'number' | 'date' | 'select'
-  options?: string[]
-  optionLabels?: Record<string, string>
-  required?: boolean
-}
-
-type Column = {
-  key: string
-  label: string
-  format?: 'money' | 'percent' | 'status'
-}
-
-// =====================================================
-// SECTION CONFIG
-// =====================================================
+import type { ContributionRateScheduleRecord } from '~/composables/admin/contribution/useContributionRateScheduleApi'
 
 const title = 'Contribution History'
-const subtitle = 'Review and manage contribution rate bracket records (historical rate schedules).'
+const subtitle = 'Review historical and currently effective contribution rate schedules and salary bracket breakdowns across all contribution types.'
 
-const { rateSchedules, loadRateSchedules } = useContributionRateSchedules()
-const {
-  rateBrackets,
-  errorMessage,
-  loadRateBrackets,
-  updateRateBracket,
-  deleteRateBracket,
-} = useContributionRateBrackets()
+const { contributionTypes, loadContributionTypes } = useContributionTypes()
+const { rateSchedules, loading, errorMessage, loadRateSchedules } = useContributionRateSchedules()
+const { rateBrackets, loadRateBrackets } = useContributionRateBrackets()
 
-const localError = ref('')
+onMounted(async () => {
+  await Promise.all([
+    loadContributionTypes(),
+    loadRateSchedules(),
+    loadRateBrackets(),
+  ])
+})
 
-const activeSchedulesCount = computed(() =>
-  rateSchedules.value.filter(s => s.is_status).length,
-)
-
-const scheduleOptions = computed(() =>
-  rateSchedules.value.map(s => String(s.id)),
-)
-
-const scheduleLabels = computed<Record<string, string>>(() =>
+const typeLabels = computed<Record<number, string>>(() =>
   Object.fromEntries(
-    rateSchedules.value.map(s => {
-      const typeCode = s.contribution_type?.contribution_code ?? 'Type'
-      return [
-        String(s.id),
-        `${typeCode} — ${s.salary_basis} (${s.calculation_method}, Effective: ${s.effective_from})`,
-      ]
-    }),
+    contributionTypes.value.map(t => [
+      t.id,
+      `${t.contribution_code} — ${t.contribution_name}`,
+    ]),
   ),
 )
 
-const columns: Column[] = [
-  { key: 'schedule_name', label: 'Rate Schedule' },
-  { key: 'salary_from', label: 'Salary From', format: 'money' },
-  { key: 'salary_to', label: 'Salary To', format: 'money' },
-  { key: 'monthly_salary_credit', label: 'Monthly Salary Credit', format: 'money' },
-  { key: 'employee_rate', label: 'Employee Rate', format: 'percent' },
-  { key: 'employer_rate', label: 'Employer Rate', format: 'percent' },
-  { key: 'employee_amount', label: 'Employee Amount', format: 'money' },
-  { key: 'employer_amount', label: 'Employer Amount', format: 'money' },
-  { key: 'employer_ec_amount', label: 'Employer EC', format: 'money' },
-]
-
-const fields = computed<Field[]>(() => [
-  {
-    key: 'contribution_rate_schedule_id',
-    label: 'Rate Schedule',
-    type: 'select',
-    options: scheduleOptions.value,
-    optionLabels: scheduleLabels.value,
-    required: true,
-  },
-  { key: 'salary_from', label: 'Salary From (₱)', type: 'number', required: true },
-  { key: 'salary_to', label: 'Salary To (₱ - Leave empty for and above)', type: 'number' },
-  { key: 'monthly_salary_credit', label: 'Monthly Salary Credit (MSC ₱)', type: 'number' },
-  { key: 'employee_rate', label: 'Employee Rate (%)', type: 'number' },
-  { key: 'employer_rate', label: 'Employer Rate (%)', type: 'number' },
-  { key: 'employee_amount', label: 'Employee Amount (₱)', type: 'number' },
-  { key: 'employer_amount', label: 'Employer Amount (₱)', type: 'number' },
-  { key: 'employer_ec_amount', label: 'Employer EC Amount (₱)', type: 'number' },
-])
-
-const numberOrNull = (value: Row[string]) => {
-  if (value === null || value === undefined || value === '') return null
-  const parsed = Number(value)
-  return Number.isNaN(parsed) ? null : parsed
+const methodLabels: Record<string, string> = {
+  percentage: 'Percentage',
+  fixed: 'Fixed',
+  bracket: 'Bracket',
 }
 
-const initialRows = computed<Row[]>(() =>
-  rateBrackets.value.map(item => ({
-    id: item.id,
-    contribution_rate_schedule_id: String(item.contribution_rate_schedule_id),
-    schedule_name: scheduleLabels.value[String(item.contribution_rate_schedule_id)]
-      ?? (item.rate_schedule?.contribution_type?.contribution_code
-        ? `${item.rate_schedule.contribution_type.contribution_code} (#${item.contribution_rate_schedule_id})`
-        : `Schedule #${item.contribution_rate_schedule_id}`),
-    salary_from: item.salary_from,
-    salary_to: item.salary_to,
-    monthly_salary_credit: item.monthly_salary_credit,
-    employee_rate: item.employee_rate,
-    employer_rate: item.employer_rate,
-    employee_amount: item.employee_amount,
-    employer_amount: item.employer_amount,
-    employer_ec_amount: item.employer_ec_amount,
-  })),
-)
-
-// =====================================================
-// TABLE STATE
-// =====================================================
-
-const records = ref<Row[]>([])
-const search = ref('')
-const filterSchedule = ref('all')
-const page = ref(1)
-const perPage = 6
-
-// =====================================================
-// MODAL STATE
-// =====================================================
-
-const modalOpen = ref(false)
-const editingId = ref<number | null>(null)
-const deletingId = ref<number | null>(null)
-const form = ref<Row>({})
-
-// =====================================================
-// THREE-DOTS DROPDOWN
-// =====================================================
-
-const openActionId = ref<number | null>(null)
-const actionButtonRef = ref<HTMLElement | null>(null)
-
-const actionPosition = ref({
-  top: 0,
-  left: 0,
-})
-
-const closeActions = () => {
-  openActionId.value = null
-  actionButtonRef.value = null
-}
-
-const updateActionPosition = () => {
-  if (!actionButtonRef.value) return
-
-  const rect = actionButtonRef.value.getBoundingClientRect()
-  const menuWidth = 230
-  const menuHeight = 112
-  const gap = 6
-
-  const left = Math.max(
-    8,
-    Math.min(
-      rect.right - menuWidth,
-      window.innerWidth - menuWidth - 8,
-    ),
-  )
-
-  const showAbove = rect.bottom + menuHeight + gap > window.innerHeight
-  const top = showAbove
-    ? rect.top - menuHeight - gap
-    : rect.bottom + gap
-
-  actionPosition.value = {
-    top: Math.max(8, top),
-    left,
-  }
-}
-
-const toggleActions = async (
-  id: number,
-  event: MouseEvent,
-) => {
-  if (openActionId.value === id) {
-    closeActions()
-    return
-  }
-
-  actionButtonRef.value = event.currentTarget as HTMLElement
-  openActionId.value = id
-
-  await nextTick()
-  updateActionPosition()
-}
-
-const handleDocumentClick = (event: MouseEvent) => {
-  const target = event.target as HTMLElement | null
-
-  if (!target) return
-  if (actionButtonRef.value?.contains(target)) return
-  if (target.closest('.cw-action-dropdown')) return
-
-  closeActions()
-}
-
-const handleEscape = (event: KeyboardEvent) => {
-  if (event.key !== 'Escape') return
-  closeActions()
-  modalOpen.value = false
-  deletingId.value = null
-}
-
-onMounted(async () => {
-  document.addEventListener('click', handleDocumentClick)
-  document.addEventListener('keydown', handleEscape)
-  window.addEventListener('scroll', closeActions, true)
-  window.addEventListener('resize', closeActions)
-
-  await Promise.all([loadRateSchedules(), loadRateBrackets()])
-})
-
-onUnmounted(() => {
-  document.removeEventListener('click', handleDocumentClick)
-  document.removeEventListener('keydown', handleEscape)
-  window.removeEventListener('scroll', closeActions, true)
-  window.removeEventListener('resize', closeActions)
-})
-
-// =====================================================
-// COMPUTED TABLE DATA
-// =====================================================
-
-const filtered = computed(() => {
-  const keyword = search.value.trim().toLowerCase()
-
-  return records.value.filter((row) => {
-    const matchesSearch = Object.values(row).some((value) =>
-      String(value ?? '').toLowerCase().includes(keyword),
-    )
-
-    const matchesSchedule =
-      filterSchedule.value === 'all' ||
-      String(row.contribution_rate_schedule_id) === filterSchedule.value
-
-    return matchesSearch && matchesSchedule
-  })
-})
-
-const totalPages = computed(() =>
-  Math.max(1, Math.ceil(filtered.value.length / perPage)),
-)
-
-const visibleRows = computed(() => {
-  const start = (page.value - 1) * perPage
-  return filtered.value.slice(start, start + perPage)
-})
-
-const paginationStart = computed(() => {
-  if (filtered.value.length === 0) return 0
-  return (page.value - 1) * perPage + 1
-})
-
-const paginationEnd = computed(() =>
-  Math.min(page.value * perPage, filtered.value.length),
-)
-
-const pageNumbers = computed(() => {
-  const total = totalPages.value
-  const maxVisible = 5
-
-  const start = Math.max(
-    1,
-    Math.min(page.value - 2, total - maxVisible + 1),
-  )
-
-  const end = Math.min(total, start + maxVisible - 1)
-
-  return Array.from(
-    { length: end - start + 1 },
-    (_, index) => start + index,
-  )
-})
-
-// =====================================================
-// WATCHERS
-// =====================================================
-
-watch([search, filterSchedule], () => {
-  page.value = 1
-  closeActions()
-})
-
-watch(page, () => {
-  closeActions()
-})
-
-watch(
-  initialRows,
-  (rows) => {
-    records.value = rows.map((row) => ({ ...row }))
-    page.value = 1
-    closeActions()
-  },
-  { immediate: true },
-)
-
-// =====================================================
-// FORM ACTIONS
-// =====================================================
-
-const startForm = (record: Row) => {
-  closeActions()
-  localError.value = ''
-
-  editingId.value = Number(record.id)
-  form.value = { ...record }
-  modalOpen.value = true
-}
-
-let calculatingBracket = false
-
-// When MSC or Employee Rate changes, auto-calculate Employee Amount
-watch(
-  [() => form.value.monthly_salary_credit, () => form.value.employee_rate],
-  ([msc, eeRate]) => {
-    if (!modalOpen.value || calculatingBracket) return
-    const m = Number(msc)
-    const r = Number(eeRate)
-    if (!Number.isNaN(m) && m > 0 && !Number.isNaN(r) && r >= 0) {
-      calculatingBracket = true
-      form.value.employee_amount = Number(((m * r) / 100).toFixed(2))
-      nextTick(() => { calculatingBracket = false })
-    }
-  },
-)
-
-// When MSC or Employer Rate changes, auto-calculate Employer Amount
-watch(
-  [() => form.value.monthly_salary_credit, () => form.value.employer_rate],
-  ([msc, erRate]) => {
-    if (!modalOpen.value || calculatingBracket) return
-    const m = Number(msc)
-    const r = Number(erRate)
-    if (!Number.isNaN(m) && m > 0 && !Number.isNaN(r) && r >= 0) {
-      calculatingBracket = true
-      form.value.employer_amount = Number(((m * r) / 100).toFixed(2))
-      nextTick(() => { calculatingBracket = false })
-    }
-  },
-)
-
-const closeForm = () => {
-  modalOpen.value = false
-  editingId.value = null
-  localError.value = ''
-  form.value = {}
-}
-
-const editSelectedRecord = () => {
-  const record = records.value.find(
-    (row) => Number(row.id) === openActionId.value,
-  )
-
-  if (!record) {
-    closeActions()
-    return
-  }
-
-  startForm(record)
-}
-
-const persistRecord = async (row: Row) => {
-  const scheduleId = Number(row.contribution_rate_schedule_id)
-  const salaryFrom = numberOrNull(row.salary_from)
-  const salaryTo = numberOrNull(row.salary_to)
-
-  if (!scheduleId) {
-    localError.value = 'Please select a valid Rate Schedule.'
-    return
-  }
-
-  if (salaryFrom === null || salaryFrom < 0) {
-    localError.value = 'Salary From is required and must be 0 or greater.'
-    return
-  }
-
-  if (salaryTo !== null && salaryTo < salaryFrom) {
-    localError.value = 'Salary To must be greater than or equal to Salary From.'
-    return
-  }
-
-  const payload = {
-    contribution_rate_schedule_id: scheduleId,
-    salary_from: salaryFrom,
-    salary_to: salaryTo,
-    monthly_salary_credit: numberOrNull(row.monthly_salary_credit),
-    employee_rate: numberOrNull(row.employee_rate),
-    employer_rate: numberOrNull(row.employer_rate),
-    employee_amount: numberOrNull(row.employee_amount),
-    employer_amount: numberOrNull(row.employer_amount),
-    employer_ec_amount: numberOrNull(row.employer_ec_amount),
-  }
-
-  try {
-    if (row.id) {
-      await updateRateBracket(Number(row.id), payload)
-    }
-    closeForm()
-  } catch {
-    // errorMessage is handled by composable
-  }
-}
-
-const save = async () => {
-  localError.value = ''
-
-  if (editingId.value !== null) {
-    const payload: Row = { ...form.value, id: editingId.value }
-    await persistRecord(payload)
-  }
-}
-
-// =====================================================
-// DELETE ACTIONS
-// =====================================================
-
-const confirmDelete = () => {
-  if (openActionId.value === null) return
-  deletingId.value = openActionId.value
-  closeActions()
-}
-
-const remove = async () => {
-  if (deletingId.value === null) return
-  const deletedId = deletingId.value
-
-  try {
-    await deleteRateBracket(deletedId)
-  } catch {
-    // errorMessage handled by composable
-  } finally {
-    deletingId.value = null
-    page.value = Math.min(page.value, totalPages.value)
-  }
+const frequencyLabels: Record<string, string> = {
+  monthly: 'Monthly',
+  semi_monthly: 'Semi-Monthly',
+  weekly: 'Weekly',
+  per_payroll: 'Every Payroll',
 }
 
 // =====================================================
 // FORMATTERS
 // =====================================================
 
-const fmt = (
-  value: Row[string],
-  format?: Column['format'],
-) => {
-  if (
-    value === null ||
-    value === undefined ||
-    value === ''
-  ) {
-    return '—'
-  }
-
-  if (format === 'money') {
-    return (
-      '₱' +
-      Number(value).toLocaleString('en-PH', {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-      })
-    )
-  }
-
-  if (format === 'percent') {
-    return `${Number(value).toFixed(2)}%`
-  }
-
-  return String(value)
+const toNumber = (val: string | number | null | undefined): number | null => {
+  if (val === null || val === undefined || val === '') return null
+  const n = Number(val)
+  return Number.isNaN(n) ? null : n
 }
+
+const formatPeso = (val: string | number | null | undefined) => {
+  const n = toNumber(val)
+  if (n === null) return '—'
+  return '₱' + n.toLocaleString('en-PH', {
+    minimumFractionDigits: n % 1 === 0 ? 0 : 2,
+    maximumFractionDigits: 2,
+  })
+}
+
+const formatPercent = (val: string | number | null | undefined) => {
+  const n = toNumber(val)
+  if (n === null) return '—'
+  return `${Number(n.toFixed(4))}%`
+}
+
+const bracketsForSchedule = (scheduleId: number) =>
+  rateBrackets.value
+    .filter(b => b.contribution_rate_schedule_id === scheduleId)
+    .slice()
+    .sort((a, b) => Number(a.salary_from) - Number(b.salary_from))
+
+const formatShare = (schedule: ContributionRateScheduleRecord, side: 'employee' | 'employer') => {
+  const method = schedule.calculation_method
+  if (method === 'percentage') {
+    return formatPercent(side === 'employee' ? schedule.employee_rate : schedule.employer_rate)
+  }
+  if (method === 'fixed') {
+    const amt = side === 'employee' ? schedule.employee_amount : schedule.employer_amount
+    const fallbackAmt = side === 'employee' ? schedule.employee_rate : schedule.employer_rate
+    const freq = schedule.frequency ? ` / ${frequencyLabels[schedule.frequency] ?? schedule.frequency}` : ''
+    return `${formatPeso(amt ?? fallbackAmt)}${freq}`
+  }
+  const count = schedule.brackets_count ?? bracketsForSchedule(schedule.id).length
+  return count > 0 ? `${count} bracket tier${count === 1 ? '' : 's'}` : 'No brackets set'
+}
+
+const formatCoverage = (schedule: ContributionRateScheduleRecord) => {
+  if (schedule.calculation_method === 'fixed') return 'Any salary'
+  const lo = toNumber(schedule.minimum_salary_base)
+  const hi = toNumber(schedule.maximum_salary_base)
+  if (lo === null && hi === null) {
+    if (schedule.calculation_method === 'bracket') {
+      const tiers = bracketsForSchedule(schedule.id)
+      if (tiers.length > 0) {
+        const first = tiers[0]
+        const last = tiers[tiers.length - 1]
+        const from = formatPeso(first?.salary_from ?? 0)
+        const to = last?.salary_to !== null && last?.salary_to !== undefined ? formatPeso(last.salary_to) : 'And Above'
+        return `${from} – ${to}`
+      }
+    }
+    return 'All salaries'
+  }
+  if (hi === null) return `${formatPeso(lo)} and above`
+  if (lo === null) return `Up to ${formatPeso(hi)}`
+  return `${formatPeso(lo)} – ${formatPeso(hi)}`
+}
+
+const formatBracketRateOrAmount = (
+  rate: string | number | null | undefined,
+  amount: string | number | null | undefined,
+) => {
+  const r = toNumber(rate)
+  const a = toNumber(amount)
+  if (r !== null && a !== null) return `${formatPercent(r)} (${formatPeso(a)})`
+  if (r !== null) return formatPercent(r)
+  if (a !== null) return formatPeso(a)
+  return '—'
+}
+
+const scheduleTypeName = (schedule: ContributionRateScheduleRecord) => {
+  if (schedule.contribution_type) {
+    return `${schedule.contribution_type.contribution_code} — ${schedule.contribution_type.contribution_name}`
+  }
+  return typeLabels.value[schedule.contribution_type_id] ?? `Type #${schedule.contribution_type_id}`
+}
+
+// =====================================================
+// FILTERS & PAGINATION
+// =====================================================
+
+const search = ref('')
+const filterType = ref('all')
+const filterMethod = ref('all')
+const filterStatus = ref('all')
+
+const page = ref(1)
+const perPage = 8
+
+const filteredSchedules = computed(() => {
+  const term = search.value.trim().toLowerCase()
+
+  return rateSchedules.value.filter((item) => {
+    if (filterType.value !== 'all' && String(item.contribution_type_id) !== filterType.value) {
+      return false
+    }
+    if (filterMethod.value !== 'all' && item.calculation_method !== filterMethod.value) {
+      return false
+    }
+    if (filterStatus.value === 'active' && !item.is_status) return false
+    if (filterStatus.value === 'inactive' && item.is_status) return false
+
+    if (!term) return true
+
+    const typeStr = scheduleTypeName(item).toLowerCase()
+    const methodStr = (methodLabels[item.calculation_method] ?? item.calculation_method).toLowerCase()
+    const basisStr = String(item.salary_basis ?? '').toLowerCase()
+    const effFrom = String(item.effective_from ?? '').slice(0, 10)
+    const effTo = String(item.effective_to ?? '').slice(0, 10)
+
+    return (
+      typeStr.includes(term) ||
+      methodStr.includes(term) ||
+      basisStr.includes(term) ||
+      effFrom.includes(term) ||
+      effTo.includes(term)
+    )
+  })
+})
+
+const activeCount = computed(() => rateSchedules.value.filter(s => s.is_status).length)
+
+const totalPages = computed(() => Math.max(1, Math.ceil(filteredSchedules.value.length / perPage)))
+
+const visibleSchedules = computed(() => {
+  const start = (page.value - 1) * perPage
+  return filteredSchedules.value.slice(start, start + perPage)
+})
+
+const paginationStart = computed(() =>
+  filteredSchedules.value.length === 0 ? 0 : (page.value - 1) * perPage + 1,
+)
+
+const paginationEnd = computed(() =>
+  Math.min(page.value * perPage, filteredSchedules.value.length),
+)
+
+watch([search, filterType, filterMethod, filterStatus], () => {
+  page.value = 1
+})
+
+// =====================================================
+// BRACKET PREVIEW MODAL
+// =====================================================
+
+const previewSchedule = ref<ContributionRateScheduleRecord | null>(null)
+const previewBrackets = computed(() =>
+  previewSchedule.value ? bracketsForSchedule(previewSchedule.value.id) : [],
+)
 
 // =====================================================
 // CSV EXPORT
 // =====================================================
 
-const csvValue = (value: unknown) =>
-  `"${String(value ?? '').replace(/"/g, '""')}"`
-
 const exportCsv = () => {
-  const header = columns
-    .map((column) => csvValue(column.label))
-    .join(',')
+  const headers = [
+    'Contribution Type',
+    'Calculation Method',
+    'Salary Basis',
+    'Employee Contribution',
+    'Employer Contribution',
+    'Salary Coverage',
+    'Effective From',
+    'Effective To',
+    'Status',
+  ]
 
-  const rows = filtered.value.map((row) =>
-    columns
-      .map((column) => csvValue(row[column.key]))
-      .join(','),
-  )
+  const rows = filteredSchedules.value.map(s => [
+    scheduleTypeName(s),
+    methodLabels[s.calculation_method] ?? s.calculation_method,
+    s.calculation_method === 'fixed' ? '—' : (s.salary_basis || '—'),
+    formatShare(s, 'employee'),
+    formatShare(s, 'employer'),
+    formatCoverage(s),
+    s.effective_from ? String(s.effective_from).slice(0, 10) : '—',
+    s.effective_to ? String(s.effective_to).slice(0, 10) : 'Present',
+    s.is_status ? 'Active' : 'Inactive',
+  ])
 
-  const csv = [header, ...rows].join('\r\n')
-
-  const blob = new Blob(
-    ['\ufeff' + csv],
-    { type: 'text/csv;charset=utf-8;' },
-  )
-
+  const escape = (val: unknown) => `"${String(val ?? '').replace(/"/g, '""')}"`
+  const csv = [headers.map(escape).join(','), ...rows.map(r => r.map(escape).join(','))].join('\r\n')
+  const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' })
   const url = URL.createObjectURL(blob)
-  const anchor = document.createElement('a')
-
-  anchor.href = url
-  anchor.download =
-    title.toLowerCase().replace(/\W+/g, '-') + '.csv'
-
-  document.body.appendChild(anchor)
-  anchor.click()
-  anchor.remove()
-
+  const a = document.createElement('a')
+  a.href = url
+  a.download = 'contribution-history.csv'
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
   URL.revokeObjectURL(url)
 }
 </script>
 
 <template>
-  <section class="cw">
-    <div v-if="errorMessage || localError" class="cw-error-banner" role="alert">
-      {{ localError || errorMessage }}
+  <section class="ch">
+    <div v-if="errorMessage" class="ch-error" role="alert">
+      {{ errorMessage }}
     </div>
 
-    <!-- =================================================
-         PAGE HEADER
-    ================================================== -->
-
-    <div class="cw-header">
-      <div class="cw-header-info">
-        <div class="cw-eyebrow">
+    <!-- HEADER -->
+    <div class="ch-header">
+      <div class="ch-header-info">
+        <div class="ch-eyebrow">
           <Landmark :size="14" />
-          <span>PAYROLL CONFIGURATION / CONTRIBUTIONS</span>
+          <span>PAYROLL CONFIGURATION / CONTRIBUTIONS / HISTORY</span>
         </div>
-
         <h1>{{ title }}</h1>
         <p>{{ subtitle }}</p>
       </div>
 
-      <div class="cw-header-actions">
-        <button
-          type="button"
-          class="cw-btn cw-outline"
-          @click="exportCsv"
-        >
-          <Download :size="16" />
+      <div class="ch-header-actions">
+        <NuxtLink to="/admin/contribution/bracket-management" class="ch-btn ch-outline">
+          <Layers :size="15" />
+          <span>Bracket Management</span>
+        </NuxtLink>
+
+        <button type="button" class="ch-btn ch-outline" @click="exportCsv">
+          <Download :size="15" />
           <span>Export CSV</span>
         </button>
       </div>
     </div>
 
-    <!-- =================================================
-         SUMMARY CARDS
-    ================================================== -->
-
-    <div class="cw-stats">
-      <div class="cw-stat">
-        <span>Total Records</span>
-        <strong>{{ records.length }}</strong>
-        <small>Configured records</small>
+    <!-- SUMMARY STATS -->
+    <div class="ch-stats">
+      <div class="ch-stat">
+        <span>Total Rate Schedules</span>
+        <strong>{{ rateSchedules.length }}</strong>
+        <small>All historical & current schedules</small>
       </div>
 
-      <div class="cw-stat">
-        <span>Active Records</span>
-        <strong>{{ activeSchedulesCount }}</strong>
-
-        <small class="cw-green">
+      <div class="ch-stat">
+        <span>Active Schedules</span>
+        <strong>{{ activeCount }}</strong>
+        <small class="ch-green">
           <CheckCircle2 :size="13" />
-          Currently enabled
+          Currently in effect
         </small>
       </div>
 
-      <div class="cw-stat">
-        <span>Inactive Records</span>
-        <strong>{{ rateSchedules.length - activeSchedulesCount }}</strong>
-        <small>Currently disabled</small>
+      <div class="ch-stat">
+        <span>Total Salary Brackets</span>
+        <strong>{{ rateBrackets.length }}</strong>
+        <small>Configured bracket tiers</small>
       </div>
     </div>
 
-    <!-- =================================================
-         DIRECTORY PANEL
-    ================================================== -->
-
-    <div class="cw-panel">
-      <!-- PANEL HEADER -->
-
-      <div class="cw-panel-head">
-        <h2>{{ title }} Directory</h2>
-        <p>View and manage salary bracket limits, MSC values, and contribution amounts.</p>
-      </div>
-
-      <!-- SEARCH AND FILTER -->
-
-      <div class="cw-toolbar">
-        <div class="cw-search">
-          <Search :size="17" />
-
-          <input
-            v-model="search"
-            type="text"
-            placeholder="Search records..."
-            aria-label="Search contribution records"
-          />
+    <!-- DIRECTORY PANEL -->
+    <div class="ch-panel">
+      <div class="ch-panel-head">
+        <div>
+          <h2>Contribution Rate Schedule History</h2>
+          <p>Filter by contribution type, calculation method, or effective status.</p>
         </div>
 
-        <div class="cw-filter">
-          <Filter :size="15" />
+        <div class="ch-toolbar">
+          <div class="ch-search">
+            <Search :size="16" />
+            <input
+              v-model="search"
+              type="text"
+              placeholder="Search type, method, date..."
+              aria-label="Search contribution history"
+            />
+          </div>
 
-          <select
-            v-model="filterSchedule"
-            aria-label="Filter by schedule"
-          >
-            <option value="all">All Rate Schedules</option>
-            <option
-              v-for="sId in scheduleOptions"
-              :key="sId"
-              :value="sId"
-            >
-              {{ scheduleLabels[sId] ?? sId }}
-            </option>
-          </select>
+          <div class="ch-filter">
+            <Filter :size="14" />
+            <select v-model="filterType" aria-label="Filter by contribution type">
+              <option value="all">All Contribution Types</option>
+              <option v-for="t in contributionTypes" :key="t.id" :value="String(t.id)">
+                {{ t.contribution_code }} — {{ t.contribution_name }}
+              </option>
+            </select>
+          </div>
+
+          <div class="ch-filter">
+            <select v-model="filterMethod" aria-label="Filter by calculation method">
+              <option value="all">All Methods</option>
+              <option value="percentage">Percentage</option>
+              <option value="fixed">Fixed</option>
+              <option value="bracket">Bracket</option>
+            </select>
+          </div>
+
+          <div class="ch-filter">
+            <select v-model="filterStatus" aria-label="Filter by status">
+              <option value="all">All Status</option>
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+            </select>
+          </div>
         </div>
       </div>
 
-      <!-- TABLE -->
-
-      <div class="cw-overflow">
-        <table class="cw-table">
+      <div class="ch-overflow">
+        <table class="ch-table">
           <thead>
             <tr>
-              <th
-                v-for="column in columns"
-                :key="column.key"
-                scope="col"
-              >
-                {{ column.label }}
-              </th>
-
-              <th
-                scope="col"
-                class="cw-actions-heading"
-              >
-                Actions
-              </th>
+              <th scope="col">Contribution Type</th>
+              <th scope="col">Method</th>
+              <th scope="col">Salary Basis</th>
+              <th scope="col">Employee Share</th>
+              <th scope="col">Employer Share</th>
+              <th scope="col">Salary Coverage</th>
+              <th scope="col">Effective From</th>
+              <th scope="col">Effective To</th>
+              <th scope="col">Status</th>
+              <th scope="col" class="ch-actions-col">Details</th>
             </tr>
           </thead>
-
           <tbody>
-            <tr
-              v-for="row in visibleRows"
-              :key="String(row.id)"
-            >
-              <td
-                v-for="column in columns"
-                :key="column.key"
-              >
-                <span
-                  class="cw-cell-value"
-                  :class="{
-                    'cw-money': column.format === 'money',
-                  }"
-                >
-                  {{ fmt(row[column.key], column.format) }}
+            <tr v-for="schedule in visibleSchedules" :key="schedule.id">
+              <td class="ch-strong">{{ scheduleTypeName(schedule) }}</td>
+              <td>
+                <span class="ch-method-badge" :class="`is-${schedule.calculation_method}`">
+                  {{ methodLabels[schedule.calculation_method] ?? schedule.calculation_method }}
                 </span>
               </td>
-
-              <!-- THREE DOTS ACTIONS -->
-              <td class="cw-actions-cell">
+              <td>{{ schedule.calculation_method === 'fixed' ? '—' : (schedule.salary_basis || '—') }}</td>
+              <td class="ch-share-emp">{{ formatShare(schedule, 'employee') }}</td>
+              <td class="ch-share-er">{{ formatShare(schedule, 'employer') }}</td>
+              <td>{{ formatCoverage(schedule) }}</td>
+              <td>{{ schedule.effective_from ? String(schedule.effective_from).slice(0, 10) : '—' }}</td>
+              <td>
+                <span v-if="schedule.effective_to">
+                  {{ String(schedule.effective_to).slice(0, 10) }}
+                </span>
+                <span v-else class="ch-present-tag">Present</span>
+              </td>
+              <td>
+                <span class="ch-status-pill" :class="schedule.is_status ? 'is-active' : 'is-inactive'">
+                  {{ schedule.is_status ? 'Active' : 'Inactive' }}
+                </span>
+              </td>
+              <td class="ch-actions-col">
                 <button
+                  v-if="schedule.calculation_method === 'bracket'"
                   type="button"
-                  class="cw-more-btn"
-                  aria-label="Actions menu"
-                  :aria-expanded="openActionId === Number(row.id)"
-                  @click.stop="toggleActions(Number(row.id), $event)"
+                  class="ch-view-btn"
+                  @click="previewSchedule = schedule"
                 >
-                  <MoreHorizontal :size="16" />
+                  <Eye :size="13" />
+                  <span>View Brackets</span>
                 </button>
+                <span v-else class="ch-muted-dash">—</span>
               </td>
             </tr>
 
-            <tr v-if="filtered.length === 0">
-              <td
-                :colspan="columns.length + 1"
-                class="cw-empty"
-              >
-                No rate bracket records found.
+            <tr v-if="!loading && visibleSchedules.length === 0">
+              <td colspan="10" class="ch-empty">
+                No matching contribution history records found.
               </td>
             </tr>
           </tbody>
         </table>
       </div>
-    </div>
 
-    <!-- =================================================
-         NUMBERED PAGINATION
-    ================================================== -->
-
-    <div class="cw-pagination">
-      <div class="cw-pagination-info">
-        Showing
-        <strong>{{ paginationStart }}–{{ paginationEnd }}</strong>
-        of
-        <strong>{{ filtered.length }}</strong>
-        contribution records
-      </div>
-
-      <div class="cw-pagination-controls">
-        <button
-          type="button"
-          class="cw-page-arrow"
-          aria-label="Previous page"
-          :disabled="page === 1"
-          @click="page--"
-        >
-          <ChevronLeft :size="16" />
-        </button>
-
-        <button
-          v-for="pageNumber in pageNumbers"
-          :key="pageNumber"
-          type="button"
-          class="cw-page-number"
-          :class="{
-            'cw-page-active': page === pageNumber,
-          }"
-          :aria-label="`Page ${pageNumber}`"
-          :aria-current="
-            page === pageNumber ? 'page' : undefined
-          "
-          @click="page = pageNumber"
-        >
-          {{ pageNumber }}
-        </button>
-
-        <button
-          type="button"
-          class="cw-page-arrow"
-          aria-label="Next page"
-          :disabled="page === totalPages"
-          @click="page++"
-        >
-          <ChevronRight :size="16" />
-        </button>
+      <div class="ch-pagination">
+        <div class="ch-pagination-info">
+          Showing <strong>{{ paginationStart }}–{{ paginationEnd }}</strong> of
+          <strong>{{ filteredSchedules.length }}</strong> schedule records
+        </div>
+        <div class="ch-pagination-controls">
+          <button type="button" class="ch-page-btn" :disabled="page === 1" @click="page--">
+            <ChevronLeft :size="15" />
+          </button>
+          <span class="ch-page-indicator">Page {{ page }} of {{ totalPages }}</span>
+          <button type="button" class="ch-page-btn" :disabled="page === totalPages" @click="page++">
+            <ChevronRight :size="15" />
+          </button>
+        </div>
       </div>
     </div>
 
-    <!-- =================================================
-         THREE DOTS DROPDOWN
-    ================================================== -->
-
+    <!-- BRACKET BREAKDOWN MODAL -->
     <Teleport to="body">
-      <div
-        v-if="openActionId !== null"
-        class="cw-action-dropdown"
-        role="menu"
-        :style="{
-          top: `${actionPosition.top}px`,
-          left: `${actionPosition.left}px`,
-        }"
-      >
-        <button
-          type="button"
-          role="menuitem"
-          @click="editSelectedRecord"
-        >
-          <Pencil :size="15" />
-          <span>Edit Record</span>
-        </button>
-
-        <button
-          type="button"
-          role="menuitem"
-          class="cw-action-delete"
-          @click="confirmDelete"
-        >
-          <Trash2 :size="15" />
-          <span>Delete Record</span>
-        </button>
-      </div>
-    </Teleport>
-
-    <!-- =================================================
-         EDIT MODAL
-    ================================================== -->
-
-    <Teleport to="body">
-      <div
-        v-if="modalOpen"
-        class="cw-backdrop"
-        @click.self="closeForm"
-      >
-        <div
-          class="cw-modal"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Edit Record"
-        >
-          <div class="cw-modal-head">
+      <div v-if="previewSchedule" class="ch-backdrop" @click.self="previewSchedule = null">
+        <div class="ch-modal" role="dialog" aria-modal="true">
+          <div class="ch-modal-head">
             <div>
-              <h2>Edit Record</h2>
-              <p>Update the salary bracket tier and contribution details below.</p>
+              <h2>{{ scheduleTypeName(previewSchedule) }} — Salary Brackets</h2>
+              <p>
+                Salary Basis: <strong>{{ previewSchedule.salary_basis || 'Basic Salary' }}</strong> ·
+                Effective From: <strong>{{ String(previewSchedule.effective_from ?? '').slice(0, 10) }}</strong>
+              </p>
             </div>
-
-            <button
-              type="button"
-              class="cw-x"
-              aria-label="Close modal"
-              @click="closeForm"
-            >
-              <X :size="20" />
+            <button type="button" class="ch-x" aria-label="Close" @click="previewSchedule = null">
+              <X :size="18" />
             </button>
           </div>
 
-          <form @submit.prevent="save">
-            <div class="cw-fields">
-              <label
-                v-for="field in fields"
-                :key="field.key"
-              >
-                <span>
-                  {{ field.label }}
-                  <b v-if="field.required">*</b>
-                </span>
+          <div class="ch-overflow">
+            <table class="ch-table">
+              <thead>
+                <tr>
+                  <th scope="col">Salary From</th>
+                  <th scope="col">Salary To</th>
+                  <th scope="col">Employee Rate / Amount</th>
+                  <th scope="col">Employer Rate / Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="b in previewBrackets" :key="b.id">
+                  <td class="ch-strong">{{ formatPeso(b.salary_from) }}</td>
+                  <td>{{ b.salary_to !== null && b.salary_to !== undefined ? formatPeso(b.salary_to) : 'And Above' }}</td>
+                  <td class="ch-share-emp">{{ formatBracketRateOrAmount(b.employee_rate, b.employee_amount) }}</td>
+                  <td class="ch-share-er">{{ formatBracketRateOrAmount(b.employer_rate, b.employer_amount) }}</td>
+                </tr>
+                <tr v-if="previewBrackets.length === 0">
+                  <td colspan="4" class="ch-empty">
+                    No brackets have been added to this schedule yet.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
 
-                <select
-                  v-if="field.type === 'select'"
-                  v-model="form[field.key]"
-                  :required="field.required"
-                >
-                  <option value="" disabled>
-                    Select {{ field.label }}
-                  </option>
-
-                  <option
-                    v-for="option in field.options"
-                    :key="option"
-                    :value="option"
-                  >
-                    {{ field.optionLabels?.[option] ?? option }}
-                  </option>
-                </select>
-
-                <input
-                  v-else
-                  v-model="form[field.key]"
-                  :type="field.type || 'text'"
-                  :required="field.required"
-                  :step="
-                    field.type === 'number'
-                      ? 'any'
-                      : undefined
-                  "
-                  :min="field.type === 'number' ? '0' : undefined"
-                  :placeholder="field.label"
-                />
-              </label>
-            </div>
-
-            <div class="cw-modal-footer">
-              <button
-                type="button"
-                class="cw-btn cw-outline"
-                @click="closeForm"
-              >
-                Cancel
-              </button>
-
-              <button
-                type="submit"
-                class="cw-btn cw-primary"
-              >
-                Save Changes
-              </button>
-            </div>
-          </form>
-        </div>
-      </div>
-    </Teleport>
-
-    <!-- =================================================
-         DELETE CONFIRMATION
-    ================================================== -->
-
-    <Teleport to="body">
-      <div
-        v-if="deletingId !== null"
-        class="cw-backdrop"
-        @click.self="deletingId = null"
-      >
-        <div
-          class="cw-confirm"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Delete confirmation"
-        >
-          <h2>Delete this record?</h2>
-
-          <p>
-            This will permanently delete the rate bracket tier from the database.
-          </p>
-
-          <div class="cw-modal-footer">
-            <button
-              type="button"
-              class="cw-btn cw-outline"
-              @click="deletingId = null"
-            >
-              Cancel
+          <div class="ch-modal-footer">
+            <button type="button" class="ch-btn ch-outline" @click="previewSchedule = null">
+              Close
             </button>
-
-            <button
-              type="button"
-              class="cw-btn cw-delete"
-              @click="remove"
+            <NuxtLink
+              :to="{ path: '/admin/contribution/bracket-management', query: { schedule: String(previewSchedule.id) } }"
+              class="ch-btn ch-primary"
+              @click="previewSchedule = null"
             >
-              Delete Record
-            </button>
+              <Layers :size="15" />
+              <span>Manage Brackets</span>
+            </NuxtLink>
           </div>
         </div>
       </div>
@@ -940,514 +500,359 @@ const exportCsv = () => {
 </template>
 
 <style scoped>
-.cw-error-banner {
-  padding: 12px;
-  margin-bottom: 14px;
-  border: 1px solid var(--red);
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--red) 10%, var(--bg-card));
-  color: var(--red);
-  font-size: 11px;
-}
-
-/* =====================================================
-   MAIN LAYOUT
-===================================================== */
-
-.cw {
+.ch {
   width: 100%;
   max-width: 1700px;
   margin: 0 auto;
   color: var(--text-primary, #172033);
 }
 
-.cw-header {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 18px;
-  margin-bottom: 24px;
-}
-
-.cw-eyebrow {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  margin-bottom: 10px;
-  color: var(--primary, #246bfd);
-  font-size: 10px;
-  font-weight: 750;
-  letter-spacing: 1px;
-}
-
-.cw h1 {
-  margin: 0 0 6px;
-  font-size: 27px;
-  font-weight: 750;
-  line-height: 1.25;
-}
-
-.cw h2 {
-  margin: 0;
-  font-size: 15px;
-  font-weight: 700;
-}
-
-.cw p {
-  margin: 5px 0 0;
+.ch-error {
+  padding: 12px 14px;
+  margin-bottom: 14px;
+  border: 1px solid var(--red, #ef4444);
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--red, #ef4444) 10%, var(--bg-card, #ffffff));
+  color: var(--red, #ef4444);
   font-size: 12px;
+}
+
+.ch-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.ch-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  color: #246bfd;
+  margin-bottom: 6px;
+}
+
+.ch-header h1 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 750;
+}
+
+.ch-header p {
+  margin: 4px 0 0;
+  font-size: 12.5px;
   color: var(--text-secondary, #667085);
 }
 
-/* =====================================================
-   HEADER BUTTONS
-===================================================== */
-
-.cw-header-actions {
+.ch-header-actions {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 9px;
+  gap: 10px;
 }
 
-.cw-btn {
+.ch-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  padding: 11px 14px;
+  gap: 7px;
+  padding: 10px 14px;
   border: 1px solid transparent;
   border-radius: 9px;
   font-size: 12px;
   font-weight: 650;
-  white-space: nowrap;
+  text-decoration: none;
   cursor: pointer;
+  transition: all 0.15s ease;
 }
 
-.cw-primary {
+.ch-primary {
   background: #246bfd;
   color: #ffffff;
 }
 
-.cw-primary:hover {
+.ch-primary:hover {
   background: #1657dd;
 }
 
-.cw-outline {
+.ch-outline {
   border-color: var(--border, #e6eaf0);
   background: var(--bg-card, #ffffff);
   color: var(--text-primary, #172033);
 }
 
-.cw-outline:hover {
+.ch-outline:hover {
   background: var(--bg-card-soft, #f8fafc);
 }
 
-/* =====================================================
-   SUMMARY CARDS
-===================================================== */
-
-.cw-stats {
+.ch-stats {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 14px;
-  margin-bottom: 20px;
+  margin-bottom: 18px;
 }
 
-.cw-stat {
-  padding: 19px 21px;
-  border: 1px solid var(--border, #e6eaf0);
-  border-radius: 12px;
-  background: var(--bg-card, #ffffff);
-  box-shadow: var(--shadow, none);
-}
-
-.cw-stat > span {
-  display: block;
-  color: var(--text-secondary, #667085);
-  font-size: 12px;
-}
-
-.cw-stat strong {
-  display: block;
-  margin: 8px 0 2px;
-  font-size: 29px;
-  line-height: 1.3;
-}
-
-.cw-stat small {
+.ch-stat {
   display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 16px 18px;
+  border: 1px solid var(--border, #e6eaf0);
+  border-radius: 13px;
+  background: var(--bg-card, #ffffff);
+}
+
+.ch-stat span {
+  font-size: 11px;
+  font-weight: 650;
+  color: var(--text-secondary, #667085);
+}
+
+.ch-stat strong {
+  font-size: 22px;
+  font-weight: 750;
+}
+
+.ch-stat small {
+  display: inline-flex;
   align-items: center;
   gap: 5px;
-  color: var(--text-muted, #98a2b3);
   font-size: 11px;
+  color: var(--text-secondary, #667085);
 }
 
-.cw-green {
-  color: #16a663 !important;
+.ch-green {
+  color: #10b981 !important;
 }
 
-/* =====================================================
-   DIRECTORY PANEL
-===================================================== */
-
-.cw-panel {
-  overflow: hidden;
+.ch-panel {
   border: 1px solid var(--border, #e6eaf0);
-  border-radius: 12px;
+  border-radius: 14px;
   background: var(--bg-card, #ffffff);
+  overflow: hidden;
 }
 
-.cw-panel-head {
-  padding: 19px 20px 14px;
+.ch-panel-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 18px 20px;
   border-bottom: 1px solid var(--border, #e6eaf0);
 }
 
-.cw-panel-head h2 {
-  font-size: 14px;
+.ch-panel-head h2 {
+  margin: 0;
+  font-size: 15px;
   font-weight: 700;
 }
 
-.cw-panel-head p {
-  margin-top: 5px;
-  font-size: 11px;
-}
-
-/* =====================================================
-   SEARCH AND FILTER
-===================================================== */
-
-.cw-toolbar {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 10px;
-  padding: 16px 18px;
-}
-
-.cw-search {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex: 0 1 340px;
-  width: 340px;
-  max-width: 100%;
-  min-width: 0;
-  height: 39px;
-  padding: 0 12px;
-  border: 1px solid var(--border, #e6eaf0);
-  border-radius: 8px;
-  background: var(--bg-card-soft, #f8fafc);
+.ch-panel-head p {
+  margin: 4px 0 0;
+  font-size: 11.5px;
   color: var(--text-secondary, #667085);
-  transition: border-color 0.2s ease;
 }
 
-.cw-search:focus-within {
-  border-color: #246bfd;
+.ch-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
 }
 
-.cw-search input {
-  width: 100%;
-  min-width: 0;
-  flex: 1;
-  padding: 0;
-  border: none;
-  outline: none;
-  background: transparent;
-  color: var(--text-primary, #172033);
-  font-size: 12px;
-}
-
-.cw-search input::placeholder {
-  color: var(--text-muted, #98a2b3);
-}
-
-.cw-filter {
+.ch-search,
+.ch-filter {
   display: flex;
   align-items: center;
   gap: 8px;
-  height: 39px;
-  padding: 0 12px;
+  padding: 8px 12px;
   border: 1px solid var(--border, #e6eaf0);
-  border-radius: 8px;
+  border-radius: 9px;
   background: var(--bg-card-soft, #f8fafc);
-  color: var(--text-secondary, #667085);
 }
 
-.cw-filter select {
+.ch-search input,
+.ch-filter select {
   border: none;
   outline: none;
   background: transparent;
   color: var(--text-primary, #172033);
   font-size: 12px;
-  cursor: pointer;
-  color-scheme: light dark;
 }
 
-.cw-filter select option {
-  background-color: var(--bg-card, #ffffff);
+.ch-filter select option {
+  background: var(--bg-card, #ffffff);
   color: var(--text-primary, #172033);
 }
 
-/* =====================================================
-   TABLE
-===================================================== */
-
-.cw-overflow {
-  width: 100%;
+.ch-overflow {
   overflow-x: auto;
 }
 
-.cw-table {
+.ch-table {
   width: 100%;
-  border-collapse: separate;
-  border-spacing: 0;
-  white-space: nowrap;
+  border-collapse: collapse;
+  font-size: 12.5px;
   text-align: left;
-  font-size: 12px;
 }
 
-.cw-table thead th {
-  padding: 14px 16px;
+.ch-table th,
+.ch-table td {
+  padding: 13px 16px;
   border-bottom: 1px solid var(--border, #e6eaf0);
-  background: var(--bg-card-soft, #f8fafc);
-  color: var(--text-secondary, #667085);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.25px;
-  text-transform: uppercase;
-}
-
-.cw-table tbody td {
-  height: 68px;
-  padding: 18px 16px;
-  border-bottom: 1px solid var(--border, #e6eaf0);
-  color: var(--text-primary, #172033);
-  font-size: 12px;
   vertical-align: middle;
 }
 
-.cw-table tbody tr {
-  transition: background-color 0.2s ease;
-}
-
-.cw-table tbody tr:hover td {
+.ch-table thead th {
   background: var(--bg-card-soft, #f8fafc);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--text-secondary, #667085);
 }
 
-.cw-table tbody tr:last-child td {
-  border-bottom: none;
+.ch-strong {
+  font-weight: 650;
 }
 
-.cw-cell-value {
-  font-size: 12px;
-  font-weight: 500;
-}
-
-.cw-money {
+.ch-method-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 9px;
+  border-radius: 6px;
+  font-size: 11px;
   font-weight: 700;
 }
 
-/* =====================================================
-   THREE-DOTS BUTTON
-===================================================== */
-
-.cw-actions-heading,
-.cw-actions-cell {
-  width: 85px;
-  text-align: center !important;
-}
-
-.cw-more-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 36px;
-  height: 36px;
-  padding: 0;
-  border: 1px solid var(--border, #e6eaf0);
-  border-radius: 9px;
-  background: transparent;
-  color: var(--text-secondary, #667085);
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.cw-more-btn:hover,
-.cw-more-btn[aria-expanded='true'] {
-  border-color: #246bfd;
-  background: rgba(36, 107, 253, 0.08);
+.ch-method-badge.is-percentage {
+  background: rgba(36, 107, 253, 0.12);
   color: #246bfd;
 }
 
-/* =====================================================
-   EMPTY TABLE
-===================================================== */
-
-.cw-empty {
-  padding: 45px 20px !important;
-  color: var(--text-secondary, #667085);
-  font-size: 12px;
-  text-align: center;
+.ch-method-badge.is-fixed {
+  background: rgba(245, 158, 11, 0.14);
+  color: #f59e0b;
 }
 
-/* =====================================================
-   PAGINATION
-===================================================== */
+.ch-method-badge.is-bracket {
+  background: rgba(139, 92, 246, 0.14);
+  color: #8b5cf6;
+}
 
-.cw-pagination {
+.ch-share-emp {
+  font-weight: 650;
+  color: #246bfd;
+}
+
+.ch-share-er {
+  font-weight: 650;
+  color: #10b981;
+}
+
+.ch-present-tag {
+  font-size: 11px;
+  color: var(--text-secondary, #667085);
+}
+
+.ch-status-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.ch-status-pill.is-active {
+  background: rgba(16, 185, 129, 0.14);
+  color: #10b981;
+}
+
+.ch-status-pill.is-inactive {
+  background: rgba(148, 163, 184, 0.16);
+  color: #64748b;
+}
+
+.ch-actions-col {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.ch-view-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 10px;
+  border: 1px solid rgba(36, 107, 253, 0.35);
+  border-radius: 7px;
+  background: rgba(36, 107, 253, 0.08);
+  color: #246bfd;
+  font-size: 11px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.ch-view-btn:hover {
+  background: #246bfd;
+  color: #ffffff;
+}
+
+.ch-muted-dash {
+  color: var(--text-secondary, #667085);
+}
+
+.ch-empty {
+  text-align: center;
+  padding: 36px 20px;
+  color: var(--text-secondary, #667085);
+}
+
+.ch-pagination {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  padding: 16px 2px;
-}
-
-.cw-pagination-info {
+  padding: 14px 20px;
+  font-size: 12px;
   color: var(--text-secondary, #667085);
-  font-size: 11px;
 }
 
-.cw-pagination-info strong {
-  color: var(--text-primary, #172033);
-  font-weight: 600;
-}
-
-.cw-pagination-controls {
+.ch-pagination-controls {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
 }
 
-.cw-page-arrow,
-.cw-page-number {
+.ch-page-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 34px;
-  height: 34px;
+  width: 30px;
+  height: 30px;
   border: 1px solid var(--border, #e6eaf0);
-  border-radius: 8px;
+  border-radius: 7px;
   background: var(--bg-card, #ffffff);
-  color: var(--text-secondary, #667085);
-  font-size: 12px;
+  color: var(--text-primary, #172033);
   cursor: pointer;
-  transition: all 0.2s ease;
 }
 
-.cw-page-arrow:hover:not(:disabled),
-.cw-page-number:hover:not(.cw-page-active) {
-  border-color: #246bfd;
-  color: #246bfd;
-}
-
-.cw-page-active {
-  border-color: #246bfd;
-  background: #246bfd;
-  color: #ffffff;
-  font-weight: 700;
-}
-
-.cw-page-arrow:disabled {
-  opacity: 0.4;
+.ch-page-btn:disabled {
+  opacity: 0.45;
   cursor: not-allowed;
 }
 
-/* =====================================================
-   RESPONSIVE
-===================================================== */
-
-@media (max-width: 768px) {
-  .cw h1 {
-    font-size: 23px;
-  }
-
-  .cw-header-actions {
-    width: 100%;
-  }
-
-  .cw-stats {
-    grid-template-columns: 1fr;
-  }
-
-  .cw-toolbar {
-    padding: 12px;
-  }
-
-  .cw-search {
-    flex: 1 1 100%;
-    width: 100%;
-    max-width: none;
-  }
-
-  .cw-pagination {
-    align-items: flex-start;
-    flex-direction: column;
-    gap: 12px;
-  }
-
-  .cw-pagination-controls {
-    align-self: flex-end;
-  }
-
-  .cw-table thead th,
-  .cw-table tbody td {
-    padding-left: 12px;
-    padding-right: 12px;
-  }
-}
-</style>
-
-<style>
-/* =====================================================
-   TELEPORTED THREE-DOTS MENU
-===================================================== */
-
-.cw-action-dropdown {
-  position: fixed;
-  z-index: 9999;
-  min-width: 230px;
-  padding: 7px;
-  border: 1px solid var(--border, #e6eaf0);
-  border-radius: 12px;
-  background: var(--bg-card, #ffffff);
-  color: var(--text-primary, #172033);
-  box-shadow: 0 15px 45px rgba(0, 0, 0, 0.2);
+.ch-page-indicator {
+  font-size: 11.5px;
+  font-weight: 600;
 }
 
-.cw-action-dropdown button {
-  display: flex;
-  align-items: center;
-  gap: 11px;
-  width: 100%;
-  padding: 12px 13px;
-  border: none;
-  border-radius: 8px;
-  background: transparent;
-  color: var(--text-primary, #172033);
-  font-size: 12px;
-  font-weight: 500;
-  text-align: left;
-  cursor: pointer;
-}
-
-.cw-action-dropdown button:hover {
-  background: var(--bg-card-soft, #f8fafc);
-}
-
-.cw-action-dropdown .cw-action-delete {
-  color: #ef4444;
-}
-
-.cw-action-dropdown .cw-action-delete:hover {
-  background: rgba(239, 68, 68, 0.08);
-}
-
-/* =====================================================
-   MODAL BACKDROP
-===================================================== */
-
-.cw-backdrop {
+.ch-backdrop {
   position: fixed;
   inset: 0;
   z-index: 10000;
@@ -1455,15 +860,10 @@ const exportCsv = () => {
   align-items: center;
   justify-content: center;
   padding: 20px;
-  background: rgba(5, 15, 30, 0.55);
+  background: rgba(5, 15, 30, 0.58);
 }
 
-/* =====================================================
-   MODAL CONTAINERS
-===================================================== */
-
-.cw-modal,
-.cw-confirm {
+.ch-modal {
   width: min(680px, 100%);
   max-height: 90vh;
   overflow-y: auto;
@@ -1472,40 +872,34 @@ const exportCsv = () => {
   border-radius: 15px;
   background: var(--bg-card, #ffffff);
   color: var(--text-primary, #172033);
-  box-shadow: 0 20px 70px rgba(0, 0, 0, 0.27);
+  box-shadow: 0 20px 70px rgba(0, 0, 0, 0.28);
 }
 
-.cw-confirm {
-  max-width: 420px;
+.ch-modal-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
 }
 
-.cw-modal h2,
-.cw-confirm h2 {
+.ch-modal-head h2 {
   margin: 0;
   font-size: 17px;
   font-weight: 700;
 }
 
-.cw-modal p,
-.cw-confirm p {
-  margin-top: 7px;
-  color: var(--text-secondary, #667085);
+.ch-modal-head p {
+  margin: 5px 0 0;
   font-size: 12px;
+  color: var(--text-secondary, #667085);
 }
 
-.cw-modal-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 14px;
-  margin-bottom: 20px;
-}
-
-.cw-x {
+.ch-x {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 7px;
+  padding: 6px;
   border: 1px solid var(--border, #e6eaf0);
   border-radius: 7px;
   background: var(--bg-card, #ffffff);
@@ -1513,110 +907,15 @@ const exportCsv = () => {
   cursor: pointer;
 }
 
-/* =====================================================
-   FORM FIELDS
-===================================================== */
-
-.cw-fields {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
-}
-
-.cw-fields label {
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
-  min-width: 0;
-}
-
-.cw-fields label > span {
-  font-size: 11px;
-  font-weight: 650;
-}
-
-.cw-fields label b {
-  color: #ef4444;
-}
-
-.cw-fields input,
-.cw-fields select {
-  width: 100%;
-  min-width: 0;
-  padding: 11px;
-  border: 1px solid var(--border, #e6eaf0);
-  border-radius: 8px;
-  outline: none;
-  background: var(--bg-card-soft, #f8fafc);
-  color: var(--text-primary, #172033);
-  font-size: 12px;
-  color-scheme: light dark;
-}
-
-.cw-fields select option {
-  background-color: var(--bg-card, #ffffff);
-  color: var(--text-primary, #172033);
-}
-
-.cw-fields input:focus,
-.cw-fields select:focus {
-  border-color: #246bfd;
-}
-
-/* =====================================================
-   MODAL FOOTER
-===================================================== */
-
-.cw-modal-footer {
+.ch-modal-footer {
   display: flex;
   justify-content: flex-end;
-  gap: 9px;
-  margin-top: 24px;
+  gap: 10px;
+  margin-top: 20px;
 }
 
-.cw-modal-footer .cw-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 11px 14px;
-  border: 1px solid transparent;
-  border-radius: 9px;
-  font-size: 12px;
-  font-weight: 650;
-  cursor: pointer;
-}
-
-.cw-modal-footer .cw-primary {
-  background: #246bfd;
-  color: #ffffff;
-}
-
-.cw-modal-footer .cw-primary:hover {
-  background: #1657dd;
-}
-
-.cw-modal-footer .cw-outline {
-  border-color: var(--border, #e6eaf0);
-  background: var(--bg-card, #ffffff);
-  color: var(--text-primary, #172033);
-}
-
-.cw-modal-footer .cw-outline:hover {
-  background: var(--bg-card-soft, #f8fafc);
-}
-
-.cw-modal-footer .cw-delete {
-  background: #dc2626;
-  color: #ffffff;
-}
-
-.cw-modal-footer .cw-delete:hover {
-  background: #b91c1c;
-}
-
-@media (max-width: 720px) {
-  .cw-fields {
+@media (max-width: 768px) {
+  .ch-stats {
     grid-template-columns: 1fr;
   }
 }

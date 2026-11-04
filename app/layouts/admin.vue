@@ -208,6 +208,10 @@ const menuItems = [
         to: '/admin/contribution/rate-schedules',
       },
       {
+        label: 'Bracket Management',
+        to: '/admin/contribution/bracket-management',
+      },
+      {
         label: 'Contribution History',
         to: '/admin/contribution/rate-brackets',
       },

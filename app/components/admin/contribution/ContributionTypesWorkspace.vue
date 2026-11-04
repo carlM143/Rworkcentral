@@ -353,7 +353,7 @@ const editSelectedRecord = () => {
   startForm(record)
 }
 
-const save = () => {
+const save = async () => {
   const hasMissingFields = fields.some((field) => {
     if (!field.required) return false
 
@@ -368,34 +368,13 @@ const save = () => {
 
   if (hasMissingFields) return
 
-  if (editingId.value !== null) {
-    const payload: Row = { ...form.value, id: editingId.value }
-
-    records.value = records.value.map((row) =>
-      Number(row.id) === editingId.value
-        ? { ...payload }
-        : row
-    )
-
-    void persistRecord(payload)
-  } else {
-    const nextId =
-      Math.max(
-        0,
-        ...records.value.map((row) => Number(row.id) || 0)
-      ) + 1
-
-    const payload: Row = { ...form.value }
-
-    records.value.unshift({
-      ...payload,
-      id: nextId,
-    })
-
-    void persistRecord(payload)
-  }
+  const payload: Row =
+    editingId.value !== null
+      ? { ...form.value, id: editingId.value }
+      : { ...form.value }
 
   closeForm()
+  await persistRecord(payload)
   page.value = 1
 }
 
@@ -410,18 +389,13 @@ const confirmDelete = () => {
   closeActions()
 }
 
-const remove = () => {
+const remove = async () => {
   if (deletingId.value === null) return
 
   const deletedId = deletingId.value
-
-  records.value = records.value.filter(
-    (row) => Number(row.id) !== deletedId
-  )
-
-  void removeRecord(deletedId)
-
   deletingId.value = null
+
+  await removeRecord(deletedId)
   page.value = Math.min(page.value, totalPages.value)
 }
 
