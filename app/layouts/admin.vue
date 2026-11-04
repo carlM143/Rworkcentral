@@ -46,6 +46,7 @@ const companyMenuRef =
 const openMenus = reactive<Record<string, boolean>>({
   employees: false,
   timekeeping: false,
+  schedules: false,
   payroll: false,
   contributions: false,
   loans: false,
@@ -72,18 +73,21 @@ const menuItems = [
     key: 'employees',
     icon: Users,
     children: [
+
       {
-        label: 'Add New Employee',
-        to: '/admin/employees/create-employee',
-      },
-      {
-        label: 'Active Employees',
+        label: 'Employee Directory',
         to: '/admin/employees',
       },
       {
-        label: 'Inactive Employees',
-        to: '/admin/employees/inactive',
-      }
+        label: 'Salary Rates',
+        to: '/admin/employees/salary-rates',
+      },
+      {
+        label: 'Salary Adjustments',
+        to: '/admin/employees/salary-adjustments',
+      },
+
+
     ],
   },
 
@@ -135,9 +139,19 @@ const menuItems = [
   },
 
   {
-    label: 'Work Schedules',
+    label: 'Schedules',
+    key: 'schedules',
     icon: CalendarClock,
-    to: '/admin/work-schedules',
+    children: [
+      {
+        label: 'Work Schedules',
+        to: '/admin/work-schedules',
+      },
+      {
+        label: 'Change Schedule',
+        to: '/admin/work-schedules/change-schedule',
+      },
+    ],
   },
 
   {
@@ -145,14 +159,6 @@ const menuItems = [
     key: 'payroll',
     icon: WalletCards,
     children: [
-      {
-        label: 'Rates',
-        to: '/admin/rates',
-      },
-      {
-        label: 'Wage Adjustments',
-        to: '/admin/payroll/wage-adjustments',
-      },
 
       // PAY PERIODS
       {
@@ -220,9 +226,9 @@ const menuItems = [
     key: 'loans',
     icon: HandCoins,
     children: [
-      { label: 'Loan Transactions', to: '/admin/loans/transactions' },
       { label: 'Loan Types', to: '/admin/loans/types' },
-      { label: 'Employee Loans', to: '/admin/loans/employees' },
+      { label: 'Employee Loans', to: '/admin/loans/employee-loans' },
+      { label: 'Loan Transactions', to: '/admin/loans/transactions' },
     ],
   },
 

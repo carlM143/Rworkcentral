@@ -1,51 +1,47 @@
+
 <script setup lang="ts">
-import {
-  RotateCcw,
-} from 'lucide-vue-next'
+import { RotateCcw } from 'lucide-vue-next'
+
+defineProps<{
+  departments: string[]
+  positions: string[]
+  employmentTypes: string[]
+}>()
 
 const search = defineModel<string>('search', {
   default: '',
 })
 
-const department = defineModel<string>(
-  'department',
-  {
-    default: '',
-  },
-)
+const department = defineModel<string>('department', {
+  default: '',
+})
 
-const position = defineModel<string>(
-  'position',
-  {
-    default: '',
-  },
-)
+const position = defineModel<string>('position', {
+  default: '',
+})
 
-const employmentType = defineModel<string>(
-  'employmentType',
-  {
-    default: '',
-  },
-)
+const employmentType = defineModel<string>('employmentType', {
+  default: '',
+})
 
-defineProps<{
-  departments: string[]
-  positions: string[]
-}>()
+const status = defineModel<string>('status', {
+  default: '',
+})
 
 const emit = defineEmits<{
   reset: []
 }>()
 
-const employmentTypes = [
-  'Regular',
-  'Probationary',
-  'Contractual',
+const statusOptions = [
+  'Active',
+  'Inactive',
 ]
 </script>
 
 <template>
   <div class="filters-card">
+
+    <!-- SEARCH -->
     <div class="filter-search">
       <AppInput
         v-model="search"
@@ -55,6 +51,7 @@ const employmentTypes = [
       />
     </div>
 
+    <!-- DEPARTMENT FROM DATABASE -->
     <div class="filter-control">
       <AppSelect
         v-model="department"
@@ -63,6 +60,7 @@ const employmentTypes = [
       />
     </div>
 
+    <!-- POSITION FROM DATABASE -->
     <div class="filter-control">
       <AppSelect
         v-model="position"
@@ -71,14 +69,25 @@ const employmentTypes = [
       />
     </div>
 
+    <!-- EMPLOYMENT TYPE FROM DATABASE -->
     <div class="filter-control">
       <AppSelect
         v-model="employmentType"
         :options="employmentTypes"
-        placeholder="Employment Type"
+        placeholder="All Employment Types"
       />
     </div>
 
+    <!-- STATUS -->
+    <div class="filter-control">
+      <AppSelect
+        v-model="status"
+        :options="statusOptions"
+        placeholder="All Status"
+      />
+    </div>
+
+    <!-- RESET -->
     <AppButton
       variant="secondary"
       :icon="RotateCcw"
@@ -86,6 +95,7 @@ const employmentTypes = [
     >
       Reset
     </AppButton>
+
   </div>
 </template>
 
@@ -95,9 +105,7 @@ const employmentTypes = [
 
   grid-template-columns:
     minmax(260px, 1.5fr)
-    minmax(150px, 0.7fr)
-    minmax(150px, 0.7fr)
-    minmax(150px, 0.7fr)
+    repeat(4, minmax(140px, 0.7fr))
     auto;
 
   gap: 9px;
@@ -109,14 +117,29 @@ const employmentTypes = [
   border-radius: 11px;
 
   background: var(--bg-card);
-
   box-shadow: var(--shadow);
 }
 
-@media (max-width: 1150px) {
+.filter-search,
+.filter-control {
+  min-width: 0;
+}
+
+@media (max-width: 1350px) {
   .filters-card {
     grid-template-columns:
-      repeat(2, 1fr);
+      repeat(3, minmax(0, 1fr));
+  }
+
+  .filter-search {
+    grid-column: span 3;
+  }
+}
+
+@media (max-width: 800px) {
+  .filters-card {
+    grid-template-columns:
+      repeat(2, minmax(0, 1fr));
   }
 
   .filter-search {

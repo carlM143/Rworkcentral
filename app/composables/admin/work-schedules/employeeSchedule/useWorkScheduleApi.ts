@@ -1,3 +1,4 @@
+// Work-schedule API access for the admin schedule module.
 import type {
   WorkScheduleDay,
   WorkScheduleDayFormData,

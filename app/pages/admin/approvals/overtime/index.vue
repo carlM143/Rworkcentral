@@ -43,16 +43,12 @@ const {
   loadError,
   approvingId,
   loadRequests,
-  approveRequest,
-  rejectRequest,
   revertRequest,
 } = useOvertimeApprovals()
 
+const router = useRouter()
 const exportOpen = ref(false)
 const fileRequestOpen = ref(false)
-const requestOpen = ref(false)
-const requestMode = ref('view')
-const selectedRequest = ref<Record<string, any> | null>(null)
 const handleFileRequestSuccess = () => { void loadRequests() }
 const apiError = (problem: any) => (
   problem?.data?.errors?.status?.[0]
@@ -63,75 +59,17 @@ const apiError = (problem: any) => (
   ?? 'Unable to process the overtime request.'
 )
 
-const openRequest = async (mode: string, request: Record<string, any>) => {
-  if (mode === 'approve') {
-    if (approvingId.value !== null) return
-
-    try {
-      const message = await approveRequest(Number(request.id))
-      success('Overtime Approved', message)
-    } catch (problem: any) {
-      warning('Approval Failed', apiError(problem))
-    }
-    return
-  }
-
-  if (mode === 'reject') {
-    if (approvingId.value !== null) return
-
-    try {
-      const message = await rejectRequest(Number(request.id))
-      success('Overtime Rejected', message)
-    } catch (problem: any) {
-      warning('Rejection Failed', apiError(problem))
-    }
-    return
-  }
-
-  if (mode === 'revert') {
-    if (approvingId.value !== null) return
-
-    try {
-      const message = await revertRequest(Number(request.id))
-      success('Overtime Reverted', message)
-    } catch (problem: any) {
-      warning('Undo Failed', apiError(problem))
-    }
-    return
-  }
-
-  selectedRequest.value = request
-  requestMode.value = mode === 'review' ? 'view' : mode
-  requestOpen.value = true
+const handleReview = (request: { id: number }) => {
+  void router.push({
+    path: '/admin/approvals/overtime/show',
+    query: { id: String(request.id) },
+  })
 }
 
-const handleDialogApprove = async () => {
-  if (!selectedRequest.value || approvingId.value !== null) return
+const handleRevert = async (request: { id: number }) => {
+  if (approvingId.value !== null) return
   try {
-    const message = await approveRequest(Number(selectedRequest.value.id))
-    requestOpen.value = false
-    success('Overtime Approved', message)
-  } catch (problem: any) {
-    warning('Approval Failed', apiError(problem))
-  }
-}
-
-const handleDialogReject = async () => {
-  if (!selectedRequest.value || approvingId.value !== null) return
-  try {
-    const message = await rejectRequest(Number(selectedRequest.value.id))
-    requestOpen.value = false
-    success('Overtime Rejected', message)
-  } catch (problem: any) {
-    warning('Rejection Failed', apiError(problem))
-  }
-}
-
-const handleDialogRevert = async () => {
-  if (!selectedRequest.value || approvingId.value !== null) return
-  try {
-    const message = await revertRequest(Number(selectedRequest.value.id))
-    requestOpen.value = false
+    const message = await revertRequest(Number(request.id))
     success('Overtime Reverted', message)
   } catch (problem: any) {
     warning('Undo Failed', apiError(problem))
@@ -235,10 +173,14 @@ onMounted(() => { void loadRequests() })
       <AppButton variant="secondary" size="sm" @click="loadRequests">Retry</AppButton>
     </div>
 
-    <OvertimeApprovalTable v-else @action="openRequest"
+    <OvertimeApprovalTable
+      v-else
       :requests="
         paginatedRequests
       "
+      :approving-id="approvingId"
+      @review="handleReview"
+      @revert="handleRevert"
     />
 
     <!-- PAGINATION -->
@@ -279,17 +221,6 @@ onMounted(() => { void loadRequests() })
     </div>
 
     <PayrollExportDialog :open="exportOpen" title="OT Approvals" :records="exportRecords" :sample="false" :date-from="dateFrom" :date-to="dateTo" :filters="{ Search: search, Department: department, Status: status }" @close="exportOpen = false" />
-    <ApprovalRequestDialog
-      :open="requestOpen"
-      kind="Overtime"
-      :mode="requestMode"
-      :request="selectedRequest"
-      :processing="approvingId !== null"
-      @close="requestOpen = false"
-      @approve="handleDialogApprove"
-      @reject="handleDialogReject"
-      @revert="handleDialogRevert"
-    />
     <FileApprovalRequestModal
       :open="fileRequestOpen"
       default-type="Overtime"

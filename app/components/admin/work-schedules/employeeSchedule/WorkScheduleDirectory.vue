@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import BaseDataTable from '~/components/shared-table/BaseDataTable.vue'
-import WorkScheduleActions from '~/components/admin/employeeSchedule/WorkScheduleActions.vue'
+import WorkScheduleActions from '~/components/admin/work-schedules/employeeSchedule/WorkScheduleActions.vue'
 import type { WorkSchedule } from '~/types/workSchedule'
 
 defineOptions({ name: 'WorkScheduleDirectory' })

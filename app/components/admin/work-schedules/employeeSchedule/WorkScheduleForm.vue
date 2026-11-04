@@ -1,3 +1,4 @@
+<!-- Work-schedule module component. -->
 <script setup lang="ts">
 import { CalendarClock, Clock3, Coffee, Info, RotateCcw, Save } from 'lucide-vue-next'
 import type {

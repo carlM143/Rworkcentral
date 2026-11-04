@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ArrowLeft, CalendarDays, Clock3, RotateCcw, Save, Info } from 'lucide-vue-next'
-import { useWorkSchedules } from '~/composables/admin/employeeSchedule/useWorkSchedules'
+import { useWorkSchedules } from '~/composables/admin/work-schedules/employeeSchedule/useWorkSchedules'
 
 definePageMeta({ layout: 'admin' })
 useHead({ title: 'Edit Work Schedule | RWorkCentral' })

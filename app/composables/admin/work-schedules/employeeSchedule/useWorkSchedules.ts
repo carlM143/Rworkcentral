@@ -1,4 +1,4 @@
-import { useWorkScheduleApi } from '~/composables/admin/employeeSchedule/useWorkScheduleApi'
+import { useWorkScheduleApi } from '~/composables/admin/work-schedules/employeeSchedule/useWorkScheduleApi'
 
 import type {
   WorkSchedule,
@@ -11,7 +11,7 @@ import type {
   WorkScheduleRecord,
   WorkSchedulePayload,
   ScheduleTypeRecord,
-} from '~/composables/admin/employeeSchedule/useWorkScheduleApi'
+} from '~/composables/admin/work-schedules/employeeSchedule/useWorkScheduleApi'
 
 const as12Hour = (value: string | null | undefined): string => {
   if (!value) return ''
