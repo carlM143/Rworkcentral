@@ -120,143 +120,376 @@ const mapEmployeeRecord = (record: EmployeeIndexRecord): Employee => {
  * It no longer enables mock data when false.
  * For a single employee profile use GET /admin/employees/:id directly.
  */
+
+
+interface EmployeeMasterOption {
+  id: number
+  name: string
+}
+
+interface EmployeeFilterOptionsData {
+  departments: EmployeeMasterOption[]
+  positions: EmployeeMasterOption[]
+  employment_types: EmployeeMasterOption[]
+}
+
+interface EmployeeFilterOptionsResponse {
+  success: boolean
+  message?: string
+  data: EmployeeFilterOptionsData
+}
+
 export const useEmployees = (
-  statusFilter: 'Active' | 'Inactive' = 'Active',
+  initialStatus: 'Active' | 'Inactive' = 'Active',
   _loadFromApi = true,
 ) => {
   const { $api } = useNuxtApp()
+
+  // EMPLOYEE DATA
   const employees = ref<Employee[]>([])
   const loading = ref(false)
   const loadError = ref('')
 
+  // FILTER OPTIONS FROM DATABASE
+  const filterOptions = ref<EmployeeFilterOptionsData>({
+    departments: [],
+    positions: [],
+    employment_types: [],
+  })
+
+  const filterOptionsLoading = ref(false)
+  const filterOptionsError = ref('')
+
+  // FILTER VALUES
   const search = ref('')
   const department = ref('')
   const position = ref('')
   const employmentType = ref('')
+  const status = ref<string>(initialStatus)
+
+  // PAGINATION
   const currentPage = ref(1)
   const perPage = ref(6)
 
+  // PREVENT STALE RESPONSES
+  let latestRequestId = 0
+
+  // FETCH MASTER FILTER OPTIONS
+  const loadFilterOptions = async (): Promise<void> => {
+    filterOptionsLoading.value = true
+    filterOptionsError.value = ''
+
+    try {
+      const response = await $api<EmployeeFilterOptionsResponse>(
+        '/admin/employees/filter-options',
+        { method: 'GET' },
+      )
+
+      if (
+        response.success === false ||
+        !response.data ||
+        !Array.isArray(response.data.departments) ||
+        !Array.isArray(response.data.positions) ||
+        !Array.isArray(response.data.employment_types)
+      ) {
+        throw new Error(
+          response.message || 'Invalid employee filter options response.',
+        )
+      }
+
+      filterOptions.value = response.data
+    } catch (error: unknown) {
+      const problem = error as {
+        data?: { message?: string }
+        message?: string
+      }
+
+      filterOptionsError.value =
+        problem.data?.message ||
+        problem.message ||
+        'Unable to load employee filter options.'
+
+      console.error('Employee Filter Options Error:', error)
+    } finally {
+      filterOptionsLoading.value = false
+    }
+  }
+
+  // DROPDOWN OPTIONS FROM MASTER TABLES
+  const departments = computed<string[]>(() =>
+    filterOptions.value.departments.map(item => item.name),
+  )
+
+  const positions = computed<string[]>(() =>
+    filterOptions.value.positions.map(item => item.name),
+  )
+
+  const employmentTypes = computed<string[]>(() =>
+    filterOptions.value.employment_types.map(item => item.name),
+  )
+
+  // RESOLVE SELECTED LABEL TO DATABASE ID
+  const getOptionId = (
+    options: EmployeeMasterOption[],
+    selectedName: string,
+  ): number | undefined => {
+    if (!selectedName) return undefined
+
+    return options.find(
+      item => item.name === selectedName,
+    )?.id
+  }
+
+  // FETCH EMPLOYEES USING DATABASE FILTER IDS
   const loadEmployees = async (): Promise<void> => {
+    const requestId = ++latestRequestId
+
     loading.value = true
     loadError.value = ''
 
     try {
-      const response = await $api<EmployeeIndexResponse>('/admin/employees', {
-        method: 'GET',
-        query: { status: statusFilter === 'Active' ? 1 : 0 },
-      })
+      const query: Record<string, string | number> = {}
 
-      if (response.success === false || !Array.isArray(response.data)) {
-        throw new Error(response.message || 'Invalid employees API response.')
+      // STATUS
+      if (status.value === 'Active') {
+        query.status = 1
+      } else if (status.value === 'Inactive') {
+        query.status = 0
+      }
+
+      // DEPARTMENT
+      const departmentId = getOptionId(
+        filterOptions.value.departments,
+        department.value,
+      )
+
+      if (departmentId !== undefined) {
+        query.department_id = departmentId
+      }
+
+      // POSITION
+      const positionId = getOptionId(
+        filterOptions.value.positions,
+        position.value,
+      )
+
+      if (positionId !== undefined) {
+        query.position_id = positionId
+      }
+
+      // EMPLOYMENT TYPE
+      const employmentTypeId = getOptionId(
+        filterOptions.value.employment_types,
+        employmentType.value,
+      )
+
+      if (employmentTypeId !== undefined) {
+        query.employment_type_id = employmentTypeId
+      }
+
+      const response = await $api<EmployeeIndexResponse>(
+        '/admin/employees',
+        {
+          method: 'GET',
+          query,
+        },
+      )
+
+      if (requestId !== latestRequestId) return
+
+      if (
+        response.success === false ||
+        !Array.isArray(response.data)
+      ) {
+        throw new Error(
+          response.message || 'Invalid employees API response.',
+        )
       }
 
       employees.value = response.data.map(mapEmployeeRecord)
-    } catch (problem: unknown) {
+    } catch (error: unknown) {
+      if (requestId !== latestRequestId) return
+
       employees.value = []
-      const error = problem as {
+
+      const problem = error as {
         data?: { message?: string }
         response?: { _data?: { message?: string } }
         message?: string
       }
-      loadError.value = error.data?.message
-        ?? error.response?._data?.message
-        ?? error.message
-        ?? 'Unable to load employees from the backend.'
-      console.error('Employee Index API Error:', problem)
+
+      loadError.value =
+        problem.data?.message ||
+        problem.response?._data?.message ||
+        problem.message ||
+        'Unable to load employees.'
+
+      console.error('Employee Index API Error:', error)
     } finally {
-      loading.value = false
+      if (requestId === latestRequestId) {
+        loading.value = false
+      }
     }
   }
 
-  onMounted(() => { void loadEmployees() })
+  // LOAD MASTER OPTIONS AND INITIAL EMPLOYEES
+  onMounted(async () => {
+    await loadFilterOptions()
+    await loadEmployees()
+  })
 
+  // AUTOMATIC API FILTERING
+  watch(
+    [department, position, employmentType, status],
+    () => {
+      currentPage.value = 1
+      void loadEmployees()
+    },
+  )
+
+  // LOCAL TEXT SEARCH ON RETURNED EMPLOYEES
   const filteredEmployees = computed(() => {
-    const keyword = search.value.toLowerCase().trim()
-    return employees.value.filter(employee => {
-      const fullName = [employee.firstName, employee.middleName, employee.lastName]
-        .filter(Boolean).join(' ').toLowerCase()
+    const keyword = search.value.trim().toLowerCase()
 
-      return employee.status === statusFilter
-        && (!keyword || fullName.includes(keyword)
-          || employee.employeeNumber.toLowerCase().includes(keyword)
-          || employee.email.toLowerCase().includes(keyword))
-        && (!department.value || employee.department === department.value)
-        && (!position.value || employee.position === position.value)
-        && (!employmentType.value || employee.employmentType === employmentType.value)
+    return employees.value.filter(employee => {
+      const fullName = [
+        employee.firstName,
+        employee.middleName,
+        employee.lastName,
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase()
+
+      const matchesSearch =
+        !keyword ||
+        fullName.includes(keyword) ||
+        employee.employeeNumber.toLowerCase().includes(keyword) ||
+        employee.email.toLowerCase().includes(keyword)
+
+      const matchesStatus =
+        !status.value ||
+        employee.status === status.value
+
+      return matchesSearch && matchesStatus
     })
   })
 
+  // PAGINATION
   const totalPages = computed(() =>
-    Math.max(1, Math.ceil(filteredEmployees.value.length / perPage.value)),
+    Math.max(
+      1,
+      Math.ceil(filteredEmployees.value.length / perPage.value),
+    ),
   )
+
   const paginatedEmployees = computed(() => {
     const start = (currentPage.value - 1) * perPage.value
-    return filteredEmployees.value.slice(start, start + perPage.value)
+
+    return filteredEmployees.value.slice(
+      start,
+      start + perPage.value,
+    )
   })
 
+  // STATISTICS
   const scopedEmployees = computed(() =>
-    employees.value.filter(employee => employee.status === statusFilter),
+    employees.value.filter(employee =>
+      !status.value || employee.status === status.value,
+    ),
   )
+
   const stats = computed(() => ({
     total: scopedEmployees.value.length,
-    regular: scopedEmployees.value.filter(e => e.employmentType === 'Regular').length,
-    probationary: scopedEmployees.value.filter(e => e.employmentType === 'Probationary').length,
-    contractual: scopedEmployees.value.filter(e => e.employmentType === 'Contractual').length,
+
+    regular: scopedEmployees.value.filter(
+      employee => employee.employmentType === 'Regular',
+    ).length,
+
+    probationary: scopedEmployees.value.filter(
+      employee => employee.employmentType === 'Probationary',
+    ).length,
+
+    contractual: scopedEmployees.value.filter(
+      employee => employee.employmentType === 'Contractual',
+    ).length,
   }))
 
-  const departments = computed(() =>
-    [...new Set(scopedEmployees.value.map(e => e.department))].sort(),
-  )
-  const positions = computed(() =>
-    [...new Set(scopedEmployees.value.map(e => e.position))].sort(),
-  )
+  // RECORD COUNTS
   const showingFrom = computed(() =>
-    filteredEmployees.value.length ? (currentPage.value - 1) * perPage.value + 1 : 0,
-  )
-  const showingTo = computed(() =>
-    Math.min(currentPage.value * perPage.value, filteredEmployees.value.length),
+    filteredEmployees.value.length
+      ? (currentPage.value - 1) * perPage.value + 1
+      : 0,
   )
 
+  const showingTo = computed(() =>
+    Math.min(
+      currentPage.value * perPage.value,
+      filteredEmployees.value.length,
+    ),
+  )
+
+  // RESET FILTERS
   const resetFilters = () => {
     search.value = ''
     department.value = ''
     position.value = ''
     employmentType.value = ''
+    status.value = initialStatus
     currentPage.value = 1
   }
 
-  watch([search, department, position, employmentType], () => {
+  // RESET PAGINATION ON SEARCH
+  watch(search, () => {
     currentPage.value = 1
   })
+
   watch(totalPages, total => {
-    if (currentPage.value > total) currentPage.value = total
+    if (currentPage.value > total) {
+      currentPage.value = total
+    }
   })
 
-  // Legacy helper retained for callers using the currently loaded list only.
-  // Profile pages must use GET /admin/employees/:id, not this list lookup.
+  // EXISTING LEGACY HELPER
   const getEmployeeById = (id: number | string) =>
-    employees.value.find(employee => employee.id === Number(id))
+    employees.value.find(
+      employee => employee.id === Number(id),
+    )
 
   return {
     employees,
     loading,
     loadError,
     loadEmployees,
+
+    filterOptionsLoading,
+    filterOptionsError,
+    loadFilterOptions,
+
     search,
     department,
     position,
     employmentType,
+    status,
+
     currentPage,
     perPage,
+
     filteredEmployees,
     paginatedEmployees,
     totalPages,
+
     stats,
     departments,
     positions,
+    employmentTypes,
+
     showingFrom,
     showingTo,
+
     resetFilters,
     getEmployeeById,
   }
 }
+
+

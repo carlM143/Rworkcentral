@@ -1,42 +1,56 @@
+
 <script setup lang="ts">
 import {
   Plus,
   Download,
 } from 'lucide-vue-next'
 
+definePageMeta({
+  layout: 'admin',
+})
+
+// EMPLOYEE DATA
 const {
+  loading,
+  loadError,
+  loadEmployees,
+
+  // FILTERS
   search,
   department,
   position,
   employmentType,
+  status,
 
-  currentPage,
-
-  paginatedEmployees,
+  // EMPLOYEE RECORDS
   filteredEmployees,
+  paginatedEmployees,
 
-  totalPages,
+  // STATISTICS
   stats,
-
   departments,
   positions,
 
+  // PAGINATION
+  currentPage,
+  totalPages,
   showingFrom,
   showingTo,
 
+  employmentTypes,
+  filterOptionsError,
+  // FUNCTIONS
   resetFilters,
-
-  loading,
-  loadError,
-  loadEmployees,
-} = useEmployees('Active', true)
+} = useEmployees('Active')
 
 const router = useRouter()
 
+// CREATE EMPLOYEE
 const goToCreateEmployee = () => {
   router.push('/admin/employees/create-employee')
 }
 
+// REFRESH AFTER STATUS CHANGE
 const handleStatusChanged = async () => {
   try {
     await loadEmployees()
@@ -48,6 +62,8 @@ const handleStatusChanged = async () => {
 
 <template>
   <section class="employees-page">
+
+    <!-- PAGE HEADER -->
     <PageHeader
       title="Employees"
       description="Manage employee records, employment details and workforce information."
@@ -67,27 +83,41 @@ const handleStatusChanged = async () => {
       </AppButton>
     </PageHeader>
 
+    <!-- EMPLOYEE STATISTICS -->
     <EmployeeStats
       :stats="stats"
     />
 
+    <!-- EMPLOYEE FILTERS -->
     <EmployeeFilters
       v-model:search="search"
       v-model:department="department"
       v-model:position="position"
       v-model:employment-type="employmentType"
+      v-model:status="status"
       :departments="departments"
       :positions="positions"
+      :employment-types="employmentTypes"
       @reset="resetFilters"
     />
 
+    <p
+      v-if="filterOptionsError"
+      role="alert"
+      class="mb-3 text-xs text-red-500"
+    >
+      {{ filterOptionsError }}
+    </p>
+
+    <!-- LOADING -->
     <div
       v-if="loading"
       class="directory-message"
     >
-      Loading active employees...
+      Loading employees...
     </div>
 
+    <!-- API ERROR -->
     <div
       v-else-if="loadError"
       class="directory-message error-message"
@@ -107,12 +137,14 @@ const handleStatusChanged = async () => {
       </AppButton>
     </div>
 
+    <!-- EMPLOYEE TABLE -->
     <EmployeeTable
       v-else
       :employees="paginatedEmployees"
       @status-changed="handleStatusChanged"
     />
 
+    <!-- PAGINATION -->
     <div
       v-if="!loading && !loadError"
       class="table-footer"
@@ -134,6 +166,7 @@ const handleStatusChanged = async () => {
         :total-pages="totalPages"
       />
     </div>
+
   </section>
 </template>
 

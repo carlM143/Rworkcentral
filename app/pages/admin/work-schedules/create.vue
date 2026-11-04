@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ArrowLeft } from 'lucide-vue-next'
-import WorkScheduleForm from '~/components/admin/employeeSchedule/WorkScheduleForm.vue'
-import { useWorkSchedules } from '~/composables/admin/employeeSchedule/useWorkSchedules'
+import WorkScheduleForm from '~/components/admin/work-schedules/employeeSchedule/WorkScheduleForm.vue'
+import { useWorkSchedules } from '~/composables/admin/work-schedules/employeeSchedule/useWorkSchedules'
 import type { WorkScheduleFormData } from '~/types/workSchedule'
 
 definePageMeta({ layout: 'admin' })

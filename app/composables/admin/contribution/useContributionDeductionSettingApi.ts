@@ -1,9 +1,16 @@
 export interface ContributionDeductionSettingRecord {
   id: number
   company_id: number
+  department_id: number | null
+  salary_type_id: number | null
   contribution_type_id: number
+  deduction_schedule: string | null
   first_cutoff_percent: string | number
   second_cutoff_percent: string | number
+  week_1_percent?: string | number | null
+  week_2_percent?: string | number | null
+  week_3_percent?: string | number | null
+  week_4_percent?: string | number | null
   effective_from: string
   effective_to: string | null
   is_status: boolean
@@ -13,6 +20,16 @@ export interface ContributionDeductionSettingRecord {
     id: number
     company_name: string
   }
+  department?: {
+    id: number
+    company_id: number
+    department_code: string
+    department_name: string
+  } | null
+  salary_type?: {
+    id: number
+    type_name: string
+  } | null
   contribution_type?: {
     id: number
     contribution_code: string
@@ -23,9 +40,16 @@ export interface ContributionDeductionSettingRecord {
 
 export interface ContributionDeductionSettingPayload {
   company_id: number
+  department_id?: number | null
+  salary_type_id?: number | null
   contribution_type_id: number
+  deduction_schedule?: string | null
   first_cutoff_percent: number
   second_cutoff_percent: number
+  week_1_percent?: number | null
+  week_2_percent?: number | null
+  week_3_percent?: number | null
+  week_4_percent?: number | null
   effective_from: string
   effective_to: string | null
   is_status: boolean

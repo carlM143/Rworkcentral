@@ -158,18 +158,74 @@ const totalScheduledDays = computed(() => {
             <p>Employee, application and filing details</p>
           </div>
         </div>
-        <div class="info-grid">
-          <div class="info-item"><span>Request Number</span><strong>{{ request.request_no }}</strong></div>
-          <div class="info-item"><span>Leave Type</span><strong>{{ request.leave_type }}</strong></div>
-          <div class="info-item"><span>Employee Name</span><strong>{{ request.employee?.name || 'Unknown Employee' }}</strong></div>
-          <div class="info-item"><span>Employee ID</span><strong>{{ request.employee?.emp_id ?? '—' }}</strong></div>
-          <div class="info-item"><span>Date Filed</span><strong>{{ formatDate(request.request_date) }}</strong></div>
-          <div class="info-item"><span>Requested Payment</span><strong>{{ payLabel(request.requested_pay_type) }}</strong></div>
-          <div class="info-item"><span>Start Date</span><strong>{{ formatDate(leaveStart) }}</strong></div>
-          <div class="info-item"><span>End Date</span><strong>{{ formatDate(leaveEnd) }}</strong></div>
-          <div class="info-item"><span>Total Leave Days</span><strong>{{ totalScheduledDays }} day{{ totalScheduledDays === 1 ? '' : 's' }}</strong></div>
-          <div class="info-item"><span>Approval Status</span><strong class="capitalize">{{ request.status }}</strong></div>
-        </div>
+        
+          <div class="info-grid">
+            <div class="info-item">
+              <span>Request Number</span>
+              <strong>{{ request.request_no }}</strong>
+            </div>
+
+            <div class="info-item">
+              <span>Leave Type</span>
+              <strong>{{ request.leave_type }}</strong>
+            </div>
+
+            <div class="info-item">
+              <span>Employee Name</span>
+              <strong>{{ request.employee?.name || 'Unknown Employee' }}</strong>
+            </div>
+
+            <div class="info-item">
+              <span>Employee ID</span>
+              <strong>{{ request.employee?.emp_id ?? '—' }}</strong>
+            </div>
+
+            <!-- NEW: DEPARTMENT -->
+            <div class="info-item">
+              <span>Department</span>
+              <strong>{{ request.employee?.department || 'Not provided' }}</strong>
+            </div>
+
+            <!-- NEW: POSITION -->
+            <div class="info-item">
+              <span>Position / Designation</span>
+              <strong>{{ request.employee?.position || 'Not provided' }}</strong>
+            </div>
+
+            <div class="info-item">
+              <span>Date Filed</span>
+              <strong>{{ formatDate(request.request_date) }}</strong>
+            </div>
+
+            <div class="info-item">
+              <span>Requested Payment</span>
+              <strong>{{ payLabel(request.requested_pay_type) }}</strong>
+            </div>
+
+            <div class="info-item">
+              <span>Start Date</span>
+              <strong>{{ formatDate(leaveStart) }}</strong>
+            </div>
+
+            <div class="info-item">
+              <span>End Date</span>
+              <strong>{{ formatDate(leaveEnd) }}</strong>
+            </div>
+
+            <div class="info-item">
+              <span>Total Leave Days</span>
+              <strong>
+                {{ totalScheduledDays }}
+                day{{ totalScheduledDays === 1 ? '' : 's' }}
+              </strong>
+            </div>
+
+            <div class="info-item">
+              <span>Approval Status</span>
+              <strong class="capitalize">{{ request.status }}</strong>
+            </div>
+          </div>
+
       </article>
 
       <article class="details-card schedule-card">

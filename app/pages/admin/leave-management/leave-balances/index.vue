@@ -22,7 +22,6 @@ const {
   department,
   status,
   currentPage,
-  leaveTypes,
   filteredBalances,
   paginatedBalances,
   totalPages,
@@ -140,8 +139,6 @@ const handleAdjustCredits = () => {
     <!-- TABLE -->
     <LeaveBalanceTable
       :balances="paginatedBalances"
-      :leave-types="leaveTypes"
-      @adjust="handleAdjustCredits"
     />
 
     <!-- EMPTY DATA NOTICE -->

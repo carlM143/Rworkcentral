@@ -96,7 +96,7 @@ const formatDate = (date?: string): string => {
             <td class="action-column">
               <EmployeeActions
                 :employee="employee"
-                :mode="mode"
+                :mode="employee.status === 'Inactive' ? 'inactive' : 'active'"
                 @status-changed="emit('statusChanged', $event)"
               />
             </td>
@@ -208,12 +208,13 @@ const formatDate = (date?: string): string => {
   font-weight: 700;
 }
 .employee-info { min-width: 0; }
+
 .employee-info strong {
   display: block;
   margin-bottom: 3px;
   color: var(--text-primary);
   font-size: var(--employee-row-font);
-  font-weight: 700;
+  font-weight: 600;
   line-height: 1.4;
 }
 .employee-info span {

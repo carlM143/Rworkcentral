@@ -23,6 +23,9 @@ export const useLeaveBalances = () => {
 
   const normalize = (item: LeaveBalance): LeaveBalance => ({
     ...item,
+    position: item.position || null,
+    employment_type:
+      item.employment_type_name || item.employment_type || null,
     allocated: Number(item.allocated) || 0,
     deductions: Number(item.deductions) || 0,
     adjustments: Number(item.adjustments) || 0,
@@ -75,6 +78,8 @@ export const useLeaveBalances = () => {
           employee: item.employee,
           emp_id: item.emp_id,
           department: item.department || null,
+          position: item.position || null,
+          employmentType: item.employment_type || null,
           records: [],
           totalAllocated: 0,
           totalUsed: 0,
@@ -157,6 +162,8 @@ export const useLeaveBalances = () => {
         item.employee.toLowerCase().includes(keyword) ||
         String(item.emp_id ?? '').toLowerCase().includes(keyword) ||
         (item.department ?? '').toLowerCase().includes(keyword) ||
+        (item.position ?? '').toLowerCase().includes(keyword) ||
+        (item.employmentType ?? '').toLowerCase().includes(keyword) ||
         item.records.some(record =>
           (record.leave_type ?? '').toLowerCase().includes(keyword),
         )

@@ -1,14 +1,10 @@
 <script setup lang="ts">
-import {
-  Clock,
-  Eye,
-  RotateCcw,
-  TimerReset,
-  UserRound,
-} from 'lucide-vue-next'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { Clock, Eye, MoreHorizontal, RotateCcw, TimerReset } from 'lucide-vue-next'
+import BaseDataTable from '~/components/shared-table/BaseDataTable.vue'
 import type { UndertimeRequest } from '~/types/undertimeRequest'
 
-defineProps<{
+const props = defineProps<{
   requests: UndertimeRequest[]
   approvingId?: number | null
 }>()
@@ -18,335 +14,203 @@ const emit = defineEmits<{
   revert: [request: UndertimeRequest]
 }>()
 
+const openMenuId = ref<number | null>(null)
+const menuStyle = ref<Record<string, string>>({})
+const menuRef = ref<HTMLElement | null>(null)
+let triggerElement: HTMLElement | null = null
+
+const openRequest = computed(() =>
+  props.requests.find(item => item.id === openMenuId.value) ?? null,
+)
+const canShowUndo = computed(() =>
+  openRequest.value?.status === 'Approved' || openRequest.value?.status === 'Rejected',
+)
+
+const positionMenu = () => {
+  if (!triggerElement || !openRequest.value || !import.meta.client) return
+
+  const rect = triggerElement.getBoundingClientRect()
+  const width = 220
+  const height = canShowUndo.value ? 94 : 48
+  const spaceBelow = window.innerHeight - rect.bottom
+  const top = spaceBelow >= height + 12 ? rect.bottom + 6 : rect.top - height - 6
+  const left = Math.max(8, Math.min(rect.right - width, window.innerWidth - width - 8))
+
+  menuStyle.value = {
+    position: 'fixed',
+    left: `${left}px`,
+    top: `${Math.max(8, top)}px`,
+    width: `${width}px`,
+    zIndex: '10000',
+  }
+}
+
+const closeMenu = () => {
+  openMenuId.value = null
+  triggerElement = null
+}
+
+const toggleMenu = async (item: UndertimeRequest, event: MouseEvent) => {
+  if (props.approvingId !== null && props.approvingId !== undefined) return
+  if (openMenuId.value === item.id) {
+    closeMenu()
+    return
+  }
+
+  triggerElement = event.currentTarget as HTMLElement
+  openMenuId.value = item.id
+  await nextTick()
+  positionMenu()
+}
+
+const openDetails = (item: UndertimeRequest | null) => {
+  if (!item) return
+  closeMenu()
+  emit('review', item)
+}
+
+const revertRequest = (item: UndertimeRequest | null) => {
+  if (!item) return
+  closeMenu()
+  emit('revert', item)
+}
+
+const onPointerDown = (event: PointerEvent) => {
+  const target = event.target as Node | null
+  if (target && (menuRef.value?.contains(target) || triggerElement?.contains(target))) return
+  closeMenu()
+}
+const onKeyDown = (event: KeyboardEvent) => {
+  if (event.key === 'Escape') closeMenu()
+}
+
+onMounted(() => {
+  document.addEventListener('pointerdown', onPointerDown)
+  document.addEventListener('keydown', onKeyDown)
+  window.addEventListener('resize', closeMenu)
+  window.addEventListener('scroll', closeMenu, true)
+})
+onBeforeUnmount(() => {
+  document.removeEventListener('pointerdown', onPointerDown)
+  document.removeEventListener('keydown', onKeyDown)
+  window.removeEventListener('resize', closeMenu)
+  window.removeEventListener('scroll', closeMenu, true)
+})
+watch(() => props.requests, closeMenu)
+
 const formatDate = (value: string) => {
   if (!value) return '—'
   const date = new Date(`${value.slice(0, 10)}T12:00:00`)
   return Number.isNaN(date.getTime())
     ? value
-    : new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(date)
+    : new Intl.DateTimeFormat('en-PH', {
+        month: 'short', day: 'numeric', year: 'numeric',
+      }).format(date)
 }
 
 const formatTime = (value?: string) => {
   if (!value) return '—'
-  const date = new Date(value.includes('T') || value.includes(' ') ? value.replace(' ', 'T') : `2000-01-01T${value}`)
-  return Number.isNaN(date.getTime())
-    ? value
-    : new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit' }).format(date)
+  const match = value.match(/(?:T|\s|^)(\d{1,2}):(\d{2})(?::\d{2})?/)
+  if (!match) return value
+
+  const hour = Number(match[1])
+  const minute = match[2]
+  if (!Number.isInteger(hour) || hour < 0 || hour > 23) return value
+
+  const period = hour >= 12 ? 'PM' : 'AM'
+  return `${hour % 12 || 12}:${minute} ${period}`
 }
 </script>
 
 <template>
-  <article class="table-card">
-    <div class="table-heading">
-      <h3>Undertime Requests</h3>
-      <p>Review employee undertime schedules, reasons and approval status.</p>
-    </div>
+  <BaseDataTable
+    title="Undertime Requests"
+    description="Review employee undertime schedules, reasons and approval status."
+    :has-rows="requests.length > 0"
+    min-width="1100px"
+  >
+    <template #headers>
+      <th>Request No.</th>
+      <th>Employee</th>
+      <th>Department</th>
+      <th>Position</th>
+      <th>Undertime Schedule</th>
+      <th>Minutes</th>
+      <th>Reason</th>
+      <th>Status</th>
+      <th class="actions-header">Actions</th>
+    </template>
 
-    <div v-if="requests.length" class="table-scroll">
-      <table>
-        <thead>
-          <tr>
-            <th>Request No.</th>
-            <th>Employee</th>
-            <th>Undertime Schedule</th>
-            <th>Minutes</th>
-            <th>Reason</th>
-            <th>Status</th>
-            <th class="actions-header">Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="item in requests" :key="item.id">
-            <td>
-              <strong class="request-number">{{ item.requestNumber }}</strong>
-            </td>
-            <td>
-              <div class="employee-cell">
-                <div class="employee-avatar"><UserRound :size="15" /></div>
-                <div class="cell-info">
-                  <strong>{{ item.employeeName }}</strong>
-                  <span>{{ item.employeeNumber }} · {{ item.department }}</span>
-                </div>
-              </div>
-            </td>
-            <td>
-              <div class="schedule-cell">
-                <strong>{{ formatDate(item.undertimeDate) }}</strong>
-                <span>
-                  <Clock :size="11" />
-                  Out at {{ formatTime(item.requestedTimeOut) }}
-                </span>
-              </div>
-            </td>
-            <td>
-              <span class="minutes-badge">
-                <TimerReset :size="12" />
-                {{ item.requestedMinutes }} mins
-              </span>
-            </td>
-            <td>
-              <p class="reason" :title="item.reason">{{ item.reason }}</p>
-            </td>
-            <td>
-              <span class="badge" :class="item.status.toLowerCase()">
-                <span class="status-dot" />
-                {{ item.status }}
-              </span>
-            </td>
-            <td class="actions-cell">
-              <div class="action-buttons-row">
-                <button
-                  type="button"
-                  class="preview-button"
-                  title="Preview request details"
-                  @click="emit('review', item)"
-                >
-                  <Eye :size="13" />
-                  <span>Preview</span>
-                </button>
-                <button
-                  v-if="item.status === 'Approved' || item.status === 'Rejected'"
-                  type="button"
-                  class="undo-button"
-                  :disabled="approvingId === item.id"
-                  title="Undo approval and revert to pending"
-                  @click="emit('revert', item)"
-                >
-                  <RotateCcw :size="13" />
-                  <span>Undo</span>
-                </button>
-              </div>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
+    <template #rows>
+      <tr v-for="item in requests" :key="item.id">
+        <td><span class="request-number">{{ item.requestNumber }}</span></td>
+        <td><strong class="table-emphasis">{{ item.employeeName }}</strong></td>
+        <td>{{ item.department || '—' }}</td>
+        <td>{{ item.position || '—' }}</td>
+        <td>
+          <div class="schedule-cell">
+            <strong>{{ formatDate(item.undertimeDate) }}</strong>
+          </div>
+        </td>
+        <td>
+          <span class="minutes-badge"><TimerReset :size="13" />{{ item.requestedMinutes }} mins</span>
+        </td>
+        <td><p class="reason" :title="item.reason">{{ item.reason || '—' }}</p></td>
+        <td>
+          <span class="status-badge" :class="item.status.toLowerCase()">
+            <span class="status-dot" />{{ item.status }}
+          </span>
+        </td>
+        <td class="actions-cell">
+          <button
+            type="button"
+            class="table-action-button"
+            :disabled="approvingId !== null && approvingId !== undefined"
+            :aria-label="`Actions for ${item.requestNumber}`"
+            :aria-expanded="openMenuId === item.id"
+            aria-haspopup="menu"
+            @click="toggleMenu(item, $event)"
+          >
+            <MoreHorizontal :size="17" />
+          </button>
+        </td>
+      </tr>
+    </template>
 
-    <div v-else class="empty-state">
-      <TimerReset :size="30" />
-      <strong>No Undertime Requests Found</strong>
-      <span>No undertime records match the selected filters.</span>
+    <template #empty>
+      <div class="empty-content">
+        <TimerReset :size="30" />
+        <strong>No Undertime Requests Found</strong>
+        <span>No undertime records match the selected filters.</span>
+      </div>
+    </template>
+  </BaseDataTable>
+
+  <Teleport to="body">
+    <div
+      v-if="openRequest"
+      ref="menuRef"
+      class="undertime-actions-menu"
+      :style="menuStyle"
+      role="menu"
+      :aria-label="`Actions for ${openRequest.requestNumber}`"
+    >
+      <button type="button" role="menuitem" @click="openDetails(openRequest)">
+        <Eye :size="15" /> View Details
+      </button>
+      <button
+        v-if="canShowUndo"
+        type="button"
+        role="menuitem"
+        :disabled="approvingId === openRequest.id"
+        @click="revertRequest(openRequest)"
+      >
+        <RotateCcw :size="15" /> Undo / Revert
+      </button>
     </div>
-  </article>
+  </Teleport>
 </template>
 
 <style scoped>
-.table-card {
-  overflow: hidden;
-  border: 1px solid var(--border);
-  border-radius: 11px;
-  background: var(--bg-card);
-  box-shadow: var(--shadow);
-}
-.table-heading {
-  padding: 16px 17px;
-  border-bottom: 1px solid var(--border-soft);
-}
-.table-heading h3 {
-  margin: 0;
-  color: var(--text-primary);
-  font-size: 14px;
-  font-weight: 700;
-}
-.table-heading p {
-  margin: 5px 0 0;
-  color: var(--text-muted);
-  font-size: 10px;
-}
-.table-scroll {
-  overflow-x: auto;
-}
-table {
-  width: 100%;
-  min-width: 900px;
-  border-collapse: collapse;
-}
-th {
-  padding: 12px 13px;
-  background: var(--bg-card-soft);
-  color: var(--text-secondary);
-  font-size: 10px;
-  font-weight: 700;
-  text-align: left;
-  text-transform: uppercase;
-  white-space: nowrap;
-}
-td {
-  padding: 13px;
-  border-top: 1px solid var(--border-soft);
-  color: var(--text-secondary);
-  font-size: 10px;
-  vertical-align: middle;
-}
-tbody tr:hover {
-  background: var(--bg-card-soft);
-}
-.request-number {
-  color: var(--primary);
-  white-space: nowrap;
-  font-weight: 650;
-}
-.employee-cell {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  min-width: 170px;
-}
-.employee-avatar {
-  display: flex;
-  width: 31px;
-  height: 31px;
-  flex-shrink: 0;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  background: var(--primary-soft);
-  color: var(--primary);
-}
-.cell-info strong,
-.cell-info span {
-  display: block;
-}
-.cell-info strong {
-  color: var(--text-primary);
-  font-size: 10px;
-}
-.cell-info span {
-  margin-top: 4px;
-  color: var(--text-muted);
-  font-size: 9px;
-}
-.schedule-cell strong,
-.schedule-cell span {
-  display: block;
-}
-.schedule-cell strong {
-  color: var(--text-primary);
-  font-size: 10px;
-}
-.schedule-cell span {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  margin-top: 4px;
-  color: var(--text-muted);
-  font-size: 9px;
-}
-.minutes-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 4px 8px;
-  border-radius: 6px;
-  background: var(--purple-soft);
-  color: var(--purple);
-  font-size: 10px;
-  font-weight: 650;
-  white-space: nowrap;
-}
-.reason {
-  max-width: 220px;
-  margin: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 5px 9px;
-  border-radius: 20px;
-  font-size: 9px;
-  font-weight: 650;
-  white-space: nowrap;
-  text-transform: capitalize;
-}
-.badge.approved {
-  background: var(--green-soft);
-  color: var(--green);
-}
-.badge.pending {
-  background: var(--orange-soft);
-  color: var(--orange);
-}
-.badge.rejected,
-.badge.cancelled {
-  background: var(--red-soft);
-  color: var(--red);
-}
-.status-dot {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: currentColor;
-}
-.actions-header,
-.actions-cell {
-  text-align: right;
-}
-.action-buttons-row {
-  display: inline-flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 6px;
-}
-.preview-button {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 11px;
-  border: 1px solid var(--primary);
-  border-radius: 7px;
-  background: var(--primary-soft);
-  color: var(--primary);
-  font-family: inherit;
-  font-size: 10px;
-  font-weight: 650;
-  cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease;
-}
-.preview-button:hover {
-  background: var(--primary);
-  color: #fff;
-}
-.undo-button {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 11px;
-  border: 1px solid var(--orange);
-  border-radius: 7px;
-  background: var(--orange-soft);
-  color: var(--orange);
-  font-family: inherit;
-  font-size: 10px;
-  font-weight: 650;
-  cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease;
-}
-.undo-button:hover {
-  background: var(--orange);
-  color: #fff;
-}
-.undo-button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-.empty-state {
-  display: flex;
-  min-height: 240px;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  color: var(--text-muted);
-}
-.empty-state strong {
-  color: var(--text-primary);
-  font-size: 12px;
-}
-.empty-state span {
-  font-size: 10px;
-}
+.request-number{font-size:13px;font-weight:600;white-space:nowrap}.table-emphasis{color:var(--text-primary);font-size:13px;font-weight:650}.schedule-cell{min-width:150px}.schedule-cell strong,.schedule-cell span{display:block}.schedule-cell span{display:inline-flex;align-items:center;gap:5px;margin-top:4px;color:var(--text-muted);font-size:12px}.minutes-badge,.status-badge{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}.minutes-badge{padding:5px 9px;border-radius:7px;background:var(--purple-soft);color:var(--purple);font-size:12px;font-weight:650}.status-badge{padding:5px 9px;border-radius:999px;font-size:12px;font-weight:650}.status-badge.approved{background:var(--green-soft);color:var(--green)}.status-badge.pending{background:var(--orange-soft);color:var(--orange)}.status-badge.rejected,.status-badge.cancelled{background:var(--red-soft);color:var(--red)}.status-dot{width:6px;height:6px;flex:0 0 6px;border-radius:50%;background:currentColor}.reason{max-width:230px;margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.actions-cell,.actions-header{text-align:right!important}.actions-cell .table-action-button{display:inline-grid}.empty-content{display:flex;flex-direction:column;align-items:center;gap:9px}.empty-content strong{font-size:14px}.empty-content span{font-size:12px}.undertime-actions-menu{padding:6px;border:1px solid var(--border,#29364d);border-radius:10px;background:var(--bg-card,#131e30);box-shadow:0 14px 32px rgb(0 0 0 / 25%)}.undertime-actions-menu button{display:flex;width:100%;min-height:40px;align-items:center;gap:10px;padding:9px 10px;border:0;border-radius:7px;background:transparent;color:var(--text-primary,#f8fafc);font:inherit;font-size:12px;text-align:left;cursor:pointer}.undertime-actions-menu button:hover:not(:disabled){background:var(--bg-card-soft,#182438);color:var(--primary)}.undertime-actions-menu button:disabled{opacity:.55;cursor:not-allowed}
 </style>

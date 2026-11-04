@@ -6,18 +6,22 @@ import {
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
+  Coins,
   Download,
   Filter,
+  Info,
   Landmark,
+  Layers,
   MoreHorizontal,
   Pencil,
+  Percent,
   Plus,
   Search,
   Table,
-  Info,
   Trash2,
   X,
 } from 'lucide-vue-next'
+import type { ContributionFrequency } from '~/composables/admin/contribution/useContributionRateScheduleApi'
 
 // =====================================================
 // TYPES
@@ -32,6 +36,7 @@ type Field = {
   options?: string[]
   optionLabels?: Record<string, string>
   required?: boolean
+  hint?: string
   visibleWhen?: (method: string) => boolean
 }
 
@@ -73,31 +78,89 @@ const typeLabels = computed<Record<string, string>>(() =>
 
 const columns: Column[] = [
   { key: 'type_name', label: 'Contribution Type' },
-  { key: 'method', label: 'Calculation' },
+  { key: 'method_label', label: 'Calculation' },
   { key: 'salary_basis', label: 'Salary Basis' },
-  { key: 'employee_rate', label: 'Employee Rate', format: 'percent' },
-  { key: 'employer_rate', label: 'Employer Rate', format: 'percent' },
+  { key: 'employee_display', label: 'Employee Contribution' },
+  { key: 'employer_display', label: 'Employer Contribution' },
+  { key: 'salary_range', label: 'Salary Coverage' },
   { key: 'effective_from', label: 'Effective From' },
   { key: 'effective_to', label: 'Effective To' },
   { key: 'status', label: 'Status', format: 'status' },
 ]
 
+// =====================================================
+// CALCULATION METHODS
+// =====================================================
+
+type MethodKey = 'percentage' | 'fixed' | 'bracket'
+
+const methodOptions: { key: MethodKey, label: string, tagline: string, description: string, icon: typeof Percent }[] = [
+  {
+    key: 'percentage',
+    label: 'Percentage',
+    tagline: 'Based on salary percentage',
+    description: 'Calculate contributions using a percentage of the employee\'s applicable salary.',
+    icon: Percent,
+  },
+  {
+    key: 'fixed',
+    label: 'Fixed',
+    tagline: 'Fixed contribution amount',
+    description: 'Set a fixed amount for the employee and company, regardless of salary.',
+    icon: Coins,
+  },
+  {
+    key: 'bracket',
+    label: 'Bracket',
+    tagline: 'Based on salary ranges',
+    description: 'Automatically determine contribution amounts based on the employee\'s salary range.',
+    icon: Layers,
+  },
+]
+
+const methodLabels: Record<string, string> = {
+  percentage: 'Percentage',
+  fixed: 'Fixed',
+  bracket: 'Bracket',
+}
+
+const frequencyLabels: Record<string, string> = {
+  monthly: 'Monthly',
+  semi_monthly: 'Semi-Monthly',
+  weekly: 'Weekly',
+  per_payroll: 'Every Payroll',
+}
+
+const selectMethod = (method: MethodKey) => {
+  form.value = { ...form.value, method }
+  if (method !== 'fixed' && !form.value.salary_basis) {
+    form.value.salary_basis = 'Basic Salary'
+  }
+  if (method === 'fixed' && !form.value.frequency) {
+    form.value.frequency = 'monthly'
+  }
+}
+
 const fields = computed<Field[]>(() => [
-  { key: 'type', label: 'Contribution Type', type: 'select', options: typeOptions.value, optionLabels: typeLabels.value, required: true },
-  { key: 'method', label: 'Calculation Method', type: 'select', options: ['percentage', 'bracket', 'fixed'], required: true },
-  { key: 'salary_basis', label: 'Salary Basis', type: 'select', options: ['Basic Salary', 'Monthly Salary Credit', 'Gross Pay'], required: true },
+  { key: 'type', label: 'Contribution Type', type: 'select', options: typeOptions.value, optionLabels: typeLabels.value, required: true, hint: 'SSS, PhilHealth, HDMF, etc.' },
+  { key: 'salary_basis', label: 'Salary Basis', type: 'select', options: ['Basic Salary', 'Fund Salary', 'Monthly Salary Credit', 'Gross Pay'], required: true, hint: 'Basic Salary or applicable Fund Salary', visibleWhen: m => m !== 'fixed' },
 
-  // Active for percentage and fixed (rates vs fixed flat deduction)
-  { key: 'employee_rate', label: form.value.method === 'fixed' ? 'Employee Fixed Amount' : 'Employee Rate (%)', type: 'number', visibleWhen: m => m !== 'bracket' },
-  { key: 'employer_rate', label: form.value.method === 'fixed' ? 'Employer Fixed Amount' : 'Employer Rate (%)', type: 'number', visibleWhen: m => m !== 'bracket' },
+  // Percentage
+  { key: 'employee_rate', label: 'Employee Rate (%)', type: 'number', required: true, hint: 'Percentage deducted from employee salary', visibleWhen: m => m === 'percentage' },
+  { key: 'employer_rate', label: 'Employer Rate (%)', type: 'number', required: true, hint: 'Percentage paid by the company', visibleWhen: m => m === 'percentage' },
 
-  // Percentage salary boundaries
-  { key: 'minimum_salary_base', label: 'Minimum Salary Base', type: 'number', visibleWhen: m => m === 'percentage' },
-  { key: 'maximum_salary_base', label: 'Maximum Salary Base', type: 'number', visibleWhen: m => m === 'percentage' },
+  // Fixed
+  { key: 'employee_amount', label: 'Employee Amount (₱)', type: 'number', required: true, hint: 'Amount deducted from employee salary', visibleWhen: m => m === 'fixed' },
+  { key: 'employer_amount', label: 'Employer Amount (₱)', type: 'number', required: true, hint: 'Amount paid by the company', visibleWhen: m => m === 'fixed' },
+  { key: 'frequency', label: 'Frequency', type: 'select', options: Object.keys(frequencyLabels), optionLabels: frequencyLabels, required: true, hint: 'How often the amount is deducted', visibleWhen: m => m === 'fixed' },
+
+  // Salary coverage (percentage & bracket)
+  { key: 'minimum_salary_base', label: 'Minimum Salary (₱)', type: 'number', hint: 'Lowest salary covered', visibleWhen: m => m !== 'fixed' },
+  { key: 'maximum_salary_base', label: 'Maximum Salary (₱)', type: 'number', hint: 'Highest salary covered', visibleWhen: m => m !== 'fixed' },
 
   // Common metadata
-  { key: 'effective_from', label: 'Effective From', type: 'date', required: true },
-  { key: 'effective_to', label: 'Effective To', type: 'date' },
+  { key: 'effective_from', label: 'Effective From', type: 'date', required: true, hint: 'Starting date' },
+  { key: 'effective_to', label: 'Effective To', type: 'date', hint: 'Ending date (optional)' },
   { key: 'status', label: 'Status', type: 'select', options: ['Active', 'Inactive'], required: true },
 ])
 
@@ -119,19 +182,57 @@ const numberOrNull = (value: Row[string]) => {
   return Number.isNaN(parsed) ? null : parsed
 }
 
+const peso = (value: Row[string] | undefined) => {
+  const n = numberOrNull(value ?? null)
+  if (n === null) return '—'
+  return '₱' + n.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
+const pct = (value: Row[string] | undefined) => {
+  const n = numberOrNull(value ?? null)
+  return n === null ? '—' : `${Number(n.toFixed(5))}%`
+}
+
+const contributionDisplay = (method: string, rate: Row[string], amount: Row[string], frequency: Row[string], brackets?: number) => {
+  if (method === 'percentage') return pct(rate)
+  if (method === 'fixed') {
+    const freq = frequency ? ` / ${frequencyLabels[String(frequency)] ?? frequency}` : ''
+    return `${peso(amount)}${freq}`
+  }
+  return brackets ? `By bracket (${brackets})` : 'By bracket — not set'
+}
+
+const salaryRangeDisplay = (method: string, min: Row[string], max: Row[string]) => {
+  if (method === 'fixed') return 'Any salary'
+  const lo = numberOrNull(min)
+  const hi = numberOrNull(max)
+  if (lo === null && hi === null) return 'All salaries'
+  if (hi === null) return `${peso(lo)} and above`
+  if (lo === null) return `Up to ${peso(hi)}`
+  return `${peso(lo)} – ${peso(hi)}`
+}
+
 const initialRows = computed<Row[]>(() =>
   rateSchedules.value.map(item => ({
     id: item.id,
     type: String(item.contribution_type_id),
     type_name: typeLabels.value[String(item.contribution_type_id)] ?? String(item.contribution_type_id),
     method: item.calculation_method,
-    salary_basis: item.salary_basis,
+    method_label: methodLabels[item.calculation_method] ?? item.calculation_method,
+    salary_basis: item.calculation_method === 'fixed' ? null : item.salary_basis,
     employee_rate: item.employee_rate,
     employer_rate: item.employer_rate,
+    employee_amount: item.employee_amount,
+    employer_amount: item.employer_amount,
+    frequency: item.frequency,
+    brackets_count: item.brackets_count ?? 0,
+    employee_display: contributionDisplay(item.calculation_method, item.employee_rate, item.employee_amount, item.frequency, item.brackets_count),
+    employer_display: contributionDisplay(item.calculation_method, item.employer_rate, item.employer_amount, item.frequency, item.brackets_count),
+    salary_range: salaryRangeDisplay(item.calculation_method, item.minimum_salary_base, item.maximum_salary_base),
     minimum_salary_base: item.minimum_salary_base,
     maximum_salary_base: item.maximum_salary_base,
-    effective_from: item.effective_from,
-    effective_to: item.effective_to,
+    effective_from: item.effective_from?.slice(0, 10) ?? '',
+    effective_to: item.effective_to?.slice(0, 10) ?? null,
     status: item.is_status ? 'Active' : 'Inactive',
   })),
 )
@@ -142,11 +243,14 @@ const persistRecord = async (row: Row) => {
   const body = {
     contribution_type_id: Number(row.type),
     calculation_method: method,
-    salary_basis: String(row.salary_basis ?? ''),
-    employee_rate: method !== 'bracket' ? numberOrNull(row.employee_rate) : null,
-    employer_rate: method !== 'bracket' ? numberOrNull(row.employer_rate) : null,
-    minimum_salary_base: method === 'percentage' ? numberOrNull(row.minimum_salary_base) : null,
-    maximum_salary_base: method === 'percentage' ? numberOrNull(row.maximum_salary_base) : null,
+    salary_basis: method !== 'fixed' ? String(row.salary_basis ?? '') : null,
+    employee_rate: method === 'percentage' ? numberOrNull(row.employee_rate) : null,
+    employer_rate: method === 'percentage' ? numberOrNull(row.employer_rate) : null,
+    employee_amount: method === 'fixed' ? numberOrNull(row.employee_amount) : null,
+    employer_amount: method === 'fixed' ? numberOrNull(row.employer_amount) : null,
+    frequency: method === 'fixed' ? (String(row.frequency ?? 'monthly') as ContributionFrequency) : null,
+    minimum_salary_base: method !== 'fixed' ? numberOrNull(row.minimum_salary_base) : null,
+    maximum_salary_base: method !== 'fixed' ? numberOrNull(row.maximum_salary_base) : null,
     effective_from: String(row.effective_from ?? ''),
     effective_to: row.effective_to ? String(row.effective_to) : null,
     is_status: row.status === 'Active',
@@ -416,10 +520,23 @@ const startForm = (record?: Row) => {
         type: typeOptions.value[0] ?? '',
         method: 'percentage',
         salary_basis: 'Basic Salary',
+        frequency: 'monthly',
         status: 'Active',
       }
 
   modalOpen.value = true
+}
+
+const selectedActionRecord = computed(() =>
+  records.value.find(row => Number(row.id) === openActionId.value) ?? null,
+)
+
+const manageSelectedBrackets = () => {
+  const id = openActionId.value
+  closeActions()
+  if (id !== null) {
+    void navigateTo({ path: '/admin/contribution/bracket-management', query: { schedule: String(id) } })
+  }
 }
 
 const closeForm = () => {
@@ -873,6 +990,16 @@ const exportCsv = () => {
         </button>
 
         <button
+          v-if="selectedActionRecord?.method === 'bracket'"
+          type="button"
+          role="menuitem"
+          @click="manageSelectedBrackets"
+        >
+          <Layers :size="15" />
+          <span>Manage Brackets</span>
+        </button>
+
+        <button
           type="button"
           role="menuitem"
           class="cw-action-delete"
@@ -926,6 +1053,40 @@ const exportCsv = () => {
           </div>
 
           <form @submit.prevent="save">
+            <div class="cw-method-section">
+              <span class="cw-method-title">Calculation Method <b>*</b></span>
+
+              <div class="cw-method-grid" role="radiogroup" aria-label="Calculation method">
+                <button
+                  v-for="option in methodOptions"
+                  :key="option.key"
+                  type="button"
+                  role="radio"
+                  class="cw-method-card"
+                  :class="{ 'is-selected': (form.method ?? 'percentage') === option.key }"
+                  :aria-checked="(form.method ?? 'percentage') === option.key"
+                  @click="selectMethod(option.key)"
+                >
+                  <span class="cw-method-icon">
+                    <component :is="option.icon" :size="16" />
+                  </span>
+                  <span class="cw-method-text">
+                    <strong>{{ option.label }}</strong>
+                    <small>{{ option.tagline }}</small>
+                  </span>
+                </button>
+              </div>
+
+              <p class="cw-method-desc">
+                {{ methodOptions.find(o => o.key === (form.method ?? 'percentage'))?.description }}
+              </p>
+            </div>
+
+            <div class="cw-legend">
+              <span><b class="cw-dot cw-dot-emp"></b><strong>Employee Contribution</strong> = amount deducted from the employee's salary.</span>
+              <span><b class="cw-dot cw-dot-er"></b><strong>Employer Contribution</strong> = amount paid by the company.</span>
+            </div>
+
             <div
               v-if="form.method === 'bracket'"
               class="cw-method-notice"
@@ -933,19 +1094,17 @@ const exportCsv = () => {
             >
               <Info :size="16" class="cw-notice-icon" />
               <span>
-                Bracket rates, salary limits, and amounts are configured in the
-                <strong>Brackets table</strong> after saving this schedule.
+                Employee and employer rates/amounts per salary range are configured in
+                <strong>Bracket Management</strong> after saving this schedule.
               </span>
             </div>
 
             <div class="cw-fields">
               <template
-                v-for="field in fields"
+                v-for="field in activeFields"
                 :key="field.key"
               >
-                <label
-                  v-if="!field.visibleWhen || field.visibleWhen(String(form.method ?? 'percentage'))"
-                >
+                <label>
                   <span>
                     {{ field.label }}
                     <b v-if="field.required">*</b>
@@ -974,13 +1133,17 @@ const exportCsv = () => {
                     v-model="form[field.key]"
                     :type="field.type || 'text'"
                     :required="field.required"
+                    :min="field.type === 'number' ? 0 : undefined"
+                    :max="field.key.endsWith('_rate') ? 100 : undefined"
                     :step="
                       field.type === 'number'
                         ? 'any'
                         : undefined
                     "
-                    :placeholder="field.label"
+                    :placeholder="field.type === 'number' ? '0.00' : field.label"
                   />
+
+                  <small v-if="field.hint" class="cw-field-hint">{{ field.hint }}</small>
                 </label>
               </template>
             </div>
@@ -1026,13 +1189,13 @@ const exportCsv = () => {
           aria-modal="true"
           aria-label="Define Rate Brackets Prompt"
         >
-          <h2>Setup Rate Brackets Now?</h2>
+          <h2>Set Up Salary Brackets?</h2>
 
           <p>
             You saved a bracket-based rate schedule for
             <strong>{{ bracketPromptSchedule?.typeName }}</strong>.
-            The rates and salary ranges are defined in the child table.
-            Would you like to open <strong>Contribution History</strong> to configure the brackets now?
+            Define the salary ranges and the employee / employer rate or amount for each range in
+            <strong>Bracket Management</strong>.
           </p>
 
           <div class="cw-modal-footer">
@@ -1045,12 +1208,12 @@ const exportCsv = () => {
             </button>
 
             <NuxtLink
-              to="/admin/contribution/rate-brackets"
+              :to="{ path: '/admin/contribution/bracket-management', query: bracketPromptSchedule?.id ? { schedule: String(bracketPromptSchedule.id) } : {} }"
               class="cw-btn cw-primary"
               @click="bracketPromptOpen = false"
             >
               <Table :size="16" />
-              <span>Open Brackets</span>
+              <span>Manage Brackets</span>
             </NuxtLink>
           </div>
         </div>
@@ -1732,6 +1895,132 @@ const exportCsv = () => {
 }
 
 /* =====================================================
+   METHOD SELECTOR CARDS & LEGEND
+===================================================== */
+
+.cw-method-section {
+  margin-bottom: 14px;
+}
+
+.cw-method-title {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 11px;
+  font-weight: 650;
+  color: var(--text-primary, #172033);
+}
+
+.cw-method-title b {
+  color: #ef4444;
+}
+
+.cw-method-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.cw-method-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 11px 12px;
+  border: 1px solid var(--border, #e6eaf0);
+  border-radius: 10px;
+  background: var(--bg-card-soft, #f8fafc);
+  color: var(--text-primary, #172033);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.cw-method-card:hover {
+  border-color: #246bfd;
+}
+
+.cw-method-card.is-selected {
+  border-color: #246bfd;
+  background: color-mix(in srgb, #246bfd 10%, var(--bg-card, #ffffff));
+  box-shadow: 0 0 0 2px rgba(36, 107, 253, 0.18);
+}
+
+.cw-method-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: color-mix(in srgb, #246bfd 14%, transparent);
+  color: #246bfd;
+  flex-shrink: 0;
+}
+
+.cw-method-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.cw-method-text strong {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-primary, #172033);
+}
+
+.cw-method-text small {
+  font-size: 10.5px;
+  color: var(--text-secondary, #667085);
+  line-height: 1.3;
+}
+
+.cw-method-desc {
+  margin: 8px 0 0;
+  font-size: 11.5px;
+  color: var(--text-secondary, #667085);
+}
+
+.cw-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  padding: 9px 12px;
+  margin-bottom: 14px;
+  border: 1px solid var(--border, #e6eaf0);
+  border-radius: 8px;
+  background: var(--bg-card-soft, #f8fafc);
+  font-size: 11px;
+  color: var(--text-secondary, #667085);
+}
+
+.cw-legend strong {
+  color: var(--text-primary, #172033);
+}
+
+.cw-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 6px;
+  border-radius: 999px;
+}
+
+.cw-dot-emp {
+  background: #246bfd;
+}
+
+.cw-dot-er {
+  background: #10b981;
+}
+
+.cw-field-hint {
+  font-size: 10.5px;
+  color: var(--text-secondary, #667085);
+  line-height: 1.3;
+}
+
+/* =====================================================
    FORM FIELDS
 ===================================================== */
 
@@ -1834,6 +2123,7 @@ const exportCsv = () => {
 }
 
 @media (max-width: 720px) {
+  .cw-method-grid,
   .cw-fields {
     grid-template-columns: 1fr;
   }

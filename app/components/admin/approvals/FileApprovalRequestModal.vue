@@ -30,6 +30,47 @@ const employees = ref<Array<{ id: number; emp_id: any; firstname: string; lastna
 const selectedEmployee = ref<any | null>(null)
 const showEmployeeDropdown = ref(false)
 
+interface EmployeeWorkScheduleDay {
+  day_of_week: string
+  is_working_day?: boolean | number | string | null
+}
+
+interface EmployeeEmployment {
+  id: number
+  date_hired?: string | null
+  work_schedule?: {
+    schedule_name?: string | null
+    schedule_code?: string | null
+    days?: EmployeeWorkScheduleDay[] | null
+  } | null
+}
+
+interface EmployeeDetailResponse {
+  success?: boolean
+  message?: string
+  data?: { employments?: EmployeeEmployment[] | null }
+}
+
+interface AdminLeaveCredit {
+  employee_id: number
+  leave_type?: string | null
+  leave_policy_id: number
+  policy_paid?: boolean | number | null
+  available: number | string
+}
+
+interface LeaveCreditResponse {
+  success?: boolean
+  message?: string
+  data?: AdminLeaveCredit[]
+}
+
+const loadingLeaveContext = ref(false)
+const leaveContextError = ref('')
+const employeeRestDayIndexes = ref<number[]>([])
+const employeeScheduleName = ref('')
+const employeeCredits = ref<AdminLeaveCredit[]>([])
+
 // Leave fields
 const leaveTypes = ref<Array<{ id: number; leave_name: string; leave_code?: string }>>([])
 const leaveTypeId = ref<number | null>(null)
@@ -39,6 +80,71 @@ const leaveReason = ref('')
 // Calendar & selected dates for Leave (supports non-continuous selection e.g. 1st and 3rd)
 const viewDate = ref<Date>(new Date())
 const selectedDatesMap = ref<Record<string, { dayType: 'whole_day' | 'half_day'; payType: 'paid' | 'unpaid' }>>({})
+
+const weekdayIndexes: Record<string, number> = {
+  sun: 0,
+  mon: 1,
+  tue: 2,
+  wed: 3,
+  thu: 4,
+  fri: 5,
+  sat: 6,
+}
+
+const toWeekdayIndex = (day: unknown): number | null => {
+  if (typeof day !== 'string') return null
+  const key = day.trim().toLowerCase().replace(/[^a-z]/g, '').slice(0, 3)
+  return weekdayIndexes[key] ?? null
+}
+
+const isWorkingDayValue = (value: EmployeeWorkScheduleDay['is_working_day']) =>
+  value !== false && value !== 0 && value !== '0' && value !== 'false'
+
+const isRestDay = (date: string) =>
+  employeeRestDayIndexes.value.includes(new Date(`${date}T12:00:00`).getDay())
+
+const selectedLeaveType = computed(() =>
+  leaveTypes.value.find(type => type.id === Number(leaveTypeId.value)),
+)
+
+const matchingCredits = computed(() => {
+  const leaveName = selectedLeaveType.value?.leave_name.trim().toLowerCase()
+  if (!selectedEmployee.value || !leaveName) return []
+
+  return employeeCredits.value.filter(credit =>
+    Number(credit.employee_id) === Number(selectedEmployee.value.id)
+    && (credit.leave_type ?? '').trim().toLowerCase() === leaveName,
+  )
+})
+
+const paidCreditRecords = computed(() =>
+  matchingCredits.value.filter(credit =>
+    credit.policy_paid === true || credit.policy_paid === 1,
+  ),
+)
+
+const hasPaidPolicy = computed(() => paidCreditRecords.value.length > 0)
+const availablePaidCredits = computed(() =>
+  paidCreditRecords.value.reduce(
+    (total, credit) => total + (Number(credit.available) || 0),
+    0,
+  ),
+)
+const paidOptionDisabled = computed(() =>
+  !selectedEmployee.value
+  || loadingLeaveContext.value
+  || Boolean(leaveContextError.value)
+  || !hasPaidPolicy.value,
+)
+
+const leaveCreditNotice = computed(() => {
+  if (!selectedEmployee.value) return 'Select an employee to load their work schedule and leave credits.'
+  if (loadingLeaveContext.value) return 'Loading the selected employee\'s schedule and leave credits...'
+  if (leaveContextError.value) return leaveContextError.value
+  if (!selectedLeaveType.value) return 'Select a leave type to check the employee\'s paid credits.'
+  if (!hasPaidPolicy.value) return 'No eligible paid policy was found for this employee and leave type. The request must be unpaid.'
+  return `${availablePaidCredits.value} paid day${availablePaidCredits.value === 1 ? '' : 's'} available. Rest days from ${employeeScheduleName.value || 'the assigned work schedule'} are disabled.`
+})
 
 // Overtime fields
 const otDate = ref(new Date().toISOString().slice(0, 10))
@@ -62,6 +168,10 @@ watch(() => props.open, async isOpen => {
     errorMessage.value = ''
     employeeQuery.value = ''
     selectedEmployee.value = null
+    employeeRestDayIndexes.value = []
+    employeeScheduleName.value = ''
+    employeeCredits.value = []
+    leaveContextError.value = ''
     leaveReason.value = ''
     otReason.value = ''
     utReason.value = ''
@@ -103,10 +213,99 @@ const filteredEmployees = computed(() => {
   }).slice(0, 8)
 })
 
-const selectEmployee = (emp: any) => {
+const resolveRestDays = (employments?: EmployeeEmployment[] | null) => {
+  const latestEmployment = [...(employments ?? [])].sort((a, b) => {
+    const dateOrder = (b.date_hired ?? '').slice(0, 10)
+      .localeCompare((a.date_hired ?? '').slice(0, 10))
+    return dateOrder || b.id - a.id
+  })[0]
+  const schedule = latestEmployment?.work_schedule
+  const days = schedule?.days
+
+  if (!Array.isArray(days) || !days.length) {
+    throw new Error('The selected employee has no assigned work schedule days.')
+  }
+
+  const invalidDay = days.find(day => toWeekdayIndex(day.day_of_week) === null)
+  if (invalidDay) {
+    throw new Error('The selected employee\'s work schedule contains an unrecognized weekday.')
+  }
+
+  const workingDays = new Set(
+    days
+      .filter(day => isWorkingDayValue(day.is_working_day))
+      .map(day => toWeekdayIndex(day.day_of_week))
+      .filter((day): day is number => day !== null),
+  )
+  const explicitRestDays = days
+    .filter(day => !isWorkingDayValue(day.is_working_day))
+    .map(day => toWeekdayIndex(day.day_of_week))
+    .filter((day): day is number => day !== null)
+
+  employeeRestDayIndexes.value = [...new Set([
+    ...explicitRestDays,
+    ...[0, 1, 2, 3, 4, 5, 6].filter(day => !workingDays.has(day)),
+  ])].sort((a, b) => a - b)
+  employeeScheduleName.value = schedule.schedule_name || schedule.schedule_code || 'the assigned work schedule'
+}
+
+const loadEmployeeLeaveContext = async (employeeId: number) => {
+  loadingLeaveContext.value = true
+  leaveContextError.value = ''
+  employeeRestDayIndexes.value = []
+  employeeScheduleName.value = ''
+  employeeCredits.value = []
+
+  try {
+    const [employeeResponse, creditResponse] = await Promise.all([
+      $api<EmployeeDetailResponse>(`/admin/employees/${employeeId}`, { method: 'GET' }),
+      $api<LeaveCreditResponse>('/admin/leave-credit-balances', {
+        method: 'GET',
+        query: { employee_id: employeeId },
+      }),
+    ])
+
+    if (employeeResponse.success === false || !employeeResponse.data) {
+      throw new Error(employeeResponse.message || 'Unable to load the selected employee profile.')
+    }
+    if (creditResponse.success === false || !Array.isArray(creditResponse.data)) {
+      throw new Error(creditResponse.message || 'Unable to load the selected employee leave credits.')
+    }
+
+    resolveRestDays(employeeResponse.data.employments)
+    employeeCredits.value = creditResponse.data.filter(
+      credit => Number(credit.employee_id) === Number(employeeId),
+    )
+
+    const validDates = Object.fromEntries(
+      Object.entries(selectedDatesMap.value).filter(([date]) => !isRestDay(date)),
+    )
+    selectedDatesMap.value = validDates
+  } catch (error: any) {
+    leaveContextError.value =
+      error?.data?.message
+      || error?.response?._data?.message
+      || error?.message
+      || 'Unable to verify the selected employee\'s leave details.'
+  } finally {
+    loadingLeaveContext.value = false
+  }
+}
+
+const clearSelectedEmployee = () => {
+  selectedEmployee.value = null
+  employeeRestDayIndexes.value = []
+  employeeScheduleName.value = ''
+  employeeCredits.value = []
+  leaveContextError.value = ''
+  showEmployeeDropdown.value = true
+}
+
+const selectEmployee = async (emp: any) => {
   selectedEmployee.value = emp
   employeeQuery.value = `${emp.firstname} ${emp.lastname} (${emp.emp_id ?? emp.id})`
   showEmployeeDropdown.value = false
+  await loadEmployeeLeaveContext(emp.id)
 }
 
 // Calendar Navigation
@@ -161,6 +360,8 @@ const calendarCells = computed(() => {
 })
 
 const toggleDateSelection = (dateStr: string) => {
+  if (!selectedEmployee.value || loadingLeaveContext.value || leaveContextError.value || isRestDay(dateStr)) return
+
   if (selectedDatesMap.value[dateStr]) {
     const copy = { ...selectedDatesMap.value }
     delete copy[dateStr]
@@ -168,7 +369,10 @@ const toggleDateSelection = (dateStr: string) => {
   } else {
     selectedDatesMap.value = {
       ...selectedDatesMap.value,
-      [dateStr]: { dayType: 'whole_day', payType: 'paid' },
+      [dateStr]: {
+        dayType: 'whole_day',
+        payType: paidOptionDisabled.value ? 'unpaid' : 'paid',
+      },
     }
   }
 }
@@ -181,20 +385,45 @@ const totalLeaveDays = computed(() => {
   return Object.values(selectedDatesMap.value).reduce((sum, item) => sum + (item.dayType === 'half_day' ? 0.5 : 1.0), 0)
 })
 
+const totalPaidDays = computed(() =>
+  Object.values(selectedDatesMap.value).reduce(
+    (sum, item) => sum + (item.payType === 'paid' ? (item.dayType === 'half_day' ? 0.5 : 1) : 0),
+    0,
+  ),
+)
+
+const totalUnpaidDays = computed(() => totalLeaveDays.value - totalPaidDays.value)
+const requestedPayType = computed<'paid' | 'unpaid' | 'mixed'>(() =>
+  totalPaidDays.value > 0 && totalUnpaidDays.value > 0
+    ? 'mixed'
+    : totalPaidDays.value > 0
+      ? 'paid'
+      : 'unpaid',
+)
+
 const setQuickPreset = (type: 'today' | 'tomorrow' | 'next3' | 'nextWeek') => {
+  if (!selectedEmployee.value || loadingLeaveContext.value || leaveContextError.value) return
+
   const now = new Date()
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 12, 0, 0)
   const map: Record<string, { dayType: 'whole_day' | 'half_day'; payType: 'paid' | 'unpaid' }> = {}
+  const defaultPayType = paidOptionDisabled.value ? 'unpaid' : 'paid'
+  const addDate = (date: Date) => {
+    const dateStr = formatDateStr(date)
+    if (!isRestDay(dateStr)) {
+      map[dateStr] = { dayType: 'whole_day', payType: defaultPayType }
+    }
+  }
 
   if (type === 'today') {
-    map[formatDateStr(today)] = { dayType: 'whole_day', payType: 'paid' }
+    addDate(today)
   } else if (type === 'tomorrow') {
     const tom = new Date(today.getTime() + 86400000)
-    map[formatDateStr(tom)] = { dayType: 'whole_day', payType: 'paid' }
+    addDate(tom)
   } else if (type === 'next3') {
     for (let i = 0; i < 3; i++) {
       const d = new Date(today.getTime() + i * 86400000)
-      map[formatDateStr(d)] = { dayType: 'whole_day', payType: 'paid' }
+      addDate(d)
     }
   } else if (type === 'nextWeek') {
     const dayOfWeek = today.getDay()
@@ -202,7 +431,7 @@ const setQuickPreset = (type: 'today' | 'tomorrow' | 'next3' | 'nextWeek') => {
     const nextMon = new Date(today.getTime() + daysUntilNextMon * 86400000)
     for (let i = 0; i < 5; i++) {
       const d = new Date(nextMon.getTime() + i * 86400000)
-      map[formatDateStr(d)] = { dayType: 'whole_day', payType: 'paid' }
+      addDate(d)
     }
   }
   selectedDatesMap.value = map
@@ -211,6 +440,17 @@ const setQuickPreset = (type: 'today' | 'tomorrow' | 'next3' | 'nextWeek') => {
     viewDate.value = new Date(first.getFullYear(), first.getMonth(), 1, 12, 0, 0)
   }
 }
+
+watch([leaveTypeId, paidOptionDisabled], () => {
+  if (!paidOptionDisabled.value) return
+
+  selectedDatesMap.value = Object.fromEntries(
+    Object.entries(selectedDatesMap.value).map(([date, details]) => [
+      date,
+      { ...details, payType: 'unpaid' as const },
+    ]),
+  )
+})
 
 const requestedDurationText = computed(() => {
   if (!utStartTime.value || !utEndTime.value) return 'Enter valid times'
@@ -236,6 +476,31 @@ const submit = async () => {
     return
   }
 
+  if (requestType.value === 'Leave' && !leaveTypeId.value) {
+    errorMessage.value = 'Please select a leave type.'
+    return
+  }
+
+  if (requestType.value === 'Leave' && (loadingLeaveContext.value || leaveContextError.value)) {
+    errorMessage.value = leaveContextError.value || 'Please wait for the employee schedule and leave credits to load.'
+    return
+  }
+
+  if (requestType.value === 'Leave' && selectedDatesList.value.some(isRestDay)) {
+    errorMessage.value = 'Remove the employee\'s rest days from the leave request.'
+    return
+  }
+
+  if (requestType.value === 'Leave' && totalPaidDays.value > 0 && !hasPaidPolicy.value) {
+    errorMessage.value = 'This employee has no eligible paid policy for the selected leave type. Use Unpaid leave.'
+    return
+  }
+
+  if (requestType.value === 'Leave' && totalPaidDays.value > availablePaidCredits.value + 0.001) {
+    errorMessage.value = `Insufficient paid credits: ${availablePaidCredits.value} available and ${totalPaidDays.value} requested.`
+    return
+  }
+
   saving.value = true
   errorMessage.value = ''
 
@@ -249,6 +514,7 @@ const submit = async () => {
         leave_date: d,
         day_type: selectedDatesMap.value[d].dayType,
         day_value: selectedDatesMap.value[d].dayType === 'half_day' ? 0.5 : 1.0,
+        requested_pay_type: selectedDatesMap.value[d].payType,
         pay_type: selectedDatesMap.value[d].payType,
       }))
 
@@ -256,7 +522,9 @@ const submit = async () => {
         employee_id: selectedEmployee.value.id,
         leave_type_id: leaveTypeId.value,
         request_date: requestDate.value,
-        requested_pay_type: datesArray[0]?.pay_type || 'paid',
+        requested_pay_type: requestedPayType.value,
+        start_date: datesArray[0]?.leave_date,
+        end_date: datesArray[datesArray.length - 1]?.leave_date,
         reason: leaveReason.value || 'Admin filed leave request',
         dates: datesArray,
         image: attachedImage.value,
@@ -362,7 +630,7 @@ const submit = async () => {
               placeholder="Type employee name or ID for suggestions..."
               autocomplete="off"
               @focus="showEmployeeDropdown = true"
-              @input="showEmployeeDropdown = true; selectedEmployee = null"
+              @input="clearSelectedEmployee"
             />
           </div>
 
@@ -398,6 +666,17 @@ const submit = async () => {
             <input v-model="requestDate" type="date" />
           </div>
 
+          <div
+            class="leave-context-note"
+            :class="{
+              error: !!leaveContextError,
+              loading: loadingLeaveContext,
+            }"
+            role="status"
+          >
+            {{ leaveCreditNotice }}
+          </div>
+
           <!-- Calendar Date Picker allowing specific/non-continuous date selection (click to toggle dates) -->
           <div class="field-group calendar-box">
             <div class="cal-nav-header">
@@ -422,6 +701,7 @@ const submit = async () => {
                   'other-month': !cell.isCurrentMonth,
                   'today': cell.isToday,
                   'selected': selectedDatesMap[cell.dateStr],
+                  'disabled': !selectedEmployee || loadingLeaveContext || !!leaveContextError || isRestDay(cell.dateStr),
                 }"
                 @click="toggleDateSelection(cell.dateStr)"
               >
@@ -461,7 +741,7 @@ const submit = async () => {
                 </select>
 
                 <select v-model="selectedDatesMap[dateStr].payType" aria-label="Pay type">
-                  <option value="paid">Paid</option>
+                  <option value="paid" :disabled="paidOptionDisabled">Paid</option>
                   <option value="unpaid">Unpaid</option>
                 </select>
 
@@ -469,6 +749,13 @@ const submit = async () => {
                   <X :size="14" />
                 </button>
               </div>
+            </div>
+
+            <div v-if="selectedDatesList.length" class="credit-summary">
+              <span>Payment: <strong>{{ requestedPayType }}</strong></span>
+              <span>Paid: <strong>{{ totalPaidDays }}</strong></span>
+              <span>Unpaid: <strong>{{ totalUnpaidDays }}</strong></span>
+              <span>Available paid credits: <strong>{{ availablePaidCredits }}</strong></span>
             </div>
           </div>
 
@@ -681,6 +968,24 @@ const submit = async () => {
   grid-template-columns: repeat(2, 1fr);
   gap: 12px;
 }
+.leave-context-note {
+  margin-bottom: 14px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--primary-soft);
+  color: var(--text-secondary);
+  font-size: 10px;
+  line-height: 1.5;
+}
+.leave-context-note.loading {
+  color: var(--primary);
+}
+.leave-context-note.error {
+  border-color: var(--red);
+  background: var(--red-soft);
+  color: var(--red);
+}
 .input-with-icon {
   position: relative;
 }
@@ -846,6 +1151,15 @@ const submit = async () => {
   font-weight: 700;
   box-shadow: 0 4px 14px rgba(37, 99, 235, 0.55) !important;
 }
+.cal-cell.disabled {
+  opacity: .3;
+  cursor: not-allowed;
+  text-decoration: line-through;
+}
+.cal-cell.disabled:hover {
+  background: transparent;
+  color: #cbd5e1;
+}
 .shift-badge,
 .duration-badge {
   display: flex;
@@ -900,6 +1214,20 @@ const submit = async () => {
   text-align: center;
   color: var(--text-muted);
   font-size: 10px;
+}
+.credit-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 10px;
+}
+.credit-summary strong {
+  color: var(--text-primary);
+  text-transform: capitalize;
 }
 .sched-row {
   display: flex;

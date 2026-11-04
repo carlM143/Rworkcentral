@@ -1,6 +1,7 @@
 import type { LeaveApproval } from '~/types/leaveApproval'
 import { hasActiveFilter, resolveExportRecords } from '~/utils/approvalExport'
 import { useLeaveApprovalApi } from './useLeaveApprovalApi'
+import { useToast } from '~/composables/useToast'
 
 export const useLeaveApprovals = () => {
   const { getLeaveApprovals, approveLeaveRequest, rejectLeaveRequest, revertLeaveRequest } = useLeaveApprovalApi()
@@ -151,17 +152,41 @@ export const useLeaveApprovals = () => {
     if (!approving.value) selectedRequest.value = null
   }
 
-  const approvalProblem = computed(() => {
-    const item = selectedRequest.value
-    if (!item) return ''
-    if (item.policy_status !== 'approved') return 'The assigned Leave Policy must be approved.'
-    if (!item.policy_eligible) return 'The selected Leave Policy is not eligible.'
-    if (item.policy_paid === null) return 'The assigned Leave Policy was not found.'
-    if ((item.policy_paid ? 'paid' : 'unpaid') !== item.requested_pay_type) {
-      return 'The requested payment type does not match the assigned Leave Policy.'
-    }
+
+const approvalProblem = computed(() => {
+  const item = selectedRequest.value
+  if (!item) return ''
+
+  const payType = item.requested_pay_type
+
+  // Unpaid leave does not require an approved
+  // Leave Policy and does not use paid leave credits.
+  if (payType === 'unpaid') {
     return ''
-  })
+  }
+
+  // Paid and mixed leave require a valid paid policy.
+  if (payType === 'paid' || payType === 'mixed') {
+    if (item.policy_paid === null || item.policy_paid === undefined) {
+      return 'An approved paid Leave Policy is required.'
+    }
+
+    if (item.policy_status !== 'approved') {
+      return 'The assigned Leave Policy must be approved.'
+    }
+
+    if (!item.policy_eligible) {
+      return 'The selected Leave Policy is not eligible.'
+    }
+
+    if (!item.policy_paid) {
+      return 'The assigned Leave Policy does not provide paid leave credits.'
+    }
+  }
+
+  return ''
+})
+
 
   const handleApprove = async () => {
     if (!selectedRequest.value || approving.value || approvalProblem.value) return

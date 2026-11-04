@@ -35,58 +35,22 @@ const {
   showingFrom,
   showingTo,
   loadRequests,
-  approveRequest,
-  rejectRequest,
   revertRequest,
   resetFilters,
 } = useUndertimeApprovals()
 
 const exportOpen = ref(false)
 const fileRequestOpen = ref(false)
-const requestOpen = ref(false)
-const requestMode = ref('view')
-const selectedRequest = ref<UndertimeRequest | null>(null)
+const router = useRouter()
 
 const handleExport = () => { exportOpen.value = true }
 const handleFileRequestSuccess = () => { void loadRequests() }
 
 const handleReview = (item: UndertimeRequest) => {
-  selectedRequest.value = item
-  requestMode.value = 'view'
-  requestOpen.value = true
-}
-
-const handleApprove = async (request: UndertimeRequest) => {
-  try {
-    const message = await approveRequest(request.id)
-    success('Undertime Approved', message)
-  } catch (problem: any) {
-    warning(
-      'Approval Failed',
-      problem?.data?.errors?.status?.[0]
-        ?? problem?.data?.errors?.requested_minutes?.[0]
-        ?? problem?.data?.errors?.requested_time_out?.[0]
-        ?? problem?.data?.message
-        ?? problem?.response?._data?.message
-        ?? problem?.message
-        ?? 'Unable to approve the undertime request.',
-    )
-  }
-}
-
-const handleReject = async (request: UndertimeRequest) => {
-  try {
-    const message = await rejectRequest(request.id)
-    success('Undertime Rejected', message)
-  } catch (problem: any) {
-    warning(
-      'Rejection Failed',
-      problem?.data?.message
-        ?? problem?.response?._data?.message
-        ?? problem?.message
-        ?? 'Unable to reject the undertime request.',
-    )
-  }
+  void router.push({
+    path: '/admin/approvals/undertime/show',
+    query: { id: String(item.id) },
+  })
 }
 
 const handleRevert = async (request: UndertimeRequest) => {
@@ -102,24 +66,6 @@ const handleRevert = async (request: UndertimeRequest) => {
         ?? 'Unable to revert the undertime request.',
     )
   }
-}
-
-const handleDialogApprove = async () => {
-  if (!selectedRequest.value) return
-  await handleApprove(selectedRequest.value)
-  requestOpen.value = false
-}
-
-const handleDialogReject = async () => {
-  if (!selectedRequest.value) return
-  await handleReject(selectedRequest.value)
-  requestOpen.value = false
-}
-
-const handleDialogRevert = async () => {
-  if (!selectedRequest.value) return
-  await handleRevert(selectedRequest.value)
-  requestOpen.value = false
 }
 
 onMounted(() => { void loadRequests() })
@@ -198,18 +144,6 @@ onMounted(() => { void loadRequests() })
       :date-to="dateTo"
       :filters="{ Search: search, Status: status, Department: department }"
       @close="exportOpen = false"
-    />
-
-    <ApprovalRequestDialog
-      :open="requestOpen"
-      kind="Undertime"
-      :mode="requestMode"
-      :request="selectedRequest"
-      :processing="approvingId !== null"
-      @close="requestOpen = false"
-      @approve="handleDialogApprove"
-      @reject="handleDialogReject"
-      @revert="handleDialogRevert"
     />
 
     <FileApprovalRequestModal

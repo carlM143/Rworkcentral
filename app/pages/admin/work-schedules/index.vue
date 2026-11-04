@@ -8,7 +8,7 @@ import type {
   WorkSchedule,
 } from '~/types/workSchedule'
 
-import { useWorkSchedules } from '~/composables/admin/employeeSchedule/useWorkSchedules'
+import { useWorkSchedules } from '~/composables/admin/work-schedules/employeeSchedule/useWorkSchedules'
 
 const {
   schedules,

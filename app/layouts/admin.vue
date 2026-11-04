@@ -53,6 +53,7 @@ const permissionsLoading = ref(true)
 const openMenus = reactive<Record<string, boolean>>({
   employees: false,
   timekeeping: false,
+  schedules: false,
   payroll: false,
   contributions: false,
   loans: false,
@@ -115,13 +116,18 @@ const menuItems = [
     key: 'employees',
     icon: Users,
     children: [
+
       {
-        label: 'Add New Employee',
-        to: '/admin/employees/create-employee',
+        label: 'Employee Directory',
+        to: '/admin/employees',
       },
       {
-        label: 'Active Employees',
-        to: '/admin/employees',
+        label: 'Salary Rates',
+        to: '/admin/employees/salary-rates',
+      },
+      {
+        label: 'Salary Adjustments',
+        to: '/admin/employees/salary-adjustments',
       },
       {
         label: 'Inactive Employees',
@@ -169,23 +175,26 @@ const menuItems = [
     ],
   },
   {
-    label: 'Work Schedules',
+    label: 'Schedules',
+    key: 'schedules',
     icon: CalendarClock,
-    to: '/admin/work-schedules',
+    children: [
+      {
+        label: 'Work Schedules',
+        to: '/admin/work-schedules',
+      },
+      {
+        label: 'Change Schedule',
+        to: '/admin/work-schedules/change-schedule',
+      },
+    ],
   },
   {
     label: 'Payroll',
     key: 'payroll',
     icon: WalletCards,
     children: [
-      {
-        label: 'Rates',
-        to: '/admin/rates',
-      },
-      {
-        label: 'Wage Adjustments',
-        to: '/admin/payroll/wage-adjustments',
-      },
+      // PAY PERIODS
       {
         label: 'Driver Pay Periods',
         to: '/admin/driver-pay-periods',
@@ -230,6 +239,10 @@ const menuItems = [
         to: '/admin/contribution/rate-schedules',
       },
       {
+        label: 'Bracket Management',
+        to: '/admin/contribution/bracket-management',
+      },
+      {
         label: 'Contribution History',
         to: '/admin/contribution/rate-brackets',
       },
@@ -244,18 +257,9 @@ const menuItems = [
     key: 'loans',
     icon: HandCoins,
     children: [
-      {
-        label: 'Loan Transactions',
-        to: '/admin/loans/transactions',
-      },
-      {
-        label: 'Loan Types',
-        to: '/admin/loans/types',
-      },
-      {
-        label: 'Employee Loans',
-        to: '/admin/loans/employees',
-      },
+      { label: 'Loan Types', to: '/admin/loans/types' },
+      { label: 'Employee Loans', to: '/admin/loans/employee-loans' },
+      { label: 'Loan Transactions', to: '/admin/loans/transactions' },
     ],
   },
   {
@@ -338,7 +342,7 @@ const menuItems = [
         to: '/admin/approvals/leaves',
       },
       {
-        label: 'OT Approvals',
+        label: 'Overtime Approvals',
         to: '/admin/approvals/overtime',
       },
       {
@@ -347,6 +351,10 @@ const menuItems = [
       },
     ],
   },
+
+  // =====================================================
+  // WFH (SEPARATE FRONTEND-ONLY MODULE)
+  // =====================================================
   {
     label: 'Work From Home',
     key: 'wfh',
