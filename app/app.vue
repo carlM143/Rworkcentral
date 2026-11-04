@@ -103,14 +103,17 @@ onBeforeUnmount(() => {
     </Transition>
 
     <!-- =====================================================
-         APPLICATION
+     APPLICATION
     ====================================================== -->
 
     <NuxtLayout>
-
       <NuxtPage />
-
     </NuxtLayout>
+
+    <!-- GLOBAL TOAST NOTIFICATIONS -->
+    <ClientOnly>
+      <UiAppToast />
+    </ClientOnly>
 
   </div>
 </template>

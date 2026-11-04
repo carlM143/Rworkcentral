@@ -1,60 +1,74 @@
 
-export type LateStatus =
-  | 'unadjusted'
-  | 'pending'
-  | 'approved'
-  | 'rejected'
+export type LateStatus = 'pending' | 'approved' | 'rejected'
+export type AdjustmentType = 'late' | 'undertime'
 
 export interface LateAdjustmentRecord {
   id: number
+  adjustment_id: number
   time_log_id: number
   employee_id: number
   employee_number: string
   employee_name: string
   department_id: number | null
   department: string
-  work_date: string
+  work_date: string | null
   schedule: string | null
-  actual_time_in: string | null
+  adjustment_type: AdjustmentType
+  original_time_in: string | null
+  original_time_out: string | null
+  requested_time_in: string | null
+  requested_time_out: string | null
+  original_minutes: number
+  requested_minutes: number
+  approved_minutes: number
   raw_late_minutes: number
   grace_period_minutes: number
   chargeable_late_minutes: number
-  requested_waiver_minutes: number
   approved_waiver_minutes: number
-  final_late_minutes: number
+  final_late_minutes: number | null
+  final_undertime_minutes: number | null
   status: LateStatus
-  adjustment_id: number | null
   reason: string | null
   review_remarks: string | null
+  requested_by: number | null
+  requested_by_name: string | null
+  reviewed_by_name: string | null
   requested_at: string | null
   reviewed_at: string | null
 }
 
-export interface LateAdjustmentDetail {
-  id: number
+export type LateAdjustmentDetail = LateAdjustmentRecord
+
+export interface EligibleLateLog {
   time_log_id: number
   employee_id: number
   employee_name: string
-  work_date: string | null
-  actual_time_in: string | null
-  scheduled_time_in: string | null
+  employee_number: string
+  department: string
+  work_date: string
+  schedule: string
+  time_in: string
+  time_out: string
   raw_late_minutes: number
   grace_period_minutes: number
   chargeable_late_minutes: number
-  requested_waiver_minutes: number
-  approved_waiver_minutes: number | null
-  final_late_minutes: number | null
-  status: LateStatus
+  undertime_minutes: number
+}
+
+export interface AdjustmentPayload {
+  time_log_id: number
+  adjustment_type: AdjustmentType
+  requested_time_in: string
+  requested_time_out: string
+  requested_minutes: number
   reason: string
-  review_remarks: string | null
-  reviewed_at: string | null
-  created_at: string | null
 }
 
 interface LateStats {
   late_records: number
   pending_adjustments: number
   approved_adjustments: number
+  rejected_adjustments: number
   minutes_adjusted: number
 }
 
@@ -82,7 +96,10 @@ export const useLateAdjustments = () => {
   const { $api } = useNuxtApp()
 
   const records = ref<LateAdjustmentRecord[]>([])
+  const eligibleLogs = ref<EligibleLateLog[]>([])
+
   const loading = ref(false)
+  const loadingEligibleLogs = ref(false)
   const saving = ref(false)
   const exporting = ref(false)
   const error = ref<string | null>(null)
@@ -91,6 +108,7 @@ export const useLateAdjustments = () => {
     late_records: 0,
     pending_adjustments: 0,
     approved_adjustments: 0,
+    rejected_adjustments: 0,
     minutes_adjusted: 0,
   })
 
@@ -108,11 +126,10 @@ export const useLateAdjustments = () => {
   const status = ref('all')
   const dateFrom = ref('')
   const dateTo = ref('')
-
   const currentPage = ref(1)
   const perPage = ref(8)
 
-  let latestRequestId = 0
+  let requestId = 0
 
   const getErrorMessage = (err: unknown): string => {
     const e = err as {
@@ -123,16 +140,14 @@ export const useLateAdjustments = () => {
       message?: string
     }
 
-    const firstValidationError = Object.values(
+    const validation = Object.values(
       e?.data?.errors ?? {},
     ).flat()[0]
 
-    return (
-      firstValidationError ||
+    return validation ||
       e?.data?.message ||
       e?.message ||
-      'Something went wrong. Please try again.'
-    )
+      'Something went wrong.'
   }
 
   const buildQuery = (page = currentPage.value) => ({
@@ -156,8 +171,7 @@ export const useLateAdjustments = () => {
   })
 
   const fetchAdjustments = async () => {
-    const requestId = ++latestRequestId
-
+    const id = ++requestId
     loading.value = true
     error.value = null
 
@@ -170,11 +184,11 @@ export const useLateAdjustments = () => {
         },
       )
 
-      if (requestId !== latestRequestId) return
+      if (id !== requestId) return
 
       if (!response.success) {
         throw new Error(
-          response.message || 'Unable to load late adjustments.',
+          response.message || 'Unable to load adjustment requests.',
         )
       }
 
@@ -182,56 +196,82 @@ export const useLateAdjustments = () => {
       stats.value = response.stats
       meta.value = response.meta
 
-      if (
-        currentPage.value > meta.value.last_page &&
-        currentPage.value > 1
-      ) {
+      if (currentPage.value > meta.value.last_page) {
         currentPage.value = Math.max(1, meta.value.last_page)
       }
     } catch (err: unknown) {
-      if (requestId !== latestRequestId) return
+      if (id !== requestId) return
 
       error.value = getErrorMessage(err)
       records.value = []
     } finally {
-      if (requestId === latestRequestId) {
-        loading.value = false
+      if (id === requestId) loading.value = false
+    }
+  }
+
+  const fetchEligibleLogs = async () => {
+    loadingEligibleLogs.value = true
+
+    try {
+      const response = await $api<ApiResponse<EligibleLateLog[]>>(
+        '/admin/late-adjustments/eligible-logs',
+        { method: 'GET' },
+      )
+
+      if (!response.success) {
+        throw new Error(
+          response.message || 'Unable to load eligible Time Logs.',
+        )
       }
+
+      eligibleLogs.value = response.data ?? []
+      return true
+    } catch (err: unknown) {
+      error.value = getErrorMessage(err)
+      eligibleLogs.value = []
+      return false
+    } finally {
+      loadingEligibleLogs.value = false
     }
   }
 
   const getAdjustmentDetails = async (id: number) => {
-    const response = await $api<
-      ApiResponse<LateAdjustmentDetail>
-    >(`/admin/late-adjustments/${id}`, {
-      method: 'GET',
-    })
+    const response = await $api<ApiResponse<LateAdjustmentDetail>>(
+      `/admin/late-adjustments/${id}`,
+      { method: 'GET' },
+    )
 
     if (!response.success) {
       throw new Error(
-        response.message || 'Unable to load adjustment details.',
+        response.message || 'Unable to load adjustment.',
       )
     }
 
     return response.data
   }
 
-  const createAdjustment = async (payload: {
-    time_log_id: number
-    requested_waiver_minutes: number
-    reason: string
-  }) => {
+  const performAction = async (
+    url: string,
+    method: 'POST' | 'PATCH',
+    body: Record<string, unknown>,
+  ) => {
     if (saving.value) return false
 
     saving.value = true
     error.value = null
 
     try {
-      await $api('/admin/late-adjustments', {
-        method: 'POST',
-        body: payload,
+      const response = await $api<ApiResponse<unknown>>(url, {
+        method,
+        body,
       })
 
+      if (!response.success) {
+        throw new Error(
+          response.message || 'Unable to save adjustment.',
+        )
+      }
+
       await fetchAdjustments()
       return true
     } catch (err: unknown) {
@@ -242,65 +282,39 @@ export const useLateAdjustments = () => {
     }
   }
 
-  const approveAdjustment = async (
-    adjustmentId: number,
+  const createAdjustment = (payload: AdjustmentPayload) =>
+    performAction(
+      '/admin/late-adjustments',
+      'POST',
+      { ...payload },
+    )
+
+  const updateAdjustment = (
+    id: number,
+    payload: AdjustmentPayload,
+  ) => performAction(
+    `/admin/late-adjustments/${id}`,
+    'PATCH',
+    { ...payload },
+  )
+
+  const approveAdjustment = (
+    id: number,
     remarks = '',
-  ) => {
-    if (saving.value) return false
+  ) => performAction(
+    `/admin/late-adjustments/${id}/approve`,
+    'PATCH',
+    { review_remarks: remarks || null },
+  )
 
-    saving.value = true
-    error.value = null
-
-    try {
-      await $api(
-        `/admin/late-adjustments/${adjustmentId}/approve`,
-        {
-          method: 'PATCH',
-          body: {
-            review_remarks: remarks || null,
-          },
-        },
-      )
-
-      await fetchAdjustments()
-      return true
-    } catch (err: unknown) {
-      error.value = getErrorMessage(err)
-      return false
-    } finally {
-      saving.value = false
-    }
-  }
-
-  const rejectAdjustment = async (
-    adjustmentId: number,
+  const rejectAdjustment = (
+    id: number,
     remarks: string,
-  ) => {
-    if (saving.value) return false
-
-    saving.value = true
-    error.value = null
-
-    try {
-      await $api(
-        `/admin/late-adjustments/${adjustmentId}/reject`,
-        {
-          method: 'PATCH',
-          body: {
-            review_remarks: remarks,
-          },
-        },
-      )
-
-      await fetchAdjustments()
-      return true
-    } catch (err: unknown) {
-      error.value = getErrorMessage(err)
-      return false
-    } finally {
-      saving.value = false
-    }
-  }
+  ) => performAction(
+    `/admin/late-adjustments/${id}/reject`,
+    'PATCH',
+    { review_remarks: remarks },
+  )
 
   const exportCsv = async () => {
     if (!import.meta.client || exporting.value) return false
@@ -310,7 +324,7 @@ export const useLateAdjustments = () => {
 
     try {
       const all: LateAdjustmentRecord[] = []
-      let exportPage = 1
+      let page = 1
       let lastPage = 1
 
       do {
@@ -319,7 +333,7 @@ export const useLateAdjustments = () => {
           {
             method: 'GET',
             query: {
-              ...buildQuery(exportPage),
+              ...buildQuery(page),
               per_page: 100,
             },
           },
@@ -333,57 +347,57 @@ export const useLateAdjustments = () => {
 
         all.push(...response.data)
         lastPage = response.meta.last_page
-        exportPage++
-      } while (exportPage <= lastPage)
+        page++
+      } while (page <= lastPage)
 
-      const rows: Array<Array<string | number>> = [
+      const rows: Array<Array<string | number | null>> = [
         [
           'Employee ID',
-          'Employee',
+          'Employee Name',
           'Department',
-          'Date',
-          'Schedule',
-          'Time In',
-          'Raw Late',
-          'Grace Period',
-          'After Grace',
+          'Work Date',
+          'Adjustment Type',
+          'Original Time In',
+          'Original Time Out',
+          'Requested Time In',
+          'Requested Time Out',
+          'Original Minutes',
+          'Requested Waiver',
           'Approved Waiver',
-          'Final Late',
           'Status',
           'Reason',
           'Review Remarks',
         ],
-        ...all.map((r) => [
-          r.employee_number,
-          r.employee_name,
-          r.department,
-          r.work_date,
-          r.schedule ?? '',
-          r.actual_time_in ?? '',
-          r.raw_late_minutes,
-          r.grace_period_minutes,
-          r.chargeable_late_minutes,
-          r.approved_waiver_minutes,
-          r.final_late_minutes,
-          r.status,
-          r.reason ?? '',
-          r.review_remarks ?? '',
+        ...all.map(row => [
+          row.employee_number,
+          row.employee_name,
+          row.department,
+          row.work_date,
+          row.adjustment_type,
+          row.original_time_in,
+          row.original_time_out,
+          row.requested_time_in,
+          row.requested_time_out,
+          row.original_minutes,
+          row.requested_minutes,
+          row.approved_minutes,
+          row.status,
+          row.reason,
+          row.review_remarks,
         ]),
       ]
 
-      const escapeCsv = (value: string | number) => {
+      const escapeCsv = (value: unknown) => {
         let text = String(value ?? '')
 
-        if (/^\s*[=+\-@]/.test(text)) {
-          text = `'${text}`
-        }
+        if (/^\s*[=+\-@]/.test(text)) text = `'${text}`
 
         return `"${text.replace(/"/g, '""')}"`
       }
 
-      const csv = rows
-        .map((row) => row.map(escapeCsv).join(','))
-        .join('\r\n')
+      const csv = rows.map(row =>
+        row.map(escapeCsv).join(','),
+      ).join('\r\n')
 
       const blob = new Blob(
         ['\uFEFF', csv],
@@ -394,12 +408,12 @@ export const useLateAdjustments = () => {
       const anchor = document.createElement('a')
 
       anchor.href = url
-      anchor.download = 'late-adjustments.csv'
+      anchor.download = 'late-adjustment-requests.csv'
       document.body.appendChild(anchor)
       anchor.click()
       anchor.remove()
 
-      setTimeout(() => URL.revokeObjectURL(url), 1000)
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000)
 
       return true
     } catch (err: unknown) {
@@ -413,13 +427,13 @@ export const useLateAdjustments = () => {
   const departments = computed(() => {
     const items = new Map<number, string>()
 
-    records.value.forEach((row) => {
-      if (row.department_id !== null) {
+    records.value.forEach(row => {
+      if (row.department_id != null) {
         items.set(row.department_id, row.department)
       }
     })
 
-    return Array.from(items.entries()).map(([id, name]) => ({
+    return Array.from(items, ([id, name]) => ({
       id,
       name,
     }))
@@ -438,27 +452,11 @@ export const useLateAdjustments = () => {
     currentPage.value = 1
   }
 
-  let searchTimer: ReturnType<typeof setTimeout> | null = null
-
-watch(search, () => {
-  if (searchTimer) clearTimeout(searchTimer)
-
-  searchTimer = setTimeout(() => {
-    if (currentPage.value !== 1) {
-      currentPage.value = 1
-    } else {
-      fetchAdjustments()
-    }
-  }, 300)
-})
-
-onScopeDispose(() => {
-  if (searchTimer) clearTimeout(searchTimer)
-})
-
   return {
     records,
+    eligibleLogs,
     loading,
+    loadingEligibleLogs,
     saving,
     exporting,
     error,
@@ -474,8 +472,10 @@ onScopeDispose(() => {
     departments,
     totalPages,
     fetchAdjustments,
+    fetchEligibleLogs,
     getAdjustmentDetails,
     createAdjustment,
+    updateAdjustment,
     approveAdjustment,
     rejectAdjustment,
     exportCsv,

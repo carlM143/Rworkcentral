@@ -1,105 +1,71 @@
-export type ToastType =
-  | 'success'
-  | 'error'
-  | 'warning'
-  | 'info'
+export type ToastType = 'success' | 'error' | 'warning' | 'info'
 
 export interface ToastItem {
-  id: number
+  id: string
   type: ToastType
   title: string
-  message?: string
+  message: string
+  duration: number
 }
+
+let nextToastId = 0
 
 export const useToast = () => {
   const toasts = useState<ToastItem[]>(
-    'global-toasts',
+    'rworkcentral-toasts',
     () => [],
   )
 
-  const removeToast = (id: number) => {
-    toasts.value = toasts.value.filter(
-      toast => toast.id !== id,
-    )
+  const remove = (id: string) => {
+    toasts.value = toasts.value.filter(item => item.id !== id)
   }
 
-  const showToast = (
+  const show = (
     type: ToastType,
     title: string,
     message = '',
-    duration = 3500,
+    duration = 4500,
   ) => {
-    const id =
-      Date.now() +
-      Math.floor(Math.random() * 1000)
+    if (!import.meta.client) return ''
 
-    toasts.value.push({
-      id,
-      type,
-      title,
-      message,
-    })
+    const id = `toast-${Date.now()}-${++nextToastId}`
 
-    if (import.meta.client) {
-      window.setTimeout(() => {
-        removeToast(id)
-      }, duration)
+    toasts.value = [
+      ...toasts.value.slice(-4),
+      { id, type, title, message, duration },
+    ]
+
+    if (duration > 0) {
+      window.setTimeout(() => remove(id), duration)
     }
+
+    return id
   }
 
-  const success = (
-    title: string,
-    message = '',
-  ) => {
-    showToast(
-      'success',
-      title,
-      message,
-    )
-  }
+  const success = (title: string, message = '', duration = 4500) =>
+    show('success', title, message, duration)
 
-  const error = (
-    title: string,
-    message = '',
-  ) => {
-    showToast(
-      'error',
-      title,
-      message,
-    )
-  }
+  const error = (title: string, message = '', duration = 5500) =>
+    show('error', title, message, duration)
 
-  const warning = (
-    title: string,
-    message = '',
-  ) => {
-    showToast(
-      'warning',
-      title,
-      message,
-    )
-  }
+  const warning = (title: string, message = '', duration = 5000) =>
+    show('warning', title, message, duration)
 
-  const info = (
-    title: string,
-    message = '',
-  ) => {
-    showToast(
-      'info',
-      title,
-      message,
-    )
+  const info = (title: string, message = '', duration = 4500) =>
+    show('info', title, message, duration)
+
+  const clear = () => {
+    toasts.value = []
   }
 
   return {
-    toasts,
-
-    showToast,
-    removeToast,
-
+    toasts: readonly(toasts),
+    show,
     success,
     error,
     warning,
     info,
+    remove,
+    clear,
   }
 }
