@@ -46,9 +46,17 @@ const deletingId = ref<number | null>(null)
 
 const form = reactive<CompanyPayload>({
   company_name: '',
-  location: '',
+  locations: [],
   status: true,
 })
+const existingLocations = ref<NonNullable<CompanyRecord['locations']>>([])
+const newLocation = () => ({ location_name: '', city: '', province: '' })
+const displayLocations = (company: CompanyRecord) => {
+  const locations = company.locations ?? []
+  return [
+    ...locations.map(location => `${location.location_name} (${location.city}${location.province ? `, ${location.province}` : ''})`),
+  ]
+}
 
 // DROPDOWN
 const openActionId = ref<number | null>(null)
@@ -122,7 +130,7 @@ const filtered = computed(() => {
     const matchesSearch =
       !q ||
       item.company_name.toLowerCase().includes(q) ||
-      (item.location && item.location.toLowerCase().includes(q))
+      (item.locations ?? []).some(location => `${location.location_name} ${location.city} ${location.province ?? ''}`.toLowerCase().includes(q))
 
     const matchesStatus =
       filterStatus.value === 'all' ||
@@ -167,7 +175,8 @@ const openAddModal = () => {
   closeActions()
   editingId.value = null
   form.company_name = ''
-  form.location = ''
+  form.locations = [newLocation()]
+  existingLocations.value = []
   form.status = true
   errorMessage.value = ''
   successMessage.value = ''
@@ -178,7 +187,8 @@ const openEditModal = (record: CompanyRecord) => {
   closeActions()
   editingId.value = record.id
   form.company_name = record.company_name
-  form.location = record.location ?? ''
+  form.locations = []
+  existingLocations.value = record.locations ?? []
   form.status = record.status ?? true
   errorMessage.value = ''
   successMessage.value = ''
@@ -198,7 +208,7 @@ const closeModal = () => {
   modalOpen.value = false
   editingId.value = null
   form.company_name = ''
-  form.location = ''
+  form.locations = []
 }
 
 const handleSave = async () => {
@@ -207,8 +217,12 @@ const handleSave = async () => {
     return
   }
 
-  if (!form.location.trim()) {
-    errorMessage.value = 'Headquarters location is required.'
+  if (editingId.value === null && !form.locations.length) {
+    errorMessage.value = 'Add at least one location.'
+    return
+  }
+  if (form.locations.some(location => !location.location_name.trim() || !location.city.trim())) {
+    errorMessage.value = 'Enter a name and city for each new location.'
     return
   }
 
@@ -219,7 +233,7 @@ const handleSave = async () => {
   try {
     const payload = {
       company_name: form.company_name.trim(),
-      location: form.location.trim(),
+      locations: form.locations.map(location => ({ location_name: location.location_name.trim(), city: location.city.trim(), province: location.province?.trim() || null })),
       status: form.status,
     }
 
@@ -315,11 +329,12 @@ onUnmounted(() => {
         </div>
 
         <h1>Company Information</h1>
-        <p>Register, configure, and manage multiple corporate subsidiaries and branch profiles.</p>
+        <p>Manage company information and its locations.</p>
       </div>
 
       <div class="cw-header-actions">
         <button
+          v-if="!loading && companies.length === 0 && !errorMessage"
           type="button"
           class="cw-btn cw-primary"
           @click="openAddModal"
@@ -413,9 +428,12 @@ onUnmounted(() => {
               </td>
 
               <td>
-                <div class="location-cell">
-                  <MapPin :size="14" class="loc-icon" />
-                  <span>{{ item.location || '—' }}</span>
+                <div class="locations-row">
+                  <div v-for="location in displayLocations(item)" :key="location" class="location-cell">
+                    <MapPin :size="14" class="loc-icon" />
+                    <span>{{ location }}</span>
+                  </div>
+                  <span v-if="!displayLocations(item).length">—</span>
                 </div>
               </td>
 
@@ -558,6 +576,7 @@ onUnmounted(() => {
           </div>
 
           <form @submit.prevent="handleSave">
+            <div v-if="errorMessage" class="cw-error-banner" role="alert">{{ errorMessage }}</div>
             <div class="cw-fields">
               <label class="full-col">
                 <span>Company Name <b>*</b></span>
@@ -570,16 +589,18 @@ onUnmounted(() => {
                 />
               </label>
 
-              <label class="full-col">
-                <span>Headquarters / Location <b>*</b></span>
-                <input
-                  v-model="form.location"
-                  type="text"
-                  required
-                  placeholder="e.g. Metro Manila, Philippines"
-                  :disabled="saving"
-                />
-              </label>
+              <div class="full-col">
+                <strong>Existing locations</strong>
+                <p v-if="!existingLocations.length">No separate locations saved yet.</p>
+                <p v-for="location in existingLocations" :key="location.id">{{ location.location_name }} — {{ location.city }}{{ location.province ? `, ${location.province}` : '' }}</p>
+              </div>
+              <div v-for="(location, index) in form.locations" :key="index" class="full-col">
+                <label><span>Location name <b>*</b></span><input v-model="location.location_name" required :disabled="saving" placeholder="e.g. Main Office" /></label>
+                <label><span>City <b>*</b></span><input v-model="location.city" required :disabled="saving" placeholder="e.g. Manila" /></label>
+                <label><span>Province</span><input v-model="location.province" :disabled="saving" placeholder="Optional" /></label>
+                <button type="button" class="cw-btn cw-outline" :disabled="saving" @click="form.locations.splice(index, 1)">Remove new location</button>
+              </div>
+              <button type="button" class="cw-btn cw-outline" :disabled="saving" @click="form.locations.push(newLocation())">Add location</button>
 
               <label class="full-col">
                 <span>Operational Status <b>*</b></span>
@@ -958,6 +979,12 @@ onUnmounted(() => {
   display: block;
   font-size: 11px;
   color: var(--text-muted);
+}
+
+.locations-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
 }
 
 .location-cell,

@@ -161,10 +161,6 @@ const menuItems = [
         to: '/admin/trip-tickets',
       },
       {
-        label: 'Field Leaves',
-        to: '/admin/filed-leaves',
-      },
-      {
         label: 'Switch Rest Day',
         to: '/admin/switch-rest-day',
       },
@@ -301,9 +297,9 @@ const menuItems = [
     ],
   },
   {
-    label: 'Holiday Leave',
+    label: 'Work Calendar',
     icon: CalendarDays,
-    to: '/admin/holiday-leave',
+    to: '/admin/work-calendar',
   },
   {
     label: 'Departments',

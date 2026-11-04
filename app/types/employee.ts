@@ -33,6 +33,7 @@ export interface EmployeeDocument {
 }
 
 export interface Employee {
+  workLocation?: string
   id: number
 
   // BASIC

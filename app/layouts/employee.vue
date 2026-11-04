@@ -9,6 +9,7 @@ import {
   ClipboardCheck,
   WalletCards,
   CalendarDays,
+  Umbrella,
   ChevronDown,
   LogOut,
   MoreHorizontal,
@@ -36,7 +37,7 @@ const closeMore = () => {
 }
 
 const moreActive = computed(() =>
-  ['/employee/profile', '/employee/leave-credit', '/employee/loans']
+  ['/employee/profile', '/employee/leave-credit', '/employee/loans', '/employee/calendar']
     .includes(route.path)
 )
 
@@ -67,7 +68,8 @@ const { profile, displayName, initials } = useEmployeePortal()
 const menuItems = [
   { label: 'Dashboard', icon: LayoutDashboard, to: '/employee' },
   { label: 'Attendance', icon: Clock3, to: '/employee/attendance' },
-  { label: 'Leave Credits', icon: CalendarDays, to: '/employee/leave-credit' },
+  { label: 'Calendar', icon: CalendarDays, to: '/employee/calendar' },
+  { label: 'Leave Credits', icon: Umbrella, to: '/employee/leave-credit' },
   { label: 'Requests', icon: ClipboardCheck, to: '/employee/requests' },
   { label: 'Payslips', icon: WalletCards, to: '/employee/payslips' },
   { label: 'Loans', icon: Landmark, to: '/employee/loans' },
@@ -276,12 +278,16 @@ watch(() => route.fullPath, () => {
         </button>
       </div>
       <nav class="sheet-links" aria-label="More employee pages">
+        <NuxtLink to="/employee/calendar" :aria-current="route.path === '/employee/calendar' ? 'page' : undefined" @click="closeMore">
+          <CalendarDays :size="20" />
+          <span>Calendar</span>
+        </NuxtLink>
         <NuxtLink
             to="/employee/leave-credit"
             :aria-current="route.path === '/employee/leave-credit' ? 'page' : undefined"
             @click="closeMore"
           >
-            <CalendarDays :size="20" />
+            <Umbrella :size="20" />
             <span>Leave Credits</span>
           </NuxtLink>
 
