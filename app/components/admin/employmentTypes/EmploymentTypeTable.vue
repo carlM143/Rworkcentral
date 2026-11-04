@@ -35,7 +35,6 @@ const isStatusActive = (status: string | boolean | number) =>
           <tr v-for="item in employmentTypes" :key="item.id">
             <td>
               <div class="cell-primary">
-                <Building2 :size="15" class="cell-icon" />
                 <strong>{{ item.name }}</strong>
               </div>
             </td>
