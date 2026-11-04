@@ -82,6 +82,9 @@ const selected = ref<LateAdjustmentRecord | null>(null)
 const selectedLogId = ref<number | null>(null)
 
 const employeeSearch = ref('')
+const showEmployeeOptions = ref(false)
+const employeeComboRef = ref<HTMLElement | null>(null)
+
 const modalError = ref('')
 const detailsLoading = ref(false)
 const reviewRemarks = ref('')
@@ -165,6 +168,52 @@ const filteredEligibleLogs = computed(() => {
   )
 })
 
+const chooseEmployeeLog = (log: EligibleLateLog) => {
+  selectedLogId.value = log.time_log_id
+
+  employeeSearch.value =
+    `${log.employee_name} — ${log.work_date}`
+
+  showEmployeeOptions.value = false
+
+  selectLog()
+}
+
+const handleEmployeeSearch = () => {
+  selectedLogId.value = null
+
+  form.requested_time_in = ''
+  form.requested_time_out = ''
+  form.requested_minutes = 0
+
+  showEmployeeOptions.value = true
+}
+
+const handleEmployeeComboClick = (event: MouseEvent) => {
+  const target = event.target as Node
+
+  if (
+    employeeComboRef.value &&
+    !employeeComboRef.value.contains(target)
+  ) {
+    showEmployeeOptions.value = false
+  }
+}
+
+onMounted(() => {
+  document.addEventListener(
+    'click',
+    handleEmployeeComboClick,
+  )
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener(
+    'click',
+    handleEmployeeComboClick,
+  )
+})
+
 const selectedEligibleLog = computed<EligibleLateLog | null>(
   () => eligibleLogs.value.find(
     row => row.time_log_id === selectedLogId.value,
@@ -243,6 +292,7 @@ const openCreate = async () => {
   resetForm()
   selected.value = null
   modal.value = 'create'
+  showEmployeeOptions.value = false
 
   const ok = await fetchEligibleLogs()
 
@@ -917,58 +967,132 @@ const viewEmployee = (row: LateAdjustmentRecord) => {
               <div class="late-section">
                 <h4>01 · Employee & Attendance</h4>
 
-                <template v-if="modal === 'create'">
-                  <label class="late-form-field">
-                    <span>Search Employee</span>
+              <template v-if="modal === 'create'">
+                <div
+                  ref="employeeComboRef"
+                  class="late-form-field"
+                >
+                  <span>Employee Attendance Record *</span>
 
-                    <div class="late-search">
-                      <Search :size="15" />
+                  <div class="late-combobox">
+                    <div
+                      class="late-combobox-input"
+                      :class="{
+                        'late-combobox-active': showEmployeeOptions,
+                      }"
+                    >
+                      <Search
+                        :size="16"
+                        class="late-combobox-search-icon"
+                      />
+
                       <input
                         v-model="employeeSearch"
-                        placeholder="Search employee name, ID or date..."
+                        type="text"
+                        autocomplete="off"
+                        placeholder="Search employee name, ID or attendance date..."
+                        :disabled="loadingEligibleLogs"
+                        @focus="showEmployeeOptions = true"
+                        @input="handleEmployeeSearch"
+                        @keydown.esc="showEmployeeOptions = false"
                       >
+
+                      <button
+                        v-if="employeeSearch"
+                        type="button"
+                        class="late-combobox-clear"
+                        aria-label="Clear selected employee"
+                        @click="
+                          employeeSearch = '';
+                          handleEmployeeSearch()
+                        "
+                      >
+                        <X :size="15" />
+                      </button>
                     </div>
-                  </label>
 
-                  <label class="late-form-field">
-                    <span>Employee Attendance Record *</span>
-
-                    <select
-                      v-model="selectedLogId"
-                      class="late-field"
-                      @change="selectLog"
+                    <!-- SEARCH RESULTS -->
+                    <div
+                      v-if="showEmployeeOptions"
+                      class="late-combobox-dropdown"
                     >
-                      <option :value="null" disabled>
-                        Select employee and attendance date
-                      </option>
-
-                      <option
-                        v-for="row in filteredEligibleLogs"
-                        :key="row.time_log_id"
-                        :value="row.time_log_id"
+                      <div
+                        v-if="loadingEligibleLogs"
+                        class="late-combobox-state"
                       >
-                        {{ row.employee_name }}
-                        — {{ row.work_date }}
-                        — {{ row.chargeable_late_minutes }}m late
-                        / {{ row.undertime_minutes }}m undertime
-                      </option>
-                    </select>
-                  </label>
+                        <LoaderCircle
+                          :size="15"
+                          class="spinning"
+                        />
+                        Loading attendance records...
+                      </div>
 
-                  <p
-                    v-if="loadingEligibleLogs"
-                    class="late-helper"
-                  >
-                    Loading eligible Time Logs...
-                  </p>
+                      <div
+                        v-else-if="filteredEligibleLogs.length === 0"
+                        class="late-combobox-state"
+                      >
+                        No matching attendance records found.
+                      </div>
 
-                  <p
-                    v-else-if="filteredEligibleLogs.length === 0"
-                    class="late-helper"
-                  >
-                    No eligible attendance records available.
+                      <div
+                        v-else
+                        class="late-combobox-list"
+                      >
+                        <button
+                          v-for="log in filteredEligibleLogs"
+                          :key="log.time_log_id"
+                          type="button"
+                          class="late-combobox-option"
+                          :class="{
+                            'late-combobox-selected':
+                              selectedLogId === log.time_log_id,
+                          }"
+                          @click="chooseEmployeeLog(log)"
+                        >
+                          <div class="late-combobox-avatar">
+                            <UserRound :size="16" />
+                          </div>
+
+                          <div class="late-combobox-option-info">
+                            <strong>{{ log.employee_name }}</strong>
+
+                            <span>
+                              {{ log.employee_number }}
+                              · {{ log.department }}
+                            </span>
+
+                            <small>
+                              {{ displayDate(log.work_date) }}
+                              · {{ log.schedule }}
+                            </small>
+                          </div>
+
+                          <div class="late-combobox-minutes">
+                            <span v-if="log.chargeable_late_minutes > 0">
+                              {{ log.chargeable_late_minutes }}m Late
+                            </span>
+
+                            <span v-if="log.undertime_minutes > 0">
+                              {{ log.undertime_minutes }}m UT
+                            </span>
+                          </div>
+
+                          <Check
+                            v-if="selectedLogId === log.time_log_id"
+                            :size="15"
+                            class="late-combobox-check"
+                          />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <p class="late-helper">
+                    Search and select an attendance record to
+                    automatically load its details.
                   </p>
-                </template>
+                </div>
+              </template>
 
                 <div
                   v-if="attendanceSummary"
@@ -1833,5 +1957,162 @@ const viewEmployee = (row: LateAdjustmentRecord) => {
   .late-dialog-actions {
     justify-content: flex-end;
   }
+}
+
+.late-combobox {
+  position: relative;
+  width: 100%;
+}
+
+.late-combobox-input {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 43px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--bg-card);
+  transition: border-color 0.2s ease;
+}
+
+.late-combobox-input:hover,
+.late-combobox-active {
+  border-color: var(--primary);
+}
+
+.late-combobox-search-icon {
+  flex-shrink: 0;
+  color: var(--text-muted);
+}
+
+.late-combobox-input input {
+  flex: 1;
+  width: 100%;
+  min-width: 0;
+  height: 42px;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 12px;
+}
+
+.late-combobox-input input::placeholder {
+  color: var(--text-muted);
+}
+
+.late-combobox-clear {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 25px;
+  height: 25px;
+  flex-shrink: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.late-combobox-clear:hover {
+  background: var(--bg-card-soft);
+  color: var(--text-primary);
+}
+
+.late-combobox-dropdown {
+  position: absolute;
+  top: calc(100% + 5px);
+  left: 0;
+  right: 0;
+  z-index: 50;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-card);
+  box-shadow: 0 12px 35px rgba(0, 0, 0, 0.25);
+}
+
+.late-combobox-list {
+  max-height: 255px;
+  overflow-y: auto;
+  padding: 5px;
+}
+
+.late-combobox-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 11px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-primary);
+  text-align: left;
+  cursor: pointer;
+}
+
+.late-combobox-option:hover,
+.late-combobox-selected {
+  background: var(--primary-soft);
+}
+
+.late-combobox-avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 35px;
+  height: 35px;
+  flex-shrink: 0;
+  border-radius: 9px;
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+
+.late-combobox-option-info {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  gap: 3px;
+}
+
+.late-combobox-option-info strong {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.late-combobox-option-info span,
+.late-combobox-option-info small {
+  color: var(--text-muted);
+  font-size: 10px;
+}
+
+.late-combobox-minutes {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  flex-shrink: 0;
+  color: var(--orange, #f59e0b);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.late-combobox-check {
+  color: var(--primary);
+}
+
+.late-combobox-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 75px;
+  padding: 15px;
+  color: var(--text-muted);
+  font-size: 11px;
 }
 </style>
