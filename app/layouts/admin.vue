@@ -129,10 +129,6 @@ const menuItems = [
         label: 'Salary Adjustments',
         to: '/admin/employees/salary-adjustments',
       },
-      {
-        label: 'Inactive Employees',
-        to: '/admin/employees/inactive',
-      },
     ],
   },
   {

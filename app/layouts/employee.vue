@@ -5,6 +5,7 @@ import {
   LayoutDashboard,
   Clock3,
   TimerReset,
+  FileClock,
   ClipboardCheck,
   WalletCards,
   CalendarDays,
@@ -40,15 +41,27 @@ const moreActive = computed(() =>
 )
 
 const isDark = ref(false)
-const requestsOpen = ref(route.path === '/employee/requests')
+const isTimeLogCorrectionRoute = computed(() =>
+  route.path === '/employee/timelog-correction-request' ||
+  route.path.startsWith('/employee/timelog-correction-request/')
+)
+const requestsActive = computed(() =>
+  route.path === '/employee/requests' || isTimeLogCorrectionRoute.value
+)
+const requestsOpen = ref(requestsActive.value)
 
 const requestLinks = [
-  { label: 'Leave', category: 'leave', icon: CalendarDays },
-  { label: 'Undertime', category: 'undertime', icon: Clock3 },
-  { label: 'Overtime', category: 'overtime', icon: TimerReset },
+  { label: 'Leave', category: 'leave', icon: CalendarDays, to: { path: '/employee/requests', query: { category: 'leave' } } },
+  { label: 'Undertime', category: 'undertime', icon: Clock3, to: { path: '/employee/requests', query: { category: 'undertime' } } },
+  { label: 'Overtime', category: 'overtime', icon: TimerReset, to: { path: '/employee/requests', query: { category: 'overtime' } } },
+  { label: 'Time Log Correction', category: 'timelog-correction', icon: FileClock, to: '/employee/timelog-correction-request' },
 ]
 
-const selectedRequestCategory = computed(() => ['undertime', 'overtime'].includes(String(route.query.category)) ? String(route.query.category) : 'leave')
+const selectedRequestCategory = computed(() => {
+  if (isTimeLogCorrectionRoute.value) return 'timelog-correction'
+  const category = String(route.query.category || '')
+  return ['undertime', 'overtime'].includes(category) ? category : 'leave'
+})
 const { profile, displayName, initials } = useEmployeePortal()
 
 const menuItems = [
@@ -111,7 +124,7 @@ onBeforeUnmount(() => {
 
 watch(() => route.fullPath, () => {
   closeMore()
-  if (route.path === '/employee/requests') requestsOpen.value = true
+  if (requestsActive.value) requestsOpen.value = true
 })
 </script>
 
@@ -131,7 +144,7 @@ watch(() => route.fullPath, () => {
               <button
                 type="button"
                 class="menu-link"
-                :class="{ 'request-parent-active': route.path === item.to }"
+                :class="{ 'request-parent-active': requestsActive }"
                 :aria-expanded="requestsOpen"
                 aria-controls="employee-request-submenu"
                 @click="requestsOpen = !requestsOpen"
@@ -144,10 +157,10 @@ watch(() => route.fullPath, () => {
                 <NuxtLink
                   v-for="link in requestLinks"
                   :key="link.category"
-                  :to="{ path: '/employee/requests', query: { category: link.category } }"
+                  :to="link.to"
                   class="menu-link submenu-link"
-                  :class="{ active: route.path === item.to && selectedRequestCategory === link.category }"
-                  :aria-current="route.path === item.to && selectedRequestCategory === link.category ? 'page' : undefined"
+                  :class="{ active: requestsActive && selectedRequestCategory === link.category }"
+                  :aria-current="requestsActive && selectedRequestCategory === link.category ? 'page' : undefined"
                 >
                   <component :is="link.icon" :size="16" />
                   <span>{{ link.label }}</span>

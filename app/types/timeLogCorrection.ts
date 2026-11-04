@@ -1,7 +1,9 @@
 export type TimeCorrectionStatus =
   | 'Pending'
   | 'Approved'
+  | 'Applied'
   | 'Rejected'
+  | 'Cancelled'
 
 export type TimeCorrectionType =
   | 'Time In'
@@ -40,6 +42,10 @@ export interface TimeLogCorrectionRequest {
   originalTimeIn?: string
   originalTimeOut?: string
 
+  requestedTime?: string
+
+  // Kept optional for the legacy request/history components while they are
+  // migrated to the revised single requested_time backend contract.
   requestedTimeIn?: string
   requestedTimeOut?: string
 
@@ -48,7 +54,7 @@ export interface TimeLogCorrectionRequest {
   attachment?:
     TimeCorrectionAttachment
 
-  priority:
+  priority?:
     TimeCorrectionPriority
 
   status:
@@ -60,4 +66,7 @@ export interface TimeLogCorrectionRequest {
   reviewedBy?: string
   reviewedAt?: string
   reviewNotes?: string
+  
+  appliedAt?: string
+  appliedBy?: string
 }

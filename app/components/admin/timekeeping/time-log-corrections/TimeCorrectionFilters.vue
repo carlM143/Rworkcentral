@@ -1,281 +1,172 @@
+
 <script setup lang="ts">
 import {
+  RefreshCw,
   RotateCcw,
-  CalendarDays,
+  Search,
 } from 'lucide-vue-next'
 
-const search =
-  defineModel<string>(
-    'search',
-    {
-      default: '',
-    },
-  )
+const search = defineModel<string>('search', {
+  default: '',
+})
 
-const department =
-  defineModel<string>(
-    'department',
-    {
-      default: '',
-    },
-  )
-
-const status =
-  defineModel<string>(
-    'status',
-    {
-      default: '',
-    },
-  )
-
-const correctionType =
-  defineModel<string>(
-    'correctionType',
-    {
-      default: '',
-    },
-  )
-
-const dateFrom =
-  defineModel<string>(
-    'dateFrom',
-    {
-      default: '',
-    },
-  )
-
-const dateTo =
-  defineModel<string>(
-    'dateTo',
-    {
-      default: '',
-    },
-  )
+const status = defineModel<string>('status', {
+  default: 'pending',
+})
 
 defineProps<{
-  departments: string[]
-  statusOptions: string[]
-  correctionTypeOptions: string[]
+  loading?: boolean
 }>()
 
-const emit =
-  defineEmits<{
-    reset: []
-  }>()
+const emit = defineEmits<{
+  refresh: []
+  reset: []
+}>()
+
+const statusOptions = [
+  { value: 'pending', label: 'Pending' },
+  { value: 'approved', label: 'Approved (Not Applied)' },
+  { value: 'applied', label: 'Applied to Time Log' },
+  { value: 'rejected', label: 'Rejected' },
+  { value: 'cancelled', label: 'Cancelled' },
+  { value: '', label: 'All Requests' },
+]
 </script>
 
 <template>
   <div class="filters-card">
 
-    <div class="filters-row">
+    <label class="search-control">
+      <Search :size="16" />
 
-      <AppInput
+      <input
         v-model="search"
-        searchable
-        clearable
-        placeholder="Search employee, ID or request number..."
-      />
-
-      <AppSelect
-        v-model="department"
-        :options="departments"
-        placeholder="All Departments"
-      />
-
-      <AppSelect
-        v-model="status"
-        :options="statusOptions"
-        placeholder="All Status"
-      />
-
-      <AppSelect
-        v-model="correctionType"
-        :options="correctionTypeOptions"
-        placeholder="All Correction Types"
-      />
-
-    </div>
-
-    <div class="date-row">
-
-      <div class="date-control">
-
-        <CalendarDays :size="15" />
-
-        <div>
-          <span>
-            Date From
-          </span>
-
-          <input
-            v-model="dateFrom"
-            type="date"
-          >
-        </div>
-
-      </div>
-
-      <div class="date-control">
-
-        <CalendarDays :size="15" />
-
-        <div>
-          <span>
-            Date To
-          </span>
-
-          <input
-            v-model="dateTo"
-            type="date"
-          >
-        </div>
-
-      </div>
-
-      <AppButton
-        variant="secondary"
-        :icon="RotateCcw"
-        @click="
-          emit('reset')
-        "
+        type="search"
+        placeholder="Search employee or employee ID..."
+        autocomplete="off"
+        aria-label="Search correction requests"
       >
-        Reset Filters
-      </AppButton>
+    </label>
 
-    </div>
+    <label class="status-control">
+      <span>Status</span>
+
+      <select
+        v-model="status"
+        aria-label="Filter by correction status"
+      >
+        <option
+          v-for="option in statusOptions"
+          :key="option.value"
+          :value="option.value"
+        >
+          {{ option.label }}
+        </option>
+      </select>
+    </label>
+
+    <AppButton
+      variant="secondary"
+      :icon="RotateCcw"
+      :disabled="loading"
+      @click="emit('reset')"
+    >
+      Reset
+    </AppButton>
+
+    <AppButton
+      variant="secondary"
+      :icon="RefreshCw"
+      :disabled="loading"
+      @click="emit('refresh')"
+    >
+      Refresh
+    </AppButton>
 
   </div>
 </template>
 
 <style scoped>
 .filters-card {
-  margin-bottom: 14px;
-
-  padding: 10px;
-
-  border:
-    1px solid var(--border);
-
-  border-radius: 10px;
-
-  background:
-    var(--bg-card);
-
-  box-shadow:
-    var(--shadow);
-}
-
-.filters-row {
   display: grid;
-
-  grid-template-columns:
-    minmax(260px, 1fr)
-    190px
-    160px
-    190px;
-
-  gap: 8px;
+  grid-template-columns: minmax(240px, 1fr) 210px auto auto;
+  align-items: end;
+  gap: 9px;
+  margin-bottom: 14px;
+  padding: 11px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-card);
+  box-shadow: var(--shadow);
 }
 
-.date-row {
+.search-control {
   display: flex;
-
+  min-height: 40px;
   align-items: center;
-
-  gap: 8px;
-
-  margin-top: 8px;
-}
-
-.date-control {
-  display: flex;
-
-  min-width: 190px;
-  height: 40px;
-
-  align-items: center;
-
-  gap: 8px;
-
-  padding:
-    0 10px;
-
-  border:
-    1px solid var(--border);
-
+  gap: 9px;
+  padding: 0 11px;
+  border: 1px solid var(--border);
   border-radius: 7px;
-
-  background:
-    var(--bg-card-soft);
-
-  color:
-    var(--text-muted);
+  background: var(--bg-card-soft);
+  color: var(--text-muted);
 }
 
-.date-control > div {
-  min-width: 0;
-
-  flex: 1;
+.search-control:focus-within,
+.status-control select:focus {
+  border-color: var(--primary);
 }
 
-.date-control span {
-  display: block;
-
-  margin-bottom: 1px;
-
-  color:
-    var(--text-muted);
-
-  font-size: 8px;
-}
-
-.date-control input {
+.search-control input,
+.status-control select {
   width: 100%;
-
+  min-width: 0;
   border: 0;
   outline: none;
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 11px;
+}
 
-  background:
-    transparent;
+.search-control input::placeholder {
+  color: var(--text-muted);
+}
 
-  color:
-    var(--text-primary);
-
-  font-family: inherit;
-
+.status-control {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--text-muted);
   font-size: 10px;
-
-  color-scheme: dark;
 }
 
-html:not(.dark)
-.date-control input {
-  color-scheme: light;
+.status-control select {
+  min-height: 40px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--bg-card-soft);
+  cursor: pointer;
 }
 
-@media (max-width: 1150px) {
-  .filters-row {
-    grid-template-columns:
-      repeat(
-        2,
-        minmax(0, 1fr)
-      );
+.status-control option {
+  background: var(--bg-card);
+  color: var(--text-primary);
+}
+
+@media (max-width: 820px) {
+  .filters-card {
+    grid-template-columns: 1fr 1fr;
   }
 }
 
-@media (max-width: 700px) {
-  .filters-row {
-    grid-template-columns:
-      1fr;
+@media (max-width: 540px) {
+  .filters-card {
+    grid-template-columns: 1fr;
   }
 
-  .date-row {
-    align-items: stretch;
-
-    flex-direction: column;
-  }
-
-  .date-control {
+  .filters-card > * {
     width: 100%;
   }
 }

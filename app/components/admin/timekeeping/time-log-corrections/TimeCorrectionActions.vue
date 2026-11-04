@@ -1,10 +1,10 @@
+
 <script setup lang="ts">
 import {
-  MoreHorizontal,
   Eye,
-  CircleCheck,
-  CircleX,
-  UserRound,
+  Check,
+  X,
+  Play,
 } from 'lucide-vue-next'
 
 import type {
@@ -12,369 +12,126 @@ import type {
 } from '~/types/timeLogCorrection'
 
 const props = defineProps<{
-  request:
-    TimeLogCorrectionRequest
+  request: TimeLogCorrectionRequest
 }>()
 
 const emit = defineEmits<{
-  view: [
-    request:
-      TimeLogCorrectionRequest,
-  ]
-
-  approve: [
-    request:
-      TimeLogCorrectionRequest,
-  ]
-
-  reject: [
-    request:
-      TimeLogCorrectionRequest,
-  ]
-
-  employee: [
-    request:
-      TimeLogCorrectionRequest,
-  ]
+  view: []
+  approve: []
+  reject: []
+  apply: []
 }>()
 
-const open =
-  ref(false)
-
-const triggerRef =
-  ref<HTMLElement | null>(
-    null,
-  )
-
-const menuStyle =
-  ref<Record<
-    string,
-    string
-  >>({})
-
-const close = () => {
-  open.value = false
-}
-
-const updatePosition = () => {
-  if (!triggerRef.value) {
-    return
-  }
-
-  const rect =
-    triggerRef.value
-      .getBoundingClientRect()
-
-  const menuWidth =
-    200
-
-  const menuHeight =
-    props.request.status ===
-    'Pending'
-      ? 195
-      : 110
-
-  let top =
-    rect.bottom + 5
-
-  if (
-    window.innerHeight -
-      rect.bottom <
-    menuHeight
-  ) {
-    top =
-      rect.top -
-      menuHeight -
-      5
-  }
-
-  let left =
-    rect.right -
-    menuWidth
-
-  if (left < 8) {
-    left = 8
-  }
-
-  menuStyle.value = {
-    top:
-      `${Math.max(
-        8,
-        top,
-      )}px`,
-
-    left:
-      `${left}px`,
-
-    width:
-      `${menuWidth}px`,
-  }
-}
-
-const toggle = async () => {
-  open.value =
-    !open.value
-
-  if (!open.value) {
-    return
-  }
-
-  await nextTick()
-
-  updatePosition()
-}
-
-const handleAction = (
-  action:
-    'view' |
-    'approve' |
-    'reject' |
-    'employee',
-) => {
-  close()
-
-  emit(
-    action,
-    props.request,
-  )
-}
-
-const documentClick =
-  () => {
-    close()
-  }
-
-onMounted(() => {
-  document.addEventListener(
-    'click',
-    documentClick,
-  )
-})
-
-onBeforeUnmount(() => {
-  document.removeEventListener(
-    'click',
-    documentClick,
-  )
-})
+const status = computed(() =>
+  String(props.request.status).toLowerCase()
+)
 </script>
 
 <template>
-  <div class="actions-wrapper">
+  <div class="correction-actions">
 
     <button
-      ref="triggerRef"
       type="button"
-      class="trigger"
-      @click.stop="toggle"
+      class="action-btn view"
+      title="View Details"
+      @click="emit('view')"
     >
-      <MoreHorizontal :size="17" />
+      <Eye :size="15" />
+      View
     </button>
 
-    <Teleport to="body">
-
-      <div
-        v-if="open"
-        class="actions-menu"
-        :style="menuStyle"
-        @click.stop
+    <template v-if="status === 'pending'">
+      <button
+        type="button"
+        class="action-btn approve"
+        title="Approve Request"
+        @click="emit('approve')"
       >
+        <Check :size="15" />
+        Approve
+      </button>
 
-        <button
-          type="button"
-          class="action-item"
-          @click="
-            handleAction('view')
-          "
-        >
-          <Eye :size="15" />
+      <button
+        type="button"
+        class="action-btn reject"
+        title="Reject Request"
+        @click="emit('reject')"
+      >
+        <X :size="15" />
+        Reject
+      </button>
+    </template>
 
-          View Request
-        </button>
-
-        <template
-          v-if="
-            request.status ===
-            'Pending'
-          "
-        >
-
-          <button
-            type="button"
-            class="action-item approve"
-            @click="
-              handleAction(
-                'approve',
-              )
-            "
-          >
-            <CircleCheck :size="15" />
-
-            Approve Request
-          </button>
-
-          <button
-            type="button"
-            class="action-item reject"
-            @click="
-              handleAction(
-                'reject',
-              )
-            "
-          >
-            <CircleX :size="15" />
-
-            Reject Request
-          </button>
-
-        </template>
-
-        <div class="divider" />
-
-        <button
-          type="button"
-          class="action-item"
-          @click="
-            handleAction(
-              'employee',
-            )
-          "
-        >
-          <UserRound :size="15" />
-
-          View Employee
-        </button>
-
-      </div>
-
-    </Teleport>
+    <button
+      v-if="status === 'approved'"
+      type="button"
+      class="action-btn apply"
+      title="Apply approved correction to employee time log"
+      @click="emit('apply')"
+    >
+      <Play :size="15" />
+      Apply to Time Log
+    </button>
 
   </div>
 </template>
 
 <style scoped>
-.actions-wrapper {
-  display: inline-flex;
+.correction-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
 }
 
-.trigger {
-  display: flex;
-
-  width: 31px;
-  height: 31px;
-
+.action-btn {
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-
-  border:
-    1px solid var(--border);
-
+  gap: 5px;
+  min-height: 32px;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
   border-radius: 7px;
-
-  background:
-    transparent;
-
-  color:
-    var(--text-secondary);
-
-  cursor: pointer;
-}
-
-.trigger:hover {
-  background:
-    var(--bg-card-soft);
-
-  color:
-    var(--primary);
-}
-
-.actions-menu {
-  position: fixed;
-
-  z-index: 10000;
-
-  padding: 6px;
-
-  border:
-    1px solid var(--border);
-
-  border-radius: 9px;
-
-  background:
-    var(--bg-card);
-
-  box-shadow:
-    0 16px 45px
-    rgba(0, 0, 0, 0.35);
-}
-
-.action-item {
-  display: flex;
-
-  width: 100%;
-  min-height: 38px;
-
-  align-items: center;
-
-  gap: 9px;
-
-  padding:
-    0 10px;
-
-  border: 0;
-
-  border-radius: 6px;
-
-  background:
-    transparent;
-
-  color:
-    var(--text-secondary);
-
+  background: var(--bg-card);
+  color: var(--text-secondary);
   font-family: inherit;
-
   font-size: 10px;
-
-  text-align: left;
-
+  font-weight: 600;
   cursor: pointer;
+  transition: background .15s ease, border-color .15s ease;
 }
 
-.action-item:hover {
-  background:
-    var(--bg-card-soft);
-
-  color:
-    var(--text-primary);
+.action-btn:hover {
+  background: var(--bg-card-soft);
 }
 
-.action-item.approve {
-  color:
-    var(--green);
+.action-btn:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
 }
 
-.action-item.approve:hover {
-  background:
-    var(--green-soft);
+.action-btn.view {
+  color: var(--primary);
 }
 
-.action-item.reject {
-  color:
-    var(--red);
+.action-btn.approve {
+  color: #16a34a;
+  border-color: #16a34a40;
 }
 
-.action-item.reject:hover {
-  background:
-    var(--red-soft);
+.action-btn.reject {
+  color: #dc2626;
+  border-color: #dc262640;
 }
 
-.divider {
-  height: 1px;
+.action-btn.apply {
+  color: white;
+  background: #2563eb;
+  border-color: #2563eb;
+}
 
-  margin:
-    5px 0;
-
-  background:
-    var(--border-soft);
+.action-btn.apply:hover {
+  background: #1d4ed8;
 }
 </style>
