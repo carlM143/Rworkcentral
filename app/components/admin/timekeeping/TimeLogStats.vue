@@ -1,3 +1,4 @@
+
 <script setup lang="ts">
 import {
   ListChecks,
@@ -18,7 +19,6 @@ defineProps<{
 
 <template>
   <div class="time-log-stats">
-
     <StatCard
       label="Total Logs"
       :value="stats.total"
@@ -50,26 +50,20 @@ defineProps<{
       :icon="AlertTriangle"
       tone="purple"
     />
-
   </div>
 </template>
 
 <style scoped>
 .time-log-stats {
   display: grid;
-
-  grid-template-columns:
-    repeat(4, minmax(0, 1fr));
-
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
-
   margin-bottom: 14px;
 }
 
 @media (max-width: 1100px) {
   .time-log-stats {
-    grid-template-columns:
-      repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
