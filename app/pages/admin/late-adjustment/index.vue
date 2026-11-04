@@ -1086,11 +1086,19 @@ const viewEmployee = (row: LateAdjustmentRecord) => {
                       </div>
                     </div>
                   </div>
+                <p class="late-helper">
+                  <template v-if="loadingEligibleLogs">
+                    Loading eligible attendance records...
+                  </template>
 
-                  <p class="late-helper">
-                    Search and select an attendance record to
-                    automatically load its details.
-                  </p>
+                  <template v-else>
+                    {{ filteredEligibleLogs.length }}
+                    eligible attendance record(s) found.
+
+                    Search by employee name, employee ID,
+                    department, or attendance date.
+                  </template>
+                </p>
                 </div>
               </template>
 
@@ -2021,17 +2029,47 @@ const viewEmployee = (row: LateAdjustmentRecord) => {
   color: var(--text-primary);
 }
 
+
 .late-combobox-dropdown {
-  position: absolute;
-  top: calc(100% + 5px);
-  left: 0;
-  right: 0;
-  z-index: 50;
+  position: relative;
+  top: auto;
+  left: auto;
+  right: auto;
+  z-index: 1;
+  width: 100%;
+  margin-top: 6px;
   overflow: hidden;
   border: 1px solid var(--border);
   border-radius: 10px;
   background: var(--bg-card);
-  box-shadow: 0 12px 35px rgba(0, 0, 0, 0.25);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+}
+
+.late-combobox-list {
+  max-height: 280px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 5px;
+  scrollbar-width: thin;
+}
+
+.late-combobox-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 11px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-primary);
+  text-align: left;
+  cursor: pointer;
+}
+
+.late-combobox-option:hover,
+.late-combobox-selected {
+  background: var(--primary-soft);
 }
 
 .late-combobox-list {
