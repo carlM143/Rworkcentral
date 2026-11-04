@@ -633,9 +633,6 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="app-shell">
-    <ClientOnly>
-      <AppToast />
-    </ClientOnly>
 
     <!-- MOBILE OVERLAY -->
     <Transition name="fade">
