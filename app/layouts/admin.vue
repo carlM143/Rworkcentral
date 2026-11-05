@@ -59,6 +59,7 @@ const openMenus = reactive<Record<string, boolean>>({
   loans: false,
   drivers: false,
   leave: false,
+  'work-calendar': false,
   departments: false,
   approvals: false,
   wfh: false,
@@ -298,8 +299,12 @@ const menuItems = [
   },
   {
     label: 'Work Calendar',
+    key: 'work-calendar',
     icon: CalendarDays,
-    to: '/admin/work-calendar',
+    children: [
+      { label: 'Holiday', to: '/admin/work-calendar' },
+      { label: 'Holiday Coverage', to: '/admin/work-calendar/coverage' },
+    ],
   },
   {
     label: 'Departments',
