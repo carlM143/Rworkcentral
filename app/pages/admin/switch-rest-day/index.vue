@@ -8,7 +8,6 @@ import {
 import SwitchRestDayStats from '~/components/admin/timekeeping/switch-rest-day/SwitchRestDayStats.vue'
 import SwitchRestDayFilters from '~/components/admin/timekeeping/switch-rest-day/SwitchRestDayFilters.vue'
 import SwitchRestDayTable from '~/components/admin/timekeeping/switch-rest-day/SwitchRestDayTable.vue'
-import AddEditSwitchRestDayModal from '~/components/admin/timekeeping/switch-rest-day/AddEditSwitchRestDayModal.vue'
 import SwitchRestDayDetailsModal from '~/components/admin/timekeeping/switch-rest-day/SwitchRestDayDetailsModal.vue'
 import SwitchRestDayStatusModal from '~/components/admin/timekeeping/switch-rest-day/SwitchRestDayStatusModal.vue'
 
@@ -66,107 +65,6 @@ const {
   success,
 } = useToast()
 
-/* =========================================================
-   ADD / EDIT
-========================================================= */
-
-const formModalOpen =
-  ref(false)
-
-const editingRecord =
-  ref<
-    SwitchRestDayRecord |
-    null
-  >(null)
-
-const handleAdd = () => {
-  editingRecord.value =
-    null
-
-  formModalOpen.value =
-    true
-}
-
-const handleEdit = (
-  record:
-    SwitchRestDayRecord,
-) => {
-  editingRecord.value =
-    record
-
-  formModalOpen.value =
-    true
-}
-
-const closeForm = () => {
-  formModalOpen.value =
-    false
-
-  editingRecord.value =
-    null
-}
-
-/* =========================================================
-   SAVE
-========================================================= */
-
-const handleSave = (
-  data:
-    SwitchRestDayFormData,
-) => {
-  if (
-    editingRecord.value
-  ) {
-    const updated =
-      updateRequest(
-        editingRecord.value.id,
-        data,
-      )
-
-    if (!updated) {
-      info(
-        'Unable to Update',
-        'The request could not be updated. Make sure the requested rest day is different from the current rest day.',
-      )
-
-      return
-    }
-
-    closeForm()
-
-    success(
-      'Request Updated',
-      `${updated.requestNumber} has been updated and returned to Pending status.`,
-    )
-
-    return
-  }
-
-  const created =
-    createRequest(
-      data,
-    )
-
-  if (!created) {
-    info(
-      'Unable to Submit',
-      'Please verify the employee and requested rest day.',
-    )
-
-    return
-  }
-
-  closeForm()
-
-  success(
-    'Request Submitted',
-    `${created.requestNumber} has been submitted for approval.`,
-  )
-}
-
-/* =========================================================
-   DETAILS
-========================================================= */
 
 const detailsOpen =
   ref(false)
@@ -559,38 +457,7 @@ const handleBack = () => {
       />
 
     </div>
-
-    <!-- ADD / EDIT -->
-
-    <AddEditSwitchRestDayModal
-      :open="
-        formModalOpen
-      "
-      :record="
-        editingRecord
-      "
-      :employees="
-        employees
-      "
-      :rest-days="
-        restDayOptions
-      "
-      :get-schedule-info="
-        getScheduleInfo
-      "
-      :get-effective-week="
-        getEffectiveWeek
-      "
-      @close="
-        closeForm
-      "
-      @save="
-        handleSave
-      "
-    />
-
-    <!-- DETAILS -->
-
+    
     <SwitchRestDayDetailsModal
       :open="
         detailsOpen

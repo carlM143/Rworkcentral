@@ -262,6 +262,7 @@ const menuItems = [
       { label: 'Loan Transactions', to: '/admin/loans/transactions' },
     ],
   },
+  
   {
     label: 'All Drivers',
     key: 'drivers',
@@ -270,10 +271,6 @@ const menuItems = [
       {
         label: 'Drivers Directory',
         to: '/admin/drivers',
-      },
-      {
-        label: 'Driver Pay Periods',
-        to: '/admin/driver-pay-periods',
       },
       {
         label: 'Pending Drivers Payroll',
