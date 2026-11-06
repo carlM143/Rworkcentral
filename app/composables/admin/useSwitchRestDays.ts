@@ -4,1280 +4,547 @@ import type {
   SwitchRestDayStatus,
 } from '~/types/switchRestDay'
 
+interface ApiResponse<T> {
+  success: boolean
+  message?: string
+  data: T
+}
+
+interface ApiError {
+  data?: {
+    message?: string
+    errors?: Record<string, string[]>
+  }
+  response?: {
+    _data?: {
+      message?: string
+      errors?: Record<string, string[]>
+    }
+  }
+  message?: string
+}
+
+const API_URL = '/admin/switch-rest-day-requests'
+
+const DAYS = [
+  'Monday', 'Tuesday', 'Wednesday', 'Thursday',
+  'Friday', 'Saturday', 'Sunday',
+]
+
+const normalizeDay = (value?: string | null): string => {
+  if (!value) return ''
+
+  const key = value.trim().toLowerCase().slice(0, 3)
+  return DAYS.find(day => day.toLowerCase().slice(0, 3) === key) ?? ''
+}
+
+const dateOnly = (value: string): string => value.slice(0, 10)
+
+
+const getErrorMessage = (error: unknown): string => {
+  const problem = error as {
+    data?: {
+      message?: string
+      errors?: Record<string, string[]>
+    }
+    response?: {
+      _data?: {
+        message?: string
+        errors?: Record<string, string[]>
+      }
+    }
+    statusMessage?: string
+    message?: string
+  }
+
+  const data = problem?.data ?? problem?.response?._data
+
+  if (data?.errors) {
+    const messages = Object.values(data.errors).flat().filter(Boolean)
+    if (messages.length) return messages.join(' ')
+  }
+
+  return data?.message
+    || problem?.statusMessage
+    || problem?.message
+    || 'Unable to process the request. Please try again.'
+}
+
+const cleanRecord = (record: SwitchRestDayRecord): SwitchRestDayRecord => ({
+  ...record,
+  employeeNumber: record.employeeNumber ?? '',
+  employeeName: record.employeeName ?? '',
+  department: record.department ?? '',
+  position: record.position ?? '',
+  currentSchedule: record.currentSchedule ?? '',
+  currentRestDay: normalizeDay(record.currentRestDay) || record.currentRestDay,
+  requestedRestDay: normalizeDay(record.requestedRestDay) || record.requestedRestDay,
+  effectiveDate: dateOnly(record.effectiveDate ?? ''),
+  effectiveWeek: record.effectiveWeek ?? '',
+  requestedBy: record.requestedBy ?? '',
+  requestedAt: record.requestedAt ?? '',
+  reason: record.reason ?? '',
+  approvedBy: record.approvedBy ?? undefined,
+  approvedAt: record.approvedAt ?? undefined,
+  approvalNotes: record.approvalNotes ?? undefined,
+  rejectedBy: record.rejectedBy ?? undefined,
+  rejectedAt: record.rejectedAt ?? undefined,
+  rejectionReason: record.rejectionReason ?? undefined,
+  cancelledBy: record.cancelledBy ?? undefined,
+  cancelledAt: record.cancelledAt ?? undefined,
+  cancellationReason: record.cancellationReason ?? undefined,
+})
+
 export const useSwitchRestDays = () => {
+  const { $api } = useNuxtApp()
+
   const {
     employees,
-  } = useEmployees()
-
-  /* =========================================================
-     SCHEDULE HELPERS
-  ========================================================= */
-
-  const scheduleMap:
-    Record<
-      number,
-      {
-        schedule: string
-        restDay: string
-      }
-    > = {
-      1: {
-        schedule:
-          'Regular Day Shift · 8:00 AM - 5:00 PM',
-        restDay:
-          'Sunday',
-      },
-
-      2: {
-        schedule:
-          'Regular Day Shift · 8:00 AM - 5:00 PM',
-        restDay:
-          'Sunday',
-      },
-
-      3: {
-        schedule:
-          'Finance Day Shift · 8:00 AM - 5:00 PM',
-        restDay:
-          'Sunday',
-      },
-
-      4: {
-        schedule:
-          'Operations Shift · 8:00 AM - 5:00 PM',
-        restDay:
-          'Saturday',
-      },
-
-      5: {
-        schedule:
-          'Operations Shift · 7:00 AM - 4:00 PM',
-        restDay:
-          'Sunday',
-      },
-
-      6: {
-        schedule:
-          'Billing Day Shift · 8:00 AM - 5:00 PM',
-        restDay:
-          'Sunday',
-      },
-
-      7: {
-        schedule:
-          'Driver Schedule · 8:00 AM - 5:00 PM',
-        restDay:
-          'Sunday',
-      },
-
-      8: {
-        schedule:
-          'Regular Day Shift · 8:00 AM - 5:00 PM',
-        restDay:
-          'Sunday',
-      },
-
-      9: {
-        schedule:
-          'Regular Day Shift · 8:00 AM - 5:00 PM',
-        restDay:
-          'Saturday',
-      },
-
-      10: {
-        schedule:
-          'HR Day Shift · 8:00 AM - 5:00 PM',
-        restDay:
-          'Sunday',
-      },
-
-      11: {
-        schedule:
-          'Operations Shift · 8:00 AM - 5:00 PM',
-        restDay:
-          'Saturday',
-      },
-
-      12: {
-        schedule:
-          'Regular Day Shift · 8:00 AM - 5:00 PM',
-        restDay:
-          'Sunday',
-      },
-    }
-
-  const getScheduleInfo = (
-    employeeId: number,
-  ) => {
-    return (
-      scheduleMap[
-        employeeId
-      ] ?? {
-        schedule:
-          'Regular Day Shift · 8:00 AM - 5:00 PM',
-
-        restDay:
-          'Sunday',
-      }
-    )
-  }
-
-  /* =========================================================
-     EFFECTIVE WEEK
-  ========================================================= */
-
-  const getEffectiveWeek = (
-    date: string,
-  ) => {
-    if (!date) {
-      return ''
-    }
-
-    const current =
-      new Date(
-        `${date}T00:00:00`,
-      )
-
-    const day =
-      current.getDay()
-
-    const start =
-      new Date(current)
-
-    start.setDate(
-      current.getDate() -
-        day,
-    )
-
-    const end =
-      new Date(start)
-
-    end.setDate(
-      start.getDate() +
-        6,
-    )
-
-    const formatter =
-      new Intl.DateTimeFormat(
-        'en-US',
-        {
-          month: 'short',
-          day: 'numeric',
-        },
-      )
-
-    return `${formatter.format(
-      start,
-    )} - ${formatter.format(
-      end,
-    )}, ${end.getFullYear()}`
-  }
-
-  /* =========================================================
-     MOCK DATA
-  ========================================================= */
-
-  const requests =
-    useState<
-      SwitchRestDayRecord[]
-    >(
-      'switch-rest-days',
-      () => [
-        {
-          id: 1,
-
-          requestNumber:
-            'SRD-2026-001',
-
-          employeeId: 1,
-          employeeNumber:
-            'EMP-001',
-          employeeName:
-            'Juan Dela Cruz',
-
-          department:
-            'Operations',
-
-          position:
-            'Driver',
-
-          currentSchedule:
-            'Regular Day Shift · 8:00 AM - 5:00 PM',
-
-          currentRestDay:
-            'Sunday',
-
-          requestedRestDay:
-            'Monday',
-
-          effectiveDate:
-            '2026-09-14',
-
-          effectiveWeek:
-            'Sep 13 - Sep 19, 2026',
-
-          reason:
-            'Family commitment scheduled on Sunday. Requesting Monday as replacement rest day.',
-
-          status:
-            'Pending',
-
-          requestedBy:
-            'Juan Dela Cruz',
-
-          requestedAt:
-            '2026-09-11T08:20:00',
-        },
-
-        {
-          id: 2,
-
-          requestNumber:
-            'SRD-2026-002',
-
-          employeeId: 7,
-          employeeNumber:
-            'EMP-007',
-          employeeName:
-            'Mark Lopez',
-
-          department:
-            'Operations',
-
-          position:
-            'Driver',
-
-          currentSchedule:
-            'Driver Schedule · 8:00 AM - 5:00 PM',
-
-          currentRestDay:
-            'Sunday',
-
-          requestedRestDay:
-            'Tuesday',
-
-          effectiveDate:
-            '2026-09-15',
-
-          effectiveWeek:
-            'Sep 13 - Sep 19, 2026',
-
-          reason:
-            'Requested adjustment due to assigned client delivery on Sunday.',
-
-          attachment: {
-            name:
-              'supervisor-approval.pdf',
-          },
-
-          status:
-            'Approved',
-
-          requestedBy:
-            'Mark Lopez',
-
-          requestedAt:
-            '2026-09-10T15:20:00',
-
-          approvedBy:
-            'Maria Santos',
-
-          approvedAt:
-            '2026-09-10T16:05:00',
-
-          approvalNotes:
-            'Verified against the operations schedule.',
-        },
-
-        {
-          id: 3,
-
-          requestNumber:
-            'SRD-2026-003',
-
-          employeeId: 5,
-          employeeNumber:
-            'EMP-005',
-          employeeName:
-            'Carlo Mendoza',
-
-          department:
-            'Operations',
-
-          position:
-            'Driver',
-
-          currentSchedule:
-            'Operations Shift · 7:00 AM - 4:00 PM',
-
-          currentRestDay:
-            'Sunday',
-
-          requestedRestDay:
-            'Saturday',
-
-          effectiveDate:
-            '2026-09-12',
-
-          effectiveWeek:
-            'Sep 6 - Sep 12, 2026',
-
-          reason:
-            'Personal appointment requiring schedule adjustment.',
-
-          status:
-            'Rejected',
-
-          requestedBy:
-            'Carlo Mendoza',
-
-          requestedAt:
-            '2026-09-09T14:10:00',
-
-          rejectedBy:
-            'Maria Santos',
-
-          rejectedAt:
-            '2026-09-09T16:30:00',
-
-          rejectionReason:
-            'Saturday has insufficient manpower coverage for the assigned operations shift.',
-        },
-
-        {
-          id: 4,
-
-          requestNumber:
-            'SRD-2026-004',
-
-          employeeId: 3,
-          employeeNumber:
-            'EMP-003',
-          employeeName:
-            'Pedro Reyes',
-
-          department:
-            'Finance',
-
-          position:
-            'Accountant',
-
-          currentSchedule:
-            'Finance Day Shift · 8:00 AM - 5:00 PM',
-
-          currentRestDay:
-            'Sunday',
-
-          requestedRestDay:
-            'Monday',
-
-          effectiveDate:
-            '2026-09-07',
-
-          effectiveWeek:
-            'Sep 6 - Sep 12, 2026',
-
-          reason:
-            'Required attendance for scheduled finance reconciliation activity on Sunday.',
-
-          status:
-            'Approved',
-
-          requestedBy:
-            'Pedro Reyes',
-
-          requestedAt:
-            '2026-09-04T13:20:00',
-
-          approvedBy:
-            'Maria Santos',
-
-          approvedAt:
-            '2026-09-04T15:00:00',
-        },
-
-        {
-          id: 5,
-
-          requestNumber:
-            'SRD-2026-005',
-
-          employeeId: 6,
-          employeeNumber:
-            'EMP-006',
-          employeeName:
-            'Angela Flores',
-
-          department:
-            'Billing',
-
-          position:
-            'Billing Officer',
-
-          currentSchedule:
-            'Billing Day Shift · 8:00 AM - 5:00 PM',
-
-          currentRestDay:
-            'Sunday',
-
-          requestedRestDay:
-            'Friday',
-
-          effectiveDate:
-            '2026-09-18',
-
-          effectiveWeek:
-            'Sep 13 - Sep 19, 2026',
-
-          reason:
-            'Requesting adjustment due to scheduled weekend billing support.',
-
-          status:
-            'Pending',
-
-          requestedBy:
-            'Angela Flores',
-
-          requestedAt:
-            '2026-09-11T09:45:00',
-        },
-
-        {
-          id: 6,
-
-          requestNumber:
-            'SRD-2026-006',
-
-          employeeId: 11,
-          employeeNumber:
-            'EMP-011',
-          employeeName:
-            'Leo Martinez',
-
-          department:
-            'Operations',
-
-          position:
-            'Dispatcher',
-
-          currentSchedule:
-            'Operations Shift · 8:00 AM - 5:00 PM',
-
-          currentRestDay:
-            'Saturday',
-
-          requestedRestDay:
-            'Sunday',
-
-          effectiveDate:
-            '2026-09-13',
-
-          effectiveWeek:
-            'Sep 13 - Sep 19, 2026',
-
-          reason:
-            'Temporary rest day adjustment for operations coverage.',
-
-          status:
-            'Approved',
-
-          requestedBy:
-            'Leo Martinez',
-
-          requestedAt:
-            '2026-09-10T10:30:00',
-
-          approvedBy:
-            'Maria Santos',
-
-          approvedAt:
-            '2026-09-10T11:10:00',
-        },
-
-        {
-          id: 7,
-
-          requestNumber:
-            'SRD-2026-007',
-
-          employeeId: 10,
-          employeeNumber:
-            'EMP-010',
-          employeeName:
-            'Grace Navarro',
-
-          department:
-            'Human Resources',
-
-          position:
-            'HR Assistant',
-
-          currentSchedule:
-            'HR Day Shift · 8:00 AM - 5:00 PM',
-
-          currentRestDay:
-            'Sunday',
-
-          requestedRestDay:
-            'Wednesday',
-
-          effectiveDate:
-            '2026-09-16',
-
-          effectiveWeek:
-            'Sep 13 - Sep 19, 2026',
-
-          reason:
-            'Requested rest day switch for personal commitment.',
-
-          status:
-            'Cancelled',
-
-          requestedBy:
-            'Grace Navarro',
-
-          requestedAt:
-            '2026-09-11T10:15:00',
-
-          cancelledBy:
-            'Grace Navarro',
-
-          cancelledAt:
-            '2026-09-11T11:05:00',
-
-          cancellationReason:
-            'Personal schedule changed and the request is no longer needed.',
-        },
-
-        {
-          id: 8,
-
-          requestNumber:
-            'SRD-2026-008',
-
-          employeeId: 4,
-          employeeNumber:
-            'EMP-004',
-          employeeName:
-            'Ana Garcia',
-
-          department:
-            'Operations',
-
-          position:
-            'Dispatcher',
-
-          currentSchedule:
-            'Operations Shift · 8:00 AM - 5:00 PM',
-
-          currentRestDay:
-            'Saturday',
-
-          requestedRestDay:
-            'Monday',
-
-          effectiveDate:
-            '2026-09-21',
-
-          effectiveWeek:
-            'Sep 20 - Sep 26, 2026',
-
-          reason:
-            'Operations coverage is required during the regular rest day.',
-
-          status:
-            'Pending',
-
-          requestedBy:
-            'Ana Garcia',
-
-          requestedAt:
-            '2026-09-11T11:30:00',
-        },
-      ],
-    )
-
-  /* =========================================================
-     FILTERS
-  ========================================================= */
-
-  const search =
-    ref('')
-
-  const department =
-    ref('')
-
-  const status =
-    ref('')
-
-  const dateFrom =
-    ref('')
-
-  const dateTo =
-    ref('')
-
-  /* =========================================================
-     PAGINATION
-  ========================================================= */
-
-  const currentPage =
-    ref(1)
-
-  const perPage =
-    ref(6)
-
-  /* =========================================================
-     OPTIONS
-  ========================================================= */
-
-  const departmentOptions =
-    computed(() => {
-      return [
-        ...new Set(
-          requests.value.map(
-            request =>
-              request.department,
-          ),
-        ),
-      ].sort()
-    })
-
-  const statusOptions:
-    SwitchRestDayStatus[] = [
-      'Pending',
-      'Approved',
-      'Rejected',
-      'Cancelled',
-    ]
-
-  const restDayOptions = [
-    'Monday',
-    'Tuesday',
-    'Wednesday',
-    'Thursday',
-    'Friday',
-    'Saturday',
-    'Sunday',
+    loading: employeesLoading,
+    loadError: employeesError,
+    loadEmployees,
+  } = useEmployees('Active', true)
+
+  // Shared across Index, Create and Edit pages.
+  const requests = useState<SwitchRestDayRecord[]>(
+    'switch-rest-day-api-requests',
+    () => [],
+  )
+
+  const loaded = useState<boolean>(
+    'switch-rest-day-api-loaded',
+    () => false,
+  )
+
+  const loading = useState<boolean>(
+    'switch-rest-day-api-loading',
+    () => false,
+  )
+
+  const saving = ref(false)
+  const loadError = ref('')
+  const actionError = ref('')
+
+  // FILTERS
+  const search = ref('')
+  const department = ref('')
+  const status = ref('')
+  const dateFrom = ref('')
+  const dateTo = ref('')
+
+  // PAGINATION
+  const currentPage = ref(1)
+  const perPage = ref(6)
+
+  // OPTIONS
+  const statusOptions: SwitchRestDayStatus[] = [
+    'Pending',
+    'Approved',
+    'Rejected',
+    'Cancelled',
   ]
 
-  /* =========================================================
-     FILTERED
-  ========================================================= */
+  const restDayOptions = [...DAYS]
 
-  const filteredRequests =
-    computed(() => {
-      const keyword =
-        search.value
-          .trim()
-          .toLowerCase()
+  const departmentOptions = computed(() =>
+    [...new Set(
+      requests.value
+        .map(item => item.department)
+        .filter(Boolean),
+    )].sort(),
+  )
 
-      return requests.value.filter(
-        request => {
-          const matchesSearch =
-            !keyword ||
-            request.requestNumber
-              .toLowerCase()
-              .includes(keyword) ||
-            request.employeeName
-              .toLowerCase()
-              .includes(keyword) ||
-            request.employeeNumber
-              .toLowerCase()
-              .includes(keyword)
+  // LOAD REQUESTS
+  const loadRequests = async (): Promise<void> => {
+    if (loading.value) return
 
-          const matchesDepartment =
-            !department.value ||
-            request.department ===
-              department.value
+    loading.value = true
+    loadError.value = ''
 
-          const matchesStatus =
-            !status.value ||
-            request.status ===
-              status.value
-
-          const matchesFrom =
-            !dateFrom.value ||
-            request.effectiveDate >=
-              dateFrom.value
-
-          const matchesTo =
-            !dateTo.value ||
-            request.effectiveDate <=
-              dateTo.value
-
-          return (
-            matchesSearch &&
-            matchesDepartment &&
-            matchesStatus &&
-            matchesFrom &&
-            matchesTo
-          )
-        },
+    try {
+      const response = await $api<ApiResponse<SwitchRestDayRecord[]>>(
+        API_URL,
+        { method: 'GET' },
       )
-    })
 
-  /* =========================================================
-     STATS
-  ========================================================= */
-
-  const stats =
-    computed(() => {
-      const now =
-        new Date()
-
-      const month =
-        now.getMonth()
-
-      const year =
-        now.getFullYear()
-
-      const thisMonth =
-        requests.value.filter(
-          request => {
-            const date =
-              new Date(
-                request.requestedAt,
-              )
-
-            return (
-              date.getMonth() ===
-                month &&
-              date.getFullYear() ===
-                year
-            )
-          },
-        ).length
-
-      return {
-        thisMonth,
-
-        pending:
-          requests.value.filter(
-            request =>
-              request.status ===
-              'Pending',
-          ).length,
-
-        approved:
-          requests.value.filter(
-            request =>
-              request.status ===
-              'Approved',
-          ).length,
-
-        rejected:
-          requests.value.filter(
-            request =>
-              request.status ===
-              'Rejected',
-          ).length,
-      }
-    })
-
-  /* =========================================================
-     PAGINATION
-  ========================================================= */
-
-  const totalPages =
-    computed(() => {
-      return Math.max(
-        1,
-        Math.ceil(
-          filteredRequests
-            .value.length /
-            perPage.value,
-        ),
-      )
-    })
-
-  const paginatedRequests =
-    computed(() => {
-      const start =
-        (
-          currentPage.value -
-          1
-        ) *
-        perPage.value
-
-      return filteredRequests
-        .value
-        .slice(
-          start,
-          start +
-            perPage.value,
-        )
-    })
-
-  const showingFrom =
-    computed(() => {
-      if (
-        !filteredRequests
-          .value.length
-      ) {
-        return 0
+      if (response.success === false || !Array.isArray(response.data)) {
+        throw new Error(response.message || 'Invalid API response.')
       }
 
-      return (
-        (
-          currentPage.value -
-          1
-        ) *
-          perPage.value +
-        1
-      )
-    })
-
-  const showingTo =
-    computed(() => {
-      return Math.min(
-        currentPage.value *
-          perPage.value,
-
-        filteredRequests
-          .value.length,
-      )
-    })
-
-  /* =========================================================
-     CREATE
-  ========================================================= */
-
-  const createRequest = (
-    data:
-      SwitchRestDayFormData,
-  ) => {
-    if (
-      data.employeeId ===
-      null
-    ) {
-      return null
+      requests.value = response.data.map(cleanRecord)
+      loaded.value = true
+    } catch (error: unknown) {
+      loadError.value = getErrorMessage(error)
+      console.error('Switch Rest Day Load Error:', error)
+    } finally {
+      loading.value = false
     }
+  }
 
-    const employee =
-      employees.value.find(
-        item =>
-          item.id ===
-          data.employeeId,
+  // FIND REQUEST
+  const getRequestById = (id: number | string) =>
+    requests.value.find(item => item.id === Number(id)) ?? null
+
+  // GET SINGLE REQUEST
+  const fetchRequest = async (
+    id: number | string,
+  ): Promise<SwitchRestDayRecord | null> => {
+    actionError.value = ''
+
+    try {
+      const response = await $api<ApiResponse<SwitchRestDayRecord>>(
+        `${API_URL}/${id}`,
+        { method: 'GET' },
       )
 
-    if (!employee) {
-      return null
-    }
-
-    const schedule =
-      getScheduleInfo(
-        employee.id,
-      )
-
-    if (
-      data.requestedRestDay ===
-      schedule.restDay
-    ) {
-      return null
-    }
-
-    const nextId =
-      requests.value.length
-        ? Math.max(
-            ...requests.value.map(
-              request =>
-                request.id,
-            ),
-          ) + 1
-        : 1
-
-    const employeeName =
-      [
-        employee.firstName,
-        employee.middleName,
-        employee.lastName,
-      ]
-        .filter(Boolean)
-        .join(' ')
-
-    const year =
-      new Date()
-        .getFullYear()
-
-    const request:
-      SwitchRestDayRecord = {
-        id:
-          nextId,
-
-        requestNumber:
-          `SRD-${year}-${String(
-            nextId,
-          ).padStart(
-            3,
-            '0',
-          )}`,
-
-        employeeId:
-          employee.id,
-
-        employeeNumber:
-          employee.employeeNumber,
-
-        employeeName,
-
-        department:
-          employee.department,
-
-        position:
-          employee.position,
-
-        currentSchedule:
-          schedule.schedule,
-
-        currentRestDay:
-          schedule.restDay,
-
-        requestedRestDay:
-          data.requestedRestDay,
-
-        effectiveDate:
-          data.effectiveDate,
-
-        effectiveWeek:
-          getEffectiveWeek(
-            data.effectiveDate,
-          ),
-
-        reason:
-          data.reason,
-
-        attachment:
-          data.attachmentName
-            ? {
-                name:
-                  data.attachmentName,
-              }
-            : undefined,
-
-        status:
-          'Pending',
-
-        requestedBy:
-          employeeName,
-
-        requestedAt:
-          new Date()
-            .toISOString(),
+      if (response.success === false || !response.data) {
+        throw new Error(response.message || 'Request not found.')
       }
 
-    requests.value.unshift(
-      request,
+      const record = cleanRecord(response.data)
+      const index = requests.value.findIndex(item => item.id === record.id)
+
+      if (index >= 0) requests.value[index] = record
+      else requests.value.unshift(record)
+
+      return record
+    } catch (error: unknown) {
+      actionError.value = getErrorMessage(error)
+      console.error('Switch Rest Day Fetch Error:', error)
+      return null
+    }
+  }
+
+  // CURRENT EMPLOYEE SCHEDULE
+  const getScheduleInfo = (employeeId: number) => {
+    const employee = employees.value.find(
+      item => item.id === Number(employeeId),
     )
 
-    return request
-  }
-
-  /* =========================================================
-     UPDATE
-  ========================================================= */
-
-  const updateRequest = (
-    id: number,
-    data:
-      SwitchRestDayFormData,
-  ) => {
-    const request =
-      requests.value.find(
-        item =>
-          item.id === id,
-      )
-
-    if (!request) {
-      return null
-    }
-
-    if (
-      data.employeeId ===
-      null
-    ) {
-      return null
-    }
-
-    const employee =
-      employees.value.find(
-        item =>
-          item.id ===
-          data.employeeId,
-      )
-
     if (!employee) {
-      return null
+      return { schedule: '', restDay: '' }
     }
 
-    const schedule =
-      getScheduleInfo(
-        employee.id,
-      )
+    const rawRestDays = (employee.restDay ?? '')
+      .split(',')
+      .map(day => normalizeDay(day))
+      .filter(Boolean)
 
-    if (
-      data.requestedRestDay ===
-      schedule.restDay
-    ) {
-      return null
+    return {
+      schedule: employee.workSchedule ?? '',
+      restDay: rawRestDays.length === 1 ? rawRestDays[0]! : '',
     }
-
-    request.employeeId =
-      employee.id
-
-    request.employeeNumber =
-      employee.employeeNumber
-
-    request.employeeName =
-      [
-        employee.firstName,
-        employee.middleName,
-        employee.lastName,
-      ]
-        .filter(Boolean)
-        .join(' ')
-
-    request.department =
-      employee.department
-
-    request.position =
-      employee.position
-
-    request.currentSchedule =
-      schedule.schedule
-
-    request.currentRestDay =
-      schedule.restDay
-
-    request.requestedRestDay =
-      data.requestedRestDay
-
-    request.effectiveDate =
-      data.effectiveDate
-
-    request.effectiveWeek =
-      getEffectiveWeek(
-        data.effectiveDate,
-      )
-
-    request.reason =
-      data.reason
-
-    request.attachment =
-      data.attachmentName
-        ? {
-            name:
-              data.attachmentName,
-          }
-        : undefined
-
-    request.status =
-      'Pending'
-
-    request.approvedBy =
-      undefined
-
-    request.approvedAt =
-      undefined
-
-    request.approvalNotes =
-      undefined
-
-    request.rejectedBy =
-      undefined
-
-    request.rejectedAt =
-      undefined
-
-    request.rejectionReason =
-      undefined
-
-    return request
   }
 
-  /* =========================================================
-     APPROVE
-  ========================================================= */
+  // EFFECTIVE WEEK: SUNDAY TO SATURDAY
+  const getEffectiveWeek = (value: string): string => {
+    if (!value) return ''
 
-  const approveRequest = (
+    const date = new Date(`${dateOnly(value)}T00:00:00`)
+    if (Number.isNaN(date.getTime())) return ''
+
+    const start = new Date(date)
+    start.setDate(date.getDate() - date.getDay())
+
+    const end = new Date(start)
+    end.setDate(start.getDate() + 6)
+
+    const shortDate = (day: Date) =>
+      new Intl.DateTimeFormat('en-US', {
+        month: 'short',
+        day: 'numeric',
+      }).format(day)
+
+    return `${shortDate(start)} - ${shortDate(end)}, ${end.getFullYear()}`
+  }
+
+  // FILTERED REQUESTS
+  const filteredRequests = computed(() => {
+    const keyword = search.value.trim().toLowerCase()
+
+    return requests.value.filter(item => {
+      const matchesSearch = !keyword
+        || item.requestNumber.toLowerCase().includes(keyword)
+        || item.employeeName.toLowerCase().includes(keyword)
+        || item.employeeNumber.toLowerCase().includes(keyword)
+
+      const matchesDepartment = !department.value
+        || item.department === department.value
+
+      const matchesStatus = !status.value
+        || item.status === status.value
+
+      const matchesFrom = !dateFrom.value
+        || item.effectiveDate >= dateFrom.value
+
+      const matchesTo = !dateTo.value
+        || item.effectiveDate <= dateTo.value
+
+      return matchesSearch && matchesDepartment
+        && matchesStatus && matchesFrom && matchesTo
+    })
+  })
+
+  // STATISTICS
+  const stats = computed(() => {
+    const now = new Date()
+    const month = now.getMonth()
+    const year = now.getFullYear()
+
+    return {
+      thisMonth: requests.value.filter(item => {
+        if (!item.requestedAt) return false
+
+        const date = new Date(item.requestedAt)
+        return date.getMonth() === month
+          && date.getFullYear() === year
+      }).length,
+
+      pending: requests.value.filter(
+        item => item.status === 'Pending',
+      ).length,
+
+      approved: requests.value.filter(
+        item => item.status === 'Approved',
+      ).length,
+
+      rejected: requests.value.filter(
+        item => item.status === 'Rejected',
+      ).length,
+    }
+  })
+
+  // PAGINATION
+  const totalPages = computed(() =>
+    Math.max(1, Math.ceil(filteredRequests.value.length / perPage.value)),
+  )
+
+  const paginatedRequests = computed(() => {
+    const start = (currentPage.value - 1) * perPage.value
+    return filteredRequests.value.slice(start, start + perPage.value)
+  })
+
+  const showingFrom = computed(() =>
+    filteredRequests.value.length
+      ? (currentPage.value - 1) * perPage.value + 1
+      : 0,
+  )
+
+  const showingTo = computed(() =>
+    Math.min(
+      currentPage.value * perPage.value,
+      filteredRequests.value.length,
+    ),
+  )
+
+  // CREATE REQUEST
+  const createRequest = async (
+    data: SwitchRestDayFormData,
+  ): Promise<SwitchRestDayRecord | null> => {
+    actionError.value = ''
+    if (saving.value) return null
+
+    if (!data.employeeId) {
+      actionError.value = 'Please select an employee.'
+      return null
+    }
+
+    saving.value = true
+
+    try {
+      const response = await $api<ApiResponse<SwitchRestDayRecord>>(
+        API_URL,
+        {
+          method: 'POST',
+          body: {
+            employee_id: data.employeeId,
+            requested_rest_day: normalizeDay(data.requestedRestDay),
+            effective_date: dateOnly(data.effectiveDate),
+            reason: data.reason.trim(),
+          },
+        },
+      )
+
+      if (response.success === false || !response.data) {
+        throw new Error(response.message || 'Unable to create request.')
+      }
+
+      const record = cleanRecord(response.data)
+      await loadRequests()
+
+      return record
+    
+    } catch (error: unknown) {
+      actionError.value = getErrorMessage(error)
+
+      console.error('Switch Rest Day Create Error:', {
+        message: actionError.value,
+        error,
+      })
+
+      return null
+    }
+  }
+
+  // UPDATE REQUEST
+  const updateRequest = async (
     id: number,
-    notes?: string,
-  ) => {
-    const request =
-      requests.value.find(
-        item =>
-          item.id === id,
+    data: SwitchRestDayFormData,
+  ): Promise<SwitchRestDayRecord | null> => {
+    actionError.value = ''
+    if (saving.value) return null
+
+    saving.value = true
+
+    try {
+      const response = await $api<ApiResponse<SwitchRestDayRecord>>(
+        `${API_URL}/${id}`,
+        {
+          method: 'PATCH',
+          body: {
+            employee_id: data.employeeId,
+            requested_rest_day: normalizeDay(data.requestedRestDay),
+            effective_date: dateOnly(data.effectiveDate),
+            reason: data.reason.trim(),
+          },
+        },
       )
 
-    if (!request) {
+      if (response.success === false || !response.data) {
+        throw new Error(response.message || 'Unable to update request.')
+      }
+
+      const record = cleanRecord(response.data)
+      await loadRequests()
+
+      return record
+    } catch (error: unknown) {
+      actionError.value = getErrorMessage(error)
+      console.error('Switch Rest Day Update Error:', error)
       return null
+    } finally {
+      saving.value = false
     }
-
-    request.status =
-      'Approved'
-
-    request.approvedBy =
-      'Maria Santos'
-
-    request.approvedAt =
-      new Date()
-        .toISOString()
-
-    request.approvalNotes =
-      notes ||
-      undefined
-
-    return request
   }
 
-  /* =========================================================
-     REJECT
-  ========================================================= */
-
-  const rejectRequest = (
+  // APPROVE / REJECT / CANCEL
+  const updateStatus = async (
     id: number,
-    reason: string,
-  ) => {
-    const request =
-      requests.value.find(
-        item =>
-          item.id === id,
+    action: 'approve' | 'reject' | 'cancel',
+    notes = '',
+  ): Promise<SwitchRestDayRecord | null> => {
+    actionError.value = ''
+    if (saving.value) return null
+
+    saving.value = true
+
+    try {
+      const response = await $api<ApiResponse<SwitchRestDayRecord>>(
+        `${API_URL}/${id}/${action}`,
+        {
+          method: 'PATCH',
+          body: { notes: notes.trim() },
+        },
       )
 
-    if (!request) {
+      if (response.success === false || !response.data) {
+        throw new Error(response.message || `Unable to ${action} request.`)
+      }
+
+      const record = cleanRecord(response.data)
+      await loadRequests()
+
+      return record
+    } catch (error: unknown) {
+      actionError.value = getErrorMessage(error)
+      console.error(`Switch Rest Day ${action} Error:`, error)
       return null
+    } finally {
+      saving.value = false
     }
-
-    request.status =
-      'Rejected'
-
-    request.rejectedBy =
-      'Maria Santos'
-
-    request.rejectedAt =
-      new Date()
-        .toISOString()
-
-    request.rejectionReason =
-      reason
-
-    return request
   }
 
-  /* =========================================================
-     CANCEL
-  ========================================================= */
+  const approveRequest = (id: number, notes = '') =>
+    updateStatus(id, 'approve', notes)
 
-  const cancelRequest = (
-    id: number,
-    reason: string,
-  ) => {
-    const request =
-      requests.value.find(
-        item =>
-          item.id === id,
-      )
+  const rejectRequest = (id: number, notes: string) =>
+    updateStatus(id, 'reject', notes)
 
-    if (!request) {
-      return null
-    }
+  const cancelRequest = (id: number, notes: string) =>
+    updateStatus(id, 'cancel', notes)
 
-    request.status =
-      'Cancelled'
-
-    request.cancelledBy =
-      'Maria Santos'
-
-    request.cancelledAt =
-      new Date()
-        .toISOString()
-
-    request.cancellationReason =
-      reason
-
-    return request
-  }
-
-  /* =========================================================
-     RESET
-  ========================================================= */
-
+  // RESET FILTERS
   const resetFilters = () => {
     search.value = ''
-
     department.value = ''
-
     status.value = ''
-
     dateFrom.value = ''
-
     dateTo.value = ''
-
-    currentPage.value =
-      1
+    currentPage.value = 1
   }
 
   watch(
-    [
-      search,
-      department,
-      status,
-      dateFrom,
-      dateTo,
-    ],
-    () => {
-      currentPage.value =
-        1
-    },
+    [search, department, status, dateFrom, dateTo],
+    () => { currentPage.value = 1 },
   )
 
-  watch(
-    totalPages,
-    () => {
-      if (
-        currentPage.value >
-        totalPages.value
-      ) {
-        currentPage.value =
-          totalPages.value
-      }
-    },
-  )
+  watch(totalPages, pages => {
+    if (currentPage.value > pages) currentPage.value = pages
+  })
+
+  // FETCH REAL RECORDS WHEN PAGE IS OPENED
+  onMounted(() => {
+    if (!loaded.value) void loadRequests()
+  })
 
   return {
+    // DATA
     requests,
+    employees,
+    employeesLoading,
+    employeesError,
+    loadEmployees,
+    loading,
+    saving,
+    loaded,
+    loadError,
+    actionError,
 
+    // FILTERS
     search,
     department,
     status,
     dateFrom,
     dateTo,
+    resetFilters,
 
+    // PAGINATION
     currentPage,
     perPage,
-
     filteredRequests,
     paginatedRequests,
-
     totalPages,
     showingFrom,
     showingTo,
 
+    // STATISTICS / OPTIONS
     stats,
-
     departmentOptions,
     statusOptions,
     restDayOptions,
 
+    // HELPERS
     getScheduleInfo,
     getEffectiveWeek,
+    getRequestById,
 
+    // API METHODS
+    loadRequests,
+    fetchRequest,
     createRequest,
     updateRequest,
-
     approveRequest,
     rejectRequest,
     cancelRequest,
-
-    resetFilters,
   }
 }

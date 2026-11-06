@@ -14,6 +14,7 @@ import {
 
 import type {
   SwitchRestDayFormData,
+  SwitchRestDayRecord,
 } from '~/types/switchRestDay'
 
 const props = withDefaults(defineProps<{
@@ -25,28 +26,26 @@ const props = withDefaults(defineProps<{
 })
 
 const router = useRouter()
-const { employees } = useEmployees()
+const { success, error } = useToast()
 
 const {
-  filteredRequests,
+  employees,
+  employeesLoading,
+  saving,
+  actionError,
   restDayOptions,
   getScheduleInfo,
   getEffectiveWeek,
+  fetchRequest,
   createRequest,
   updateRequest,
 } = useSwitchRestDays()
 
-const { success, error } = useToast()
-
 const isEdit = computed(() => props.mode === 'edit')
 
-const existingRecord = computed(() => {
-  if (!isEdit.value || !props.recordId) return null
-
-  return filteredRequests.value.find(
-    item => item.id === props.recordId,
-  ) ?? null
-})
+const existingRecord = ref<SwitchRestDayRecord | null>(null)
+const recordLoading = ref(false)
+const recordLoaded = ref(false)
 
 const today = () => {
   const date = new Date()
@@ -67,7 +66,6 @@ const form = reactive<SwitchRestDayFormData>({
 const employeeSearch = ref('')
 const employeeDropdownOpen = ref(false)
 const employeeSearchRef = ref<HTMLElement | null>(null)
-const saving = ref(false)
 
 const employeeName = (employee: {
   firstName: string
@@ -109,7 +107,18 @@ const filteredEmployees = computed(() => {
 
 const currentSchedule = computed(() => {
   if (form.employeeId === null) return null
-  return getScheduleInfo(form.employeeId)
+
+  const schedule = getScheduleInfo(form.employeeId)
+
+  // Preserve the saved schedule when viewing an existing record.
+  if (isEdit.value && existingRecord.value && !schedule.restDay) {
+    return {
+      schedule: existingRecord.value.currentSchedule,
+      restDay: existingRecord.value.currentRestDay,
+    }
+  }
+
+  return schedule
 })
 
 const availableRestDays = computed(() =>
@@ -124,7 +133,9 @@ const effectiveWeek = computed(() =>
     : '',
 )
 
-const selectEmployee = (employee: typeof employees.value[number]) => {
+const selectEmployee = (
+  employee: typeof employees.value[number],
+) => {
   if (form.employeeId !== employee.id) {
     form.requestedRestDay = ''
   }
@@ -156,35 +167,55 @@ const handleOutsideClick = (event: MouseEvent) => {
   }
 }
 
-onMounted(() => {
+const populateForm = (record: SwitchRestDayRecord) => {
+  existingRecord.value = record
+  form.employeeId = record.employeeId
+  form.requestedRestDay = record.requestedRestDay
+  form.effectiveDate = record.effectiveDate
+  form.reason = record.reason
+  form.attachmentName = ''
+
+  const employee = employees.value.find(
+    item => item.id === record.employeeId,
+  )
+
+  employeeSearch.value = employee
+    ? employeeName(employee)
+    : record.employeeName ?? ''
+}
+
+const loadExistingRecord = async () => {
+  if (!isEdit.value || !props.recordId) return
+
+  recordLoading.value = true
+  recordLoaded.value = false
+
+  try {
+    const record = await fetchRequest(props.recordId)
+
+    if (!record) {
+      error(
+        'Request Not Found',
+        actionError.value || 'Unable to load the request.',
+      )
+      return
+    }
+
+    populateForm(record)
+  } finally {
+    recordLoading.value = false
+    recordLoaded.value = true
+  }
+}
+
+onMounted(async () => {
   document.addEventListener('mousedown', handleOutsideClick)
+  await loadExistingRecord()
 })
 
 onBeforeUnmount(() => {
   document.removeEventListener('mousedown', handleOutsideClick)
 })
-
-watch(
-  existingRecord,
-  record => {
-    if (!isEdit.value || !record) return
-
-    form.employeeId = record.employeeId
-    form.requestedRestDay = record.requestedRestDay
-    form.effectiveDate = record.effectiveDate
-    form.reason = record.reason
-    form.attachmentName = ''
-
-    const employee = employees.value.find(
-      item => item.id === record.employeeId,
-    )
-
-    employeeSearch.value = employee
-      ? employeeName(employee)
-      : record.employeeName ?? ''
-  },
-  { immediate: true },
-)
 
 watch(selectedEmployee, employee => {
   if (employee && !employeeDropdownOpen.value) {
@@ -193,19 +224,25 @@ watch(selectedEmployee, employee => {
 })
 
 const goBack = () => {
-  router.push('/admin/switch-rest-day')
+  void router.push('/admin/switch-rest-day')
 }
 
+
+
 const handleSave = async () => {
-  if (saving.value) return
+  if (saving.value || recordLoading.value) return
+
+  const fail = (title: string, message: string) => {
+    error(title, message)
+  }
 
   if (form.employeeId === null) {
-    error('Employee Required', 'Please select an employee.')
+    fail('Employee Required', 'Please select an employee.')
     return
   }
 
   if (!currentSchedule.value?.restDay) {
-    error(
+    fail(
       'Schedule Not Available',
       'The selected employee has no confirmed rest day.',
     )
@@ -213,12 +250,12 @@ const handleSave = async () => {
   }
 
   if (!form.requestedRestDay) {
-    error('Rest Day Required', 'Please select a requested rest day.')
+    fail('Rest Day Required', 'Please select a requested rest day.')
     return
   }
 
   if (form.requestedRestDay === currentSchedule.value.restDay) {
-    error(
+    fail(
       'Invalid Rest Day',
       'Requested rest day must differ from the current rest day.',
     )
@@ -226,12 +263,42 @@ const handleSave = async () => {
   }
 
   if (!form.effectiveDate) {
-    error('Effective Date Required', 'Please select an effective date.')
+    fail('Effective Date Required', 'Please select an effective date.')
+    return
+  }
+
+  const selectedDate = new Date(`${form.effectiveDate}T00:00:00`)
+
+  if (Number.isNaN(selectedDate.getTime())) {
+    fail('Invalid Effective Date', 'Please select a valid effective date.')
+    return
+  }
+
+  const actualDay = [
+    'Sunday', 'Monday', 'Tuesday', 'Wednesday',
+    'Thursday', 'Friday', 'Saturday',
+  ][selectedDate.getDay()]
+
+  if (actualDay !== form.requestedRestDay) {
+    fail(
+      'Invalid Effective Date',
+      `The effective date falls on ${actualDay}. Please select a ${form.requestedRestDay}.`,
+    )
     return
   }
 
   if (!form.reason.trim()) {
-    error('Reason Required', 'Please provide the reason for this request.')
+    fail('Reason Required', 'Please provide the reason for this request.')
+    return
+  }
+
+  if (isEdit.value && !existingRecord.value) {
+    fail('Request Not Found', 'Unable to find the selected request.')
+    return
+  }
+
+  if (isEdit.value && existingRecord.value?.status !== 'Pending') {
+    fail('Cannot Edit Request', 'Only pending requests can be edited.')
     return
   }
 
@@ -243,58 +310,41 @@ const handleSave = async () => {
     attachmentName: '',
   }
 
-  saving.value = true
-
   try {
-    if (isEdit.value) {
-      if (!existingRecord.value) {
-        error('Request Not Found', 'Unable to find the selected request.')
-        return
-      }
+    const record = isEdit.value && existingRecord.value
+      ? await updateRequest(existingRecord.value.id, payload)
+      : await createRequest(payload)
 
-      if (existingRecord.value.status !== 'Pending') {
-        error('Cannot Edit', 'Only pending requests can be edited.')
-        return
-      }
+    if (!record) {
+      const message = actionError.value ||
+        'Unable to save the rest day switch request.'
 
-      const updated = await updateRequest(
-        existingRecord.value.id,
-        payload,
+      const duplicate = /already has|already exists/i.test(message)
+
+      fail(
+        duplicate ? 'Duplicate Rest Day Switch' :
+          isEdit.value ? 'Update Failed' : 'Submission Failed',
+        message,
       )
-
-      if (!updated) {
-        error('Update Failed', 'Unable to update the rest day request.')
-        return
-      }
-
-      success(
-        'Request Updated',
-        `${updated.requestNumber} has been updated successfully.`,
-      )
-    } else {
-      const created = await createRequest(payload)
-
-      if (!created) {
-        error('Submission Failed', 'Unable to create the rest day request.')
-        return
-      }
-
-      success(
-        'Request Submitted',
-        `${created.requestNumber} has been submitted for approval.`,
-      )
+      return
     }
 
-    await router.push('/admin/switch-rest-day')
-  } catch (err) {
-    error(
-      'Something Went Wrong',
-      err instanceof Error ? err.message : 'Unable to save the request.',
+    success(
+      isEdit.value ? 'Request Updated' : 'Request Submitted',
+      `${record.requestNumber} has been ${
+        isEdit.value ? 'updated' : 'submitted for approval'
+      }.`,
     )
-  } finally {
-    saving.value = false
+
+    await router.push('/admin/switch-rest-day')
+  } catch (err: unknown) {
+    fail(
+      'Something Went Wrong',
+      err instanceof Error ? err.message : 'Unable to save request.',
+    )
   }
 }
+
 </script>
 
 <template>
@@ -315,10 +365,19 @@ const handleSave = async () => {
       </span>
     </div>
 
-    <div
-      v-if="isEdit && !existingRecord"
-      class="empty-card"
-    >
+     <div
+        v-if="isEdit && !recordLoaded"
+        class="empty-card"
+      >
+        <RefreshCw :size="25" class="animate-spin" />
+        <h3>Loading Request...</h3>
+        <p>Retrieving rest day switch details.</p>
+      </div>
+
+      <div
+        v-else-if="isEdit && !existingRecord"
+        class="empty-card"
+      >
       <AlertCircle :size="30" />
       <h3>Request Not Found</h3>
       <p>The selected rest day switch request is unavailable.</p>

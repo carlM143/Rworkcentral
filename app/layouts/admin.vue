@@ -1,4 +1,3 @@
-
 <script setup lang="ts">
 import {
   LayoutDashboard,
@@ -168,10 +167,6 @@ const menuItems = [
         label: 'Field Leaves',
         to: '/admin/filed-leaves',
       },
-      {
-        label: 'Switch Rest Day',
-        to: '/admin/switch-rest-day',
-      },
     ],
   },
   {
@@ -184,8 +179,8 @@ const menuItems = [
         to: '/admin/work-schedules',
       },
       {
-        label: 'Change Schedule',
-        to: '/admin/work-schedules/change-schedule',
+        label: 'Switch Rest Day',
+        to: '/admin/switch-rest-day',
       },
     ],
   },
@@ -362,11 +357,7 @@ const menuItems = [
         to: '/admin/wfh/requests',
       },
       {
-        label: 'WFH List',
-        to: '/admin/wfh/list',
-      },
-      {
-        label: 'WFH Attach Documents',
+        label: 'WFH Document Review',
         to: '/admin/wfh/documents',
       },
     ],

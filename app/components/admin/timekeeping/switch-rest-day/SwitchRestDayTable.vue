@@ -124,39 +124,16 @@ const formatDateTime = (
               </strong>
 
             </td>
-
-            <td>
-
-              <div class="employee-cell">
-
-                <div class="employee-icon">
-                  <RefreshCw :size="15" />
+              <td>
+                <div class="employee-cell">
+                  <div>
+                    <strong>{{ record.employeeName }}</strong>
+                    <span>
+                      {{ record.employeeNumber }} · {{ record.position }}
+                    </span>
+                  </div>
                 </div>
-
-                <div>
-
-                  <strong>
-                    {{
-                      record.employeeName
-                    }}
-                  </strong>
-
-                  <span>
-                    {{
-                      record.employeeNumber
-                    }}
-                    ·
-                    {{
-                      record.position
-                    }}
-                  </span>
-
-                </div>
-
-              </div>
-
-            </td>
-
+              </td>
             <td>
               {{
                 record.department
@@ -467,26 +444,6 @@ tr:hover {
   gap: 9px;
 }
 
-.employee-icon {
-  display: flex;
-
-  width: 34px;
-  height: 34px;
-
-  flex-shrink: 0;
-
-  align-items: center;
-  justify-content: center;
-
-  border-radius: 8px;
-
-  background:
-    var(--primary-soft);
-
-  color:
-    var(--primary);
-}
-
 .employee-cell strong,
 .employee-cell span {
   display: block;
@@ -627,5 +584,66 @@ tr:hover {
 
 .empty-state span {
   font-size: 9px;
+}
+
+/* Improved table readability */
+.switch-table {
+  min-width: 1650px;
+}
+
+.switch-table th {
+  padding: 13px 14px;
+  font-size: 11px;
+}
+
+.switch-table td {
+  padding: 15px 14px;
+  font-size: 12px;
+}
+
+.request-number {
+  font-size: 11px;
+}
+
+.employee-cell strong {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.employee-cell span {
+  margin-top: 4px;
+  font-size: 10px;
+}
+
+.rest-day {
+  gap: 6px;
+  padding: 6px 9px;
+  font-size: 11px;
+}
+
+.switch-cell {
+  gap: 7px;
+}
+
+.switch-cell span,
+.switch-cell strong {
+  font-size: 11px;
+}
+
+.effective-date {
+  font-size: 11px;
+}
+
+.week-text {
+  font-size: 11px;
+}
+
+.reason {
+  max-width: 250px;
+  font-size: 11px;
+}
+
+.requested-at {
+  font-size: 10px;
 }
 </style>
