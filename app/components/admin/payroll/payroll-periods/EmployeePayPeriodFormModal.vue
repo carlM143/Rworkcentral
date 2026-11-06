@@ -1,7 +1,7 @@
 
 <script setup lang="ts">
 import { X, CalendarRange, Save } from 'lucide-vue-next'
-import type { PayrollPeriod, PayrollPeriodFormData } from '~/types/payrollPeriod'
+import type { PayrollPeriod, PayrollPeriodFormData } from '~/types/payroll/payroll-periods/payrollPeriod'
 
 const props = withDefaults(defineProps<{
   open: boolean

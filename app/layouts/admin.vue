@@ -28,6 +28,10 @@ import {
   ClipboardCheck,
   MapPin,
   LogOut,
+  Calculator,
+  History,
+  ReceiptText,
+  ShieldCheck,
 } from 'lucide-vue-next'
 
 const route = useRoute()
@@ -129,6 +133,10 @@ const menuItems = [
         label: 'Salary Adjustments',
         to: '/admin/employees/salary-adjustments',
       },
+      {
+        label: 'Transfer Department',
+        to: '/admin/employees/transfer-department',
+      },
     ],
   },
   {
@@ -181,42 +189,50 @@ const menuItems = [
       },
     ],
   },
+    
   {
     label: 'Payroll',
     key: 'payroll',
     icon: WalletCards,
     children: [
-      // PAY PERIODS
       {
-        label: 'Driver Pay Periods',
-        to: '/admin/driver-pay-periods',
+        label: 'Payroll Groups',
+        to: '/admin/payroll/payroll-group',
+        icon: Users,
       },
       {
-        label: 'Employee Pay Periods',
-        to: '/admin/employee-pay-periods',
+        label: 'Pay Periods',
+        to: '/admin/payroll/payroll-period',
+        icon: CalendarDays,
       },
       {
-        label: 'Pending Drivers Payroll',
-        to: '/admin/pending-drivers-payroll',
-      },
-      {
-        label: 'Completed Drivers Payroll',
-        to: '/admin/completed-drivers-payroll',
-      },
-      {
-        label: 'Pending Employees Payroll',
-        to: '/admin/pending-employees-payroll',
-      },
-      {
-        label: 'Completed Employees Payroll',
-        to: '/admin/completed-employees-payroll',
+        label: 'Payroll Readiness',
+        to: '/admin/payroll/payroll-readiness',
+        icon: ClipboardCheck,
       },
       {
         label: 'Employee Payroll',
         to: '/admin/employee-payroll',
+        icon: Calculator,
+      },
+      {
+        label: 'Driver Payroll',
+        to: '/admin/driver-payroll',
+        icon: Truck,
+      },
+      {
+        label: 'Payroll History',
+        to: '/admin/payroll-history',
+        icon: History,
+      },
+      {
+        label: 'Payslips',
+        to: '/admin/payroll-payslips',
+        icon: ReceiptText,
       },
     ],
   },
+
   {
     label: 'Contributions',
     key: 'contributions',
@@ -317,10 +333,6 @@ const menuItems = [
       {
         label: 'Employment Types',
         to: '/admin/employment-types',
-      },
-      {
-        label: 'Employee Transfers',
-        to: '/admin/employee-transfers',
       },
     ],
   },

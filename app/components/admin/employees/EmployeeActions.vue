@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import {
-  MoreHorizontal, Eye, Pencil, ArrowRightLeft,
-  Files, UserX, UserCheck, History,
+  MoreHorizontal, Eye, Pencil,
+  UserX, UserCheck, History,
 } from 'lucide-vue-next'
 import type { Employee } from '~/types/employee'
 
@@ -181,16 +181,6 @@ const updateEmployeeStatus = async (activate: boolean) => {
 const handleDeactivate = () => updateEmployeeStatus(false)
 const handleReactivate = () => updateEmployeeStatus(true)
 
-const handleTransfer = () => {
-  close()
-  info('Department Transfer', 'Use the Employee Transfer module to change the department assignment.')
-}
-
-const handleDocuments = () => {
-  close()
-  info('Employee Documents', 'Open the employee profile to review documents.')
-}
-
 const handleHistory = () => {
   close()
   info('Employment History', 'Employment history will be connected to the employee lifecycle module.')
@@ -242,24 +232,6 @@ const handleHistory = () => {
             Edit Employee
           </NuxtLink>
 
-          <button
-            type="button"
-            class="action-item"
-            @click="handleTransfer"
-          >
-            <ArrowRightLeft :size="15" />
-            Transfer Department
-          </button>
-
-          <button
-            type="button"
-            class="action-item"
-            @click="handleDocuments"
-          >
-            <Files :size="15" />
-            View Documents
-          </button>
-
           <div class="action-divider" />
 
           <button
@@ -274,15 +246,6 @@ const handleHistory = () => {
         </template>
 
         <template v-else>
-          <button
-            type="button"
-            class="action-item"
-            @click="handleDocuments"
-          >
-            <Files :size="15" />
-            View Documents
-          </button>
-
           <button
             type="button"
             class="action-item"

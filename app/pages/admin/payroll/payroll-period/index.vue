@@ -1,4 +1,3 @@
-
 <script setup lang="ts">
 import { ArrowLeft, Download, Plus, X } from 'lucide-vue-next'
 import EmployeePayPeriodStats from '~/components/admin/payroll/payroll-periods/EmployeePayPeriodStats.vue'
@@ -8,21 +7,16 @@ import EmployeePayPeriodFormModal from '~/components/admin/payroll/payroll-perio
 import type {
   PayrollPeriod,
   PayrollPeriodFormData,
-  PayrollPeriodApiRecord,
-  PayrollPeriodApiResponse,
-} from '~/types/payrollPeriod'
+  PayrollPeriodFormValue,
+  PayrollPeriodPayload,
+} from '~/types/payroll/payroll-periods/payrollPeriod'
 
 const router = useRouter()
-const { $api } = useNuxtApp()
 const { success, error: showError } = useToast()
 
-// API DATA
-const periods = ref<PayrollPeriod[]>([])
-const loading = ref(true)
-const saving = ref(false)
-const loadError = ref('')
+const api = usePayrollPeriod()
+const { periods, stats, years, loading, saving, error: loadError } = api
 
-// FILTERS
 const search = ref('')
 const status = ref('')
 const year = ref('')
@@ -32,119 +26,67 @@ const dateTo = ref('')
 const currentPage = ref(1)
 const perPage = 6
 
-// MODALS
 const formOpen = ref(false)
 const editingPeriod = ref<PayrollPeriod | null>(null)
 const viewingPeriod = ref<PayrollPeriod | null>(null)
-
-// HELPERS
-const dateOnly = (value: string | null | undefined) =>
-  value ? String(value).slice(0, 10) : ''
-
-const mapPeriod = (item: PayrollPeriodApiRecord): PayrollPeriod => ({
-  id: Number(item.id),
-  userId: item.user_id == null ? null : Number(item.user_id),
-  companyId: Number(item.company_id),
-  periodName: item.period_name,
-  cutoffStart: dateOnly(item.cutoff_start),
-  cutoffEnd: dateOnly(item.cutoff_end),
-  paymentDate: dateOnly(item.payment_date),
-  status: item.status || 'Draft',
-})
-
-const formatDate = (value: string) => {
-  if (!value) return '—'
-  const date = new Date(`${value.slice(0, 10)}T00:00:00`)
-  return Number.isNaN(date.getTime()) ? '—' : new Intl.DateTimeFormat('en-US', {
-    month: 'short', day: 'numeric', year: 'numeric',
-  }).format(date)
-}
-
-const getErrorMessage = (problem: any): string => {
-  const data = problem?.data ?? problem?.response?._data ?? {}
-  const firstError = Object.values(data.errors ?? {}).flat()[0]
-  return String(firstError || data.message || problem?.message || 'Request failed.')
-}
 
 const monthNames = [
   'January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December',
 ]
 
-// LOAD FROM LARAVEL
+const periodName = (period: PayrollPeriod) =>
+  period.period_name || period.label || `Payroll Period #${period.id}`
+
+const formatDate = (value?: string | null) => {
+  if (!value) return '—'
+  const date = new Date(`${value.slice(0, 10)}T00:00:00`)
+  return Number.isNaN(date.getTime())
+    ? '—'
+    : new Intl.DateTimeFormat('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+      }).format(date)
+}
+
 const loadPeriods = async () => {
-  loading.value = true
-  loadError.value = ''
-
   try {
-    const response = await $api<PayrollPeriodApiResponse<PayrollPeriodApiRecord[]>>(
-      '/admin/payroll-periods',
-      { method: 'GET' },
-    )
-
-    if (response.success === false) throw new Error(response.message)
-    if (!Array.isArray(response.data)) throw new Error('Invalid payroll periods API response.')
-
-    if (response.data.some(item => !item.period_name || !item.cutoff_start || !item.cutoff_end || !item.payment_date)) {
-      throw new Error('The payroll periods API must return period_name, cutoff_start, cutoff_end and payment_date.')
-    }
-
-    periods.value = response.data.map(mapPeriod)
+    await api.fetchPeriods()
     if (currentPage.value > totalPages.value) currentPage.value = totalPages.value
-  } catch (problem) {
-    periods.value = []
-    loadError.value = getErrorMessage(problem)
-    showError('Payroll Periods Unavailable', loadError.value)
-  } finally {
-    loading.value = false
+  } catch {
+    showError('Payroll Periods Unavailable', loadError.value || 'Request failed.')
   }
 }
 
 onMounted(() => { void loadPeriods() })
 
-// STATS
-const stats = computed(() => ({
-  total: periods.value.length,
-  draft: periods.value.filter(item => item.status.toLowerCase() === 'draft').length,
-  open: periods.value.filter(item => item.status.toLowerCase() === 'open').length,
-  closed: periods.value.filter(item => item.status.toLowerCase() === 'closed').length,
-}))
+const statusOptions = computed(() =>
+  [...new Set(periods.value.map(item => item.status))].sort(),
+)
 
-// FILTER OPTIONS
-const statusOptions = computed(() => [...new Set(periods.value.map(item => item.status))].sort())
+const monthOptions = computed(() =>
+  monthNames.filter((_, index) =>
+    periods.value.some(item => Number(item.cutoff_start?.slice(5, 7)) === index + 1),
+  ),
+)
 
-const yearOptions = computed(() => [...new Set(
-  periods.value.map(item => item.cutoffStart.slice(0, 4)).filter(Boolean),
-)].sort((a, b) => Number(b) - Number(a)))
-
-const monthOptions = computed(() => monthNames.filter((name, index) =>
-  periods.value.some(item => Number(item.cutoffStart.slice(5, 7)) === index + 1)
-))
-
-// FILTERED RECORDS
-const filteredPeriods = computed(() => periods.value.filter(item => {
-  const term = search.value.trim().toLowerCase()
-
-  if (term && !item.periodName.toLowerCase().includes(term) && !String(item.id).includes(term)) return false
-  if (status.value && item.status !== status.value) return false
-  if (year.value && item.cutoffStart.slice(0, 4) !== year.value) return false
-
-  if (month.value) {
-    const monthNumber = monthNames.indexOf(month.value) + 1
-    if (Number(item.cutoffStart.slice(5, 7)) !== monthNumber) return false
-  }
-
-  if (dateFrom.value && item.cutoffStart < dateFrom.value) return false
-  if (dateTo.value && item.cutoffEnd > dateTo.value) return false
-
-  return true
-}))
+const filteredPeriods = computed(() =>
+  api.filterPeriods({
+    search: search.value,
+    status: status.value,
+    year: year.value,
+    month: month.value ? monthNames.indexOf(month.value) + 1 : null,
+    date_from: dateFrom.value,
+    date_to: dateTo.value,
+  }),
+)
 
 const totalPages = computed(() => Math.max(1, Math.ceil(filteredPeriods.value.length / perPage)))
 const showingFrom = computed(() => filteredPeriods.value.length ? (currentPage.value - 1) * perPage + 1 : 0)
 const showingTo = computed(() => Math.min(currentPage.value * perPage, filteredPeriods.value.length))
 const paginatedPeriods = computed(() =>
-  filteredPeriods.value.slice((currentPage.value - 1) * perPage, currentPage.value * perPage)
+  filteredPeriods.value.slice((currentPage.value - 1) * perPage, currentPage.value * perPage),
 )
 
 watch([search, status, year, month, dateFrom, dateTo], () => { currentPage.value = 1 })
@@ -159,7 +101,21 @@ const resetFilters = () => {
   currentPage.value = 1
 }
 
-// CREATE / EDIT
+const editingFormValue = computed<PayrollPeriodFormValue | null>(() => {
+  const p = editingPeriod.value
+  if (!p) return null
+
+  return {
+    id: p.id,
+    periodName: p.period_name ?? '',
+    cutoffNumber: p.cutoff_number,
+    cutoffStart: p.cutoff_start,
+    cutoffEnd: p.cutoff_end,
+    paymentDate: p.payment_date,
+    status: p.status,
+  }
+})
+
 const handleCreate = () => {
   editingPeriod.value = null
   formOpen.value = true
@@ -170,29 +126,24 @@ const handleEdit = (period: PayrollPeriod) => {
   formOpen.value = true
 }
 
-const handleSave = async (payload: PayrollPeriodFormData) => {
+const toPayload = (form: PayrollPeriodFormData): PayrollPeriodPayload => ({
+  period_name: form.periodName,
+  cutoff_number: form.cutoffNumber
+    ?? (Number(form.cutoffStart.slice(8, 10)) <= 15 ? 1 : 2),
+  cutoff_start: form.cutoffStart,
+  cutoff_end: form.cutoffEnd,
+  payment_date: form.paymentDate,
+})
+
+const handleSave = async (form: PayrollPeriodFormData) => {
   if (saving.value) return
-  saving.value = true
+
+  const isEditing = editingPeriod.value !== null
 
   try {
-    const body = {
-      period_name: payload.periodName,
-      cutoff_start: payload.cutoffStart,
-      cutoff_end: payload.cutoffEnd,
-      payment_date: payload.paymentDate,
-    }
-
-    const isEditing = editingPeriod.value !== null
-    const endpoint = isEditing
-      ? `/admin/payroll-periods/${editingPeriod.value!.id}`
-      : '/admin/payroll-periods'
-
-    const response = await $api<PayrollPeriodApiResponse<PayrollPeriodApiRecord>>(endpoint, {
-      method: isEditing ? 'PATCH' : 'POST',
-      body,
-    })
-
-    if (response.success === false) throw new Error(response.message)
+    const response = isEditing
+      ? await api.updatePeriod(editingPeriod.value!.id, toPayload(form))
+      : await api.createPeriod(toPayload(form))
 
     formOpen.value = false
     editingPeriod.value = null
@@ -201,74 +152,52 @@ const handleSave = async (payload: PayrollPeriodFormData) => {
       isEditing ? 'Payroll Period Updated' : 'Payroll Period Created',
       response.message || 'Payroll period saved successfully.',
     )
-
-    await loadPeriods()
   } catch (problem) {
-    showError('Unable to Save Payroll Period', getErrorMessage(problem))
-  } finally {
-    saving.value = false
+    showError('Unable to Save Payroll Period', api.getErrorMessage(problem))
   }
 }
 
-// VIEW DETAILS
 const handleView = async (period: PayrollPeriod) => {
   try {
-    const response = await $api<PayrollPeriodApiResponse<PayrollPeriodApiRecord>>(
-      `/admin/payroll-periods/${period.id}`,
-      { method: 'GET' },
-    )
-
-    if (response.success === false) throw new Error(response.message)
-    viewingPeriod.value = mapPeriod(response.data)
+    viewingPeriod.value = await api.fetchPeriod(period.id)
   } catch (problem) {
-    showError('Unable to View Payroll Period', getErrorMessage(problem))
+    showError('Unable to View Payroll Period', api.getErrorMessage(problem))
   }
 }
 
-// DELETE
 const handleDelete = async (period: PayrollPeriod) => {
   if (saving.value) return
 
   const confirmed = window.confirm(
-    `Delete "${period.periodName}"?\n\nThis action cannot be undone.`,
+    `Delete "${periodName(period)}"?\n\nThis action cannot be undone.`,
   )
 
   if (!confirmed) return
-  saving.value = true
 
   try {
-    const response = await $api<{ success: boolean; message: string }>(
-      `/admin/payroll-periods/${period.id}`,
-      { method: 'DELETE' },
-    )
-
-    if (response.success === false) throw new Error(response.message)
-
+    const response = await api.deletePeriod(period.id)
     success('Payroll Period Deleted', response.message || 'Payroll period deleted successfully.')
-    await loadPeriods()
   } catch (problem) {
-    showError('Unable to Delete Payroll Period', getErrorMessage(problem))
-  } finally {
-    saving.value = false
+    showError('Unable to Delete Payroll Period', api.getErrorMessage(problem))
   }
 }
 
-// EXPORT CURRENT FILTERED DATA TO CSV
 const handleExport = () => {
   const rows = [
-    ['ID', 'Period Name', 'Cutoff Start', 'Cutoff End', 'Payment Date', 'Status'],
+    ['ID', 'Period Name', 'Cutoff', 'Cutoff Start', 'Cutoff End', 'Payment Date', 'Status'],
     ...filteredPeriods.value.map(item => [
       String(item.id),
-      item.periodName,
-      item.cutoffStart,
-      item.cutoffEnd,
-      item.paymentDate,
+      periodName(item),
+      String(item.cutoff_number),
+      item.cutoff_start,
+      item.cutoff_end,
+      item.payment_date,
       item.status,
     ]),
   ]
 
   const csv = rows
-    .map(row => row.map(value => `"${String(value).replace(/"/g, '""')}"`).join(','))
+    .map(row => row.map(value => `"${String(value ?? '').replace(/"/g, '""')}"`).join(','))
     .join('\r\n')
 
   const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
@@ -306,13 +235,7 @@ const handleExport = () => {
       </div>
     </PageHeader>
 
-    <!-- LOADING -->
-    <div v-if="loading" class="directory-message">
-      Loading payroll periods...
-    </div>
-
-    <!-- API ERROR -->
-    <div v-else-if="loadError" class="directory-message error-message">
+    <div v-if="loadError && !loading" class="directory-message error-message">
       <div>
         <strong>Payroll periods could not be loaded</strong>
         <p>{{ loadError }}</p>
@@ -331,13 +254,14 @@ const handleExport = () => {
         v-model:date-from="dateFrom"
         v-model:date-to="dateTo"
         :statuses="statusOptions"
-        :years="yearOptions"
+        :years="years"
         :months="monthOptions"
         @reset="resetFilters"
       />
 
       <EmployeePayPeriodTable
         :periods="paginatedPeriods"
+        :loading="loading"
         @view="handleView"
         @edit="handleEdit"
         @delete="handleDelete"
@@ -352,23 +276,21 @@ const handleExport = () => {
       </div>
     </template>
 
-    <!-- CREATE / EDIT MODAL -->
     <EmployeePayPeriodFormModal
       :open="formOpen"
-      :period="editingPeriod"
+      :period="editingFormValue"
       :saving="saving"
       @close="formOpen = false"
       @save="handleSave"
     />
 
-    <!-- VIEW DETAILS MODAL -->
     <Teleport to="body">
       <div v-if="viewingPeriod" class="details-overlay" @click.self="viewingPeriod = null">
         <div class="details-card" role="dialog" aria-modal="true" aria-labelledby="details-title">
           <div class="details-header">
             <div>
               <h3 id="details-title">Payroll Period Details</h3>
-              <p>{{ viewingPeriod.periodName }}</p>
+              <p>{{ periodName(viewingPeriod) }}</p>
             </div>
             <button type="button" class="details-close" aria-label="Close details" @click="viewingPeriod = null">
               <X :size="17" />
@@ -382,19 +304,23 @@ const handleExport = () => {
             </div>
             <div class="detail-row">
               <span>Period Name</span>
-              <strong>{{ viewingPeriod.periodName }}</strong>
+              <strong>{{ periodName(viewingPeriod) }}</strong>
+            </div>
+            <div class="detail-row">
+              <span>Cutoff</span>
+              <strong>{{ viewingPeriod.cutoff_number === 1 ? '1st cutoff' : '2nd cutoff' }}</strong>
             </div>
             <div class="detail-row">
               <span>Cutoff Start</span>
-              <strong>{{ formatDate(viewingPeriod.cutoffStart) }}</strong>
+              <strong>{{ formatDate(viewingPeriod.cutoff_start) }}</strong>
             </div>
             <div class="detail-row">
               <span>Cutoff End</span>
-              <strong>{{ formatDate(viewingPeriod.cutoffEnd) }}</strong>
+              <strong>{{ formatDate(viewingPeriod.cutoff_end) }}</strong>
             </div>
             <div class="detail-row">
               <span>Payment Date</span>
-              <strong>{{ formatDate(viewingPeriod.paymentDate) }}</strong>
+              <strong>{{ formatDate(viewingPeriod.payment_date) }}</strong>
             </div>
             <div class="detail-row">
               <span>Status</span>
