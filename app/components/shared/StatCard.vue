@@ -7,7 +7,7 @@ withDefaults(
     value: string | number
     description?: string
     icon?: Component
-    tone?: 'blue' | 'green' | 'orange' | 'purple'
+    tone?: 'blue' | 'green' | 'orange' | 'purple' | 'red'
   }>(),
   {
     description: '',
@@ -91,6 +91,11 @@ withDefaults(
 .tone-purple {
   background: var(--purple-soft);
   color: var(--purple);
+}
+
+.tone-red {
+  background: var(--red-soft);
+  color: var(--red);
 }
 
 .stat-content {

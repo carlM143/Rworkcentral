@@ -267,14 +267,6 @@ const menuItems = [
         label: 'Drivers Directory',
         to: '/admin/drivers',
       },
-      {
-        label: 'Pending Drivers Payroll',
-        to: '/admin/pending-drivers-payroll',
-      },
-      {
-        label: 'Completed Drivers Payroll',
-        to: '/admin/completed-drivers-payroll',
-      },
     ],
   },
   {
