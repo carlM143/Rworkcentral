@@ -1,3 +1,21 @@
+/**
+ * Drivers API (drivers_info + availability).
+ *
+ * DEMO MODE: data lives in this file and resets on reload.
+ * Shapes and function names match the planned Laravel endpoint
+ *   GET /admin/drivers/availability?date=YYYY-MM-DD
+ * so connecting the backend later only replaces the function bodies.
+ *
+ * Availability rules (same as the backend will use):
+ *   1. License expired on that date      -> license_expired
+ *   2. Approved leave on that date        -> on_leave
+ *   3. Rest day in the work schedule      -> rest_day
+ *   4. Inside a trip window right now     -> on_trip
+ *   5. Otherwise                          -> available (with busy blocks)
+ */
+
+import { demoTripTickets, type TripTicketStatus } from './demoTripStore'
+
 export type DriverAvailabilityStatus =
   | 'available'
   | 'on_trip'
@@ -8,8 +26,9 @@ export type DriverAvailabilityStatus =
 export interface DriverBusyBlock {
   ticket_no: string
   destination: string
-  start: string // HH:mm
-  end: string // HH:mm
+  start: string // HH:mm (actual departure if already left, otherwise plan)
+  end: string // HH:mm (actual return if back, otherwise expected)
+  status: TripTicketStatus
 }
 
 export interface DriverRecord {
@@ -82,13 +101,19 @@ const DEMO_DRIVERS: DemoDriver[] = [
   { id: 6, drivers_code: 'DRV-006', licence_no: 'N03-2023-77120', expire_date: '2027-02-12', image_path: null, employee: { id: 16, emp_id: '1016', name: 'Joshua Rivera', department: 'Logistics', position: 'Driver' }, rest_days: [weekdayOf(TOMORROW)], leave_dates: [] },
 ]
 
-const DEMO_TRIPS: (DriverBusyBlock & { driver_id: number, date: string })[] = [
-  { driver_id: 1, date: TODAY, ticket_no: 'TT-2026-0011', destination: 'Davao City Warehouse', start: '08:00', end: '12:00' },
-  { driver_id: 1, date: TODAY, ticket_no: 'TT-2026-0014', destination: 'Bajada Office', start: '13:30', end: '15:30' },
-  { driver_id: 2, date: TODAY, ticket_no: 'TT-2026-0012', destination: 'Toril Client Site', start: '09:00', end: '18:00' },
-  { driver_id: 2, date: TOMORROW, ticket_no: 'TT-2026-0016', destination: 'Panacan Facility', start: '08:00', end: '10:30' },
-  { driver_id: 5, date: TOMORROW, ticket_no: 'TT-2026-0017', destination: 'Lanang Distribution Hub', start: '13:00', end: '16:00' },
-]
+// Trips come from the shared demo store, so new trip tickets
+// immediately affect driver availability.
+const tripBlocksFor = (driverId: number, date: string): DriverBusyBlock[] =>
+  demoTripTickets
+    .filter(t => t.driver_id === driverId && t.trip_date === date && t.status !== 'cancelled')
+    .sort((a, b) => a.scheduled_departure.localeCompare(b.scheduled_departure))
+    .map(t => ({
+      ticket_no: t.ticket_no,
+      destination: t.destination,
+      start: t.departed_at ?? t.scheduled_departure,
+      end: t.returned_at ?? t.expected_return,
+      status: t.status,
+    }))
 
 const nowHHmm = () => {
   const d = new Date()
@@ -96,10 +121,7 @@ const nowHHmm = () => {
 }
 
 const computeAvailability = (driver: DemoDriver, date: string): DriverRecord['availability'] => {
-  const busy = DEMO_TRIPS
-    .filter(t => t.driver_id === driver.id && t.date === date)
-    .sort((a, b) => a.start.localeCompare(b.start))
-    .map(({ ticket_no, destination, start, end }) => ({ ticket_no, destination, start, end }))
+  const busy = tripBlocksFor(driver.id, date)
 
   if (driver.expire_date < date) {
     return { status: 'license_expired', note: `License expired ${driver.expire_date}`, available_from: null, busy }
@@ -113,16 +135,21 @@ const computeAvailability = (driver: DemoDriver, date: string): DriverRecord['av
 
   if (date === TODAY) {
     const now = nowHHmm()
-    const current = busy.find(b => now >= b.start && now < b.end)
+    // Already departed and not yet back = on trip, even if running late.
+    const current = busy.find(b => b.status === 'ongoing')
+      ?? busy.find(b => b.status === 'scheduled' && now >= b.start && now < b.end)
     if (current) {
+      const late = current.status === 'ongoing' && now >= current.end
       return {
         status: 'on_trip',
-        note: `${current.ticket_no} · back by ${driverTimeText(current.end)}`,
-        available_from: current.end,
+        note: late
+          ? `${current.ticket_no} · running late (expected ${driverTimeText(current.end)})`
+          : `${current.ticket_no} · back by ${driverTimeText(current.end)}`,
+        available_from: late ? null : current.end,
         busy,
       }
     }
-    const next = busy.find(b => b.start > now)
+    const next = busy.find(b => b.status === 'scheduled' && b.start > now)
     return {
       status: 'available',
       note: next ? `Next trip at ${driverTimeText(next.start)}` : 'Free for the rest of the day',

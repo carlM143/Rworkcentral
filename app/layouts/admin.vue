@@ -161,20 +161,8 @@ const menuItems = [
         to: '/admin/manual-time-in-out',
       },
       {
-        label: 'Manage Trips',
-        to: '/admin/manage-trips',
-      },
-      {
-        label: 'Trip Tickets',
-        to: '/admin/trip-tickets',
-      },
-      {
         label: 'Field Leaves',
         to: '/admin/filed-leaves',
-      },
-      {
-        label: 'Switch Rest Day',
-        to: '/admin/switch-rest-day',
       },
     ],
   },
@@ -279,10 +267,14 @@ const menuItems = [
     label: 'All Drivers',
     key: 'drivers',
     icon: Truck,
-    children: [
+        children: [
       {
         label: 'Drivers Directory',
         to: '/admin/drivers',
+      },
+      {
+        label: 'Trip Tickets',
+        to: '/admin/trip-tickets',
       },
     ],
   },
