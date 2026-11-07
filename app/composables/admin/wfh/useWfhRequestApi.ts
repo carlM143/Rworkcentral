@@ -1,0 +1,95 @@
+export type WfhRequestStatus = 'pending' | 'approved' | 'rejected'
+
+export interface WfhEmployeeOption {
+  id: number
+  emp_id: string
+  name: string
+  department: string | null
+  position: string | null
+}
+
+export interface WfhRequestRecord {
+  id: number
+  request_no: string
+  employee: WfhEmployeeOption
+  start_date: string
+  end_date: string
+  number_of_days: number
+  reason: string
+  supervisor_name: string
+  request_date: string
+  remarks: string | null
+  status: WfhRequestStatus
+  approved_by: string | null // user who approved OR rejected
+  approved_at: string | null
+}
+
+export interface StoreWfhRequestPayload {
+  employee_id: number
+  start_date: string
+  end_date: string
+  reason: string
+  supervisor_name: string
+  request_date: string
+}
+
+interface ApiResponse<T> {
+  success: boolean
+  message: string
+  data: T
+}
+
+const todayLocal = () => {
+  const now = new Date()
+  return new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 10)
+}
+
+export const useWfhRequestApi = () => {
+  const { $api } = useNuxtApp()
+  const { token } = useAuth()
+
+  const headers = (): Record<string, string> =>
+    token.value ? { Authorization: `Bearer ${token.value}` } : {}
+
+  const list = () =>
+    $api<ApiResponse<WfhRequestRecord[]>>('/admin/wfh-requests', {
+      method: 'GET',
+      headers: headers(),
+    })
+
+  const employees = () =>
+    $api<ApiResponse<WfhEmployeeOption[]>>('/admin/wfh-requests/employees', {
+      method: 'GET',
+      headers: headers(),
+    })
+
+  const preview = (payload: { employee_id: number, start_date: string, end_date: string }) =>
+    $api<ApiResponse<{ number_of_days: number }>>('/admin/wfh-requests/preview', {
+      method: 'POST',
+      body: payload,
+      headers: headers(),
+    })
+
+  const store = (payload: StoreWfhRequestPayload) =>
+    $api<ApiResponse<WfhRequestRecord>>('/admin/wfh-requests', {
+      method: 'POST',
+      body: payload,
+      headers: headers(),
+    })
+
+  const approve = (id: number, remarks?: string) =>
+    $api<ApiResponse<WfhRequestRecord>>(`/admin/wfh-requests/${id}/approve`, {
+      method: 'PATCH',
+      body: { remarks: remarks || null },
+      headers: headers(),
+    })
+
+  const reject = (id: number, remarks: string) =>
+    $api<ApiResponse<WfhRequestRecord>>(`/admin/wfh-requests/${id}/reject`, {
+      method: 'PATCH',
+      body: { remarks },
+      headers: headers(),
+    })
+
+  return { list, employees, preview, store, approve, reject, todayLocal }
+}

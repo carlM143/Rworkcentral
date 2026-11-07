@@ -1,5 +1,5 @@
 <script setup lang="ts">
-
+import AppToast from '~/components/ui/AppToast.vue'
 const router =
   useRouter()
 
@@ -112,8 +112,8 @@ onBeforeUnmount(() => {
 
     <!-- GLOBAL TOAST NOTIFICATIONS -->
     <ClientOnly>
-      <UiAppToast />
-    </ClientOnly>
+  <AppToast />
+</ClientOnly>
 
   </div>
 </template>

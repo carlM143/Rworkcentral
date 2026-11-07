@@ -8,13 +8,11 @@ import {
 import SwitchRestDayStats from '~/components/admin/timekeeping/switch-rest-day/SwitchRestDayStats.vue'
 import SwitchRestDayFilters from '~/components/admin/timekeeping/switch-rest-day/SwitchRestDayFilters.vue'
 import SwitchRestDayTable from '~/components/admin/timekeeping/switch-rest-day/SwitchRestDayTable.vue'
-import AddEditSwitchRestDayModal from '~/components/admin/timekeeping/switch-rest-day/AddEditSwitchRestDayModal.vue'
 import SwitchRestDayDetailsModal from '~/components/admin/timekeeping/switch-rest-day/SwitchRestDayDetailsModal.vue'
 import SwitchRestDayStatusModal from '~/components/admin/timekeeping/switch-rest-day/SwitchRestDayStatusModal.vue'
 
 import type {
   SwitchRestDayAction,
-  SwitchRestDayFormData,
   SwitchRestDayRecord,
   SwitchRestDayStatusFormData,
 } from '~/types/switchRestDay'
@@ -22,9 +20,6 @@ import type {
 const router =
   useRouter()
 
-const {
-  employees,
-} = useEmployees()
 
 const {
   search,
@@ -34,25 +29,20 @@ const {
   dateTo,
 
   currentPage,
-
   filteredRequests,
   paginatedRequests,
-
   totalPages,
   showingFrom,
   showingTo,
 
   stats,
-
   departmentOptions,
   statusOptions,
-  restDayOptions,
 
-  getScheduleInfo,
-  getEffectiveWeek,
-
-  createRequest,
-  updateRequest,
+  loading,
+  loadError,
+  actionError,
+  loadRequests,
 
   approveRequest,
   rejectRequest,
@@ -66,107 +56,21 @@ const {
   success,
 } = useToast()
 
-/* =========================================================
-   ADD / EDIT
-========================================================= */
-
-const formModalOpen =
-  ref(false)
-
-const editingRecord =
-  ref<
-    SwitchRestDayRecord |
-    null
-  >(null)
-
-const handleAdd = () => {
-  editingRecord.value =
-    null
-
-  formModalOpen.value =
-    true
+const handleAdd = async () => {
+  await router.push('/admin/switch-rest-day/create')
 }
 
-const handleEdit = (
-  record:
-    SwitchRestDayRecord,
-) => {
-  editingRecord.value =
-    record
-
-  formModalOpen.value =
-    true
-}
-
-const closeForm = () => {
-  formModalOpen.value =
-    false
-
-  editingRecord.value =
-    null
-}
-
-/* =========================================================
-   SAVE
-========================================================= */
-
-const handleSave = (
-  data:
-    SwitchRestDayFormData,
-) => {
-  if (
-    editingRecord.value
-  ) {
-    const updated =
-      updateRequest(
-        editingRecord.value.id,
-        data,
-      )
-
-    if (!updated) {
-      info(
-        'Unable to Update',
-        'The request could not be updated. Make sure the requested rest day is different from the current rest day.',
-      )
-
-      return
-    }
-
-    closeForm()
-
-    success(
-      'Request Updated',
-      `${updated.requestNumber} has been updated and returned to Pending status.`,
-    )
-
-    return
-  }
-
-  const created =
-    createRequest(
-      data,
-    )
-
-  if (!created) {
+const handleEdit = async (record: SwitchRestDayRecord) => {
+  if (record.status !== 'Pending') {
     info(
-      'Unable to Submit',
-      'Please verify the employee and requested rest day.',
+      'Cannot Edit Request',
+      'Only pending rest day switch requests can be edited.',
     )
-
     return
   }
 
-  closeForm()
-
-  success(
-    'Request Submitted',
-    `${created.requestNumber} has been submitted for approval.`,
-  )
+  await router.push(`/admin/switch-rest-day/${record.id}/edit`)
 }
-
-/* =========================================================
-   DETAILS
-========================================================= */
 
 const detailsOpen =
   ref(false)
@@ -284,73 +188,37 @@ const handleCancel = (
    STATUS SAVE
 ========================================================= */
 
-const handleStatusSave = (
-  data:
-    SwitchRestDayStatusFormData,
+
+const handleStatusSave = async (
+  data: SwitchRestDayStatusFormData,
 ) => {
-  if (
-    data.action ===
-    'approve'
-  ) {
-    const record =
-      approveRequest(
-        data.requestId,
-        data.notes,
-      )
+  const action = data.action
 
-    if (!record) {
-      return
-    }
-
-    closeStatusModal()
-
-    success(
-      'Request Approved',
-      `${record.requestNumber} has been approved.`,
-    )
-
-    return
-  }
-
-  if (
-    data.action ===
-    'reject'
-  ) {
-    const record =
-      rejectRequest(
-        data.requestId,
-        data.notes,
-      )
-
-    if (!record) {
-      return
-    }
-
-    closeStatusModal()
-
-    success(
-      'Request Rejected',
-      `${record.requestNumber} has been rejected.`,
-    )
-
-    return
-  }
-
-  const record =
-    cancelRequest(
-      data.requestId,
-      data.notes,
-    )
+  const record = action === 'approve'
+    ? await approveRequest(data.requestId, data.notes)
+    : action === 'reject'
+      ? await rejectRequest(data.requestId, data.notes)
+      : await cancelRequest(data.requestId, data.notes)
 
   if (!record) {
+    info(
+      'Unable to Update Request',
+      actionError.value || 'Please try again.',
+    )
     return
   }
 
   closeStatusModal()
 
+  const titles = {
+    approve: 'Request Approved',
+    reject: 'Request Rejected',
+    cancel: 'Request Cancelled',
+  }
+
   success(
-    'Request Cancelled',
-    `${record.requestNumber} has been cancelled.`,
+    titles[action],
+    `${record.requestNumber} has been ${record.status.toLowerCase()}.`,
   )
 }
 
@@ -371,21 +239,15 @@ const handleEmployee = (
    VIEW WORK SCHEDULE
 ========================================================= */
 
-const handleSchedule = (
-  record:
-    SwitchRestDayRecord,
-) => {
-  router.push({
-    path:
-      '/admin/timekeeping/work-schedules',
 
+const handleSchedule = (record: SwitchRestDayRecord) => {
+  router.push({
+    path: '/admin/work-schedules',
     query: {
-      employee:
-        record.employeeNumber,
+      employee: record.employeeNumber,
     },
   })
 }
-
 /* =========================================================
    EXPORT
 ========================================================= */
@@ -402,9 +264,7 @@ const handleExport = () => {
 ========================================================= */
 
 const handleBack = () => {
-  router.push(
-    '/admin/timekeeping',
-  )
+  router.push('/admin/work-schedules')
 }
 </script>
 
@@ -422,7 +282,7 @@ const handleBack = () => {
     >
       <ArrowLeft :size="15" />
 
-      Back to Timekeeping
+      Back to Work Schedules
     </button>
 
     <!-- HEADER -->
@@ -464,6 +324,29 @@ const handleBack = () => {
         stats
       "
     />
+    
+    <div
+      v-if="loadError"
+      class="mb-3 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-xs text-red-400"
+    >
+      {{ loadError }}
+
+      <button
+        type="button"
+        class="ml-2 font-semibold underline"
+        @click="loadRequests"
+      >
+        Retry
+      </button>
+    </div>
+
+    <div
+      v-if="loading"
+      class="mb-3 flex items-center gap-2 text-xs text-blue-400"
+    >
+      <span class="h-3 w-3 animate-spin rounded-full border-2 border-blue-400 border-t-transparent" />
+      Loading rest day switch requests...
+    </div>
 
     <!-- FILTERS -->
 
@@ -559,38 +442,7 @@ const handleBack = () => {
       />
 
     </div>
-
-    <!-- ADD / EDIT -->
-
-    <AddEditSwitchRestDayModal
-      :open="
-        formModalOpen
-      "
-      :record="
-        editingRecord
-      "
-      :employees="
-        employees
-      "
-      :rest-days="
-        restDayOptions
-      "
-      :get-schedule-info="
-        getScheduleInfo
-      "
-      :get-effective-week="
-        getEffectiveWeek
-      "
-      @close="
-        closeForm
-      "
-      @save="
-        handleSave
-      "
-    />
-
-    <!-- DETAILS -->
-
+    
     <SwitchRestDayDetailsModal
       :open="
         detailsOpen

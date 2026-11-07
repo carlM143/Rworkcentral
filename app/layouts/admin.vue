@@ -1,4 +1,3 @@
-
 <script setup lang="ts">
 import {
   LayoutDashboard,
@@ -170,6 +169,10 @@ const menuItems = [
         to: '/admin/trip-tickets',
       },
       {
+        label: 'Field Leaves',
+        to: '/admin/filed-leaves',
+      },
+      {
         label: 'Switch Rest Day',
         to: '/admin/switch-rest-day',
       },
@@ -185,8 +188,8 @@ const menuItems = [
         to: '/admin/work-schedules',
       },
       {
-        label: 'Change Schedule',
-        to: '/admin/work-schedules/change-schedule',
+        label: 'Switch Rest Day',
+        to: '/admin/switch-rest-day',
       },
     ],
   },
@@ -271,6 +274,7 @@ const menuItems = [
       { label: 'Loan Transactions', to: '/admin/loans/transactions' },
     ],
   },
+  
   {
     label: 'All Drivers',
     key: 'drivers',
@@ -279,18 +283,6 @@ const menuItems = [
       {
         label: 'Drivers Directory',
         to: '/admin/drivers',
-      },
-      {
-        label: 'Driver Pay Periods',
-        to: '/admin/driver-pay-periods',
-      },
-      {
-        label: 'Pending Drivers Payroll',
-        to: '/admin/pending-drivers-payroll',
-      },
-      {
-        label: 'Completed Drivers Payroll',
-        to: '/admin/completed-drivers-payroll',
       },
     ],
   },
@@ -374,11 +366,7 @@ const menuItems = [
         to: '/admin/wfh/requests',
       },
       {
-        label: 'WFH List',
-        to: '/admin/wfh/list',
-      },
-      {
-        label: 'WFH Attach Documents',
+        label: 'WFH Document Review',
         to: '/admin/wfh/documents',
       },
     ],
