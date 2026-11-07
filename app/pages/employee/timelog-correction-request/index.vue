@@ -117,7 +117,6 @@ onMounted(() => void loadRequests())
   <section class="correction-page">
     <header class="page-header">
       <div>
-        <div class="eyebrow"><FileClock :size="15" /> Employee Requests</div>
         <h1>Time Log Correction Requests</h1>
         <p>Review attendance-related requests and track their approval status.</p>
       </div>
@@ -153,6 +152,7 @@ onMounted(() => void loadRequests())
       </div>
 
       <EmployeeRequestTable
+        class="desktop-request-table"
         :columns="columns"
         :rows="rows"
         :page-size="8"
@@ -199,6 +199,16 @@ onMounted(() => void loadRequests())
         </template>
         <template #cell-reference="{ row }">{{ row.reference }}</template>
       </EmployeeRequestTable>
+      <div class="mobile-request-list">
+        <p v-if="loading" class="mobile-empty" role="status">Loading requests…</p>
+        <p v-else-if="!filteredRequests.length" class="mobile-empty">No time log correction requests found.</p>
+        <button v-for="request in filteredRequests" :key="request.id" type="button" class="mobile-request-card" :aria-label="`View correction request ${request.id}`" @click="viewRequest({ id: request.id })">
+          <span class="mobile-card-header"><strong>Time Log Correction</strong><span class="badge" :class="request.status.toLowerCase() === 'approved' ? 'green' : request.status.toLowerCase() === 'pending' ? 'orange' : 'neutral'">{{ request.status }}</span></span>
+          <span class="mobile-card-date">{{ formatDate(request.work_date) }}</span>
+          <span class="mobile-card-reason">{{ request.reason || 'No reason provided' }}</span>
+          <span class="mobile-card-footer"><span>Reference #{{ request.id }}</span><span>View details →</span></span>
+        </button>
+      </div>
     </article>
   </section>
 </template>
@@ -234,6 +244,20 @@ p { margin: 0; color: var(--text-secondary); font-size: 12px; line-height: 1.6; 
 .action-buttons button { padding: 0; border: 0; background: transparent; color: var(--red); font: inherit; font-size: 11px; font-weight: 600; cursor: pointer; }
 .action-buttons a:hover, .action-buttons button:hover { text-decoration: underline; }
 .action-buttons button:disabled { opacity: .55; cursor: wait; }
+.mobile-request-list { display: none; }
 @media (max-width: 850px) { .page-header, .table-header { flex-wrap: wrap; } .filters { width: 100%; } .search-field { flex: 1; } }
-@media (max-width: 640px) { h1 { font-size: 22px; } .stats-grid { gap: 8px; } .stat-card { min-height: 90px; padding: 12px; }.stat-card strong { font-size: 22px; }.page-header .primary-button { width: 100%; } .filters { flex-wrap: wrap; }.search-field { min-width: 100%; }.filters select { width: 100%; } }
+@media (max-width: 850px) {
+  .desktop-request-table { display: none; }
+  .mobile-request-list { display: grid; gap: 10px; padding: 0 14px 14px; }
+  .mobile-request-card { display: flex; flex-direction: column; gap: 7px; width: 100%; min-width: 0; padding: 13px; text-align: left; font: inherit; font-size: 12px; color: var(--text-primary); background: var(--bg-card-soft); border: 1px solid var(--border); border-radius: 9px; }
+  .mobile-card-header, .mobile-card-footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .mobile-card-header strong { min-width: 0; overflow-wrap: anywhere; }
+  .mobile-card-header .badge { text-transform: capitalize; flex-shrink: 0; }
+  .mobile-card-date { font-weight: 600; }
+  .mobile-card-reason { color: var(--text-secondary); line-height: 1.5; overflow-wrap: anywhere; }
+  .mobile-card-footer { color: var(--text-muted); font-size: 11px; }
+  .mobile-card-footer span:last-child { color: var(--primary); font-weight: 600; }
+  .mobile-empty { padding: 18px 0; text-align: center; }
+}
+@media (max-width: 640px) { h1 { font-size: 22px; line-height: 1.3; } .page-header { gap: 14px; } .stats-grid { gap: 8px; } .stat-card { min-width: 0; min-height: 90px; padding: 10px; }.stat-card strong { font-size: 22px; }.stat-card small { line-height: 1.4; overflow-wrap: anywhere; }.page-header .primary-button { width: 100%; } .table-header { padding: 14px; gap: 14px; }.filters { flex-wrap: wrap; }.search-field { min-width: 100%; }.filters select { width: 100%; } }
 </style>

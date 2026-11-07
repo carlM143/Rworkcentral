@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ArrowUpRight, CalendarDays, Clock3, Umbrella, TimerReset, WalletCards, ClipboardCheck, Plus, Download, Megaphone, X, Info } from 'lucide-vue-next'
+import { ArrowUpRight, CalendarDays, Clock3, Umbrella, TimerReset, WalletCards, ClipboardCheck, Plus, Download, Megaphone, X, Info, House } from 'lucide-vue-next'
 import EmployeeLeaveDateCalendar from '~/components/employee/EmployeeLeaveDateCalendar.vue'
 import type { EmployeeRequest } from '~/composables/employee/useEmployeePortal'
 import { employeeLeavePolicy } from '~/utils/employeeLeavePolicy'
@@ -39,6 +39,7 @@ const dateKey = computed(() => {
 })
 const currentPunch = computed(() => punches.value[dateKey.value])
 const visibleRequests = computed(() => requests.value.filter(request => ['Leave', 'Undertime', 'Overtime'].includes(employeeRequestCategory(request.type) || '')))
+const recentRequests = computed(() => [...visibleRequests.value].sort((a, b) => (b.requestDate || b.start).localeCompare(a.requestDate || a.start)))
 const pending = computed(() => visibleRequests.value.filter(r => r.status === 'Pending').length)
 const notice = ref(route.query.submitted === '1' ? 'Leave request submitted successfully to HR.' : '')
 const filter = ref('All')
@@ -393,7 +394,7 @@ const submitRequest = async () => {
 </script>
 
 <template>
-  <section class="employee-page" :class="{ 'home-page': section === 'dashboard', 'attendance-page': section === 'attendance' }">
+  <section class="employee-page" :class="{ 'home-page': section === 'dashboard', 'attendance-page': section === 'attendance', 'profile-page': section === 'profile' }">
     <div class="employee-header">
       <div>
         <h1>{{ titles[section] }}</h1>
@@ -429,7 +430,7 @@ const submitRequest = async () => {
       </article>
       <article v-if="section === 'dashboard'" class="portal-card quick-actions-card">
         <div class="panel-heading"><div><h2>Quick Actions</h2><p>Make a request in just a few clicks</p></div></div>
-        <div class="quick-actions"><button v-for="action in quickActions" :key="action.type" :aria-label="action.label" @click="openRequest(action.type)"><span class="colored-icon" :class="action.color"><component :is="action.icon" :size="19" /></span><strong><span class="full-action-label">{{ action.label }}</span><span class="mobile-action-label">{{ action.type === 'Vacation Leave' ? 'File Leave' : action.type }}</span></strong><ArrowUpRight :size="16" /></button></div>
+        <div class="quick-actions"><button v-for="action in quickActions" :key="action.type" :aria-label="action.label" @click="openRequest(action.type)"><span class="colored-icon" :class="action.color"><component :is="action.icon" :size="19" /></span><strong><span class="full-action-label">{{ action.label }}</span><span class="mobile-action-label">{{ action.type === 'Vacation Leave' ? 'File Leave' : action.type }}</span></strong><ArrowUpRight :size="16" /></button><NuxtLink to="/employee/wfh-requests" class="home-quick-link"><span class="colored-icon blue"><House :size="19" /></span><strong>Work From Home</strong><ArrowUpRight :size="16" /></NuxtLink><NuxtLink to="/employee/calendar" class="home-quick-link"><span class="colored-icon purple"><CalendarDays :size="19" /></span><strong>Calendar</strong><ArrowUpRight :size="16" /></NuxtLink></div>
       </article>
       <article v-else class="portal-card schedule-card"><div class="panel-heading"><div><h2>Work Schedule</h2><p>Your regular work week</p></div><CalendarDays :size="20" /></div><h3>Tuesday – Friday</h3><strong>8:00 AM – 5:00 PM</strong><p>Monday: 9:00 AM – 5:00 PM</p><p>Saturday: 8:00 AM – 12:00 PM</p><p>Sunday: Rest day</p></article>
     </div>
@@ -440,20 +441,19 @@ const submitRequest = async () => {
       <div class="table-scroll" role="region" aria-label="Attendance history" tabindex="0"><table class="mobile-compact-table attendance-table"><thead><tr><th scope="col">Date</th><th scope="col">Time In</th><th scope="col">Time Out</th><th scope="col" class="mobile-hide">Hours Worked</th><th scope="col">Status</th><th scope="col" class="mobile-hide">Actions</th></tr></thead><tbody><tr v-for="[date, entry] in attendance" :key="date" class="record-row" @click="viewAttendance(date)"><td><button type="button" class="row-open-button" :aria-label="`Open attendance details for ${formatDate(date)}`" @click.stop="viewAttendance(date)"><span class="mobile-hide">{{ formatDate(date) }}</span><span class="mobile-only">{{ shortDate(date) }}</span></button></td><td>{{ formatTime(entry.timeIn) }}</td><td>{{ formatTime(entry.timeOut) }}</td><td class="mobile-hide">{{ workedHours(entry.hoursWorked) }}</td><td>{{ attendanceStatus(date, entry.status) }}</td><td class="mobile-hide"><button type="button" class="report-button" :aria-label="`Report an attendance issue for ${formatDate(date)}`" @click.stop="reportAttendance(date)">Report</button></td></tr><tr v-if="!attendance.length"><td colspan="6" class="empty-state">No biometric attendance records are available.</td></tr></tbody></table></div>
     </article>
 
-    <nav v-if="section === 'requests'" class="request-categories" aria-label="Request categories"><button v-for="category in requestCategories" :key="category" type="button" :class="{ selected: activeCategory === category }" :aria-pressed="activeCategory === category" @click="selectRequestCategory(category)">{{ category }} <span>{{ categoryCount(category) }}</span></button></nav>
     <div v-if="section === 'dashboard' || section === 'requests' || section === 'attendance'" :class="section === 'dashboard' ? 'employee-grid lower-panel' : section === 'attendance' ? 'lower-panel' : ''">
       <article class="portal-card requests-panel">
         <div class="panel-heading"><div><h2>{{ section === 'dashboard' ? 'Recent Requests' : section === 'attendance' ? 'Attendance Reports' : `${activeCategory} Requests` }}</h2><p>Track your {{ section === 'attendance' ? 'attendance reports' : 'requests' }} and their status</p></div><NuxtLink v-if="section === 'dashboard'" to="/employee/requests" class="text-link">View all <ArrowUpRight :size="14" /></NuxtLink><select v-else v-model="filter" aria-label="Filter requests by status"><option>All</option><option>Pending</option><option>Approved</option><option>Rejected</option><option>Cancelled</option></select></div>
         <p class="mobile-table-hint">Tap a request row for full dates, times, attachments and request actions.</p>
         <div v-if="section === 'dashboard'" class="home-request-list">
-          <button v-for="request in visibleRequests.slice(0, 3)" :key="request.id" type="button" :aria-label="`View request ${request.id}`" @click="viewRequest(request)"><span class="home-request-copy"><strong>{{ request.type }}</strong><small>{{ formatDate(request.start) }}</small></span><span class="badge" :class="request.status === 'Approved' ? 'green' : request.status === 'Pending' ? 'orange' : 'neutral'">{{ request.status }}</span><ArrowUpRight :size="15" aria-hidden="true" /></button>
+          <button v-for="request in recentRequests.slice(0, 3)" :key="request.id" type="button" :aria-label="`View request ${request.id}`" @click="viewRequest(request)"><span class="home-request-copy"><strong>{{ request.type }}</strong><small>{{ formatDate(request.start) }}</small></span><span class="badge" :class="request.status === 'Approved' ? 'green' : request.status === 'Pending' ? 'orange' : 'neutral'">{{ request.status }}</span><ArrowUpRight :size="15" aria-hidden="true" /></button>
           <p v-if="!visibleRequests.length" class="empty-state">No requests yet.</p>
         </div>
         <div class="table-scroll" role="region" aria-label="Request history" tabindex="0">
           <table class="mobile-compact-table request-table">
             <thead><tr><th scope="col">Request</th><th scope="col">Dates / Times</th><th scope="col">Status</th><th v-if="section !== 'dashboard'" scope="col" class="mobile-hide">Action</th><th v-if="section !== 'dashboard'" scope="col" class="mobile-only">Reference</th></tr></thead>
             <tbody>
-              <tr v-for="request in (section === 'dashboard' ? visibleRequests.slice(0, 4) : filteredRequests)" :key="request.id" class="record-row" @click="viewRequest(request)">
+              <tr v-for="request in (section === 'dashboard' ? recentRequests.slice(0, 4) : filteredRequests)" :key="request.id" class="record-row" @click="viewRequest(request)">
                 <td>
                   <button type="button" class="row-open-button" :aria-label="`Open request ${request.id} details`" @click.stop="viewRequest(request)">{{ employeeRequestCategory(request.type) === 'Attendance Report' ? 'Attendance Report' : request.type }}</button>
                   <small class="mobile-hide">{{ section !== 'dashboard' ? request.reason : request.id }}</small>
@@ -789,10 +789,11 @@ p { font-size: 12px; color: var(--text-secondary); line-height: 1.7; margin: 4px
 .punch-summary strong { font-size: 13px; }
 .footnote { font-size: 10px; text-align: center; color: var(--text-muted); padding: 10px 12px 16px; }
 .quick-actions { display: grid; grid-template-columns: 1fr 1fr; padding: 0 18px 18px; gap: 12px; }
-.quick-actions button { display: flex; flex-direction: column; align-items: flex-start; gap: 11px; position: relative; border: 1px solid var(--border); border-radius: 9px; background: var(--bg-card-soft); color: var(--text-primary); padding: 15px; text-align: left; }
-.quick-actions button:hover { border-color: var(--primary); }
+.quick-actions .home-quick-link:last-child:nth-child(odd) { grid-column: 1 / -1; width: calc((100% - 12px) / 2); justify-self: center; }
+.quick-actions button, .quick-actions .home-quick-link { display: flex; flex-direction: column; align-items: flex-start; gap: 11px; position: relative; border: 1px solid var(--border); border-radius: 9px; background: var(--bg-card-soft); color: var(--text-primary); padding: 15px; text-align: left; text-decoration: none; }
+.quick-actions button:hover, .quick-actions .home-quick-link:hover { border-color: var(--primary); }
 .quick-actions strong { font-size: 11px; }
-.quick-actions button > svg { position: absolute; top: 16px; right: 13px; color: var(--text-muted); }
+.quick-actions button > svg, .quick-actions .home-quick-link > svg { position: absolute; top: 16px; right: 13px; color: var(--text-muted); }
 .text-link { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; color: var(--primary); padding: 0; border: 0; background: transparent; }
 .table-scroll { overflow-x: auto; }
 .report-button {
@@ -1133,7 +1134,17 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--p
 
 @media (max-width: 1200px) { .employee-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } .employee-header { flex-wrap: wrap; } }
 @media (max-width: 1000px) { .employee-grid { grid-template-columns: 1fr; } }
+@media (max-width: 600px) {
+  .employee-header .date-label,
+  .employee-page > .portal-banner { display: none; }
+  .profile-page > .employee-header { display: none; }
+}
+
 @media (max-width: 850px) {
+  .home-page .quick-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .home-page .quick-actions .home-quick-link { align-items: center; justify-content: center; gap: 7px; padding: 10px 4px; border-radius: 8px; text-align: center; }
+  .home-page .quick-actions .home-quick-link:last-child:nth-child(odd) { width: calc((100% - 7px) / 2); }
+  .home-page .quick-actions .home-quick-link > svg { display: none; }
   .employee-page, .employee-header > div, .panel-heading > div, .stat > div, .bulletin > div, .form-fields > *, .request-detail-grid > div { min-width: 0; }
   p, label, .footnote, .stat p, .stat small, .time-display small, .punch-summary span, .panel-heading p, .request-detail-grid dt, .request-detail-grid dd { font-size: 13px; }
   .employee-header { gap: 16px; }h1 { font-size: 24px; }.header-tools { flex-wrap: wrap; }.panel-heading { flex-wrap: wrap; }.panel-heading select { flex: 1 1 140px; }.portal-dialog .panel-heading { flex-wrap: nowrap; }
@@ -1411,7 +1422,7 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--p
   .home-page .employee-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-bottom: 10px; }.home-page .stat { position: relative; display: block; padding: 11px 12px; border-radius: 10px; }.home-page .stat > .colored-icon { position: absolute; top: 10px; right: 10px; width: 25px; height: 25px; }.home-page .stat > .colored-icon svg { width: 14px; height: 14px; }.home-page .stat p { min-height: 28px; margin: 0; padding-right: 22px; font-size: 11px; line-height: 14px; }.home-page .stat strong { font-size: 21px; line-height: 1.2; margin-top: 4px; }.home-page .stat small { margin-top: 4px; font-size: 10px; line-height: 1.4; }
   .home-page .employee-grid { gap: 10px; }.home-page .lower-panel { margin-top: 10px; }.home-page .portal-card .panel-heading { padding: 10px 12px; align-items: center; }.home-page .portal-card .panel-heading h2 { font-size: 13px; }.home-page .portal-card .panel-heading p { display: none; }.home-page .portal-card .panel-heading .text-link { min-height: 44px; font-size: 11px; }
   .home-page .attendance-overview .time-display { margin: 0 12px 10px; text-align: left; font-size: 25px; line-height: 1.3; }.home-page .attendance-overview .time-display small, .home-page .attendance-overview > .footnote { display: none; }.home-page .punch-summary { margin: 0 12px 10px; }.home-page .punch-summary span { font-size: 10px; margin-bottom: 4px; }.home-page .punch-summary strong { font-size: 12px; }.home-attendance-note { display: block; margin: 0; padding: 7px 12px; border-top: 1px solid var(--border-soft); color: var(--text-muted); font-size: 9px; }
-  .home-page .quick-actions { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; padding: 0 10px 10px; }.home-page .quick-actions button { align-items: center; justify-content: center; gap: 7px; padding: 10px 4px; border-radius: 8px; text-align: center; }.home-page .quick-actions .colored-icon { width: 29px; height: 29px; }.home-page .quick-actions .colored-icon svg { width: 16px; height: 16px; }.home-page .quick-actions strong { font-size: 10px; line-height: 1.4; }.home-page .quick-actions button > svg, .home-page .full-action-label { display: none; }.home-page .mobile-action-label { display: inline; }
+  .home-page .quick-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; padding: 0 10px 10px; }.home-page .quick-actions button { align-items: center; justify-content: center; gap: 7px; padding: 10px 4px; border-radius: 8px; text-align: center; }.home-page .quick-actions .colored-icon { width: 29px; height: 29px; }.home-page .quick-actions .colored-icon svg { width: 16px; height: 16px; }.home-page .quick-actions strong { font-size: 10px; line-height: 1.4; }.home-page .quick-actions button > svg, .home-page .full-action-label { display: none; }.home-page .mobile-action-label { display: inline; }
   .home-page .requests-panel > .table-scroll, .home-page .requests-panel > .mobile-table-hint { display: none; }.home-request-list { display: block; }.home-request-list > button { display: flex; align-items: center; gap: 9px; width: 100%; padding: 10px 12px; border: 0; border-top: 1px solid var(--border-soft); background: transparent; color: var(--text-primary); text-align: left; font-family: inherit; }.home-request-copy { flex: 1; min-width: 0; }.home-request-copy strong { display: block; font-size: 12px; font-weight: 500; }.home-request-copy small { display: block; margin-top: 3px; color: var(--text-secondary); font-size: 10px; }.home-request-list .badge { font-size: 9px; }.home-request-list > button > svg { flex-shrink: 0; color: var(--text-muted); }.home-request-list > button:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
   .home-page .home-bulletin { display: none; }
 }

@@ -121,7 +121,7 @@ const defaultProfile = (): EmployeeProfileData => ({
   position: 'Administrative Staff',
   department: 'Operations',
   departmentCode: 'OPS',
-  location: 'Main Branch',
+  location: '',
   email: '',
   phone: '',
   address: '',
@@ -168,9 +168,9 @@ const mapBackendProfile = (data: any, fallbackUser?: any): EmployeeProfileData =
     || fallbackUser?.name
     || 'Employee'
 
-  const latestEmployment = Array.isArray(data?.employments) && data.employments.length > 0
+  const latestEmployment = data?.current_employment ?? (Array.isArray(data?.employments) && data.employments.length > 0
     ? data.employments[0]
-    : null
+    : null)
 
   const contact = data?.contact_information || {}
   const emergency = Array.isArray(data?.contact_persons) && data.contact_persons.length > 0
@@ -274,7 +274,9 @@ const mapBackendProfile = (data: any, fallbackUser?: any): EmployeeProfileData =
     department: latestEmployment?.department?.department_name || data?.department?.department_name || 'Operations',
     departmentCode: latestEmployment?.department?.department_code || data?.department?.department_code || 'OPS',
     position: latestEmployment?.position?.position || 'Administrative Staff',
-    location: latestEmployment?.department?.company?.location || 'Main Office',
+    location: latestEmployment?.location
+      ? [latestEmployment.location.location_name, [latestEmployment.location.city, latestEmployment.location.province].filter(Boolean).join(', ')].filter(Boolean).join(' · ')
+      : '',
     email: contact.email || data?.user?.email || fallbackUser?.email || '',
     phone: contact.mobile || latestEmployment?.mobile || '',
     address: contact.residential_address || latestEmployment?.residential_address || '',

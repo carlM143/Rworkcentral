@@ -230,6 +230,7 @@ const personalFields = computed(() => [
 const employmentFields = computed(() => [
   { label: 'Employee ID', value: profile.value.employeeId },
   { label: 'Department', value: profile.value.departmentCode ? `${profile.value.department} (${profile.value.departmentCode})` : profile.value.department },
+  { label: 'Work Location', value: profile.value.location || 'Not assigned' },
   { label: 'Position', value: show(profile.value.position) },
   { label: 'Employment Type', value: show(profile.value.employmentType) },
   { label: 'Employment Status', value: profile.value.employmentStatus },
@@ -355,7 +356,7 @@ const governmentItems = computed(() => {
           </span>
           <span class="meta-item">
             <MapPin :size="13" />
-            {{ show(profile.location) }}
+            {{ profile.location || 'Work location not assigned' }}
           </span>
         </div>
       </div>
@@ -628,10 +629,10 @@ const governmentItems = computed(() => {
           <thead>
             <tr>
               <th scope="col">Document Name</th>
-              <th scope="col">Category</th>
+              <th scope="col" class="mobile-hide">Category</th>
               <th scope="col">Status</th>
-              <th scope="col">Date On Record</th>
-              <th scope="col">Remarks</th>
+              <th scope="col" class="mobile-hide">Date On Record</th>
+              <th scope="col" class="mobile-hide">Remarks</th>
             </tr>
           </thead>
           <tbody>
@@ -651,7 +652,7 @@ const governmentItems = computed(() => {
                   {{ requirement.name }}
                 </button>
               </th>
-              <td><span class="category-badge">{{ requirement.category || 'General' }}</span></td>
+              <td class="mobile-hide"><span class="category-badge">{{ requirement.category || 'General' }}</span></td>
               <td>
                 <span
                   class="requirement-status"
@@ -660,8 +661,8 @@ const governmentItems = computed(() => {
                   {{ requirement.status }}
                 </span>
               </td>
-              <td>{{ requirement.submittedAt ? formatDisplayDate(requirement.submittedAt) : 'Pending' }}</td>
-              <td><span class="document-remark">{{ requirement.remarks || '—' }}</span></td>
+              <td class="mobile-hide">{{ requirement.submittedAt ? formatDisplayDate(requirement.submittedAt) : 'Pending' }}</td>
+              <td class="mobile-hide"><span class="document-remark">{{ requirement.remarks || '—' }}</span></td>
             </tr>
             <tr v-if="!profile.requirements?.length">
               <td colspan="5" class="empty">No document records found.</td>
@@ -1191,9 +1192,25 @@ td { color: var(--text-secondary); }
   .password-form { grid-template-columns: 1fr; }
 }
 @media(max-width: 600px) {
+  .profile-header-bar .refresh-button { display: none; }
   form, .detail-grid { grid-template-columns: 1fr; }
-  .profile-card { padding: 18px; }
-  .identity { flex-direction: column; align-items: flex-start; }
+  .employee-profile { gap: 14px; }
+  .profile-header-bar { align-items: flex-start; }
+  .profile-header-bar > div { min-width: 0; }
+  .page-title { font-size: 21px; }
+  .page-subtitle { line-height: 1.6; }
+  .refresh-button { justify-content: center; }
+  .profile-card { padding: 16px; }
+  .identity { flex-direction: column; align-items: center; text-align: center; }
+  .identity-details { width: 100%; }
+  .identity-heading { justify-content: center; }
+  .identity-heading h2 { width: 100%; overflow-wrap: anywhere; }
+  .role-line { line-height: 1.6; overflow-wrap: anywhere; }
+  .meta-row { justify-content: center; gap: 8px; }
+  .meta-item { max-width: 100%; flex-wrap: wrap; justify-content: center; overflow-wrap: anywhere; }
+  .detail-grid { gap: 0; margin-top: 14px; }
+  .detail-grid > div { min-width: 0; padding: 10px 0; border-bottom: 1px solid var(--border-soft); }
+  .detail-grid > div:last-child { border-bottom: 0; }
   .actions { flex-direction: column; }
   .actions button { width: 100%; }
 }

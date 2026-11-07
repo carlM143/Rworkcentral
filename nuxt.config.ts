@@ -4,7 +4,7 @@ export default defineNuxtConfig({
   ssr: false,
 
   devtools: {
-    enabled: true,
+    enabled: false,
   },
 
   components: [
@@ -27,8 +27,15 @@ export default defineNuxtConfig({
   app: {
     head: {
       title: 'RWorkCentral HRIS',
+      meta: [
+        { name: 'theme-color', content: '#062f6c' },
+        { name: 'apple-mobile-web-app-capable', content: 'yes' },
+        { name: 'apple-mobile-web-app-title', content: 'RWorkCentral' },
+      ],
 
       link: [
+        { rel: 'manifest', href: '/manifest.webmanifest' },
+        { rel: 'apple-touch-icon', href: '/app-icon-192.png' },
         {
           rel: 'preconnect',
           href: 'https://fonts.googleapis.com',

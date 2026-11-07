@@ -19,12 +19,17 @@ import {
   Moon,
   Sun,
   Building2,
+  House,
 } from 'lucide-vue-next'
 
 const route = useRoute()
 const auth = useAuth()
 const moreDialog = ref<HTMLDialogElement | null>(null)
 const moreOpen = ref(false)
+const requestDialog = ref<HTMLDialogElement | null>(null)
+const mobileRequestsOpen = ref(false)
+const openRequests = () => { requestDialog.value?.showModal(); mobileRequestsOpen.value = true }
+const closeRequests = () => { requestDialog.value?.close(); mobileRequestsOpen.value = false }
 
 const openMore = () => {
   moreDialog.value?.showModal()
@@ -46,8 +51,9 @@ const isTimeLogCorrectionRoute = computed(() =>
   route.path === '/employee/timelog-correction-request' ||
   route.path.startsWith('/employee/timelog-correction-request/')
 )
+const isWfhRoute = computed(() => route.path === '/employee/wfh-requests')
 const requestsActive = computed(() =>
-  route.path === '/employee/requests' || isTimeLogCorrectionRoute.value
+  route.path === '/employee/requests' || isTimeLogCorrectionRoute.value || isWfhRoute.value
 )
 const requestsOpen = ref(requestsActive.value)
 
@@ -56,10 +62,12 @@ const requestLinks = [
   { label: 'Undertime', category: 'undertime', icon: Clock3, to: { path: '/employee/requests', query: { category: 'undertime' } } },
   { label: 'Overtime', category: 'overtime', icon: TimerReset, to: { path: '/employee/requests', query: { category: 'overtime' } } },
   { label: 'Time Log Correction', category: 'timelog-correction', icon: FileClock, to: '/employee/timelog-correction-request' },
+  { label: 'Work From Home', category: 'wfh', icon: House, to: '/employee/wfh-requests' },
 ]
 
 const selectedRequestCategory = computed(() => {
   if (isTimeLogCorrectionRoute.value) return 'timelog-correction'
+  if (isWfhRoute.value) return 'wfh'
   const category = String(route.query.category || '')
   return ['undertime', 'overtime'].includes(category) ? category : 'leave'
 })
@@ -76,7 +84,7 @@ const menuItems = [
 ]
 
 const bottomItems = [
-  { label: 'Home', icon: LayoutDashboard, to: '/employee' },
+  { label: 'Home', icon: House, to: '/employee' },
   { label: 'Attendance', icon: Clock3, to: '/employee/attendance' },
   { label: 'Requests', icon: ClipboardCheck, to: '/employee/requests' },
   { label: 'Payslips', icon: WalletCards, to: '/employee/payslips' },
@@ -104,7 +112,7 @@ const signOut = async () => {
 
 let mobileQuery: MediaQueryList | undefined
 const onViewportChange = (event: MediaQueryListEvent) => {
-  if (!event.matches) closeMore()
+  if (!event.matches) { closeMore(); closeRequests() }
 }
 
 onMounted(() => {
@@ -122,10 +130,12 @@ onMounted(() => {
 onBeforeUnmount(() => {
   mobileQuery?.removeEventListener('change', onViewportChange)
   closeMore()
+  closeRequests()
 })
 
 watch(() => route.fullPath, () => {
   closeMore()
+  closeRequests()
   if (requestsActive.value) requestsOpen.value = true
 })
 </script>
@@ -235,17 +245,14 @@ watch(() => route.fullPath, () => {
     </div>
 
     <nav class="mobile-bottom-nav" aria-label="Employee mobile navigation">
-      <NuxtLink
-        v-for="item in bottomItems"
-        :key="item.to"
-        :to="item.to"
-        class="bottom-link"
-        :class="{ selected: route.path === item.to }"
-        :aria-current="route.path === item.to ? 'page' : undefined"
-      >
-        <component :is="item.icon" :size="21" :stroke-width="1.9" />
-        <span>{{ item.label }}</span>
-      </NuxtLink>
+      <template v-for="item in bottomItems" :key="item.to">
+        <button v-if="item.to === '/employee/requests'" type="button" class="bottom-link" :class="{ selected: requestsActive || mobileRequestsOpen }" aria-haspopup="dialog" aria-controls="employee-mobile-requests" :aria-expanded="mobileRequestsOpen" @click="openRequests">
+          <component :is="item.icon" :size="21" :stroke-width="1.9" /><span>{{ item.label }}</span>
+        </button>
+        <NuxtLink v-else :to="item.to" class="bottom-link" :class="{ selected: route.path === item.to }" :aria-current="route.path === item.to ? 'page' : undefined">
+          <component :is="item.icon" :size="21" :stroke-width="1.9" /><span>{{ item.label }}</span>
+        </NuxtLink>
+      </template>
       <button
         type="button"
         class="bottom-link"
@@ -259,6 +266,18 @@ watch(() => route.fullPath, () => {
         <span>More</span>
       </button>
     </nav>
+
+    <dialog id="employee-mobile-requests" ref="requestDialog" class="mobile-more-sheet" aria-labelledby="mobile-requests-title" @close="mobileRequestsOpen = false" @click="($event.target === requestDialog) && closeRequests()">
+      <div class="sheet-header">
+        <div><h2 id="mobile-requests-title">Requests</h2><p>Choose a request type</p></div>
+        <button type="button" class="icon-button" aria-label="Close requests navigation" @click="closeRequests"><X :size="21" /></button>
+      </div>
+      <nav class="sheet-links" aria-label="Employee request types">
+        <NuxtLink v-for="link in requestLinks" :key="link.category" :to="link.to" :aria-current="requestsActive && selectedRequestCategory === link.category ? 'page' : undefined" @click="closeRequests">
+          <component :is="link.icon" :size="20" /><span>{{ link.label }}</span>
+        </NuxtLink>
+      </nav>
+    </dialog>
 
     <dialog
       id="employee-mobile-more"
