@@ -1,750 +1,556 @@
 <script setup lang="ts">
+import { computed, onMounted, ref, watch } from 'vue'
 import {
-  ArrowLeft,
+  Ban,
+  CalendarDays,
+  CheckCircle2,
+  ChevronDown,
   Download,
+  Eye,
+  Gauge,
+  LogIn,
+  LogOut,
   Plus,
+  Search,
+  Truck,
 } from 'lucide-vue-next'
+import DriverStatCard from '~/components/admin/drivers/DriverStatCard.vue'
+import BaseDataTable from '~/components/shared-table/BaseDataTable.vue'
+import BaseTableFooter from '~/components/shared-table/BaseTableFooter.vue'
+import TableActionMenu from '~/components/shared-table/TableActionMenu.vue'
+import TripTicketFormModal from '~/components/admin/drivers/trip-tickets/TripTicketFormModal.vue'
+import TripTicketActionModal from '~/components/admin/drivers/trip-tickets/TripTicketActionModal.vue'
+import TripTicketViewModal from '~/components/admin/drivers/trip-tickets/TripTicketViewModal.vue'
+import { driverTimeText, driverTodayLocal } from '~/composables/admin/drivers/useDriverApi'
+import {
+  useTripTicketApi,
+  type TripTicketRecord,
+  type TripTicketStatus,
+} from '~/composables/admin/drivers/useTripTicketApi'
 
-import TripTicketStats from '~/components/admin/timekeeping/trip-tickets/TripTicketStats.vue'
-import TripTicketFilters from '~/components/admin/timekeeping/trip-tickets/TripTicketFilters.vue'
-import TripTicketTable from '~/components/admin/timekeeping/trip-tickets/TripTicketTable.vue'
-import AddEditTripTicketModal from '~/components/admin/timekeeping/trip-tickets/AddEditTripTicketModal.vue'
-import TripTicketDetailsModal from '~/components/admin/timekeeping/trip-tickets/TripTicketDetailsModal.vue'
-import TripTicketStatusModal from '~/components/admin/timekeeping/trip-tickets/TripTicketStatusModal.vue'
+definePageMeta({
+  layout: 'admin',
+})
 
-import type {
-  TripTicket,
-  TripTicketAction,
-  TripTicketFormData,
-  TripTicketStatusFormData,
-} from '~/types/tripTicket'
+const route = useRoute()
+const api = useTripTicketApi()
 
-const router =
-  useRouter()
+const STATUS_LABELS: Record<TripTicketStatus, string> = {
+  scheduled: 'Scheduled',
+  ongoing: 'Ongoing',
+  completed: 'Completed',
+  cancelled: 'Cancelled',
+}
 
-const {
-  trips,
-} = useManageTrips()
+// =====================================================
+// DATA
+// =====================================================
 
-const {
-  search,
-  client,
-  status,
-  dateFrom,
-  dateTo,
+const tickets = ref<TripTicketRecord[]>([])
+const loading = ref(false)
+const flash = ref('')
 
-  currentPage,
+const load = async () => {
+  loading.value = true
+  try {
+    const response = await api.list()
+    tickets.value = response.data
+  } finally {
+    loading.value = false
+  }
+}
 
-  filteredTickets,
-  paginatedTickets,
+onMounted(async () => {
+  await load()
+  // Opened from another page, e.g. /admin/trip-tickets?trip=TT-2026-0012
+  const ticketNo = route.query.trip
+  if (typeof ticketNo === 'string') {
+    const match = tickets.value.find(t => t.ticket_no === ticketNo)
+    if (match) viewRecord.value = match
+  }
+})
 
-  totalPages,
-  showingFrom,
-  showingTo,
+// =====================================================
+// FILTERS + PAGINATION
+// =====================================================
 
-  stats,
+const searchQuery = ref('')
+const driverFilter = ref<'All' | number>('All')
+const statusFilter = ref<'All' | TripTicketStatus>('All')
+const dateFrom = ref('')
+const dateTo = ref('')
+const currentPage = ref(1)
+const itemsPerPage = 8
 
-  clientOptions,
-  statusOptions,
+const driverOptions = computed(() => {
+  const seen = new Map<number, string>()
+  tickets.value.forEach(t => seen.set(t.driver.id, t.driver.name))
+  return [...seen.entries()].sort((a, b) => a[1].localeCompare(b[1]))
+})
 
-  createTicket,
-  updateTicket,
+const filteredTickets = computed(() => {
+  const q = searchQuery.value.trim().toLowerCase()
+  return tickets.value.filter((t) => {
+    const haystack = [
+      t.ticket_no, t.driver.name, t.vehicle.plate_no, t.destination, t.purpose,
+      ...t.passengers.map(p => p.name),
+    ].join(' ').toLowerCase()
 
-  issueTicket,
-  markTicketInUse,
-  completeTicket,
-  cancelTicket,
-
-  getAvailableTrips,
-
-  resetFilters,
-} = useTripTickets()
-
-const {
-  info,
-  success,
-} = useToast()
-
-/* =========================================================
-   ADD / EDIT
-========================================================= */
-
-const formModalOpen =
-  ref(false)
-
-const editingTicket =
-  ref<
-    TripTicket |
-    null
-  >(null)
-
-const availableTrips =
-  computed(() => {
-    return getAvailableTrips(
-      editingTicket.value?.id,
-    )
+    return (!q || haystack.includes(q))
+      && (driverFilter.value === 'All' || t.driver.id === driverFilter.value)
+      && (statusFilter.value === 'All' || t.status === statusFilter.value)
+      && (!dateFrom.value || t.trip_date >= dateFrom.value)
+      && (!dateTo.value || t.trip_date <= dateTo.value)
   })
+})
 
-const handleAdd = () => {
-  editingTicket.value =
-    null
+const totalPages = computed(() => Math.max(1, Math.ceil(filteredTickets.value.length / itemsPerPage)))
+const paginatedTickets = computed(() => {
+  const start = (currentPage.value - 1) * itemsPerPage
+  return filteredTickets.value.slice(start, start + itemsPerPage)
+})
+const showingFrom = computed(() => (filteredTickets.value.length ? (currentPage.value - 1) * itemsPerPage + 1 : 0))
+const showingTo = computed(() => Math.min(currentPage.value * itemsPerPage, filteredTickets.value.length))
 
-  formModalOpen.value =
-    true
+watch([searchQuery, driverFilter, statusFilter, dateFrom, dateTo], () => {
+  currentPage.value = 1
+})
+
+const resetFilters = () => {
+  searchQuery.value = ''
+  driverFilter.value = 'All'
+  statusFilter.value = 'All'
+  dateFrom.value = ''
+  dateTo.value = ''
 }
 
-const handleEdit = (
-  ticket:
-    TripTicket,
-) => {
-  editingTicket.value =
-    ticket
+// =====================================================
+// STATS (today)
+// =====================================================
 
-  formModalOpen.value =
-    true
-}
+const today = driverTodayLocal()
+const todays = computed(() => tickets.value.filter(t => t.trip_date === today && t.status !== 'cancelled'))
+const ongoingCount = computed(() => tickets.value.filter(t => t.status === 'ongoing').length)
+const completedToday = computed(() => todays.value.filter(t => t.status === 'completed').length)
+const kmToday = computed(() => todays.value.reduce((n, t) => n + (t.distance_km ?? 0), 0))
 
-const closeForm = () => {
-  formModalOpen.value =
-    false
+// =====================================================
+// ROW ACTIONS
+// =====================================================
 
-  editingTicket.value =
-    null
-}
+const menuItems = (t: TripTicketRecord) => [
+  { key: 'view', label: 'View Ticket', icon: Eye },
+  ...(t.status === 'scheduled' ? [{ key: 'depart', label: 'Record Departure', icon: LogOut }] : []),
+  ...(t.status === 'ongoing' ? [{ key: 'return', label: 'Record Return', icon: LogIn }] : []),
+  ...(t.status === 'scheduled' ? [{ key: 'cancel', label: 'Cancel Ticket', icon: Ban, danger: true, dividerBefore: true }] : []),
+]
 
-/* =========================================================
-   SAVE
-========================================================= */
+const createOpen = ref(false)
+const viewRecord = ref<TripTicketRecord | null>(null)
+const actionRecord = ref<TripTicketRecord | null>(null)
+const actionType = ref<'depart' | 'return' | 'cancel'>('depart')
 
-const handleSave = (
-  data:
-    TripTicketFormData,
-) => {
-  if (
-    editingTicket.value
-  ) {
-    const updated =
-      updateTicket(
-        editingTicket.value.id,
-        data,
-      )
-
-    if (!updated) {
-      info(
-        'Unable to Update',
-        'The selected trip ticket could not be updated.',
-      )
-
-      return
-    }
-
-    closeForm()
-
-    success(
-      'Trip Ticket Updated',
-      `${updated.ticketNumber} has been updated.`,
-    )
-
+const onAction = (t: TripTicketRecord, key: string) => {
+  if (key === 'view') {
+    viewRecord.value = t
     return
   }
-
-  const created =
-    createTicket(data)
-
-  if (!created) {
-    info(
-      'Unable to Create Ticket',
-      'The selected trip may already have an active trip ticket.',
-    )
-
-    return
-  }
-
-  closeForm()
-
-  success(
-    'Trip Ticket Created',
-    `${created.ticketNumber} has been created successfully.`,
-  )
+  actionType.value = key as 'depart' | 'return' | 'cancel'
+  actionRecord.value = t
 }
 
-/* =========================================================
-   DETAILS
-========================================================= */
-
-const detailsOpen =
-  ref(false)
-
-const selectedTicket =
-  ref<
-    TripTicket |
-    null
-  >(null)
-
-const handleView = (
-  ticket:
-    TripTicket,
-) => {
-  selectedTicket.value =
-    ticket
-
-  detailsOpen.value =
-    true
+const onSaved = async (_record: TripTicketRecord, message: string) => {
+  createOpen.value = false
+  actionRecord.value = null
+  flash.value = message
+  await load()
 }
 
-const closeDetails = () => {
-  detailsOpen.value =
-    false
+// =====================================================
+// DISPLAY HELPERS
+// =====================================================
 
-  selectedTicket.value =
-    null
+const dateText = (v: string) =>
+  new Date(`${v}T00:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+
+const passengerSummary = (t: TripTicketRecord) => {
+  if (!t.passengers.length) return 'Driver only'
+  const first = t.passengers.slice(0, 2).map(p => p.name.split(' ')[0]).join(', ')
+  return t.passengers.length > 2 ? `${first} +${t.passengers.length - 2}` : first
 }
 
-/* =========================================================
-   STATUS
-========================================================= */
-
-const statusModalOpen =
-  ref(false)
-
-const statusTicket =
-  ref<
-    TripTicket |
-    null
-  >(null)
-
-const statusAction =
-  ref<
-    TripTicketAction
-  >('issue')
-
-const openStatus = (
-  ticket:
-    TripTicket,
-  action:
-    TripTicketAction,
-) => {
-  statusTicket.value =
-    ticket
-
-  statusAction.value =
-    action
-
-  statusModalOpen.value =
-    true
+const csvEscape = (v: unknown) => {
+  const s = String(v ?? '')
+  const safe = /^[\s]*[=+@-]/.test(s) ? `'${s}` : s
+  return `"${safe.replace(/"/g, '""')}"`
 }
 
-const closeStatus = () => {
-  statusModalOpen.value =
-    false
-
-  statusTicket.value =
-    null
-}
-
-/* =========================================================
-   ISSUE
-========================================================= */
-
-const handleIssue = (
-  ticket:
-    TripTicket,
-) => {
-  openStatus(
-    ticket,
-    'issue',
-  )
-}
-
-/* =========================================================
-   IN USE
-========================================================= */
-
-const handleInUse = (
-  ticket:
-    TripTicket,
-) => {
-  openStatus(
-    ticket,
-    'inUse',
-  )
-}
-
-/* =========================================================
-   COMPLETE
-========================================================= */
-
-const handleComplete = (
-  ticket:
-    TripTicket,
-) => {
-  openStatus(
-    ticket,
-    'complete',
-  )
-}
-
-/* =========================================================
-   CANCEL
-========================================================= */
-
-const handleCancel = (
-  ticket:
-    TripTicket,
-) => {
-  openStatus(
-    ticket,
-    'cancel',
-  )
-}
-
-/* =========================================================
-   STATUS SAVE
-========================================================= */
-
-const handleStatusSave = (
-  data:
-    TripTicketStatusFormData,
-) => {
-  if (
-    data.action ===
-    'issue'
-  ) {
-    const ticket =
-      issueTicket(
-        data.ticketId,
-        data.notes,
-      )
-
-    if (!ticket) {
-      return
-    }
-
-    closeStatus()
-
-    success(
-      'Ticket Issued',
-      `${ticket.ticketNumber} has been issued.`,
-    )
-
-    return
-  }
-
-  if (
-    data.action ===
-    'inUse'
-  ) {
-    const ticket =
-      markTicketInUse(
-        data.ticketId,
-        data.time ?? '',
-        data.notes,
-      )
-
-    if (!ticket) {
-      return
-    }
-
-    closeStatus()
-
-    success(
-      'Ticket In Use',
-      `${ticket.ticketNumber} is now in use.`,
-    )
-
-    return
-  }
-
-  if (
-    data.action ===
-    'complete'
-  ) {
-    const ticket =
-      completeTicket(
-        data.ticketId,
-        data.time ?? '',
-        data.notes,
-      )
-
-    if (!ticket) {
-      return
-    }
-
-    closeStatus()
-
-    success(
-      'Ticket Completed',
-      `${ticket.ticketNumber} has been completed.`,
-    )
-
-    return
-  }
-
-  const ticket =
-    cancelTicket(
-      data.ticketId,
-      data.notes,
-    )
-
-  if (!ticket) {
-    return
-  }
-
-  closeStatus()
-
-  success(
-    'Ticket Cancelled',
-    `${ticket.ticketNumber} has been cancelled.`,
-  )
-}
-
-/* =========================================================
-   VIEW TRIP
-========================================================= */
-
-const handleTrip = (
-  ticket:
-    TripTicket,
-) => {
-  router.push({
-    path:
-      '/admin/manage-trips',
-
-    query: {
-      trip:
-        ticket.tripNumber,
-    },
-  })
-}
-
-/* =========================================================
-   VIEW EMPLOYEE
-========================================================= */
-
-const handleEmployee = (
-  ticket:
-    TripTicket,
-) => {
-  router.push(
-    `/admin/employees/${ticket.employeeId}`,
-  )
-}
-
-/* =========================================================
-   EXPORT
-========================================================= */
-
-const handleExport = () => {
-  info(
-    'Export Trip Tickets',
-    'Trip ticket report export will be connected later.',
-  )
-}
-
-/* =========================================================
-   BACK
-========================================================= */
-
-const handleBack = () => {
-  router.push(
-    '/admin/timekeeping',
-  )
+const exportCsv = () => {
+  const rows = [
+    ['Ticket No.', 'Trip Date', 'Driver', 'Driver Code', 'Plate', 'Vehicle', 'Destination', 'Purpose', 'Passengers', 'Planned Departure', 'Actual Departure', 'Expected Return', 'Actual Return', 'Odometer Out', 'Odometer In', 'Distance (km)', 'Status'],
+    ...filteredTickets.value.map(t => [
+      t.ticket_no, t.trip_date, t.driver.name, t.driver.drivers_code, t.vehicle.plate_no, t.vehicle.description,
+      t.destination, t.purpose, t.passengers.map(p => p.name).join('; '),
+      t.scheduled_departure, t.departed_at, t.expected_return, t.returned_at,
+      t.odometer_out, t.odometer_in, t.distance_km, STATUS_LABELS[t.status],
+    ]),
+  ]
+  const csv = rows.map(r => r.map(csvEscape).join(',')).join('\r\n')
+  const url = URL.createObjectURL(new Blob(['\uFEFF', csv], { type: 'text/csv;charset=utf-8;' }))
+  const a = document.createElement('a')
+  a.href = url
+  a.download = 'trip-tickets.csv'
+  a.click()
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
 </script>
 
 <template>
   <section class="trip-tickets-page">
-
-    <!-- BACK -->
-
-    <button
-      type="button"
-      class="back-button"
-      @click="
-        handleBack
-      "
-    >
-      <ArrowLeft :size="15" />
-
-      Back to Timekeeping
-    </button>
-
-    <!-- HEADER -->
-
     <PageHeader
       title="Trip Tickets"
-      description="Manage trip tickets, assigned employees, vehicles, issuance and completion status."
+      description="Assign a driver and vehicle, record departure and return with odometer readings, and track passengers."
     >
-
-      <div class="header-actions">
-
-        <AppButton
-          variant="secondary"
-          :icon="Download"
-          @click="
-            handleExport
-          "
-        >
-          Export
-        </AppButton>
-
-        <AppButton
-          :icon="Plus"
-          @click="
-            handleAdd
-          "
-        >
-          Create Trip Ticket
-        </AppButton>
-
-      </div>
-
+      <AppButton variant="secondary" :icon="Download" :disabled="!filteredTickets.length" @click="exportCsv">
+        Export
+      </AppButton>
+      <AppButton :icon="Plus" @click="createOpen = true">
+        Create Trip Ticket
+      </AppButton>
     </PageHeader>
 
-    <!-- STATS -->
+    <section class="stats-grid">
+      <DriverStatCard label="Trips Today" :value="todays.length" description="Scheduled, ongoing or completed" accent="blue" :icon="CalendarDays" />
+      <DriverStatCard label="Ongoing" :value="ongoingCount" description="Departed, not yet returned" accent="orange" :icon="Truck" />
+      <DriverStatCard label="Completed Today" :value="completedToday" description="Returned to the office" accent="green" :icon="CheckCircle2" />
+      <DriverStatCard label="Distance Today" :value="`${kmToday.toLocaleString()} km`" description="From odometer readings" accent="purple" :icon="Gauge" />
+    </section>
 
-    <TripTicketStats
-      :stats="stats"
-    />
+    <p v-if="flash" class="flash" role="status">
+      <CheckCircle2 :size="15" /> {{ flash }}
+      <button type="button" class="flash-close" aria-label="Dismiss" @click="flash = ''">×</button>
+    </p>
 
-    <!-- FILTER -->
+    <div class="filters-row">
+      <div class="search-box">
+        <Search :size="15" />
+        <input v-model="searchQuery" type="text" placeholder="Search ticket, driver, plate, destination, passenger..." aria-label="Search trip tickets">
+      </div>
 
-    <TripTicketFilters
-      v-model:search="search"
-      v-model:client="client"
-      v-model:status="status"
-      v-model:date-from="dateFrom"
-      v-model:date-to="dateTo"
-      :clients="
-        clientOptions
-      "
-      :statuses="
-        statusOptions
-      "
-      @reset="
-        resetFilters
-      "
-    />
+      <label class="date-box">
+        <span class="date-label">From</span>
+        <input v-model="dateFrom" type="date" aria-label="Date from">
+      </label>
 
-    <!-- TABLE -->
+      <label class="date-box">
+        <span class="date-label">To</span>
+        <input v-model="dateTo" type="date" aria-label="Date to">
+      </label>
 
-    <TripTicketTable
-      :tickets="
-        paginatedTickets
-      "
-      @view="
-        handleView
-      "
-      @edit="
-        handleEdit
-      "
-      @issue="
-        handleIssue
-      "
-      @in-use="
-        handleInUse
-      "
-      @complete="
-        handleComplete
-      "
-      @trip="
-        handleTrip
-      "
-      @employee="
-        handleEmployee
-      "
-      @cancel="
-        handleCancel
-      "
-    />
+      <div class="select-wrap">
+        <select v-model="driverFilter" aria-label="Driver">
+          <option value="All">All Drivers</option>
+          <option v-for="[id, name] in driverOptions" :key="id" :value="id">{{ name }}</option>
+        </select>
+        <ChevronDown :size="14" class="select-icon" />
+      </div>
 
-    <!-- PAGINATION -->
+      <div class="select-wrap">
+        <select v-model="statusFilter" aria-label="Status">
+          <option value="All">All Status</option>
+          <option v-for="(label, value) in STATUS_LABELS" :key="value" :value="value">{{ label }}</option>
+        </select>
+        <ChevronDown :size="14" class="select-icon" />
+      </div>
 
-    <div class="table-footer">
-
-      <p>
-        Showing
-
-        <strong>
-          {{
-            showingFrom
-          }}–{{
-            showingTo
-          }}
-        </strong>
-
-        of
-
-        <strong>
-          {{
-            filteredTickets.length
-          }}
-        </strong>
-
-        trip tickets
-      </p>
-
-      <AppPagination
-        v-model="
-          currentPage
-        "
-        :total-pages="
-          totalPages
-        "
-      />
-
+      <button type="button" class="reset-btn" @click="resetFilters">Reset</button>
     </div>
 
-    <!-- ADD / EDIT -->
+    <BaseDataTable
+      title="Trip Ticket Records"
+      description="One ticket per trip: driver, vehicle, passengers, time out and in, and odometer."
+      :has-rows="paginatedTickets.length > 0"
+      :loading="loading"
+      min-width="1180px"
+      empty-title="No trip tickets found"
+      empty-description="Try adjusting your filters, or create a new trip ticket."
+    >
+      <template #headers>
+        <th>Ticket No.</th>
+        <th>Driver</th>
+        <th>Vehicle</th>
+        <th>Destination</th>
+        <th>Passengers</th>
+        <th>Departure</th>
+        <th>Return</th>
+        <th>Odometer</th>
+        <th>Status</th>
+        <th class="text-right"><span class="sr-only">Actions</span></th>
+      </template>
 
-    <AddEditTripTicketModal
-      :open="
-        formModalOpen
-      "
-      :ticket="
-        editingTicket
-      "
-      :trips="
-        availableTrips
-      "
-      @close="
-        closeForm
-      "
-      @save="
-        handleSave
-      "
+      <template #rows>
+        <tr v-for="t in paginatedTickets" :key="t.id">
+          <td>
+            <span class="ticket-no">{{ t.ticket_no }}</span>
+            <small class="cell-sub">{{ dateText(t.trip_date) }}</small>
+          </td>
+          <td>
+            <strong class="cell-title">{{ t.driver.name }}</strong>
+            <small class="cell-sub">{{ t.driver.drivers_code }}</small>
+          </td>
+          <td>
+            <span class="cell-title">{{ t.vehicle.plate_no }}</span>
+            <small class="cell-sub">{{ t.vehicle.description }}</small>
+          </td>
+          <td class="destination">
+            <strong class="cell-title">{{ t.destination }}</strong>
+            <small class="cell-sub">{{ t.purpose }}</small>
+          </td>
+          <td>
+            <span class="cell-title">{{ t.passengers.length }} pax</span>
+            <small class="cell-sub">{{ passengerSummary(t) }}</small>
+          </td>
+          <td>
+            <span class="cell-title">{{ t.departed_at ? driverTimeText(t.departed_at) : '—' }}</span>
+            <small class="cell-sub">Plan {{ driverTimeText(t.scheduled_departure) }}</small>
+          </td>
+          <td>
+            <span class="cell-title">{{ t.returned_at ? driverTimeText(t.returned_at) : '—' }}</span>
+            <small class="cell-sub">Exp. {{ driverTimeText(t.expected_return) }}</small>
+          </td>
+          <td>
+            <span class="cell-title">
+              {{ t.odometer_out?.toLocaleString() ?? '—' }} → {{ t.odometer_in?.toLocaleString() ?? '—' }}
+            </span>
+            <small class="cell-sub">{{ t.distance_km !== null ? `${t.distance_km.toLocaleString()} km` : '—' }}</small>
+          </td>
+          <td>
+            <span class="status-pill" :class="`trip-${t.status}`">{{ STATUS_LABELS[t.status] }}</span>
+          </td>
+          <td class="text-right">
+            <TableActionMenu
+              :items="menuItems(t)"
+              :label="`Actions for ${t.ticket_no}`"
+              @select="key => onAction(t, key)"
+            />
+          </td>
+        </tr>
+      </template>
+    </BaseDataTable>
+
+    <BaseTableFooter
+      v-model="currentPage"
+      :showing-from="showingFrom"
+      :showing-to="showingTo"
+      :total-items="filteredTickets.length"
+      :total-pages="totalPages"
+      item-label="trip tickets"
     />
 
-    <!-- DETAILS -->
-
-    <TripTicketDetailsModal
-      :open="
-        detailsOpen
-      "
-      :ticket="
-        selectedTicket
-      "
-      @close="
-        closeDetails
-      "
+    <TripTicketFormModal
+      v-if="createOpen"
+      @close="createOpen = false"
+      @saved="onSaved"
     />
 
-    <!-- STATUS -->
-
-    <TripTicketStatusModal
-      :open="
-        statusModalOpen
-      "
-      :ticket="
-        statusTicket
-      "
-      :action="
-        statusAction
-      "
-      @close="
-        closeStatus
-      "
-      @save="
-        handleStatusSave
-      "
+    <TripTicketActionModal
+      v-if="actionRecord"
+      :key="`${actionRecord.id}-${actionType}`"
+      :record="actionRecord"
+      :action="actionType"
+      @close="actionRecord = null"
+      @saved="onSaved"
     />
 
+    <TripTicketViewModal
+      v-if="viewRecord"
+      :record="viewRecord"
+      @close="viewRecord = null"
+    />
   </section>
 </template>
 
 <style scoped>
 .trip-tickets-page {
   width: 100%;
-
   max-width: 1660px;
-
-  margin:
-    0 auto;
+  margin: 0 auto;
 }
 
-.back-button {
-  display: inline-flex;
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+  margin: 18px 0 14px;
+}
 
+.flash {
+  display: flex;
   align-items: center;
+  gap: 8px;
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  border-radius: 9px;
+  background: var(--green-soft);
+  color: var(--green);
+  font-size: 13px;
+}
 
-  gap: 6px;
-
-  margin-bottom: 10px;
-
-  padding: 0;
-
+.flash-close {
+  margin-left: auto;
   border: 0;
-
-  background:
-    transparent;
-
-  color:
-    var(--primary);
-
-  font-family: inherit;
-
-  font-size: 10px;
-  font-weight: 600;
-
+  background: transparent;
+  color: inherit;
+  font-size: 18px;
+  line-height: 1;
   cursor: pointer;
 }
 
-.back-button:hover {
-  color:
-    var(--primary-dark);
+.filters-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-card);
+  margin-bottom: 18px;
 }
 
-.header-actions {
+.search-box,
+.date-box {
   display: flex;
-
   align-items: center;
-
   gap: 8px;
+  height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--bg-card-soft);
+  color: var(--text-muted);
 }
 
-.table-footer {
-  display: flex;
-
-  align-items: center;
-  justify-content: space-between;
-
-  gap: 20px;
-
-  padding:
-    13px 3px 0;
+.search-box {
+  flex: 1;
+  min-width: 240px;
 }
 
-.table-footer p {
-  margin: 0;
-
-  color:
-    var(--text-muted);
-
-  font-size: 10px;
+.search-box input,
+.date-box input {
+  border: 0;
+  background: transparent;
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 12px;
+  outline: none;
 }
 
-.table-footer strong {
-  color:
-    var(--text-primary);
+.search-box input { width: 100%; }
+.date-box input { color-scheme: dark; }
 
-  font-weight: 650;
+.date-label {
+  font-size: 11px;
+  font-weight: 600;
 }
 
-@media (max-width: 650px) {
-  .header-actions {
-    width: 100%;
+.select-wrap {
+  position: relative;
+  min-width: 160px;
+}
 
-    align-items: stretch;
+.select-wrap select {
+  width: 100%;
+  height: 40px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--bg-card-soft);
+  color: var(--text-primary);
+  padding: 0 34px 0 12px;
+  font-family: inherit;
+  font-size: 12px;
+  appearance: none;
+}
 
+.select-icon {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+.reset-btn {
+  height: 40px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: transparent;
+  color: var(--text-primary);
+  padding: 0 14px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.search-box:focus-within,
+.date-box:focus-within,
+.select-wrap select:focus-visible,
+.reset-btn:focus-visible {
+  border-color: var(--primary);
+  outline: none;
+}
+
+/* ===== Table cells ===== */
+
+.ticket-no {
+  display: block;
+  color: var(--primary);
+  font-weight: 700;
+}
+
+.cell-title { display: block; }
+
+.cell-sub {
+  display: block;
+  margin-top: 3px;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.destination { max-width: 240px; }
+
+/* Status colors (shape and dot come from BaseDataTable's .status-pill) */
+.trip-scheduled { background: rgba(59, 130, 246, 0.12); color: #60a5fa; }
+.trip-ongoing { background: rgba(245, 158, 11, 0.12); color: #fbbf24; }
+.trip-completed { background: rgba(34, 197, 94, 0.12); color: #4ade80; }
+.trip-cancelled { background: rgba(148, 163, 184, 0.12); color: #a8b3c4; }
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+@media (max-width: 980px) {
+  .stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 640px) {
+  .stats-grid { grid-template-columns: 1fr; }
+
+  .filters-row {
     flex-direction: column;
+    align-items: stretch;
   }
 
-  .table-footer {
-    align-items:
-      flex-start;
-
-    flex-direction:
-      column;
-  }
+  .search-box,
+  .date-box,
+  .select-wrap,
+  .reset-btn { width: 100%; }
 }
 </style>
