@@ -32,6 +32,15 @@ const duration = computed(() => {
   >
     <div class="info-grid">
       <div><small>Status</small><strong><span class="pill" :class="`pill-${record.status}`">{{ STATUS_LABELS[record.status] }}</span></strong></div>
+      <div>
+        <small>Requesting Department</small>
+        <strong>{{ record.requesting_department?.name ?? '—' }}</strong>
+      </div>
+      <div>
+        <small>Requested By</small>
+        <strong>{{ record.requested_by?.name ?? '—' }}</strong>
+        <small v-if="record.requested_by">{{ record.requested_by.position }}</small>
+      </div>
       <div><small>Driver</small><strong>{{ record.driver.name }} · {{ record.driver.drivers_code }}</strong></div>
       <div><small>Vehicle</small><strong>{{ record.vehicle.plate_no }} · {{ record.vehicle.description }}</strong></div>
       <div><small>Passengers</small><strong>{{ record.passengers.length }} pax</strong></div>

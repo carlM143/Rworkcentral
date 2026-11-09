@@ -21,7 +21,8 @@ const api = useTripTicketApi()
 const saving = ref(false)
 const error = ref('')
 
-const lastReading = api.lastOdometer(props.record.vehicle.id, props.record.id)
+// Highest odometer recorded for this vehicle (from the backend)
+const lastReading = props.record.last_odometer
 
 const time = ref(tripNowHHmm())
 const odometer = ref<number | null>(

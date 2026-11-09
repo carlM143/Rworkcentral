@@ -21,12 +21,20 @@ const api = useDriverApi()
 
 const employees = ref<DriverEmployeeOption[]>([])
 const loadingEmployees = ref(true)
-const recentDrivers = ref(api.recent())
+const recentDrivers = ref<{ id: number, name: string, drivers_code: string, department: string | null }[]>([])
 
 onMounted(async () => {
   try {
-    const response = await api.eligibleEmployees()
+    const [response, code, recent] = await Promise.all([
+      api.eligibleEmployees(),
+      api.nextDriverCode(),
+      api.recent(),
+    ])
     employees.value = response.data
+    if (!form.drivers_code) form.drivers_code = code
+    recentDrivers.value = recent
+  } catch (err) {
+    error.value = driverErrorMessage(err, 'Unable to load employees. Check that the API is running.')
   } finally {
     loadingEmployees.value = false
   }
@@ -38,7 +46,7 @@ onMounted(async () => {
 
 const form = reactive({
   employee_id: null as number | null,
-  drivers_code: api.nextDriverCode(),
+  drivers_code: '',
   licence_no: '',
   expire_date: '',
 })
@@ -164,7 +172,7 @@ const saveDriver = async () => {
             <small v-if="selectedEmployee" class="hint">
               {{ selectedEmployee.department || 'No department' }}<template v-if="selectedEmployee.position"> · {{ selectedEmployee.position }}</template>
             </small>
-            <small v-else class="hint">Only employees who are not yet drivers are listed.</small>
+            <small v-else class="hint">Only employees whose current position is a Driver position, and who are not yet registered, are listed.</small>
           </div>
 
           <!-- DRIVER CODE -->
