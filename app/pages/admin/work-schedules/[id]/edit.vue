@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import { ArrowLeft, CalendarDays, Clock3, RotateCcw, Save, Info } from 'lucide-vue-next'
+import { ArrowLeft, CalendarClock, CalendarDays, Clock3, RotateCcw, Save, Info } from 'lucide-vue-next'
 import { useWorkSchedules } from '~/composables/admin/work-schedules/employeeSchedule/useWorkSchedules'
 
 definePageMeta({ layout: 'admin' })
-useHead({ title: 'Edit Work Schedule | RWorkCentral' })
+useHead({ title: 'Change Work Schedule | RWorkCentral' })
 
-type Weekday = 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Sat' | 'Sun'
+type Weekday = 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday' | 'Sunday'
 type BooleanValue = boolean | number | string | null | undefined
 
 interface WorkScheduleDayFromApi {
@@ -13,6 +13,17 @@ interface WorkScheduleDayFromApi {
   is_working_day?: BooleanValue
   time_in?: string | null
   time_out?: string | null
+}
+
+interface WorkScheduleRevisionFromApi {
+  id: number
+  effective_from: string
+  effective_to?: string | null
+  required_work_hours: string | number
+  grace_period: string | number
+  reason?: string | null
+  applied_at?: string | null
+  days?: WorkScheduleDayFromApi[] | null
 }
 
 interface WorkScheduleFromApi {
@@ -26,6 +37,9 @@ interface WorkScheduleFromApi {
   grace_period: string | number
   status: BooleanValue
   days?: WorkScheduleDayFromApi[] | null
+  current_revision?: WorkScheduleRevisionFromApi | null
+  upcoming_revision?: WorkScheduleRevisionFromApi | null
+  revisions?: WorkScheduleRevisionFromApi[] | null
 }
 
 interface ApiResponse<T> {
@@ -47,8 +61,8 @@ const WEEK: { day: Weekday; label: string }[] = [
   { day: 'Wednesday', label: 'Wednesday' },
   { day: 'Thursday', label: 'Thursday' },
   { day: 'Friday', label: 'Friday' },
-  { day: 'Sat', label: 'Saturday' },
-  { day: 'Sun', label: 'Sunday' },
+  { day: 'Saturday', label: 'Saturday' },
+  { day: 'Sunday', label: 'Sunday' },
 ]
 
 const route = useRoute()
@@ -72,6 +86,40 @@ const form = reactive({
   required_work_hours: 8,
   grace_period: 0,
   status: true,
+  effective_from: '',
+  reason: '',
+})
+
+// Local YYYY-MM-DD (not UTC) so "today" matches the user's calendar.
+const localToday = () => {
+  const now = new Date()
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+}
+
+const formatDate = (value: string | null | undefined) => {
+  const match = String(value ?? '').match(/^(\d{4})-(\d{2})-(\d{2})/)
+  if (!match) return String(value ?? '')
+  return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]))
+    .toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
+// Snapshot of the hours/grace/days the form was loaded with. The API only
+// requires an effective date when one of these changes.
+const savedConfig = ref('')
+const configKey = () => JSON.stringify({
+  hours: Number(form.required_work_hours),
+  grace: Number(form.grace_period),
+  days: dayRows.value
+    .filter(item => item.is_working_day)
+    .map(item => `${item.day_of_week}:${item.time_in}-${item.time_out}`),
+})
+const configChanged = computed(() => Boolean(savedConfig.value) && configKey() !== savedConfig.value)
+
+const upcomingRevision = computed(() => schedule.value?.upcoming_revision ?? null)
+const minEffectiveDate = computed(() => {
+  const upcoming = upcomingRevision.value?.effective_from?.slice(0, 10)
+  const today = localToday()
+  return upcoming && upcoming > today ? upcoming : today
 })
 
 const normalizeDay = (day: string | null | undefined): Weekday | null => {
@@ -94,14 +142,22 @@ const hydrateFromDatabase = (record: WorkScheduleFromApi) => {
   form.schedule_name = String(record.schedule_name ?? '')
   form.schedule_code = String(record.schedule_code ?? '')
   form.schedule_type_id = Number(record.schedule_type_id) || 0
-  form.required_work_hours = Number(record.required_work_hours ?? 8)
-  form.grace_period = Number(record.grace_period ?? 0)
   form.status = isTrue(record.status)
 
-  // Your Laravel controller stores ONLY working days.
+  // If a future change is already scheduled, the API compares edits against
+  // that revision (the latest one), so load it into the form. Saving on the
+  // same date corrects it; a later date adds another change after it.
+  const upcoming = record.upcoming_revision ?? null
+  const source = upcoming ?? record
+  form.required_work_hours = Number(source.required_work_hours ?? 8)
+  form.grace_period = Number(source.grace_period ?? 0)
+  form.effective_from = upcoming?.effective_from?.slice(0, 10) || localToday()
+  form.reason = upcoming?.reason ?? ''
+
+  // Laravel stores ONLY working days.
   // A missing weekday is therefore a REST DAY, never a default 8 AM-5 PM shift.
   const savedDays = new Map<Weekday, WorkScheduleDayFromApi>()
-  for (const item of Array.isArray(record.days) ? record.days : []) {
+  for (const item of Array.isArray(source.days) ? source.days : []) {
     const name = normalizeDay(item.day_of_week)
     if (name) savedDays.set(name, item)
   }
@@ -116,6 +172,7 @@ const hydrateFromDatabase = (record: WorkScheduleFromApi) => {
       time_out: working ? toTimeInput(saved?.time_out) : '',
     }
   })
+  savedConfig.value = configKey()
   validationError.value = ''
 }
 
@@ -156,7 +213,7 @@ const resetToSaved = () => {
 
 const applyWeekdays = () => {
   for (const item of dayRows.value) {
-    if (item.day_of_week === 'Sat' || item.day_of_week === 'Sun') continue
+    if (item.day_of_week === 'Saturday' || item.day_of_week === 'Sunday') continue
     item.is_working_day = true
     if (!item.time_in) item.time_in = '08:00'
     if (!item.time_out) item.time_out = '17:00'
@@ -246,8 +303,24 @@ const save = async () => {
     }
   }
 
+  if (configChanged.value) {
+    if (!form.effective_from) {
+      validationError.value = 'Effective date is required when changing working hours, grace period, or days.'
+      return
+    }
+    if (form.effective_from < minEffectiveDate.value) {
+      validationError.value = `Effective date must be on or after ${formatDate(minEffectiveDate.value)}.`
+      return
+    }
+  }
+
   // EXACT payload expected by ScheduleController::validateSchedule().
+  // effective_from/reason are only sent when hours/grace/days changed;
+  // name, code, type and status always apply immediately.
   const payload = {
+    ...(configChanged.value
+      ? { effective_from: form.effective_from, reason: form.reason.trim() || null }
+      : {}),
     schedule_name: form.schedule_name.trim(),
     schedule_code: form.schedule_code.trim(),
     schedule_type_id: form.schedule_type_id,
@@ -269,7 +342,7 @@ const save = async () => {
       { method: 'PUT', body: payload },
     )
     if (!response?.success) throw new Error(response?.message || 'Could not save changes.')
-    showSuccess('Schedule Updated', response.message || 'Work schedule updated successfully.')
+    showSuccess('Schedule Changed', response.message || 'Work schedule updated successfully.')
     await router.push('/admin/work-schedules')
   } catch (problem) {
     validationError.value = messageFromError(problem)
@@ -289,7 +362,7 @@ watch(scheduleId, loadSchedule)
       <ArrowLeft :size="15" /> Back to Work Schedules
     </button>
 
-    <PageHeader title="Edit Work Schedule" description="Edit the saved work schedule and rest days from the database." />
+    <PageHeader title="Change Work Schedule" description="Change the schedule's hours and rest days starting from an effective date. Past attendance keeps the old schedule." />
 
     <div v-if="loading" class="page-message">Loading saved schedule...</div>
     <div v-else-if="pageError" class="page-message error-message">{{ pageError }}</div>
@@ -346,11 +419,36 @@ watch(scheduleId, loadSchedule)
         <div class="day-summary"><Info :size="15" /> {{ workingCount }} working day(s) · {{ restCount }} rest day(s)</div>
       </section>
 
+      <section class="form-card">
+        <div class="section-heading">
+          <span class="heading-icon blue"><CalendarClock :size="18" /></span>
+          <div><h2>Effective Date</h2><p>When the new hours and days start. Required only if you changed hours, grace period, or days.</p></div>
+        </div>
+
+        <p v-if="upcomingRevision" class="upcoming-note">
+          <Info :size="14" />
+          A change is already scheduled for <strong>{{ formatDate(upcomingRevision.effective_from) }}</strong>
+          and is shown above. Keep that date to correct it, or choose a later date to add another change after it.
+        </p>
+
+        <div class="form-grid">
+          <label>
+            <span>Effective From <em v-if="configChanged">*</em></span>
+            <input v-model="form.effective_from" type="date" :min="minEffectiveDate" :required="configChanged" :disabled="!configChanged" />
+          </label>
+          <label>
+            <span>Reason</span>
+            <input v-model="form.reason" maxlength="255" placeholder="e.g. New shift for Q1" :disabled="!configChanged" />
+          </label>
+        </div>
+        <p v-if="!configChanged" class="effective-hint">No hour or day changes yet. Name, code, type and status changes apply right away.</p>
+      </section>
+
       <p v-if="validationError" role="alert" class="validation-error">{{ validationError }}</p>
       <div class="form-actions">
         <button type="button" class="secondary-button cancel" :disabled="saving" @click="router.push('/admin/work-schedules')">Cancel</button>
         <button type="submit" class="save-button" :disabled="saving">
-          <Save :size="16" /> {{ saving ? 'Saving...' : 'Save Schedule' }}
+          <Save :size="16" /> {{ saving ? 'Saving...' : 'Save Change' }}
         </button>
       </div>
     </form>
@@ -372,6 +470,9 @@ input:focus,select:focus{border-color:var(--primary);outline:2px solid color-mix
 .time-group{display:flex;align-items:flex-end;gap:12px;min-width:300px}.time-group label{width:145px}.time-group label>span{color:var(--text-secondary);font-size:10px}.time-separator{align-self:center;margin-top:17px;color:var(--text-muted);font-size:11px}.rest-label{color:var(--text-muted);font-size:11px}.bottom-fields{margin-top:16px;padding-top:13px;border-top:1px solid var(--border)}.day-summary{display:flex;align-items:center;gap:7px;margin-top:12px;color:var(--text-secondary);font-size:11px}
 .secondary-button,.save-button{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:34px;padding:0 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg-card-soft);color:var(--text-primary);font:inherit;font-size:11px;font-weight:650;cursor:pointer}.secondary-button:hover{border-color:var(--primary);color:var(--primary)}
 .form-actions{display:flex;justify-content:flex-end;gap:10px}.form-actions button{min-height:42px;padding-inline:18px}.save-button{background:var(--primary);border-color:var(--primary);color:#fff}.form-actions button:disabled{opacity:.6;cursor:not-allowed}
+.upcoming-note{display:flex;align-items:flex-start;gap:7px;margin:0 0 13px;padding:10px 12px;border:1px solid #3b82f655;border-radius:9px;background:#3b82f615;color:var(--text-primary);font-size:11px;line-height:1.5}
+.effective-hint{margin:10px 0 0;color:var(--text-muted);font-size:11px}
+input:disabled{opacity:.6;cursor:not-allowed}
 .validation-error{padding:12px;border:1px solid #ef444455;border-radius:9px;background:#ef444415;color:#ef4444;font-size:12px;margin:0}
 @media(max-width:760px){.form-grid{grid-template-columns:1fr}.timing-heading{flex-wrap:wrap}.heading-actions{width:100%}.day-row{align-items:stretch;flex-direction:column}.time-group{width:100%;min-width:0}.time-group label{flex:1;width:auto}.rest-label{text-align:right}.form-actions button{flex:1}}
 </style>

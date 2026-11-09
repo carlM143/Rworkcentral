@@ -10,7 +10,7 @@ export type SettingsCategory =
   | 'Payroll'
   | 'Leave & Overtime'
   | 'Approval'
-  | 'Notifications'
+  | 'QR Code'
   | 'System'
 
 export interface SettingsModule {

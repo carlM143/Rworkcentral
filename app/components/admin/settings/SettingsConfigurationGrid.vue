@@ -6,7 +6,7 @@ import {
   WalletCards,
   CalendarDays,
   Workflow,
-  Bell,
+  QrCode,
   Settings2,
   ArrowRight,
 } from 'lucide-vue-next'
@@ -48,8 +48,8 @@ const iconFor = (
     case 'Approval':
       return Workflow
 
-    case 'Notifications':
-      return Bell
+    case 'QR Code':
+      return QrCode
 
     default:
       return Settings2

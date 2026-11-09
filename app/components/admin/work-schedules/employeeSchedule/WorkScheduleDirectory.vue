@@ -11,6 +11,7 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
+  view: [schedule: WorkSchedule]
   edit: [schedule: WorkSchedule]
   toggleStatus: [schedule: WorkSchedule]
 }>()
@@ -178,6 +179,7 @@ const displaySchedules = computed(() =>
         <td class="text-right actions-cell">
           <WorkScheduleActions
             :schedule="row.schedule"
+            @view="emit('view', row.schedule)"
             @edit="emit('edit', row.schedule)"
             @toggle-status="emit('toggleStatus', row.schedule)"
           />

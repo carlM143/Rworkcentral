@@ -34,7 +34,8 @@ const handleOpenModule = (
 ) => {
   if (
     module.route === '/admin/settings/users' ||
-    module.route === '/admin/settings/company'
+    module.route === '/admin/settings/company' ||
+    module.route === '/admin/settings/qr-generation'
   ) {
     router.push(module.route)
     return

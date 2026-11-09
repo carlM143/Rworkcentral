@@ -20,6 +20,7 @@ import {
   Sun,
   Building2,
   House,
+  ScanLine,
 } from 'lucide-vue-next'
 
 const route = useRoute()
@@ -42,7 +43,7 @@ const closeMore = () => {
 }
 
 const moreActive = computed(() =>
-  ['/employee/profile', '/employee/leave-credit', '/employee/loans', '/employee/calendar']
+  ['/employee/profile', '/employee/leave-credit', '/employee/loans', '/employee/calendar', '/employee/attendance-qr-code']
     .includes(route.path)
 )
 
@@ -76,6 +77,7 @@ const { profile, displayName, initials } = useEmployeePortal()
 const menuItems = [
   { label: 'Dashboard', icon: LayoutDashboard, to: '/employee' },
   { label: 'Attendance', icon: Clock3, to: '/employee/attendance' },
+  { label: 'Scan QR', icon: ScanLine, to: '/employee/attendance-qr-code' },
   { label: 'Calendar', icon: CalendarDays, to: '/employee/calendar' },
   { label: 'Leave Credits', icon: Umbrella, to: '/employee/leave-credit' },
   { label: 'Requests', icon: ClipboardCheck, to: '/employee/requests' },
@@ -297,6 +299,10 @@ watch(() => route.fullPath, () => {
         </button>
       </div>
       <nav class="sheet-links" aria-label="More employee pages">
+        <NuxtLink to="/employee/attendance-qr-code" :aria-current="route.path === '/employee/attendance-qr-code' ? 'page' : undefined" @click="closeMore">
+          <ScanLine :size="20" />
+          <span>Scan QR</span>
+        </NuxtLink>
         <NuxtLink to="/employee/calendar" :aria-current="route.path === '/employee/calendar' ? 'page' : undefined" @click="closeMore">
           <CalendarDays :size="20" />
           <span>Calendar</span>

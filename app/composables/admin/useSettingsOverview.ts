@@ -165,24 +165,24 @@ export const useSettingsOverview = () => {
         id: 7,
 
         title:
-          'Notifications',
+          'Manage QR Code',
 
         description:
-          'Configure system alerts, employee notifications and reminders.',
+          'Generate and manage attendance QR codes employees scan to time in and time out.',
 
         category:
-          'Notifications',
+          'QR Code',
 
         route:
-          '/admin/settings/notifications',
+          '/admin/settings/qr-generation',
 
         status:
-          'Not Configured',
+          'Complete',
 
         items: [
-          'Email Notifications',
-          'System Alerts',
-          'Reminders',
+          'Generate QR',
+          'Kiosk Display',
+          'Revoke Sessions',
         ],
       },
 

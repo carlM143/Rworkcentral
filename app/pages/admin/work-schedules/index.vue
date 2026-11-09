@@ -76,7 +76,12 @@ const handleAddSchedule = () => {
   router.push('/admin/work-schedules/create')
 }
 
-// OPEN EDIT MODAL
+// VIEW SCHEDULE DETAILS
+const handleViewSchedule = (schedule: WorkSchedule) => {
+  router.push(`/admin/work-schedules/${schedule.id}`)
+}
+
+// CHANGE SCHEDULE
 const handleEditSchedule = (schedule: WorkSchedule) => {
   router.push(`/admin/work-schedules/${schedule.id}/edit`)
 }
@@ -160,6 +165,7 @@ const handleToggleScheduleStatus = async (
     <!-- SCHEDULE DIRECTORY -->
     <WorkScheduleDirectory
       :schedules="filteredSchedules"
+      @view="handleViewSchedule"
       @edit="handleEditSchedule"
       @toggle-status="handleToggleScheduleStatus"
     />

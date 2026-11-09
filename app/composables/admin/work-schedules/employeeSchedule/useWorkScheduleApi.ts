@@ -2,6 +2,7 @@
 import type {
   WorkScheduleDay,
   WorkScheduleDayFormData,
+  WorkScheduleRevision,
 } from '~/types/workSchedule'
 
 export interface ScheduleTypeRecord {
@@ -24,6 +25,8 @@ export interface WorkScheduleRecord {
   status: boolean | number
   employments_count?: number
   days: WorkScheduleDay[]
+  current_revision?: WorkScheduleRevision | null
+  upcoming_revision?: WorkScheduleRevision | null
 }
 
 export interface WorkSchedulePayload {
@@ -34,6 +37,9 @@ export interface WorkSchedulePayload {
   grace_period: number
   status: boolean
   days: WorkScheduleDayFormData[]
+  // Required by the API on update when hours, grace period or days change.
+  effective_from?: string | null
+  reason?: string | null
 }
 
 interface ApiResponse<T> {

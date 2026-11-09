@@ -1,6 +1,7 @@
 <!-- Work-schedule module component. -->
 <script setup lang="ts">
 import {
+  Eye,
   MoreHorizontal,
   Pencil,
   Power,
@@ -15,6 +16,7 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
+  view: [schedule: WorkSchedule]
   edit: [schedule: WorkSchedule]
   toggleStatus: [schedule: WorkSchedule]
 }>()
@@ -28,7 +30,7 @@ const menuStyle =
   ref<Record<string, string>>({})
 
 const menuWidth = 220
-const menuHeight = 110
+const menuHeight = 150
 
 /* =========================================================
    POSITION
@@ -118,6 +120,15 @@ const toggle = async () => {
 /* =========================================================
    ACTIONS
 ========================================================= */
+
+const handleView = () => {
+  close()
+
+  emit(
+    'view',
+    props.schedule,
+  )
+}
 
 const handleEdit = () => {
   close()
@@ -233,11 +244,21 @@ onBeforeUnmount(() => {
         <button
           type="button"
           class="action-item"
+          @click="handleView"
+        >
+          <Eye :size="15" />
+
+          View Schedule
+        </button>
+
+        <button
+          type="button"
+          class="action-item"
           @click="handleEdit"
         >
           <Pencil :size="15" />
 
-          Edit Schedule
+          Change Schedule
         </button>
 
         <div class="action-divider" />

@@ -5,7 +5,7 @@ import type {
   WorkScheduleDayFormData,
   WorkScheduleFormData,
 } from '~/types/workSchedule'
-import { WORK_SCHEDULE_DAYS } from '~/types/workSchedule'
+import { WORK_SCHEDULE_DAYS, normalizeScheduleDayName } from '~/types/workSchedule'
 
 import type {
   WorkScheduleRecord,
@@ -68,6 +68,7 @@ const toUiSchedule = (
     employeeCount: Number(item.employments_count ?? 0),
     status: item.status === true || item.status === 1 ? 'Active' : 'Inactive',
     days,
+    upcomingRevision: item.upcoming_revision ?? null,
   }
 }
 
@@ -125,7 +126,7 @@ export const useWorkSchedules = () => {
       throw new Error('Configure all seven days from Monday to Sunday.')
     }
 
-    const dayMap = new Map(form.days.map(day => [day.day_of_week, day]))
+    const dayMap = new Map(form.days.map(day => [normalizeScheduleDayName(day.day_of_week), day]))
     const days: WorkScheduleDayFormData[] = WORK_SCHEDULE_DAYS.map(dayName => {
       const day = dayMap.get(dayName)
       if (!day) throw new Error(`Missing schedule configuration for ${dayName}.`)
@@ -200,10 +201,16 @@ export const useWorkSchedules = () => {
 
 
   const toggleScheduleStatus = async (schedule: WorkSchedule) => {
+    // The API compares hours/days against the LATEST revision. If a future
+    // change is scheduled, resend that revision's config so a status-only
+    // toggle is not treated as a schedule change (which needs effective_from).
+    const latest = schedule.upcomingRevision
+    const sourceDays = latest?.days ?? schedule.days
+
     // Laravel stores only working days.
     // Missing days must be restored as rest days before updating.
     const savedDays = new Map(
-      schedule.days.map(day => [day.day_of_week, day]),
+      sourceDays.map(day => [normalizeScheduleDayName(day.day_of_week), day]),
     )
 
     const normalizedDays: WorkScheduleDayFormData[] =
@@ -223,8 +230,8 @@ export const useWorkSchedules = () => {
       code: schedule.code,
       name: schedule.name,
       type: schedule.type,
-      workHours: schedule.workHours,
-      gracePeriod: schedule.gracePeriod,
+      workHours: latest ? Number(latest.required_work_hours) : schedule.workHours,
+      gracePeriod: latest ? Number(latest.grace_period) : schedule.gracePeriod,
       status: schedule.status === 'Active'
         ? 'Inactive'
         : 'Active',

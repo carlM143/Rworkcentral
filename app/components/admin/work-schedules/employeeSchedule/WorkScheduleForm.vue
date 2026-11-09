@@ -8,7 +8,7 @@ import type {
   WorkScheduleStatus,
   WorkScheduleType,
 } from '~/types/workSchedule'
-import { createDefaultScheduleDays } from '~/types/workSchedule'
+import { WORK_SCHEDULE_DAYS, createDefaultScheduleDays, normalizeScheduleDayName } from '~/types/workSchedule'
 
 const props = withDefaults(defineProps<{
   schedule?: WorkSchedule | null
@@ -50,12 +50,18 @@ const inputTime = (value: string | null | undefined, fallback = '') => {
 
 const cloneDays = (days?: WorkScheduleDayFormData[]): WorkScheduleDayFormData[] => {
   if (!Array.isArray(days) || days.length !== 7) return createDefaultScheduleDays()
-  return days.map(day => ({
-    day_of_week: day.day_of_week,
-    is_working_day: Boolean(day.is_working_day),
-    time_in: day.is_working_day ? inputTime(day.time_in, '08:00') : null,
-    time_out: day.is_working_day ? inputTime(day.time_out, '17:00') : null,
-  }))
+  // Normalize legacy names ('Sat'/'Sun') to the full names the API accepts.
+  const saved = new Map(days.map(day => [normalizeScheduleDayName(day.day_of_week), day]))
+  return WORK_SCHEDULE_DAYS.map(name => {
+    const day = saved.get(name)
+    const working = Boolean(day?.is_working_day)
+    return {
+      day_of_week: name,
+      is_working_day: working,
+      time_in: working ? inputTime(day?.time_in, '08:00') : null,
+      time_out: working ? inputTime(day?.time_out, '17:00') : null,
+    }
+  })
 }
 
 const loadForm = () => {
@@ -77,11 +83,8 @@ watch(
   { immediate: true },
 )
 
-const dayLabel = (day: WorkScheduleDayFormData) => {
-  if (day.day_of_week === 'Sat') return 'Saturday'
-  if (day.day_of_week === 'Sun') return 'Sunday'
-  return day.day_of_week
-}
+const dayLabel = (day: WorkScheduleDayFormData) =>
+  normalizeScheduleDayName(day.day_of_week) ?? day.day_of_week
 
 const applyMondayToWeekdays = () => {
   const monday = form.days.find(day => day.day_of_week === 'Monday')
