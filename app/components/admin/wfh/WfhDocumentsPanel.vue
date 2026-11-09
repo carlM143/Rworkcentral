@@ -98,8 +98,7 @@ const stats = computed(() => [
 // =====================================================
 
 const menuItems: WfhMenuItem[] = [
-  { key: 'days', label: 'Review Days', icon: ClipboardList },
-  { key: 'upload', label: 'Attach Document', icon: Upload },
+  { key: 'days', label: 'Verify Proof of Work', icon: ClipboardList },
   { key: 'request', label: 'View Request', icon: FileText },
   { key: 'history', label: 'View History', icon: History, dividerBefore: true },
 ]
