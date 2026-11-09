@@ -18,7 +18,6 @@ import DriverStatCard from '~/components/admin/drivers/DriverStatCard.vue'
 import BaseDataTable from '~/components/shared-table/BaseDataTable.vue'
 import BaseTableFooter from '~/components/shared-table/BaseTableFooter.vue'
 import TableActionMenu from '~/components/shared-table/TableActionMenu.vue'
-import TripTicketFormModal from '~/components/admin/drivers/trip-tickets/TripTicketFormModal.vue'
 import TripTicketActionModal from '~/components/admin/drivers/trip-tickets/TripTicketActionModal.vue'
 import TripTicketViewModal from '~/components/admin/drivers/trip-tickets/TripTicketViewModal.vue'
 import { driverTimeText, driverTodayLocal } from '~/composables/admin/drivers/useDriverApi'
@@ -33,6 +32,7 @@ definePageMeta({
 })
 
 const route = useRoute()
+const router = useRouter()
 const api = useTripTicketApi()
 
 const STATUS_LABELS: Record<TripTicketStatus, string> = {
@@ -62,6 +62,10 @@ const load = async () => {
 
 onMounted(async () => {
   await load()
+  // Coming back from the Create Trip Ticket page
+  const created = route.query.created
+  if (typeof created === 'string') flash.value = `Trip ticket ${created} created.`
+
   // Opened from another page, e.g. /admin/trip-tickets?trip=TT-2026-0012
   const ticketNo = route.query.trip
   if (typeof ticketNo === 'string') {
@@ -76,6 +80,7 @@ onMounted(async () => {
 
 const searchQuery = ref('')
 const driverFilter = ref<'All' | number>('All')
+const departmentFilter = ref<'All' | number>('All')
 const statusFilter = ref<'All' | TripTicketStatus>('All')
 const dateFrom = ref('')
 const dateTo = ref('')
@@ -88,16 +93,26 @@ const driverOptions = computed(() => {
   return [...seen.entries()].sort((a, b) => a[1].localeCompare(b[1]))
 })
 
+const departmentOptions = computed(() => {
+  const seen = new Map<number, string>()
+  tickets.value.forEach((t) => {
+    if (t.requesting_department) seen.set(t.requesting_department.id, t.requesting_department.name)
+  })
+  return [...seen.entries()].sort((a, b) => a[1].localeCompare(b[1]))
+})
+
 const filteredTickets = computed(() => {
   const q = searchQuery.value.trim().toLowerCase()
   return tickets.value.filter((t) => {
     const haystack = [
       t.ticket_no, t.driver.name, t.vehicle.plate_no, t.destination, t.purpose,
+      t.requesting_department?.name, t.requested_by?.name,
       ...t.passengers.map(p => p.name),
     ].join(' ').toLowerCase()
 
     return (!q || haystack.includes(q))
       && (driverFilter.value === 'All' || t.driver.id === driverFilter.value)
+      && (departmentFilter.value === 'All' || t.requesting_department?.id === departmentFilter.value)
       && (statusFilter.value === 'All' || t.status === statusFilter.value)
       && (!dateFrom.value || t.trip_date >= dateFrom.value)
       && (!dateTo.value || t.trip_date <= dateTo.value)
@@ -112,13 +127,14 @@ const paginatedTickets = computed(() => {
 const showingFrom = computed(() => (filteredTickets.value.length ? (currentPage.value - 1) * itemsPerPage + 1 : 0))
 const showingTo = computed(() => Math.min(currentPage.value * itemsPerPage, filteredTickets.value.length))
 
-watch([searchQuery, driverFilter, statusFilter, dateFrom, dateTo], () => {
+watch([searchQuery, driverFilter, departmentFilter, statusFilter, dateFrom, dateTo], () => {
   currentPage.value = 1
 })
 
 const resetFilters = () => {
   searchQuery.value = ''
   driverFilter.value = 'All'
+  departmentFilter.value = 'All'
   statusFilter.value = 'All'
   dateFrom.value = ''
   dateTo.value = ''
@@ -145,7 +161,6 @@ const menuItems = (t: TripTicketRecord) => [
   ...(t.status === 'scheduled' ? [{ key: 'cancel', label: 'Cancel Ticket', icon: Ban, danger: true, dividerBefore: true }] : []),
 ]
 
-const createOpen = ref(false)
 const viewRecord = ref<TripTicketRecord | null>(null)
 const actionRecord = ref<TripTicketRecord | null>(null)
 const actionType = ref<'depart' | 'return' | 'cancel'>('depart')
@@ -160,7 +175,6 @@ const onAction = (t: TripTicketRecord, key: string) => {
 }
 
 const onSaved = async (_record: TripTicketRecord, message: string) => {
-  createOpen.value = false
   actionRecord.value = null
   flash.value = message
   await load()
@@ -187,9 +201,9 @@ const csvEscape = (v: unknown) => {
 
 const exportCsv = () => {
   const rows = [
-    ['Ticket No.', 'Trip Date', 'Driver', 'Driver Code', 'Plate', 'Vehicle', 'Destination', 'Purpose', 'Passengers', 'Planned Departure', 'Actual Departure', 'Expected Return', 'Actual Return', 'Odometer Out', 'Odometer In', 'Distance (km)', 'Status'],
+    ['Ticket No.', 'Trip Date', 'Requesting Department', 'Requested By', 'Driver', 'Driver Code', 'Plate', 'Vehicle', 'Destination', 'Purpose', 'Passengers', 'Planned Departure', 'Actual Departure', 'Expected Return', 'Actual Return', 'Odometer Out', 'Odometer In', 'Distance (km)', 'Status'],
     ...filteredTickets.value.map(t => [
-      t.ticket_no, t.trip_date, t.driver.name, t.driver.drivers_code, t.vehicle.plate_no, t.vehicle.description,
+      t.ticket_no, t.trip_date, t.requesting_department?.name, t.requested_by?.name, t.driver.name, t.driver.drivers_code, t.vehicle.plate_no, t.vehicle.description,
       t.destination, t.purpose, t.passengers.map(p => p.name).join('; '),
       t.scheduled_departure, t.departed_at, t.expected_return, t.returned_at,
       t.odometer_out, t.odometer_in, t.distance_km, STATUS_LABELS[t.status],
@@ -214,7 +228,7 @@ const exportCsv = () => {
       <AppButton variant="secondary" :icon="Download" :disabled="!filteredTickets.length" @click="exportCsv">
         Export
       </AppButton>
-      <AppButton :icon="Plus" @click="createOpen = true">
+      <AppButton :icon="Plus" @click="router.push('/admin/trip-tickets/create')">
         Create Trip Ticket
       </AppButton>
     </PageHeader>
@@ -248,6 +262,14 @@ const exportCsv = () => {
       </label>
 
       <div class="select-wrap">
+        <select v-model="departmentFilter" aria-label="Requesting department">
+          <option value="All">All Departments</option>
+          <option v-for="[id, name] in departmentOptions" :key="id" :value="id">{{ name }}</option>
+        </select>
+        <ChevronDown :size="14" class="select-icon" />
+      </div>
+
+      <div class="select-wrap">
         <select v-model="driverFilter" aria-label="Driver">
           <option value="All">All Drivers</option>
           <option v-for="[id, name] in driverOptions" :key="id" :value="id">{{ name }}</option>
@@ -271,12 +293,13 @@ const exportCsv = () => {
       description="One ticket per trip: driver, vehicle, passengers, time out and in, and odometer."
       :has-rows="paginatedTickets.length > 0"
       :loading="loading"
-      min-width="1180px"
+      min-width="1320px"
       empty-title="No trip tickets found"
       empty-description="Try adjusting your filters, or create a new trip ticket."
     >
       <template #headers>
         <th>Ticket No.</th>
+        <th>Requested By</th>
         <th>Driver</th>
         <th>Vehicle</th>
         <th>Destination</th>
@@ -293,6 +316,10 @@ const exportCsv = () => {
           <td>
             <span class="ticket-no">{{ t.ticket_no }}</span>
             <small class="cell-sub">{{ dateText(t.trip_date) }}</small>
+          </td>
+          <td>
+            <span class="cell-title">{{ t.requested_by?.name ?? '—' }}</span>
+            <small class="cell-sub">{{ t.requesting_department?.name ?? '—' }}</small>
           </td>
           <td>
             <strong class="cell-title">{{ t.driver.name }}</strong>
@@ -345,12 +372,6 @@ const exportCsv = () => {
       :total-items="filteredTickets.length"
       :total-pages="totalPages"
       item-label="trip tickets"
-    />
-
-    <TripTicketFormModal
-      v-if="createOpen"
-      @close="createOpen = false"
-      @saved="onSaved"
     />
 
     <TripTicketActionModal
