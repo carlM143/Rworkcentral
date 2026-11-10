@@ -15,6 +15,7 @@ import {
   ChevronUp,
   Briefcase,
   Hash,
+  Ban,
 } from 'lucide-vue-next'
 import WfhModalShell from '~/components/admin/wfh/WfhModalShell.vue'
 import WfhStatusPill from '~/components/admin/wfh/WfhStatusPill.vue'
@@ -37,6 +38,7 @@ const props = withDefaults(defineProps<{
 const emit = defineEmits<{
   close: []
   saved: [record: WfhRequestRecord, message: string]
+  delete: [record: WfhRequestRecord]
 }>()
 
 const STATUS_LABELS: Record<string, string> = { pending: 'Pending', approved: 'Approved', rejected: 'Rejected' }
@@ -266,6 +268,9 @@ const openDocuments = () => navigateTo('/admin/wfh/documents')
       </div>
 
       <div class="modal-actions">
+        <button v-if="['pending', 'approved'].includes(record.status)" type="button" class="btn reject" @click="emit('delete', record)">
+          <Ban :size="15" /> Cancel WFH
+        </button>
         <template v-if="record.status === 'pending'">
           <button class="btn reject" @click="startDecision('reject')"><X :size="15" /> Reject</button>
           <button class="btn approve" @click="startDecision('approve')"><Check :size="15" /> Approve</button>
