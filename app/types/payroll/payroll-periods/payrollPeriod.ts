@@ -5,6 +5,8 @@ export interface PayrollPeriod {
   label: string
   period_name: string | null
   cutoff_number: 1 | 2
+  pay_period_start: string
+  pay_period_end: string
   cutoff_start: string
   cutoff_end: string
   payment_date: string
@@ -14,6 +16,8 @@ export interface PayrollPeriod {
 export interface PayrollPeriodPayload {
   period_name: string
   cutoff_number: 1 | 2
+  pay_period_start: string
+  pay_period_end: string
   cutoff_start: string
   cutoff_end: string
   payment_date: string
@@ -22,6 +26,8 @@ export interface PayrollPeriodPayload {
 export interface PayrollPeriodFormData {
   periodName: string
   cutoffNumber?: 1 | 2
+  payPeriodStart: string
+  payPeriodEnd: string
   cutoffStart: string
   cutoffEnd: string
   paymentDate: string

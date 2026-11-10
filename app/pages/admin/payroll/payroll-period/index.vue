@@ -67,7 +67,7 @@ const statusOptions = computed(() =>
 
 const monthOptions = computed(() =>
   monthNames.filter((_, index) =>
-    periods.value.some(item => Number(item.cutoff_start?.slice(5, 7)) === index + 1),
+    periods.value.some(item => Number(item.pay_period_start?.slice(5, 7)) === index + 1),
   ),
 )
 
@@ -109,6 +109,8 @@ const editingFormValue = computed<PayrollPeriodFormValue | null>(() => {
     id: p.id,
     periodName: p.period_name ?? '',
     cutoffNumber: p.cutoff_number,
+    payPeriodStart: p.pay_period_start,
+    payPeriodEnd: p.pay_period_end,
     cutoffStart: p.cutoff_start,
     cutoffEnd: p.cutoff_end,
     paymentDate: p.payment_date,
@@ -129,7 +131,9 @@ const handleEdit = (period: PayrollPeriod) => {
 const toPayload = (form: PayrollPeriodFormData): PayrollPeriodPayload => ({
   period_name: form.periodName,
   cutoff_number: form.cutoffNumber
-    ?? (Number(form.cutoffStart.slice(8, 10)) <= 15 ? 1 : 2),
+    ?? (Number(form.payPeriodStart.slice(8, 10)) <= 15 ? 1 : 2),
+  pay_period_start: form.payPeriodStart,
+  pay_period_end: form.payPeriodEnd,
   cutoff_start: form.cutoffStart,
   cutoff_end: form.cutoffEnd,
   payment_date: form.paymentDate,
@@ -184,11 +188,13 @@ const handleDelete = async (period: PayrollPeriod) => {
 
 const handleExport = () => {
   const rows = [
-    ['ID', 'Period Name', 'Cutoff', 'Cutoff Start', 'Cutoff End', 'Payment Date', 'Status'],
+    ['ID', 'Period Name', 'Cutoff', 'Pay Period Start', 'Pay Period End', 'Cut-off Start', 'Cut-off End', 'Payment Date', 'Status'],
     ...filteredPeriods.value.map(item => [
       String(item.id),
       periodName(item),
       String(item.cutoff_number),
+      item.pay_period_start,
+      item.pay_period_end,
       item.cutoff_start,
       item.cutoff_end,
       item.payment_date,
@@ -311,12 +317,12 @@ const handleExport = () => {
               <strong>{{ viewingPeriod.cutoff_number === 1 ? '1st cutoff' : '2nd cutoff' }}</strong>
             </div>
             <div class="detail-row">
-              <span>Cutoff Start</span>
-              <strong>{{ formatDate(viewingPeriod.cutoff_start) }}</strong>
+              <span>Pay Period</span>
+              <strong>{{ formatDate(viewingPeriod.pay_period_start) }} – {{ formatDate(viewingPeriod.pay_period_end) }}</strong>
             </div>
             <div class="detail-row">
-              <span>Cutoff End</span>
-              <strong>{{ formatDate(viewingPeriod.cutoff_end) }}</strong>
+              <span>Cut-off (Attendance)</span>
+              <strong>{{ formatDate(viewingPeriod.cutoff_start) }} – {{ formatDate(viewingPeriod.cutoff_end) }}</strong>
             </div>
             <div class="detail-row">
               <span>Payment Date</span>

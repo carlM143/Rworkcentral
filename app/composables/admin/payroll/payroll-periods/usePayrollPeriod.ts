@@ -90,7 +90,8 @@ export const usePayrollPeriod = () => {
         return false
       }
 
-      const start = p.cutoff_start ?? ''
+      const start = p.pay_period_start ?? ''
+      const end = p.pay_period_end ?? ''
 
       if (filters.year && start.slice(0, 4) !== String(filters.year)) {
         return false
@@ -100,7 +101,7 @@ export const usePayrollPeriod = () => {
         return false
       }
 
-      if (filters.date_from && (p.cutoff_end ?? '') < filters.date_from) {
+      if (filters.date_from && end < filters.date_from) {
         return false
       }
 
@@ -115,7 +116,7 @@ export const usePayrollPeriod = () => {
   const years = computed(() =>
     [...new Set(
       periods.value
-        .map(p => p.cutoff_start?.slice(0, 4))
+        .map(p => p.pay_period_start?.slice(0, 4))
         .filter(Boolean) as string[],
     )].sort((a, b) => Number(b) - Number(a)),
   )

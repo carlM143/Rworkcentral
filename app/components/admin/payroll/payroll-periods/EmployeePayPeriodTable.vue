@@ -43,23 +43,26 @@ const formatDate = (value?: string | null) => {
         year: 'numeric',
       }).format(date)
 }
+
+const formatRange = (start?: string | null, end?: string | null) =>
+  `${formatDate(start)} – ${formatDate(end)}`
 </script>
 
 <template>
   <BaseDataTable
     title="Payroll Periods"
-    description="Manage company payroll cutoff dates, payment schedules and period status."
+    description="Salary periods being paid, the attendance cut-off counted for each, and payment dates."
     :has-rows="periods.length > 0"
     :loading="loading"
-    min-width="950px"
+    min-width="1000px"
     empty-title="No payroll periods found"
     empty-description="Create your first payroll period or adjust the filters."
   >
     <template #headers>
       <th>Period ID</th>
       <th>Payroll Period</th>
-      <th>Cutoff Start</th>
-      <th>Cutoff End</th>
+      <th>Pay Period</th>
+      <th>Cut-off (Attendance)</th>
       <th>Payment Date</th>
       <th>Status</th>
       <th class="text-right">Actions</th>
@@ -77,15 +80,12 @@ const formatDate = (value?: string | null) => {
         <td>
           <div class="period-cell">
             <strong>{{ periodName(period) }}</strong>
-            <span>
-              Cutoff {{ period.cutoff_number }} ·
-              {{ formatDate(period.cutoff_start) }} – {{ formatDate(period.cutoff_end) }}
-            </span>
+            <span>Cutoff {{ period.cutoff_number }}</span>
           </div>
         </td>
 
-        <td>{{ formatDate(period.cutoff_start) }}</td>
-        <td>{{ formatDate(period.cutoff_end) }}</td>
+        <td>{{ formatRange(period.pay_period_start, period.pay_period_end) }}</td>
+        <td>{{ formatRange(period.cutoff_start, period.cutoff_end) }}</td>
         <td>{{ formatDate(period.payment_date) }}</td>
 
         <td>
@@ -111,7 +111,7 @@ const formatDate = (value?: string | null) => {
 }
 
 .period-cell {
-  min-width: 220px;
+  min-width: 200px;
 }
 
 .period-cell strong,

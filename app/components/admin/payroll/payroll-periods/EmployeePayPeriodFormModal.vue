@@ -1,106 +1,129 @@
-
 <script setup lang="ts">
-import { X, CalendarRange, Save } from 'lucide-vue-next'
-import type { PayrollPeriod, PayrollPeriodFormData } from '~/types/payroll/payroll-periods/payrollPeriod'
+import { X, Wand2 } from 'lucide-vue-next'
+import type {
+  PayrollPeriodFormData,
+  PayrollPeriodFormValue,
+} from '~/types/payroll/payroll-periods/payrollPeriod'
 
-const props = withDefaults(defineProps<{
+const props = defineProps<{
   open: boolean
-  period?: PayrollPeriod | null
-  saving?: boolean
-}>(), {
-  period: null,
-  saving: false,
-})
+  period: PayrollPeriodFormValue | null
+  saving: boolean
+}>()
 
 const emit = defineEmits<{
   close: []
-  save: [payload: PayrollPeriodFormData]
+  save: [form: PayrollPeriodFormData]
 }>()
 
-const { error: showError } = useToast()
+const CUTOFF_1_START_DAY = 23
+const CUTOFF_1_END_DAY = 7
+const CUTOFF_2_START_DAY = 8
+const CUTOFF_2_END_DAY = 22
 
-const form = reactive<PayrollPeriodFormData>({
+const empty = (): PayrollPeriodFormData => ({
   periodName: '',
+  cutoffNumber: 1,
+  payPeriodStart: '',
+  payPeriodEnd: '',
   cutoffStart: '',
   cutoffEnd: '',
   paymentDate: '',
 })
 
-const isEdit = computed(() => Boolean(props.period))
+const form = reactive<PayrollPeriodFormData>(empty())
+const errors = ref<Record<string, string>>({})
 
-const reset = () => {
-  form.periodName = ''
-  form.cutoffStart = ''
-  form.cutoffEnd = ''
-  form.paymentDate = ''
-}
-
-const load = () => {
-  if (!props.period) {
-    reset()
-    return
-  }
-
-  form.periodName = props.period.periodName
-  form.cutoffStart = props.period.cutoffStart
-  form.cutoffEnd = props.period.cutoffEnd
-  form.paymentDate = props.period.paymentDate
-}
+const isEditing = computed(() => !!props.period)
 
 watch(
-  () => [props.open, props.period] as const,
-  () => {
-    if (props.open) load()
+  () => props.open,
+  (open) => {
+    if (!open) return
+    errors.value = {}
+    Object.assign(form, props.period
+      ? {
+          periodName: props.period.periodName,
+          cutoffNumber: props.period.cutoffNumber ?? 1,
+          payPeriodStart: props.period.payPeriodStart ?? '',
+          payPeriodEnd: props.period.payPeriodEnd ?? '',
+          cutoffStart: props.period.cutoffStart,
+          cutoffEnd: props.period.cutoffEnd,
+          paymentDate: props.period.paymentDate,
+        }
+      : empty())
   },
   { immediate: true },
 )
 
-const closeModal = () => {
-  if (props.saving) return
-  emit('close')
+const pad = (n: number) => String(n).padStart(2, '0')
+const toIso = (y: number, m: number, d: number) => {
+  const date = new Date(y, m, d)
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
 }
 
-const handleSave = () => {
-  if (props.saving) return
+const monthName = (m: number) =>
+  new Intl.DateTimeFormat('en-US', { month: 'long' }).format(new Date(2000, m, 1))
 
-  if (!form.periodName.trim()) {
-    showError(
-      'Period Name Required',
-      'Please enter the payroll period name.',
-    )
+const suggestFromPayStart = () => {
+  if (!form.payPeriodStart) {
+    errors.value = { payPeriodStart: 'Pick the pay period start first.' }
     return
   }
 
-  if (!form.cutoffStart || !form.cutoffEnd || !form.paymentDate) {
-    showError(
-      'Required Dates Missing',
-      'Please complete Cutoff Start, Cutoff End and Payment Date.',
-    )
+  const [y = NaN, m = NaN, d = NaN] = form.payPeriodStart.split('-').map(Number)
+
+  if ([y, m, d].some(Number.isNaN)) {
+    errors.value = { payPeriodStart: 'Enter a valid date.' }
     return
   }
+  const month = m - 1
+  const isFirstHalf = d <= 15
+  const lastDay = new Date(y, month + 1, 0).getDate()
 
-  if (form.cutoffEnd < form.cutoffStart) {
-    showError(
-      'Invalid Cutoff Dates',
-      'Cutoff End cannot be earlier than Cutoff Start.',
-    )
-    return
+  form.cutoffNumber = isFirstHalf ? 1 : 2
+  form.payPeriodStart = toIso(y, month, isFirstHalf ? 1 : 16)
+  form.payPeriodEnd = toIso(y, month, isFirstHalf ? 15 : lastDay)
+
+  if (isFirstHalf) {
+    form.cutoffStart = toIso(y, month - 1, CUTOFF_1_START_DAY)
+    form.cutoffEnd = toIso(y, month, CUTOFF_1_END_DAY)
+  } else {
+    form.cutoffStart = toIso(y, month, CUTOFF_2_START_DAY)
+    form.cutoffEnd = toIso(y, month, CUTOFF_2_END_DAY)
   }
 
-  if (form.paymentDate < form.cutoffEnd) {
-    showError(
-      'Invalid Payment Date',
-      'Payment Date must be on or after Cutoff End.',
-    )
-    return
+  form.paymentDate = form.payPeriodEnd
+  form.periodName = `${monthName(month)} ${isFirstHalf ? 1 : 16}–${isFirstHalf ? 15 : lastDay}, ${y}`
+  errors.value = {}
+}
+
+const validate = () => {
+  const e: Record<string, string> = {}
+
+  if (!form.periodName.trim()) e.periodName = 'Period name is required.'
+  if (!form.payPeriodStart) e.payPeriodStart = 'Required.'
+  if (!form.payPeriodEnd) e.payPeriodEnd = 'Required.'
+  if (form.payPeriodStart && form.payPeriodEnd && form.payPeriodEnd < form.payPeriodStart) {
+    e.payPeriodEnd = 'Must be on or after the start.'
+  }
+  if (!form.cutoffStart) e.cutoffStart = 'Required.'
+  if (!form.cutoffEnd) e.cutoffEnd = 'Required.'
+  if (form.cutoffStart && form.cutoffEnd && form.cutoffEnd < form.cutoffStart) {
+    e.cutoffEnd = 'Must be on or after the start.'
+  }
+  if (!form.paymentDate) e.paymentDate = 'Required.'
+  if (form.paymentDate && form.cutoffEnd && form.paymentDate < form.cutoffEnd) {
+    e.paymentDate = 'Must be on or after the cut-off end.'
   }
 
-  emit('save', {
-    periodName: form.periodName.trim(),
-    cutoffStart: form.cutoffStart,
-    cutoffEnd: form.cutoffEnd,
-    paymentDate: form.paymentDate,
-  })
+  errors.value = e
+  return Object.keys(e).length === 0
+}
+
+const submit = () => {
+  if (!validate()) return
+  emit('save', { ...form, periodName: form.periodName.trim() })
 }
 </script>
 
@@ -109,359 +132,139 @@ const handleSave = () => {
     <div
       v-if="open"
       class="overlay"
-      @click.self="closeModal"
+      @click.self="emit('close')"
     >
-      <article
-        class="modal"
+      <form
+        class="card"
         role="dialog"
         aria-modal="true"
-        aria-labelledby="payroll-period-modal-title"
+        aria-labelledby="period-form-title"
+        novalidate
+        @submit.prevent="submit"
       >
-        <!-- HEADER -->
-        <header>
-          <div class="heading">
-            <div class="icon">
-              <CalendarRange :size="19" />
-            </div>
-
-            <div>
-              <h2 id="payroll-period-modal-title">
-                {{ isEdit ? 'Edit Payroll Period' : 'Create Payroll Period' }}
-              </h2>
-
-              <p>
-                Configure the company's payroll cutoff and payment schedule.
-              </p>
-            </div>
+        <div class="head">
+          <div>
+            <h3 id="period-form-title">{{ isEditing ? 'Edit Payroll Period' : 'Create Payroll Period' }}</h3>
+            <p>The pay period is the salary being paid. The cut-off is the attendance days counted.</p>
           </div>
-
           <button
             type="button"
             class="close"
-            :disabled="saving"
-            aria-label="Close modal"
-            @click="closeModal"
+            aria-label="Close"
+            @click="emit('close')"
           >
-            <X :size="18" />
+            <X :size="17" />
           </button>
-        </header>
+        </div>
 
-        <!-- FORM -->
-        <form @submit.prevent="handleSave">
-          <div class="body">
-            <!-- PERIOD NAME -->
-            <div class="field full">
-              <label for="payroll-period-name">
-                Period Name <span class="required">*</span>
+        <div class="body">
+          <fieldset>
+            <legend>Pay period</legend>
+            <div class="row">
+              <label>
+                <span>Start</span>
+                <input v-model="form.payPeriodStart" type="date" :class="{ invalid: errors.payPeriodStart }">
+                <small v-if="errors.payPeriodStart" class="error">{{ errors.payPeriodStart }}</small>
               </label>
-
-              <input
-                id="payroll-period-name"
-                v-model="form.periodName"
-                type="text"
-                maxlength="255"
-                placeholder="Example: October 1–15, 2026"
-                :disabled="saving"
-                required
-              />
+              <label>
+                <span>End</span>
+                <input v-model="form.payPeriodEnd" type="date" :class="{ invalid: errors.payPeriodEnd }">
+                <small v-if="errors.payPeriodEnd" class="error">{{ errors.payPeriodEnd }}</small>
+              </label>
             </div>
+            <button
+              type="button"
+              class="suggest"
+              @click="suggestFromPayStart"
+            >
+              <Wand2 :size="13" />
+              Fill the rest from the pay period start
+            </button>
+          </fieldset>
 
-            <!-- CUTOFF DATES -->
-            <div class="grid">
-              <div class="field">
-                <label for="payroll-cutoff-start">
-                  Cutoff Start <span class="required">*</span>
-                </label>
-
-                <input
-                  id="payroll-cutoff-start"
-                  v-model="form.cutoffStart"
-                  type="date"
-                  :disabled="saving"
-                  required
-                />
-
-                <small>
-                  First day covered by this payroll period.
-                </small>
-              </div>
-
-              <div class="field">
-                <label for="payroll-cutoff-end">
-                  Cutoff End <span class="required">*</span>
-                </label>
-
-                <input
-                  id="payroll-cutoff-end"
-                  v-model="form.cutoffEnd"
-                  type="date"
-                  :min="form.cutoffStart || undefined"
-                  :disabled="saving"
-                  required
-                />
-
-                <small>
-                  Last day covered by this payroll period.
-                </small>
-              </div>
+          <fieldset>
+            <legend>Cut-off (attendance counted)</legend>
+            <div class="row">
+              <label>
+                <span>Start</span>
+                <input v-model="form.cutoffStart" type="date" :class="{ invalid: errors.cutoffStart }">
+                <small v-if="errors.cutoffStart" class="error">{{ errors.cutoffStart }}</small>
+              </label>
+              <label>
+                <span>End</span>
+                <input v-model="form.cutoffEnd" type="date" :class="{ invalid: errors.cutoffEnd }">
+                <small v-if="errors.cutoffEnd" class="error">{{ errors.cutoffEnd }}</small>
+              </label>
             </div>
+          </fieldset>
 
-            <!-- PAYMENT DATE -->
-            <div class="grid">
-              <div class="field">
-                <label for="payroll-payment-date">
-                  Payment Date <span class="required">*</span>
-                </label>
-
-                <input
-                  id="payroll-payment-date"
-                  v-model="form.paymentDate"
-                  type="date"
-                  :min="form.cutoffEnd || undefined"
-                  :disabled="saving"
-                  required
-                />
-
-                <small>
-                  Scheduled date for employee salary payment.
-                </small>
-              </div>
-            </div>
-
-            <!-- INFORMATION -->
-            <div class="info-panel">
-              <div class="info-icon">
-                <CalendarRange :size="16" />
-              </div>
-
-              <div>
-                <strong>Payroll Period Configuration</strong>
-                <p>
-                  The cutoff dates define the payroll coverage period.
-                  The payment date specifies when employees are scheduled
-                  to receive their salaries.
-                </p>
-              </div>
-            </div>
+          <div class="row">
+            <label>
+              <span>Cutoff number</span>
+              <select v-model.number="form.cutoffNumber">
+                <option :value="1">1st cutoff</option>
+                <option :value="2">2nd cutoff</option>
+              </select>
+            </label>
+            <label>
+              <span>Payment date</span>
+              <input v-model="form.paymentDate" type="date" :class="{ invalid: errors.paymentDate }">
+              <small v-if="errors.paymentDate" class="error">{{ errors.paymentDate }}</small>
+            </label>
           </div>
 
-          <!-- FOOTER -->
-          <footer>
-            <span>
-              {{ isEdit
-                ? 'Changes will update the existing payroll period.'
-                : 'New payroll periods will start as Draft.'
-              }}
-            </span>
+          <label>
+            <span>Period name</span>
+            <input
+              v-model="form.periodName"
+              type="text"
+              maxlength="255"
+              placeholder="e.g. November 1–15, 2026"
+              :class="{ invalid: errors.periodName }"
+            >
+            <small v-if="errors.periodName" class="error">{{ errors.periodName }}</small>
+          </label>
+        </div>
 
-            <div class="footer-actions">
-              <AppButton
-                variant="secondary"
-                :disabled="saving"
-                @click="closeModal"
-              >
-                Cancel
-              </AppButton>
-
-              <AppButton
-                :icon="Save"
-                :disabled="saving"
-                @click="handleSave"
-              >
-                {{ saving
-                  ? 'Saving...'
-                  : isEdit
-                    ? 'Save Changes'
-                    : 'Create Payroll Period'
-                }}
-              </AppButton>
-            </div>
-          </footer>
-        </form>
-      </article>
+        <div class="foot">
+          <AppButton
+            variant="secondary"
+            type="button"
+            :disabled="saving"
+            @click="emit('close')"
+          >
+            Cancel
+          </AppButton>
+          <AppButton
+            type="submit"
+            :disabled="saving"
+          >
+            {{ saving ? 'Saving…' : isEditing ? 'Save Changes' : 'Create Period' }}
+          </AppButton>
+        </div>
+      </form>
     </div>
   </Teleport>
 </template>
 
 <style scoped>
-.overlay{
-  position:fixed;
-  z-index:99990;
-  inset:0;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  padding:20px;
-  background:rgba(3,8,18,.76);
-  backdrop-filter:blur(4px);
-}
-.modal{
-  width:100%;
-  max-width:700px;
-  max-height:90vh;
-  overflow-y:auto;
-  border:1px solid var(--border);
-  border-radius:13px;
-  background:var(--bg-card);
-  box-shadow:0 24px 70px rgba(0,0,0,.25);
-}
-header{
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  gap:15px;
-  padding:16px 18px;
-  border-bottom:1px solid var(--border-soft);
-}
-.heading{
-  display:flex;
-  align-items:center;
-  gap:10px;
-}
-.icon{
-  display:flex;
-  width:40px;
-  height:40px;
-  flex-shrink:0;
-  align-items:center;
-  justify-content:center;
-  border-radius:9px;
-  background:var(--primary-soft);
-  color:var(--primary);
-}
-h2{
-  margin:0;
-  color:var(--text-primary);
-  font-size:14px;
-}
-.heading p{
-  margin:3px 0 0;
-  color:var(--text-muted);
-  font-size:8px;
-}
-.close{
-  display:flex;
-  width:32px;
-  height:32px;
-  flex-shrink:0;
-  align-items:center;
-  justify-content:center;
-  border:1px solid var(--border);
-  border-radius:7px;
-  background:transparent;
-  color:var(--text-secondary);
-  cursor:pointer;
-}
-.close:hover{
-  background:var(--bg-card-soft);
-  color:var(--text-primary);
-}
-.close:disabled{
-  opacity:.5;
-  cursor:not-allowed;
-}
-.body{
-  padding:17px 18px;
-}
-.grid{
-  display:grid;
-  grid-template-columns:repeat(2,minmax(0,1fr));
-  gap:10px;
-}
-.field{
-  min-width:0;
-  margin-bottom:14px;
-}
-.field label{
-  display:block;
-  margin-bottom:6px;
-  color:var(--text-primary);
-  font-size:10px;
-  font-weight:600;
-}
-.required{
-  color:var(--red);
-}
-.field input{
-  box-sizing:border-box;
-  width:100%;
-  height:39px;
-  padding:0 10px;
-  border:1px solid var(--border);
-  border-radius:7px;
-  outline:none;
-  background:var(--bg-card-soft);
-  color:var(--text-primary);
-  font-family:inherit;
-  font-size:10px;
-}
-.field input:focus{
-  border-color:var(--primary);
-  box-shadow:0 0 0 3px rgba(36,107,253,.08);
-}
-.field input:disabled{
-  opacity:.6;
-  cursor:not-allowed;
-}
-.field small{
-  display:block;
-  margin-top:5px;
-  color:var(--text-muted);
-  font-size:8px;
-  line-height:1.5;
-}
-.info-panel{
-  display:flex;
-  align-items:flex-start;
-  gap:10px;
-  margin-top:7px;
-  padding:12px;
-  border:1px solid var(--border);
-  border-radius:8px;
-  background:var(--primary-soft);
-}
-.info-icon{
-  display:flex;
-  width:32px;
-  height:32px;
-  flex-shrink:0;
-  align-items:center;
-  justify-content:center;
-  border-radius:8px;
-  background:var(--bg-card);
-  color:var(--primary);
-}
-.info-panel strong{
-  display:block;
-  color:var(--text-primary);
-  font-size:10px;
-}
-.info-panel p{
-  margin:4px 0 0;
-  color:var(--text-secondary);
-  font-size:9px;
-  line-height:1.6;
-}
-footer{
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  gap:12px;
-  padding:13px 18px;
-  border-top:1px solid var(--border-soft);
-}
-footer>span{
-  color:var(--text-muted);
-  font-size:9px;
-}
-.footer-actions{
-  display:flex;
-  align-items:center;
-  gap:7px;
-}
-@media(max-width:600px){
-  .grid{grid-template-columns:1fr;gap:0}
-  footer{align-items:stretch;flex-direction:column}
-  .footer-actions{justify-content:flex-end}
-}
+.overlay{position:fixed;inset:0;z-index:1000;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(0,0,0,.65);backdrop-filter:blur(3px)}
+.card{width:100%;max-width:560px;max-height:calc(100vh - 32px);overflow-y:auto;border:1px solid var(--border);border-radius:12px;background:var(--bg-card);box-shadow:0 24px 70px rgba(0,0,0,.3)}
+.head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:17px 19px;border-bottom:1px solid var(--border-soft)}
+.head h3{margin:0;color:var(--text-primary);font-size:15px}
+.head p{margin:5px 0 0;color:var(--text-muted);font-size:10px}
+.close{display:flex;width:30px;height:30px;flex-shrink:0;align-items:center;justify-content:center;border:1px solid var(--border);border-radius:7px;background:transparent;color:var(--text-secondary);cursor:pointer}
+.body{display:grid;gap:14px;padding:16px 19px}
+fieldset{display:grid;gap:10px;margin:0;padding:12px;border:1px solid var(--border-soft);border-radius:9px}
+legend{padding:0 6px;color:var(--text-primary);font-size:11px;font-weight:600}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+label{display:grid;gap:5px}
+label span{color:var(--text-secondary);font-size:10px;font-weight:600}
+input,select{width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:7px;background:var(--bg-card-soft,transparent);color:var(--text-primary);font:inherit;font-size:12px}
+input:focus,select:focus{border-color:var(--primary);outline:2px solid var(--primary-soft)}
+.invalid{border-color:var(--red)}
+.error{color:var(--red);font-size:10px}
+.suggest{display:inline-flex;width:max-content;align-items:center;gap:6px;padding:0;border:0;background:transparent;color:var(--primary);font:inherit;font-size:11px;font-weight:600;cursor:pointer}
+.foot{display:flex;justify-content:flex-end;gap:8px;padding:13px 19px;border-top:1px solid var(--border-soft)}
+@media(max-width:520px){.row{grid-template-columns:1fr}}
 </style>
