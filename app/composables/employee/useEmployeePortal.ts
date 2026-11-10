@@ -780,6 +780,138 @@ export const useEmployeePortal = () => {
     if (!punches.value[date]) punches.value[date] = { ...record }
   }
 
+  const wfhToday = useState<any>('employee-wfh-today', () => null)
+  const isWfhActionLoading = useState('employee-wfh-action-loading', () => false)
+
+  const syncLogIntoPunches = (log: any, trackerStatus?: string) => {
+    if (!log?.work_date) return
+    const dKey = String(log.work_date).slice(0, 10)
+    const hoursWorked = typeof log.hours_worked === 'number'
+      ? log.hours_worked
+      : (log.worked_minutes ? Number((log.worked_minutes / 60).toFixed(1)) : undefined)
+
+    let displayStatus = 'On Time'
+    if (log.source === 'wfh') {
+      if (log.status === 'complete' || trackerStatus === 'accepted') {
+        displayStatus = 'WFH (Verified)'
+      } else if (log.time_out) {
+        displayStatus = 'WFH (Pending Verification)'
+      } else if (log.time_in) {
+        displayStatus = 'WFH (Timed In)'
+      } else {
+        displayStatus = 'WFH Scheduled'
+      }
+    } else if (log.late_minutes > 0) {
+      displayStatus = 'Late'
+    } else if (log.undertime_minutes > 0) {
+      displayStatus = 'Undertime'
+    } else if (log.status === 'incomplete') {
+      displayStatus = log.time_in ? 'Timed In' : 'Incomplete'
+    }
+
+    punches.value[dKey] = {
+      timeIn: log.time_in || undefined,
+      timeOut: log.time_out || undefined,
+      hoursWorked,
+      status: displayStatus,
+    }
+  }
+
+  const fetchTimeLogs = async () => {
+    if (!import.meta.client || !auth.isAuthenticated.value) return
+    try {
+      const res = await $api<{ success: boolean; data: any[] }>('/employee/time-logs')
+      if (res?.success && Array.isArray(res.data)) {
+        for (const log of res.data) {
+          syncLogIntoPunches(log)
+        }
+      }
+    } catch {
+      // Ignore if unavailable
+    }
+  }
+
+  const fetchWfhToday = async () => {
+    if (!import.meta.client || !auth.isAuthenticated.value) return null
+    try {
+      const res = await $api<{ success: boolean; data: any }>('/employee/wfh-requests/today')
+      if (res?.success && res.data) {
+        wfhToday.value = res.data
+        if (res.data.time_log) {
+          syncLogIntoPunches(res.data.time_log, res.data.tracker?.status)
+        }
+        return res.data
+      }
+    } catch {
+      // Ignore if unavailable
+    }
+    return null
+  }
+
+  const timeInWfh = async () => {
+    if (!import.meta.client) return { success: false, message: 'Client only' }
+    isWfhActionLoading.value = true
+    try {
+      const res = await $api<{ success: boolean; message: string; data: any }>('/employee/wfh-requests/time-in', {
+        method: 'POST',
+      })
+      if (res?.data) {
+        wfhToday.value = res.data
+        if (res.data.time_log) {
+          syncLogIntoPunches(res.data.time_log, res.data.tracker?.status)
+        }
+      }
+      return { success: true, message: res?.message || 'WFH Time In recorded successfully.' }
+    } catch (err: any) {
+      const msg = String(
+        Object.values(err?.data?.errors ?? {}).flat()[0] ||
+        err?.data?.message ||
+        'Unable to record WFH Time In.'
+      )
+      return { success: false, message: msg }
+    } finally {
+      isWfhActionLoading.value = false
+    }
+  }
+
+  const timeOutWfh = async (payload: { images: File[]; document?: File | null }) => {
+    if (!import.meta.client) return { success: false, message: 'Client only' }
+    isWfhActionLoading.value = true
+    try {
+      const formData = new FormData()
+      for (const img of payload.images) {
+        formData.append('images[]', img)
+      }
+      if (payload.document) {
+        formData.append('document', payload.document)
+      }
+
+      const res = await $api<{ success: boolean; message: string; data: any }>('/employee/wfh-requests/time-out', {
+        method: 'POST',
+        body: formData,
+      })
+      if (res?.data) {
+        wfhToday.value = res.data
+        if (res.data.time_log) {
+          syncLogIntoPunches(res.data.time_log, res.data.tracker?.status)
+        }
+      }
+      return {
+        success: true,
+        message: res?.message || 'WFH Time Out recorded and Proof of Work submitted for Admin verification.',
+      }
+    } catch (err: any) {
+      const msg = String(
+        Object.values(err?.data?.errors ?? {}).flat()[0] ||
+        err?.data?.message ||
+        'Unable to record WFH Time Out.'
+      )
+      return { success: false, message: msg }
+    } finally {
+      isWfhActionLoading.value = false
+    }
+  }
+
   const storageError = ref('')
 
   onMounted(() => {
@@ -787,6 +919,8 @@ export const useEmployeePortal = () => {
       fetchProfile()
       fetchLeaveTypes()
       fetchRequests()
+      fetchTimeLogs()
+      fetchWfhToday()
     }
   })
 
@@ -834,5 +968,11 @@ export const useEmployeePortal = () => {
     leaveTypesList,
     fetchLeaveTypes,
     fetchRequests,
+    wfhToday,
+    isWfhActionLoading,
+    fetchWfhToday,
+    fetchTimeLogs,
+    timeInWfh,
+    timeOutWfh,
   }
 }

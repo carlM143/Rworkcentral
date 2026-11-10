@@ -64,15 +64,16 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
 
 .wfh-modal {
   display: flex;
-  width: 100%;
-  max-width: 700px;
-  max-height: 90vh;
+  width: min(1180px, 95vw);
+  max-width: 1180px;
+  max-height: 92vh;
   flex-direction: column;
   overflow: hidden;
   border: 1px solid var(--border, #29364d);
-  border-radius: 13px;
+  border-radius: 14px;
   background: var(--bg-card, #131e30);
   color: var(--text-primary, #f8fafc);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.48);
 }
 
 .wfh-modal-head {
@@ -143,9 +144,9 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
 
 .wfh-modal-body :deep(.info-grid) {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
-  margin-bottom: 20px;
+  margin-bottom: 18px;
 }
 
 .wfh-modal-body :deep(.info-grid > div) {

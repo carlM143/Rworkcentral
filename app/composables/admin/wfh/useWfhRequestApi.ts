@@ -8,6 +8,13 @@ export interface WfhEmployeeOption {
   position: string | null
 }
 
+export interface WfhDateBreakdownItem {
+  date: string
+  day_name: string
+  is_working_day: boolean
+  schedule_time?: string | null
+}
+
 export interface WfhRequestRecord {
   id: number
   request_no: string
@@ -15,6 +22,13 @@ export interface WfhRequestRecord {
   start_date: string
   end_date: string
   number_of_days: number
+  calendar_days?: number
+  working_dates?: string[]
+  breakdown?: WfhDateBreakdownItem[]
+  schedule_name?: string | null
+  schedule_code?: string | null
+  working_days?: string[]
+  rest_days?: string[]
   reason: string
   supervisor_name: string
   request_date: string

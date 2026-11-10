@@ -2,6 +2,7 @@ export interface WfhFile {
   id?: number
   path: string
   url: string
+  public_url?: string
   name: string
   mime: 'application/pdf' | 'image'
 }

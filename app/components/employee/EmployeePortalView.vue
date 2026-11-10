@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ArrowUpRight, CalendarDays, Clock3, Umbrella, TimerReset, WalletCards, ClipboardCheck, Plus, Download, Megaphone, X, Info, House } from 'lucide-vue-next'
+import { ArrowUpRight, CalendarDays, Clock3, Umbrella, TimerReset, WalletCards, ClipboardCheck, Plus, Download, Megaphone, X, Info, House, Camera, CheckCircle2, LogIn, LogOut } from 'lucide-vue-next'
+import EmployeeWfhProofModal from '~/components/employee/EmployeeWfhProofModal.vue'
 import EmployeeLeaveDateCalendar from '~/components/employee/EmployeeLeaveDateCalendar.vue'
 import type { EmployeeRequest } from '~/composables/employee/useEmployeePortal'
 import { employeeLeavePolicy } from '~/utils/employeeLeavePolicy'
@@ -21,7 +22,41 @@ const {
   isSubmittingRequest,
   submitError,
   storageError,
+  wfhToday,
+  isWfhActionLoading,
+  timeInWfh,
+  timeOutWfh,
 } = useEmployeePortal()
+
+const wfhProofModalOpen = ref(false)
+const wfhActionError = ref('')
+const wfhPreviewImg = ref<any>(null)
+
+const handleWfhTimeIn = async () => {
+  wfhActionError.value = ''
+  const res = await timeInWfh()
+  if (res.success) {
+    notice.value = res.message
+  } else {
+    wfhActionError.value = res.message
+  }
+}
+
+const openWfhTimeOutModal = () => {
+  wfhActionError.value = ''
+  wfhProofModalOpen.value = true
+}
+
+const handleWfhTimeOutSubmit = async (payload: { images: File[]; document: File | null }) => {
+  wfhActionError.value = ''
+  const res = await timeOutWfh(payload)
+  if (res.success) {
+    wfhProofModalOpen.value = false
+    notice.value = res.message
+  } else {
+    wfhActionError.value = res.message
+  }
+}
 const titles: Record<string, string> = { dashboard: 'Dashboard', attendance: 'Attendance', 'leave-types': 'Leave Credits', requests: 'Requests', payslips: 'Payslips', loans: 'Loans', profile: 'Profile' }
 const requestableLeaves = computed(() => employeeLeavePolicy(profile.value.employmentType).filter(leave => leave.canRequest))
 const leaveCredit = (name: string) => {
@@ -422,11 +457,142 @@ const submitRequest = async () => {
 
     <div v-if="section === 'dashboard' || section === 'attendance'" class="employee-grid">
       <article class="portal-card attendance-overview">
-        <div class="panel-heading"><div><h2>Today's Attendance</h2><p>Your daily time record</p></div><span class="badge" :class="currentPunch?.timeOut ? 'blue' : currentPunch?.timeIn ? 'green' : 'orange'">{{ currentPunch?.status || 'No record' }}</span></div>
-        <div class="time-display">{{ now.toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) }}<small>{{ now.toLocaleDateString('en-PH', { weekday: 'long', month: 'long', day: 'numeric' }) }}</small></div>
-        <div class="punch-summary"><div><span>Time In</span><strong>{{ formatTime(currentPunch?.timeIn) }}</strong></div><div><span>Time Out</span><strong>{{ formatTime(currentPunch?.timeOut) }}</strong></div><div><span>Hours Worked</span><strong>{{ workedHours(currentPunch?.hoursWorked) }}</strong></div></div>
-         <p class="footnote">Attendance will come from the biometric system; the service is not connected yet. Current records are frontend-only.<br>Manual time in/out is not available here. Times shown in your local timezone.</p>
-         <p v-if="section === 'dashboard' || section === 'attendance'" class="home-attendance-note">Read-only · Biometric service not connected</p>
+        <div class="panel-heading">
+          <div>
+            <h2>Today's Attendance</h2>
+            <p>{{ wfhToday?.has_approved_wfh ? 'Approved Work From Home Schedule' : 'Your daily time record' }}</p>
+          </div>
+          <span
+            class="badge"
+            :class="
+              wfhToday?.tracker?.status === 'accepted' || currentPunch?.timeOut
+                ? 'blue'
+                : (wfhToday?.time_log?.time_in || currentPunch?.timeIn)
+                  ? 'green'
+                  : wfhToday?.has_approved_wfh
+                    ? 'purple'
+                    : 'orange'
+            "
+          >
+            {{
+              wfhToday?.has_approved_wfh
+                ? (wfhToday?.tracker?.status === 'accepted'
+                  ? 'WFH Verified'
+                  : wfhToday?.time_log?.time_out
+                    ? 'WFH Timed Out · Pending Verification'
+                    : wfhToday?.time_log?.time_in
+                      ? 'WFH Timed In'
+                      : 'Approved WFH Today')
+                : (currentPunch?.status || 'No record')
+            }}
+          </span>
+        </div>
+
+        <div class="time-display">
+          {{ now.toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) }}
+          <small>{{ now.toLocaleDateString('en-PH', { weekday: 'long', month: 'long', day: 'numeric' }) }}</small>
+        </div>
+
+        <!-- Approved WFH Banner & Time In / Time Out Controls -->
+        <div v-if="wfhToday?.has_approved_wfh" class="wfh-attendance-box">
+          <div class="wfh-banner-row">
+            <div class="wfh-banner-info">
+              <House :size="15" />
+              <div>
+                <strong>{{ wfhToday.wfh?.request_no }} · Approved Work From Home</strong>
+                <small>Scheduled Shift: {{ wfhToday.wfh?.schedule_time || 'Regular Shift' }}</small>
+              </div>
+            </div>
+            <NuxtLink to="/employee/wfh-requests" class="wfh-banner-link">View Request →</NuxtLink>
+          </div>
+
+          <p v-if="wfhActionError" class="wfh-action-error" role="alert">{{ wfhActionError }}</p>
+
+          <!-- Step 1: Time In Button -->
+          <div v-if="!wfhToday.time_log?.time_in" class="wfh-punch-actions">
+            <button
+              type="button"
+              class="wfh-btn wfh-btn-timein"
+              :disabled="isWfhActionLoading"
+              @click="handleWfhTimeIn"
+            >
+              <LogIn :size="17" />
+              <span>{{ isWfhActionLoading ? 'Recording Time In…' : 'Time In (Work From Home)' }}</span>
+            </button>
+            <small class="wfh-punch-hint">Click Time In to start your approved Work From Home shift today.</small>
+          </div>
+
+          <!-- Step 2: Time Out + Attach Live Proof of Work -->
+          <div v-else-if="!wfhToday.time_log?.time_out" class="wfh-punch-actions">
+            <button
+              type="button"
+              class="wfh-btn wfh-btn-timeout"
+              :disabled="isWfhActionLoading"
+              @click="openWfhTimeOutModal"
+            >
+              <Camera :size="17" />
+              <span>Time Out &amp; Picture Proof of Work</span>
+            </button>
+            <small class="wfh-punch-hint">
+              Timing out requires taking a live photo or attaching your Proof of Work images for Admin verification.
+            </small>
+          </div>
+
+          <!-- Step 3: Completed Time Out & Proof of Work Status -->
+          <div v-else class="wfh-completed-box">
+            <div class="wfh-completed-status" :class="wfhToday.tracker?.status || 'submitted'">
+              <CheckCircle2 :size="15" />
+              <span v-if="wfhToday.tracker?.status === 'accepted'">
+                Verified by Admin · Counted as Complete Attendance
+              </span>
+              <span v-else-if="wfhToday.tracker?.status === 'returned'">
+                Proof of Work Returned by Admin: {{ wfhToday.tracker?.remarks || 'Please resubmit.' }}
+              </span>
+              <span v-else>
+                Timed Out · Proof of Work submitted and awaiting Admin verification
+              </span>
+            </div>
+
+            <div v-if="wfhToday.tracker?.images?.length" class="wfh-submitted-thumbs">
+              <button
+                v-for="img in wfhToday.tracker.images"
+                :key="img.id || img.path"
+                type="button"
+                class="wfh-mini-thumb"
+                title="Click to enlarge proof of work"
+                @click="wfhPreviewImg = img"
+              >
+                <img :src="img.url" :alt="img.name" />
+              </button>
+            </div>
+
+            <button
+              v-if="wfhToday.tracker?.status !== 'accepted'"
+              type="button"
+              class="wfh-btn-resubmit"
+              @click="openWfhTimeOutModal"
+            >
+              <Camera :size="14" />
+              <span>{{ wfhToday.tracker?.status === 'returned' ? 'Resubmit Live Proof of Work' : 'Add / Update Proof of Work Photos' }}</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="punch-summary">
+          <div><span>Time In</span><strong>{{ formatTime(wfhToday?.time_log?.time_in || currentPunch?.timeIn) }}</strong></div>
+          <div><span>Time Out</span><strong>{{ formatTime(wfhToday?.time_log?.time_out || currentPunch?.timeOut) }}</strong></div>
+          <div><span>Hours Worked</span><strong>{{ workedHours(wfhToday?.time_log?.hours_worked ?? currentPunch?.hoursWorked) }}</strong></div>
+        </div>
+
+        <template v-if="!wfhToday?.has_approved_wfh">
+          <p class="footnote">
+            Online Time In / Time Out on the Dashboard is only available when you have an <strong>Approved Work From Home</strong> schedule for today.<br>
+            Regular on-site attendance is recorded via the biometric system.
+          </p>
+          <p v-if="section === 'dashboard' || section === 'attendance'" class="home-attendance-note">
+            No Approved WFH Today · On-site Biometric Attendance
+          </p>
+        </template>
       </article>
       <article v-if="section === 'dashboard'" class="portal-card quick-actions-card">
         <div class="panel-heading"><div><h2>Quick Actions</h2><p>Make a request in just a few clicks</p></div></div>
@@ -735,6 +901,38 @@ const submitRequest = async () => {
         </div>
       </form>
     </dialog>
+
+    <!-- WFH Time Out & Live Proof of Work Camera Modal -->
+    <EmployeeWfhProofModal
+      v-model="wfhProofModalOpen"
+      :title="wfhToday?.time_log?.time_out ? 'Update WFH Proof of Work' : 'WFH Time Out & Picture Proof of Work'"
+      :subtitle="`${wfhToday?.wfh?.request_no || 'Approved WFH'} · Take a live photo or attach your Proof of Work images to complete Time Out.`"
+      :submit-label="wfhToday?.time_log?.time_out ? 'Submit Updated Proof of Work' : 'Submit Proof of Work & Time Out'"
+      :saving="isWfhActionLoading"
+      :error-message="wfhActionError"
+      @submit="handleWfhTimeOutSubmit"
+    />
+
+    <!-- Employee WFH Full-Screen Image Lightbox -->
+    <Teleport to="body">
+      <div
+        v-if="wfhPreviewImg"
+        class="emp-wfh-lightbox"
+        role="dialog"
+        aria-modal="true"
+        @click.self="wfhPreviewImg = null"
+      >
+        <div class="emp-wfh-lightbox-card">
+          <div class="emp-wfh-lightbox-head">
+            <strong>{{ wfhPreviewImg.name }}</strong>
+            <button type="button" @click="wfhPreviewImg = null">
+              <X :size="18" />
+            </button>
+          </div>
+          <img :src="wfhPreviewImg.url" :alt="wfhPreviewImg.name" />
+        </div>
+      </div>
+    </Teleport>
   </section>
 </template>
 
@@ -1474,6 +1672,238 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--p
 @media (max-width: 520px) {
   .request-leave-dates {
     grid-template-columns: 1fr;
+  }
+}
+
+/* WFH Today Attendance Controls */
+.wfh-attendance-box {
+  margin: 0 20px 14px;
+  padding: 13px 15px;
+  border-radius: 11px;
+  border: 1px solid rgba(37, 99, 235, 0.3);
+  background: rgba(37, 99, 235, 0.05);
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+}
+
+.wfh-banner-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.wfh-banner-info {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: var(--primary);
+}
+
+.wfh-banner-info strong {
+  display: block;
+  font-size: 12.5px;
+  color: var(--text-primary);
+}
+
+.wfh-banner-info small {
+  display: block;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.wfh-banner-link {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--primary);
+  text-decoration: none;
+}
+
+.wfh-action-error {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 7px;
+  background: rgba(239, 68, 68, 0.12);
+  color: #ef4444;
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.wfh-punch-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.wfh-btn {
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 11px 16px;
+  border-radius: 9px;
+  border: none;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  color: #ffffff;
+  cursor: pointer;
+  transition: opacity 0.15s ease, transform 0.12s ease;
+}
+
+.wfh-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.wfh-btn-timein {
+  background: linear-gradient(135deg, #10b981, #059669);
+  box-shadow: 0 4px 14px rgba(16, 185, 129, 0.25);
+}
+
+.wfh-btn-timeout {
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.25);
+}
+
+.wfh-punch-hint {
+  color: var(--text-secondary);
+  font-size: 11px;
+  text-align: center;
+}
+
+.wfh-completed-box {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.wfh-completed-status {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 11px;
+  border-radius: 8px;
+  font-size: 11.5px;
+  font-weight: 600;
+  background: rgba(59, 130, 246, 0.12);
+  color: #3b82f6;
+}
+
+.wfh-completed-status.accepted {
+  background: rgba(16, 185, 129, 0.14);
+  color: #10b981;
+}
+
+.wfh-completed-status.returned {
+  background: rgba(239, 68, 68, 0.14);
+  color: #ef4444;
+}
+
+.wfh-submitted-thumbs {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+
+.wfh-mini-thumb {
+  width: 76px;
+  height: 58px;
+  padding: 0;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  display: block;
+  cursor: zoom-in;
+}
+
+.wfh-mini-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.emp-wfh-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 25000;
+  background: rgba(8, 13, 24, 0.92);
+  backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.emp-wfh-lightbox-card {
+  max-width: 90vw;
+  max-height: 88vh;
+  background: var(--bg-card, #111827);
+  border: 1px solid var(--border, #334155);
+  border-radius: 14px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
+}
+
+.emp-wfh-lightbox-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--text-primary, #f8fafc);
+  font-size: 13px;
+}
+
+.emp-wfh-lightbox-head button {
+  border: 1px solid var(--border, #334155);
+  background: transparent;
+  color: var(--text-primary, #f8fafc);
+  width: 30px;
+  height: 30px;
+  border-radius: 7px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.emp-wfh-lightbox-card img {
+  max-width: 86vw;
+  max-height: 78vh;
+  object-fit: contain;
+  border-radius: 8px;
+  display: block;
+}
+
+.wfh-btn-resubmit {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 11px;
+  border-radius: 7px;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+@media (max-width: 850px) {
+  .wfh-attendance-box {
+    margin: 0 12px 10px;
+    padding: 11px 12px;
   }
 }
 
