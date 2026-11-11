@@ -67,7 +67,9 @@ export default defineNuxtConfig({
 
   runtimeConfig: {
     public: {
-      apiBase: 'http://localhost:8000/api',
+      // Set NUXT_PUBLIC_API_BASE in .env (local) or .env.production (live build).
+      // Falls back to the local Laravel server.
+      apiBase: process.env.NUXT_PUBLIC_API_BASE || 'http://localhost:8000/api',
     },
   },
 })
