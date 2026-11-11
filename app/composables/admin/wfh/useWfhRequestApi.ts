@@ -1,4 +1,4 @@
-export type WfhRequestStatus = 'pending' | 'approved' | 'rejected'
+export type WfhRequestStatus = 'pending' | 'approved' | 'rejected' | 'cancelled'
 
 export interface WfhEmployeeOption {
   id: number
@@ -36,6 +36,13 @@ export interface WfhRequestRecord {
   status: WfhRequestStatus
   approved_by: string | null // user who approved OR rejected
   approved_at: string | null
+  has_data?: boolean
+  counts?: {
+    attachments: number
+    accepted: number
+    submitted: number
+    time_logs?: number
+  }
 }
 
 export interface StoreWfhRequestPayload {
@@ -105,5 +112,11 @@ export const useWfhRequestApi = () => {
       headers: headers(),
     })
 
-  return { list, employees, preview, store, approve, reject, todayLocal }
+  const remove = (id: number) =>
+    $api<ApiResponse<{ message: string }>>(`/admin/wfh-requests/${id}`, {
+      method: 'DELETE',
+      headers: headers(),
+    })
+
+  return { list, employees, preview, store, approve, reject, remove, todayLocal }
 }

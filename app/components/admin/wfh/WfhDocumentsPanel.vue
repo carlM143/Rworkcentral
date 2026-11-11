@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import {
-  CalendarDays, Check, ClipboardList, Download, FileText, History, Paperclip,
+  Ban, CalendarDays, Check, ClipboardList, Download, FileText, History, Paperclip,
   RefreshCw, RotateCcw, Upload, X,
 } from 'lucide-vue-next'
 import PageHeader from '~/components/shared/PageHeader.vue'
@@ -12,6 +12,7 @@ import WfhActionMenu from '~/components/admin/wfh/WfhActionMenu.vue'
 import WfhFilters from '~/components/admin/wfh/WfhFilters.vue'
 import WfhStatusPill from '~/components/admin/wfh/WfhStatusPill.vue'
 import WfhDocumentModal from '~/components/admin/wfh/WfhDocumentModal.vue'
+import WfhDeleteConfirmModal from '~/components/admin/wfh/WfhDeleteConfirmModal.vue'
 import {
   useWfhDocumentApi, wfhErrorMessage,
   type WfhDocumentRecord,
@@ -28,6 +29,7 @@ const STATUS_LABELS: Record<string, string> = {
   returned: 'Returned',
   incomplete: 'Incomplete',
   completed: 'Completed',
+  cancelled: 'Cancelled',
 }
 
 const api = useWfhDocumentApi()
@@ -87,9 +89,9 @@ watch([search, department, status], () => {
 const sum = (pick: (r: WfhDocumentRecord) => number) => records.value.reduce((n, r) => n + pick(r), 0)
 
 const stats = computed(() => [
-  { label: 'Approved WFH Requests', value: records.value.length, description: 'With daily tracking', icon: FileText, tone: 'blue' as const },
-  { label: 'Days for Review', value: sum(r => r.counts.submitted), description: 'Submitted, awaiting HR', icon: CalendarDays, tone: 'orange' as const },
-  { label: 'Returned Days', value: sum(r => r.counts.returned), description: 'Waiting for resubmission', icon: RotateCcw, tone: 'red' as const },
+  { label: 'Approved WFH Requests', value: records.value.filter(r => r.status === 'approved').length, description: 'With daily tracking', icon: FileText, tone: 'blue' as const },
+  { label: 'Days for Review', value: sum(r => r.status === 'approved' ? r.counts.submitted : 0), description: 'Submitted, awaiting HR', icon: CalendarDays, tone: 'orange' as const },
+  { label: 'Returned Days', value: sum(r => r.status === 'approved' ? r.counts.returned : 0), description: 'Waiting for resubmission', icon: RotateCcw, tone: 'red' as const },
   { label: 'Attachments', value: sum(r => r.counts.attachments), description: 'Images and documents', icon: Paperclip, tone: 'purple' as const },
 ])
 
@@ -97,18 +99,44 @@ const stats = computed(() => [
 // ROW ACTIONS
 // =====================================================
 
-const menuItems: WfhMenuItem[] = [
+const menuItems = (record: WfhDocumentRecord): WfhMenuItem[] => [
   { key: 'days', label: 'Verify Proof of Work', icon: ClipboardList },
   { key: 'request', label: 'View Request', icon: FileText },
   { key: 'history', label: 'View History', icon: History, dividerBefore: true },
+  ...(record.status === 'approved' ? [{ key: 'cancel', label: 'Cancel WFH', icon: Ban, danger: true, dividerBefore: true }] : []),
 ]
 
 const modalRecord = ref<WfhDocumentRecord | null>(null)
 const modalMode = ref<DocMode>('days')
+const cancelRecord = ref<WfhDocumentRecord | null>(null)
+const cancelBusy = ref(false)
+const cancelError = ref('')
 
 const open = (record: WfhDocumentRecord, mode: string) => {
+  if (mode === 'cancel') {
+    cancelRecord.value = record
+    cancelError.value = ''
+    return
+  }
   modalMode.value = mode as DocMode
   modalRecord.value = record
+}
+
+const handleCancelConfirm = async (id: number) => {
+  cancelBusy.value = true
+  cancelError.value = ''
+  try {
+    const res = await api.cancel(id)
+    const index = records.value.findIndex(r => r.id === id)
+    if (index >= 0) records.value[index] = res.data
+    status.value = 'cancelled'
+    flash.value = res?.message || 'Work From Home request was cancelled successfully.'
+    cancelRecord.value = null
+  } catch (error: unknown) {
+    cancelError.value = wfhErrorMessage(error, 'Failed to cancel WFH request.')
+  } finally {
+    cancelBusy.value = false
+  }
 }
 
 const onUpdated = (record: WfhDocumentRecord, message?: string) => {
@@ -165,11 +193,11 @@ const exportCsv = () => {
     />
 
     <BaseDataTable
-      title="Approved WFH Requests"
-      description="Open a request to review each scheduled WFH day."
+      title="WFH Requests"
+      description="Review approved requests and view cancelled request history."
       :has-rows="pageRows.length > 0"
       :loading="loading"
-      :empty-title="records.length ? 'No requests match your filters' : 'No approved WFH requests yet'"
+      :empty-title="records.length ? 'No requests match your filters' : 'No approved or cancelled WFH requests yet'"
       :empty-description="records.length ? 'Try adjusting your filters.' : 'Approve a request in WFH Requests to start daily review.'"
     >
       <template #headers>
@@ -200,7 +228,7 @@ const exportCsv = () => {
           <td><WfhStatusPill :status="d.document_status" :label="STATUS_LABELS[d.document_status] ?? d.document_status" /></td>
           <td class="text-right">
             <WfhActionMenu
-              :items="menuItems"
+              :items="menuItems(d)"
               :label="`Actions for ${d.request_no}`"
               @select="key => open(d, key)"
             />
@@ -231,6 +259,17 @@ const exportCsv = () => {
       :initial-mode="modalMode"
       @close="modalRecord = null"
       @updated="onUpdated"
+      @cancel="d => { modalRecord = null; cancelRecord = d; }"
+    />
+
+    <WfhDeleteConfirmModal
+      v-if="cancelRecord"
+      :record="cancelRecord"
+      :busy="cancelBusy"
+      :error-message="cancelError"
+      mode="cancel"
+      @close="cancelRecord = null"
+      @confirm="handleCancelConfirm"
     />
   </section>
 </template>

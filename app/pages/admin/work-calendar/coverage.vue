@@ -31,6 +31,12 @@ interface HolidayType {
   type_code?: string
 }
 
+interface HolidayDateEntry {
+  id: number
+  holiday_id: number
+  holiday_date: string
+}
+
 interface Holiday {
   id: number
   holiday_name: string
@@ -41,6 +47,7 @@ interface Holiday {
   holiday_type?: HolidayType
   employee_coverage: 'all' | 'except' | 'only'
   covered_employees: { id: number }[]
+  holiday_dates?: HolidayDateEntry[]
 }
 
 interface Employee {
@@ -182,6 +189,17 @@ const formatDate = (dateStr?: string | null) => {
     day: 'numeric',
     year: 'numeric',
   })
+}
+
+const formatHolidayDates = (item?: Holiday | null) => {
+  if (!item) return '—'
+  const dates = item.holiday_dates?.length
+    ? item.holiday_dates.map(d => d.holiday_date.slice(0, 10)).sort()
+    : [item.holiday_date.slice(0, 10)]
+  if (dates.length > 1) {
+    return `${formatDate(dates[0])} – ${formatDate(dates[dates.length - 1])} (${dates.length} days)`
+  }
+  return formatDate(dates[0])
 }
 
 // Available filter options
@@ -401,7 +419,7 @@ const save = async () => {
                 :key="item.id"
                 :value="item.id"
               >
-                {{ item.holiday_date.slice(0, 10) }} — {{ item.holiday_name }}
+                {{ formatHolidayDates(item) }} — {{ item.holiday_name }}
               </option>
             </select>
           </div>
@@ -412,7 +430,7 @@ const save = async () => {
       <div v-if="holiday" class="cw-holiday-meta">
         <div class="cw-meta-cell">
           <span class="cw-meta-label">Holiday Date</span>
-          <strong class="cw-meta-val">{{ formatDate(holiday.holiday_date) }}</strong>
+          <strong class="cw-meta-val">{{ formatHolidayDates(holiday) }}</strong>
         </div>
 
         <div class="cw-meta-cell">
