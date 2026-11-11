@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { ChevronLeft, ChevronRight, Plus, X } from 'lucide-vue-next'
+import { ChevronLeft, ChevronRight, Plus, Upload, X } from 'lucide-vue-next'
 import EmployeeLeaveDateCalendar from '~/components/employee/EmployeeLeaveDateCalendar.vue'
+import HolidayImportModal from '~/components/admin/holiday/HolidayImportModal.vue'
 
 definePageMeta({ alias: ['/admin/holiday-leave', '/admin/work-calendar'] })
 interface Location { id: number; location_name: string; city: string }
@@ -22,6 +23,7 @@ const error = ref('')
 const data = ref<CalendarData>({ holidays: [], locations: [], types: [] })
 const classificationOptions = computed(() => data.value.types.filter(type => ['REGULAR', 'SPECIAL', 'COMPANY', 'LOCAL'].includes(type.type_code)))
 const formOpen = ref(false)
+const importOpen = ref(false)
 const saving = ref(false)
 const formError = ref('')
 const editingHoliday = ref<Holiday | null>(null)
@@ -107,12 +109,24 @@ const remove = async (holiday: Holiday) => {
   catch (problem: any) { error.value = problem?.data?.message || 'Unable to remove holiday.' }
   finally { saving.value = false }
 }
+const onImported = async (importedYear: number, message: string) => {
+  importOpen.value = false
+  success('Holidays Imported', message)
+  if (importedYear !== month.value.getFullYear()) {
+    month.value = new Date(importedYear, month.value.getMonth(), 1)
+  } else {
+    await load()
+  }
+}
 </script>
 
 <template>
   <section class="work-calendar">
     <PageHeader title="Holiday" description="Manage single-day or multi-day straight holidays and working/non-working days by location.">
-      <AppButton :icon="Plus" :disabled="loading || !!error || !classificationOptions.length" @click="selectedDay = ''; openForm()">Add Holiday</AppButton>
+      <div class="header-actions">
+        <AppButton variant="secondary" :icon="Upload" :disabled="loading || !!error || !classificationOptions.length" @click="importOpen = true">Import Holidays</AppButton>
+        <AppButton :icon="Plus" :disabled="loading || !!error || !classificationOptions.length" @click="selectedDay = ''; openForm()">Add Holiday</AppButton>
+      </div>
     </PageHeader>
     <div v-if="error" class="notice" role="alert">{{ error }} <button type="button" @click="load">Retry</button></div>
     <div class="toolbar">
@@ -190,11 +204,21 @@ const remove = async (holiday: Holiday) => {
         </fieldset>
       </form>
     </div>
+    <HolidayImportModal
+      v-if="importOpen"
+      :types="data.types"
+      :locations="data.locations"
+      :default-year="month.getFullYear()"
+      :default-location-id="locationId"
+      @close="importOpen = false"
+      @imported="onImported"
+    />
   </section>
 </template>
 
 <style scoped>
 .work-calendar { max-width: 1660px; margin: auto; }
+.header-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .toolbar, .month-nav, .dialog-heading { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .toolbar { padding: 16px; margin-bottom: 14px; background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; }
 .month-nav { margin-left: auto; } .month-nav button { font-size: 12px; font-weight: 500; line-height: 1.4; }
