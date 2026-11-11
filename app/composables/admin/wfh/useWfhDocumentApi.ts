@@ -15,6 +15,7 @@ export type WfhDayStatus =
   | 'returned'
 
 export type WfhDocumentStatus =
+  | 'cancelled'
   | 'for_review'
   | 'returned'
   | 'completed'
@@ -54,6 +55,7 @@ export interface WfhDocumentRecord {
   approved_by: string | null
   approved_at: string | null
   has_schedule: boolean
+  has_data?: boolean
   document_status: WfhDocumentStatus
   counts: {
     expected: number
@@ -62,6 +64,7 @@ export interface WfhDocumentRecord {
     accepted: number
     returned: number
     attachments: number
+    time_logs?: number
   }
   days?: WfhDay[]
 }
@@ -121,7 +124,20 @@ export const useWfhDocumentApi = () => {
       headers: headers(),
     })
 
-  return { list, show, attach, accept, returnDay }
+  const cancel = (id: number, reason?: string) =>
+    $api<ApiResponse<WfhDocumentRecord>>(`/admin/wfh-documents/${id}/cancel`, {
+      method: 'PATCH',
+      body: { reason: reason || null },
+      headers: headers(),
+    })
+
+  const remove = (id: number) =>
+    $api<ApiResponse<{ message: string }>>(`/admin/wfh-documents/${id}`, {
+      method: 'DELETE',
+      headers: headers(),
+    })
+
+  return { list, show, attach, accept, returnDay, cancel, remove }
 }
 
 /** Readable message from a Laravel error response. */

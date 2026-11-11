@@ -19,6 +19,7 @@ import {
   Paperclip,
   History,
   Info,
+  Ban,
 } from 'lucide-vue-next'
 import WfhModalShell from '~/components/admin/wfh/WfhModalShell.vue'
 import WfhStatusPill from '~/components/admin/wfh/WfhStatusPill.vue'
@@ -42,6 +43,7 @@ const props = withDefaults(defineProps<{
 const emit = defineEmits<{
   close: []
   updated: [record: WfhDocumentRecord, message?: string]
+  cancel: [record: WfhDocumentRecord]
 }>()
 
 const STATUS_LABELS: Record<string, string> = {
@@ -313,7 +315,7 @@ const history = computed(() => {
             <span>Waiting for employee to attach proof of work.</span>
           </div>
 
-          <div v-if="day.status === 'submitted' && day.tracker_id" class="day-actions">
+          <div v-if="detail.status === 'approved' && day.status === 'submitted' && day.tracker_id" class="day-actions">
             <button class="btn reject" @click="startDecision(day, 'return')">
               <RotateCcw :size="14" /> Return
             </button>
@@ -408,6 +410,9 @@ const history = computed(() => {
       </template>
 
       <div class="modal-actions">
+        <button v-if="detail.status === 'approved'" type="button" class="btn reject" @click="emit('cancel', detail)">
+          <Ban :size="15" /> Cancel WFH
+        </button>
         <button class="btn primary" @click="backToDays"><ClipboardList :size="15" /> Review days</button>
       </div>
     </template>
@@ -453,7 +458,7 @@ const history = computed(() => {
           </div>
 
           <div class="wfh-lightbox-controls">
-            <template v-if="lightboxDay?.status === 'submitted' && lightboxDay.tracker_id">
+            <template v-if="detail.status === 'approved' && lightboxDay?.status === 'submitted' && lightboxDay.tracker_id">
               <button type="button" class="lb-action-btn reject" @click="startDecision(lightboxDay, 'return')">
                 <RotateCcw :size="14" /> Return Day
               </button>

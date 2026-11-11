@@ -2,7 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import {
   CalendarDays, Check, ClipboardList, Download, Eye, FileText, History, Plus,
-  RefreshCw, ShieldCheck, X,
+  RefreshCw, ShieldCheck, Ban, X,
 } from 'lucide-vue-next'
 import PageHeader from '~/components/shared/PageHeader.vue'
 import StatCard from '~/components/shared/StatCard.vue'
@@ -13,7 +13,8 @@ import WfhFilters from '~/components/admin/wfh/WfhFilters.vue'
 import WfhStatusPill from '~/components/admin/wfh/WfhStatusPill.vue'
 import WfhRequestFormModal from '~/components/admin/wfh/WfhRequestFormModal.vue'
 import WfhRequestDetailModal from '~/components/admin/wfh/WfhRequestDetailModal.vue'
-import { wfhErrorMessage } from '~/composables/admin/wfh/useWfhDocumentApi'
+import WfhDeleteConfirmModal from '~/components/admin/wfh/WfhDeleteConfirmModal.vue'
+import { useWfhDocumentApi, wfhErrorMessage } from '~/composables/admin/wfh/useWfhDocumentApi'
 import {
   useWfhRequestApi,
   type WfhEmployeeOption, type WfhRequestRecord,
@@ -27,9 +28,11 @@ const STATUS_LABELS: Record<string, string> = {
   pending: 'Pending',
   approved: 'Approved',
   rejected: 'Rejected',
+  cancelled: 'Cancelled',
 }
 
 const api = useWfhRequestApi()
+const documentApi = useWfhDocumentApi()
 
 // =====================================================
 // DATA
@@ -121,14 +124,23 @@ const menuItems = (record: WfhRequestRecord): WfhMenuItem[] => [
     ? [{ key: 'documents', label: 'Open Document Review', icon: ClipboardList }]
     : []),
   { key: 'history', label: 'View History', icon: History, dividerBefore: true },
+  ...(['pending', 'approved'].includes(record.status) ? [{ key: 'cancel', label: 'Cancel WFH', icon: Ban, danger: true, dividerBefore: true }] : []),
 ]
 
 const detailRecord = ref<WfhRequestRecord | null>(null)
 const detailMode = ref<'view' | 'decide' | 'history'>('view')
 const detailAction = ref<'approve' | 'reject'>('approve')
 const createOpen = ref(false)
+const deleteRecord = ref<WfhRequestRecord | null>(null)
+const deleteBusy = ref(false)
+const deleteError = ref('')
 
 const onAction = (record: WfhRequestRecord, key: string) => {
+  if (key === 'cancel') {
+    deleteRecord.value = record
+    deleteError.value = ''
+    return
+  }
   if (key === 'documents') {
     navigateTo('/admin/wfh/documents')
     return
@@ -136,6 +148,21 @@ const onAction = (record: WfhRequestRecord, key: string) => {
   detailMode.value = key === 'approve' || key === 'reject' ? 'decide' : (key as 'view' | 'history')
   detailAction.value = key === 'reject' ? 'reject' : 'approve'
   detailRecord.value = record
+}
+
+const handleDeleteConfirm = async (id: number) => {
+  deleteBusy.value = true
+  deleteError.value = ''
+  try {
+    const res = await documentApi.cancel(id)
+    await load()
+    flash.value = res?.message || 'WFH request cancelled successfully.'
+    deleteRecord.value = null
+  } catch (error: unknown) {
+    deleteError.value = wfhErrorMessage(error, 'Failed to cancel WFH request.')
+  } finally {
+    deleteBusy.value = false
+  }
 }
 
 const onSaved = (record: WfhRequestRecord, message: string) => {
@@ -265,6 +292,17 @@ const exportCsv = () => {
       :initial-action="detailAction"
       @close="detailRecord = null"
       @saved="onSaved"
+      @delete="r => { detailRecord = null; deleteRecord = r; }"
+    />
+
+    <WfhDeleteConfirmModal
+      v-if="deleteRecord"
+      :record="deleteRecord"
+      :busy="deleteBusy"
+      :error-message="deleteError"
+      mode="cancel"
+      @close="deleteRecord = null"
+      @confirm="handleDeleteConfirm"
     />
   </section>
 </template>

@@ -188,7 +188,12 @@ const openEditModal = (record: CompanyRecord) => {
   editingId.value = record.id
   form.company_name = record.company_name
   form.locations = []
-  existingLocations.value = record.locations ?? []
+  existingLocations.value = (record.locations ?? []).map(loc => ({
+    id: loc.id,
+    location_name: loc.location_name ?? '',
+    city: loc.city ?? '',
+    province: loc.province ?? '',
+  }))
   form.status = record.status ?? true
   errorMessage.value = ''
   successMessage.value = ''
@@ -221,6 +226,10 @@ const handleSave = async () => {
     errorMessage.value = 'Add at least one location.'
     return
   }
+  if (existingLocations.value.some(location => !location.location_name.trim() || !location.city.trim())) {
+    errorMessage.value = 'Enter a name and city for each existing location.'
+    return
+  }
   if (form.locations.some(location => !location.location_name.trim() || !location.city.trim())) {
     errorMessage.value = 'Enter a name and city for each new location.'
     return
@@ -233,7 +242,19 @@ const handleSave = async () => {
   try {
     const payload = {
       company_name: form.company_name.trim(),
-      locations: form.locations.map(location => ({ location_name: location.location_name.trim(), city: location.city.trim(), province: location.province?.trim() || null })),
+      locations: [
+        ...existingLocations.value.map(location => ({
+          id: location.id,
+          location_name: location.location_name.trim(),
+          city: location.city.trim(),
+          province: location.province?.trim() || null,
+        })),
+        ...form.locations.map(location => ({
+          location_name: location.location_name.trim(),
+          city: location.city.trim(),
+          province: location.province?.trim() || null,
+        })),
+      ],
       status: form.status,
     }
 
@@ -589,18 +610,114 @@ onUnmounted(() => {
                 />
               </label>
 
-              <div class="full-col">
-                <strong>Existing locations</strong>
-                <p v-if="!existingLocations.length">No separate locations saved yet.</p>
-                <p v-for="location in existingLocations" :key="location.id">{{ location.location_name }} — {{ location.city }}{{ location.province ? `, ${location.province}` : '' }}</p>
+              <div v-if="editingId !== null" class="full-col cw-loc-section">
+                <div class="cw-loc-section-head">
+                  <strong>Existing locations</strong>
+                  <span>Edit the name, city, or province of any saved location below.</span>
+                </div>
+                <p v-if="!existingLocations.length" class="cw-loc-empty">No separate locations saved yet.</p>
+                <div
+                  v-for="(location, idx) in existingLocations"
+                  :key="location.id ?? idx"
+                  class="cw-loc-card"
+                >
+                  <div class="cw-loc-grid">
+                    <label>
+                      <span>Location name <b>*</b></span>
+                      <input
+                        v-model="location.location_name"
+                        type="text"
+                        required
+                        :disabled="saving"
+                        placeholder="e.g. Pasig"
+                      />
+                    </label>
+                    <label>
+                      <span>City <b>*</b></span>
+                      <input
+                        v-model="location.city"
+                        type="text"
+                        required
+                        :disabled="saving"
+                        placeholder="e.g. Manila"
+                      />
+                    </label>
+                    <label>
+                      <span>Province</span>
+                      <input
+                        v-model="location.province"
+                        type="text"
+                        :disabled="saving"
+                        placeholder="Optional"
+                      />
+                    </label>
+                  </div>
+                </div>
               </div>
-              <div v-for="(location, index) in form.locations" :key="index" class="full-col">
-                <label><span>Location name <b>*</b></span><input v-model="location.location_name" required :disabled="saving" placeholder="e.g. Main Office" /></label>
-                <label><span>City <b>*</b></span><input v-model="location.city" required :disabled="saving" placeholder="e.g. Manila" /></label>
-                <label><span>Province</span><input v-model="location.province" :disabled="saving" placeholder="Optional" /></label>
-                <button type="button" class="cw-btn cw-outline" :disabled="saving" @click="form.locations.splice(index, 1)">Remove new location</button>
+
+              <div v-if="form.locations.length" class="full-col cw-loc-section">
+                <div class="cw-loc-section-head">
+                  <strong>{{ editingId === null ? 'Company locations' : 'New locations to add' }}</strong>
+                </div>
+                <div
+                  v-for="(location, index) in form.locations"
+                  :key="index"
+                  class="cw-loc-card is-new"
+                >
+                  <div class="cw-loc-grid">
+                    <label>
+                      <span>Location name <b>*</b></span>
+                      <input
+                        v-model="location.location_name"
+                        type="text"
+                        required
+                        :disabled="saving"
+                        placeholder="e.g. Main Office"
+                      />
+                    </label>
+                    <label>
+                      <span>City <b>*</b></span>
+                      <input
+                        v-model="location.city"
+                        type="text"
+                        required
+                        :disabled="saving"
+                        placeholder="e.g. Manila"
+                      />
+                    </label>
+                    <label>
+                      <span>Province</span>
+                      <input
+                        v-model="location.province"
+                        type="text"
+                        :disabled="saving"
+                        placeholder="Optional"
+                      />
+                    </label>
+                  </div>
+                  <div class="cw-loc-card-actions">
+                    <button
+                      type="button"
+                      class="cw-btn cw-outline cw-btn-sm"
+                      :disabled="saving"
+                      @click="form.locations.splice(index, 1)"
+                    >
+                      <Trash2 :size="13" />
+                      <span>Remove new location</span>
+                    </button>
+                  </div>
+                </div>
               </div>
-              <button type="button" class="cw-btn cw-outline" :disabled="saving" @click="form.locations.push(newLocation())">Add location</button>
+
+              <button
+                type="button"
+                class="cw-btn cw-outline full-col"
+                :disabled="saving"
+                @click="form.locations.push(newLocation())"
+              >
+                <Plus :size="15" />
+                <span>Add location</span>
+              </button>
 
               <label class="full-col">
                 <span>Operational Status <b>*</b></span>
@@ -1207,7 +1324,7 @@ onUnmounted(() => {
 
 .cw-modal,
 .cw-confirm {
-  width: min(580px, 100%);
+  width: min(680px, 100%);
   max-height: 90vh;
   overflow-y: auto;
   padding: 24px;
@@ -1216,6 +1333,61 @@ onUnmounted(() => {
   background: var(--bg-card, #ffffff);
   color: var(--text-primary, #172033);
   box-shadow: 0 20px 70px rgba(0, 0, 0, 0.27);
+}
+
+.cw-loc-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.cw-loc-section-head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.cw-loc-section-head strong {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-primary, #172033);
+}
+
+.cw-loc-section-head span {
+  font-size: 11px;
+  color: var(--text-secondary, #667085);
+}
+
+.cw-loc-card {
+  padding: 12px;
+  border: 1px solid var(--border, #e6eaf0);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--bg-card-soft, #f8fafc) 65%, var(--bg-card, #ffffff));
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.cw-loc-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.cw-loc-card-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.cw-btn-sm {
+  padding: 7px 11px;
+  font-size: 11px;
+}
+
+@media (max-width: 640px) {
+  .cw-loc-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .cw-confirm {

@@ -828,7 +828,7 @@ const submit = async () => {
                   <span>Daily Proof of Work (Attendance Verification)</span>
                 </div>
                 <p class="pow-section-subtitle">
-                  Attach your daily proof-of-work images or documents below. Once verified by Admin, each day is counted as complete attendance.
+                  Time In on your approved WFH day from the Dashboard, then Time Out with a live photo of your Proof of Work. Once verified by Admin, each day is counted as complete attendance.
                 </p>
               </div>
               <div v-if="selected.counts" class="pow-progress-pills">
@@ -877,18 +877,22 @@ const submit = async () => {
                       {{ DAY_STATUS_LABELS[day.status] ?? day.status }}
                     </span>
                     <button
-                      v-if="day.status !== 'accepted'"
+                      v-if="day.status !== 'accepted' && (day.images.length || day.document)"
                       type="button"
                       class="pow-attach-btn"
                       @click="startDayUpload(day.date)"
                     >
                       <Camera :size="13" />
                       <span>
-                        {{ day.status === 'returned' ? 'Resubmit Proof' : (day.images.length || day.document ? 'Update Proof' : 'Picture / Attach Proof') }}
+                        {{ day.status === 'returned' ? 'Resubmit Proof' : 'Update Proof' }}
                       </span>
                     </button>
                   </div>
                 </div>
+
+                <p v-if="day.status !== 'accepted' && !day.images.length && !day.document" class="pow-day-meta">
+                  Proof of Work is attached when you Time Out from the Dashboard on this day.
+                </p>
 
                 <!-- Uploaded Files Display -->
                 <div v-if="day.images.length || day.document" class="pow-files-grid">

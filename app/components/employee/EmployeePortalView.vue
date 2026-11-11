@@ -584,15 +584,9 @@ const submitRequest = async () => {
           <div><span>Hours Worked</span><strong>{{ workedHours(wfhToday?.time_log?.hours_worked ?? currentPunch?.hoursWorked) }}</strong></div>
         </div>
 
-        <template v-if="!wfhToday?.has_approved_wfh">
-          <p class="footnote">
-            Online Time In / Time Out on the Dashboard is only available when you have an <strong>Approved Work From Home</strong> schedule for today.<br>
-            Regular on-site attendance is recorded via the biometric system.
-          </p>
-          <p v-if="section === 'dashboard' || section === 'attendance'" class="home-attendance-note">
-            No Approved WFH Today · On-site Biometric Attendance
-          </p>
-        </template>
+        <p v-if="!wfhToday?.has_approved_wfh" class="footnote">
+          Regular on-site attendance is recorded via the biometric system.
+        </p>
       </article>
       <article v-if="section === 'dashboard'" class="portal-card quick-actions-card">
         <div class="panel-heading"><div><h2>Quick Actions</h2><p>Make a request in just a few clicks</p></div></div>
@@ -1757,6 +1751,23 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--p
 .wfh-btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+.wfh-locked .wfh-locked-actions {
+  flex-direction: row;
+  gap: 10px;
+}
+
+.wfh-locked .wfh-btn:disabled {
+  opacity: 0.4;
+  box-shadow: none;
+  filter: grayscale(0.6);
+}
+
+.wfh-locked .wfh-punch-hint {
+  display: block;
+  margin-top: 8px;
+  text-align: center;
 }
 
 .wfh-btn-timein {
