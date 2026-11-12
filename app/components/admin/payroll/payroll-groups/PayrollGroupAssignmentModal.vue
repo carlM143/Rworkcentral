@@ -4,6 +4,7 @@ import {
   UserPlus,
   History,
   CalendarDays,
+  Undo2,
 } from 'lucide-vue-next'
 
 import type {
@@ -181,6 +182,54 @@ const endAssignment = async (
     emit('updated')
   } catch (err) {
     error.value = api.getErrorMessage(err)
+  }
+}
+
+const undoingId = ref<number | null>(null)
+
+const undoAssignment = async (
+  assignment: PayrollAssignment,
+) => {
+  if (!props.group || undoingId.value) return
+
+  const name = `${assignment.employee?.firstname ?? 'this employee'} ${assignment.employee?.lastname ?? ''}`.trim()
+
+  const confirmed = window.confirm(
+    `Undo the assignment of ${name} to ${props.group.group_name}?\n\n` +
+    'The assignment record will be deleted. If it replaced an earlier payroll group, ' +
+    'the employee will be returned to that group.',
+  )
+
+  if (!confirmed) return
+
+  undoingId.value = assignment.id
+  error.value = ''
+  message.value = ''
+
+  try {
+    const result = await api.undoAssignment(
+      props.group.id,
+      assignment.id,
+    )
+
+    message.value =
+      result.message || 'Assignment undone successfully.'
+
+    // The deleted row may have been the last one on this page.
+    if (assignments.value.length === 1 && historyPage.value > 1) {
+      historyPage.value--
+    }
+
+    await Promise.all([
+      loadHistory(),
+      loadEmployees(),
+    ])
+
+    emit('updated')
+  } catch (err) {
+    error.value = api.getErrorMessage(err)
+  } finally {
+    undoingId.value = null
   }
 }
 
@@ -425,13 +474,26 @@ watch(employeeSearch, () => {
                     {{ assignment.effective_to ? 'Ended' : 'Current' }}
                   </span>
 
-                  <button
-                    v-if="!assignment.effective_to"
-                    class="end-button"
-                    @click="endAssignment(assignment)"
-                  >
-                    End Assignment
-                  </button>
+                  <div class="history-buttons">
+                    <button
+                      v-if="!assignment.effective_to"
+                      class="end-button"
+                      :disabled="undoingId !== null"
+                      @click="endAssignment(assignment)"
+                    >
+                      End Assignment
+                    </button>
+
+                    <button
+                      class="undo-button"
+                      title="Delete this assignment (for assignments made by mistake)"
+                      :disabled="undoingId !== null"
+                      @click="undoAssignment(assignment)"
+                    >
+                      <Undo2 :size="12" />
+                      {{ undoingId === assignment.id ? 'Undoing...' : 'Undo' }}
+                    </button>
+                  </div>
                 </div>
               </article>
             </div>
@@ -715,6 +777,37 @@ watch(employeeSearch, () => {
   color: var(--red);
   font-size: 10px;
   cursor: pointer;
+}
+
+.history-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.undo-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 9px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.undo-button:hover:not(:disabled) {
+  border-color: var(--orange);
+  color: var(--orange);
+}
+
+.end-button:disabled,
+.undo-button:disabled {
+  opacity: .5;
+  cursor: not-allowed;
 }
 
 .history-pagination {

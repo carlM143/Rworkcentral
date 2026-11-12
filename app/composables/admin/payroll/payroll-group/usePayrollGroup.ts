@@ -347,6 +347,23 @@ export const usePayrollGroup = () => {
     )
   }
 
+  // Undo (delete) an assignment made by mistake. The backend only allows the
+  // employee's latest assignment and refuses if payroll was already generated
+  // under it. If the assignment had closed a previous one, that previous
+  // assignment is reopened and returned as `restored_assignment`.
+  const undoAssignment = async (
+    groupId: number,
+    assignmentId: number,
+  ) => {
+    return await request<{
+      success: boolean
+      message: string
+      data: { restored_assignment: PayrollAssignment | null }
+    }>(`/${groupId}/assignments/${assignmentId}`, {
+      method: 'DELETE',
+    })
+  }
+
   return {
     groups,
     stats,
@@ -367,6 +384,7 @@ export const usePayrollGroup = () => {
     assignEmployee,
     bulkAssign,
     endAssignment,
+    undoAssignment,
 
     getErrorMessage,
   }
