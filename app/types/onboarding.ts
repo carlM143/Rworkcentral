@@ -9,7 +9,8 @@ export type EmploymentType =
   | 'Regular'
   | 'Probationary'
   | 'Contractual'
-  | 'Project-Based'
+  | 'Part-Time'
+  | 'Training'
 
 export interface OnboardingChecklist {
   documents: boolean
