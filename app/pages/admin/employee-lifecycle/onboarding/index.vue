@@ -1,12 +1,11 @@
 
 <script setup lang="ts">
-import { computed, reactive, ref } from 'vue'
+import { computed, ref } from 'vue'
 import {
-  Download, Plus, X, UserRound, CalendarDays,
+  Download, X, UserRound, CalendarDays,
   ClipboardCheck, Clock3, FileSpreadsheet,
   CheckCircle2, Circle, Mail, History,
-  ShieldCheck, Search, Eye, ChevronRight,
-  BriefcaseBusiness, FileText, AlertCircle,
+  ShieldCheck, Eye, BriefcaseBusiness, FileText,
 } from 'lucide-vue-next'
 
 import type { OnboardingEmployee } from '~/types/onboarding'
@@ -33,49 +32,16 @@ const {
   resetFilters,
 } = useOnboarding()
 
-type ModalMode = 'view' | 'progress' | 'history' | 'export' | 'create' | null
+type ModalMode = 'view' | 'progress' | 'history' | 'export' | null
 type ExportScope = 'filtered' | 'current'
 
 const activeModal = ref<ModalMode>(null)
 const selectedRecord = ref<OnboardingEmployee | null>(null)
 const exportScope = ref<ExportScope>('filtered')
-const formValidated = ref(false)
-const formError = ref('')
-
-const newOnboarding = reactive({
-  employeeNumber: '',
-  employeeName: '',
-  email: '',
-  department: '',
-  position: '',
-  employmentType: 'Probationary',
-  dateHired: '',
-  targetCompletionDate: '',
-  assignedHr: '',
-  remarks: '',
-})
-
-const resetCreateForm = () => {
-  Object.assign(newOnboarding, {
-    employeeNumber: '',
-    employeeName: '',
-    email: '',
-    department: '',
-    position: '',
-    employmentType: 'Probationary',
-    dateHired: '',
-    targetCompletionDate: '',
-    assignedHr: '',
-    remarks: '',
-  })
-  formValidated.value = false
-  formError.value = ''
-}
 
 const closeModal = () => {
   activeModal.value = null
   selectedRecord.value = null
-  formError.value = ''
 }
 
 const openViewDetails = (record: OnboardingEmployee) => {
@@ -98,18 +64,12 @@ const handleExport = () => {
   activeModal.value = 'export'
 }
 
-const handleNewOnboarding = () => {
-  resetCreateForm()
-  activeModal.value = 'create'
-}
-
 const modalTitle = computed(() => {
   switch (activeModal.value) {
     case 'view': return 'Onboarding Details'
     case 'progress': return 'Onboarding Progress'
     case 'history': return 'Onboarding History'
     case 'export': return 'Export Onboarding'
-    case 'create': return 'Start Employee Onboarding'
     default: return ''
   }
 })
@@ -288,33 +248,6 @@ const downloadCsv = () => {
   closeModal()
 }
 
-const validateOnboarding = () => {
-  formError.value = ''
-  formValidated.value = false
-
-  if (
-    !newOnboarding.employeeName.trim() ||
-    !newOnboarding.employeeNumber.trim() ||
-    !newOnboarding.email.trim() ||
-    !newOnboarding.department.trim() ||
-    !newOnboarding.position.trim() ||
-    !newOnboarding.dateHired ||
-    !newOnboarding.targetCompletionDate ||
-    !newOnboarding.assignedHr.trim()
-  ) {
-    formError.value = 'Please complete all required fields.'
-    return
-  }
-
-  if (newOnboarding.targetCompletionDate < newOnboarding.dateHired) {
-    formError.value =
-      'Target completion date cannot be earlier than the date hired.'
-    return
-  }
-
-  formValidated.value = true
-}
-
 const handleModalKeydown = (event: KeyboardEvent) => {
   if (event.key === 'Escape') closeModal()
 }
@@ -335,13 +268,6 @@ const handleModalKeydown = (event: KeyboardEvent) => {
           @click="handleExport"
         >
           Export
-        </AppButton>
-
-        <AppButton
-          :icon="Plus"
-          @click="handleNewOnboarding"
-        >
-          Start Onboarding
         </AppButton>
       </div>
     </PageHeader>
@@ -409,10 +335,6 @@ const handleModalKeydown = (event: KeyboardEvent) => {
                   v-if="activeModal === 'export'"
                   :size="20"
                 />
-                <Plus
-                  v-else-if="activeModal === 'create'"
-                  :size="20"
-                />
                 <History
                   v-else-if="activeModal === 'history'"
                   :size="20"
@@ -431,9 +353,6 @@ const handleModalKeydown = (event: KeyboardEvent) => {
                 </p>
                 <p v-else-if="activeModal === 'export'">
                   Download onboarding records
-                </p>
-                <p v-else>
-                  Enter new onboarding information
                 </p>
               </div>
             </div>
@@ -731,142 +650,6 @@ const handleModalKeydown = (event: KeyboardEvent) => {
             </div>
           </div>
 
-          <!-- START ONBOARDING -->
-          <form
-            v-else-if="activeModal === 'create'"
-            id="new-onboarding-form"
-            class="dialog-body"
-            @submit.prevent="validateOnboarding"
-          >
-            <div class="detail-section first-section">
-              <h4>
-                <UserRound :size="16" />
-                Employee Information
-              </h4>
-
-              <div class="form-grid">
-                <div class="form-field">
-                  <label>Employee Number *</label>
-                  <input
-                    v-model="newOnboarding.employeeNumber"
-                    required
-                    placeholder="e.g. EMP-001"
-                  />
-                </div>
-
-                <div class="form-field">
-                  <label>Employee Name *</label>
-                  <input
-                    v-model="newOnboarding.employeeName"
-                    required
-                    placeholder="Full employee name"
-                  />
-                </div>
-
-                <div class="form-field wide">
-                  <label>Email Address *</label>
-                  <input
-                    v-model="newOnboarding.email"
-                    type="email"
-                    required
-                    placeholder="employee@company.com"
-                  />
-                </div>
-
-                <div class="form-field">
-                  <label>Department *</label>
-                  <input
-                    v-model="newOnboarding.department"
-                    required
-                    placeholder="Department"
-                  />
-                </div>
-
-                <div class="form-field">
-                  <label>Position *</label>
-                  <input
-                    v-model="newOnboarding.position"
-                    required
-                    placeholder="Job position"
-                  />
-                </div>
-
-                <div class="form-field wide">
-                  <label>Employment Type *</label>
-                  <select v-model="newOnboarding.employmentType">
-                    <option value="Probationary">Probationary</option>
-                    <option value="Regular">Regular</option>
-                    <option value="Contractual">Contractual</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-
-            <div class="detail-section">
-              <h4>
-                <CalendarDays :size="16" />
-                Onboarding Schedule
-              </h4>
-
-              <div class="form-grid">
-                <div class="form-field">
-                  <label>Date Hired *</label>
-                  <input
-                    v-model="newOnboarding.dateHired"
-                    type="date"
-                    required
-                  />
-                </div>
-
-                <div class="form-field">
-                  <label>Target Completion *</label>
-                  <input
-                    v-model="newOnboarding.targetCompletionDate"
-                    type="date"
-                    :min="newOnboarding.dateHired || undefined"
-                    required
-                  />
-                </div>
-
-                <div class="form-field wide">
-                  <label>Assigned HR *</label>
-                  <input
-                    v-model="newOnboarding.assignedHr"
-                    required
-                    placeholder="Assigned HR personnel"
-                  />
-                </div>
-
-                <div class="form-field wide">
-                  <label>Initial Remarks</label>
-                  <textarea
-                    v-model="newOnboarding.remarks"
-                    rows="3"
-                    placeholder="Additional onboarding notes..."
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div class="notice-card">
-              <AlertCircle :size="17" />
-              <p>
-                This form is currently a frontend preview.
-                No database record will be created until
-                the Laravel create endpoint is connected.
-              </p>
-            </div>
-
-            <p v-if="formError" class="form-error">
-              {{ formError }}
-            </p>
-
-            <div v-if="formValidated" class="form-success">
-              <CheckCircle2 :size="17" />
-              Form validation passed. Database saving is not connected yet.
-            </div>
-          </form>
-
           <!-- FOOTER -->
           <footer class="dialog-footer">
             <button
@@ -874,10 +657,7 @@ const handleModalKeydown = (event: KeyboardEvent) => {
               class="secondary-button"
               @click="closeModal"
             >
-              {{ activeModal === 'export' || activeModal === 'create'
-                ? 'Cancel'
-                : 'Close'
-              }}
+              {{ activeModal === 'export' ? 'Cancel' : 'Close' }}
             </button>
 
             <button
@@ -899,16 +679,6 @@ const handleModalKeydown = (event: KeyboardEvent) => {
             >
               <Download :size="16" />
               Download CSV
-            </button>
-
-            <button
-              v-if="activeModal === 'create'"
-              type="submit"
-              form="new-onboarding-form"
-              class="primary-button"
-            >
-              <CheckCircle2 :size="16" />
-              Validate Form
             </button>
           </footer>
         </section>

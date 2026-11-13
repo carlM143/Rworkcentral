@@ -1,1066 +1,125 @@
 <script setup lang="ts">
-import { computed, ref, watch, onMounted, onUnmounted, unref } from 'vue'
-import {
-  ClipboardCheck,
-  Download,
-  Eye,
-  Plus,
-  Save,
-  X,
-  Pencil,
-  FileDown,
-} from 'lucide-vue-next'
-
+import { Download, Plus, X } from 'lucide-vue-next'
+import type { OffboardingRecord, OffboardingChecklist } from '~/types/offboarding'
 import OffboardingStats from '~/components/admin/employee-lifecycle/offboarding/OffboardingStats.vue'
 import OffboardingFilters from '~/components/admin/employee-lifecycle/offboarding/OffboardingFilters.vue'
 import OffboardingTable from '~/components/admin/employee-lifecycle/offboarding/OffboardingTable.vue'
 
 definePageMeta({ layout: 'admin' })
-
-type OffboardingStatus =
-  | 'Draft'
-  | 'Pending Clearance'
-  | 'Clearance In Progress'
-  | 'For Review'
-  | 'Ready for Final Pay'
-  | 'Completed'
-  | 'Cancelled'
-
-interface OffboardingRecord {
-  id: number | string
-  offboardingNumber: string
-  employeeName: string
-  employeeNumber: string
-  position: string
-  department: string
-  offboardingType: string
-  exitInterviewDate?: string
-  finalPayStatus?: string
-  initiatedBy: string
-  approvedBy?: string
-  status: OffboardingStatus | string
-  reason: string
-  remarks?: string
+const { $api } = useNuxtApp()
+const toast = useToast()
+const { loading, errorMessage, load, save, search, offboardingType, department, status, currentPage,
+  offboardingTypeOptions, statusOptions, finalPayStatusOptions, departmentOptions, filteredRecords, stats,
+  totalPages, paginatedRecords, showingFrom, showingTo, resetFilters } = useOffboarding()
+const employees = ref<{ employeeId: number; employeeNumber: string; employeeName: string; department: string; position: string }[]>([])
+const loadEmployees = async () => {
+  try { employees.value = (await $api<any>('/admin/lifecycle/employees')).data }
+  catch { toast.error('Unable to load employees', 'Please refresh and try again.') }
 }
-
-const {
-  search,
-  offboardingType,
-  department,
-  status,
-
-  currentPage,
-
-  filteredRecords,
-  paginatedRecords,
-
-  totalPages,
-  showingFrom,
-  showingTo,
-
-  stats,
-
-  offboardingTypeOptions,
-  departmentOptions,
-  statusOptions,
-
-  resetFilters,
-} = useOffboarding()
-
-const { info } = useToast()
-
-type ModalMode = 'create' | 'view' | 'edit' | 'export' | null
-
-interface OffboardingForm {
-  employeeName: string
-  employeeNumber: string
-  position: string
-  department: string
-  offboardingType: string
-  exitInterviewDate: string
-  finalPayStatus: string
-  initiatedBy: string
-  approvedBy: string
-  status: string
-  reason: string
-  remarks: string
+onMounted(loadEmployees)
+const checklistLabels: Record<keyof OffboardingChecklist, string> = {
+  hrClearance: 'HR clearance', departmentClearance: 'Department clearance', financeClearance: 'Finance clearance',
+  itClearance: 'IT clearance', assetReturn: 'Company assets returned', exitInterview: 'Exit interview completed',
 }
-
-const modalMode = ref<ModalMode>(null)
-const selectedRecord = ref<OffboardingRecord | null>(null)
-const addedRecords = ref<OffboardingRecord[]>([])
-const editedRecords = ref<Record<string, OffboardingRecord>>({})
+const emptyForm = () => ({ employeeId: '', offboardingType: 'Resignation', noticeDate: '', lastWorkingDay: '', separationDate: '',
+  exitInterviewDate: '', status: 'Draft', finalPayStatus: 'Not Started', reason: '', remarks: '',
+  checklist: { hrClearance: false, departmentClearance: false, financeClearance: false, itClearance: false, assetReturn: false, exitInterview: false },
+})
+const form = ref(emptyForm())
+const modal = ref<'create' | 'edit' | 'view' | null>(null)
+const selected = ref<OffboardingRecord | null>(null)
+const saving = ref(false)
 const formError = ref('')
-const exportScope = ref<'filtered' | 'all'>('filtered')
-
-const emptyForm = (): OffboardingForm => ({
-  employeeName: '',
-  employeeNumber: '',
-  position: '',
-  department: '',
-  offboardingType: '',
-  exitInterviewDate: '',
-  finalPayStatus: 'Not Started',
-  initiatedBy: '',
-  approvedBy: '',
-  status: 'Draft',
-  reason: '',
-  remarks: '',
-})
-
-const form = ref<OffboardingForm>(emptyForm())
-
-const normalizeOptions = (source: unknown): string[] => {
-  const values = unref(source)
-  if (!Array.isArray(values)) return []
-
-  return values.filter(
-    (value): value is string =>
-      typeof value === 'string' &&
-      value.trim().length > 0 &&
-      !value.toLowerCase().startsWith('all '),
-  )
-}
-
-const offboardingTypeChoices = computed(() => [
-  ...new Set([
-    ...normalizeOptions(offboardingTypeOptions),
-    'Resignation',
-    'Retirement',
-    'End of Contract',
-    'Termination',
-    'Redundancy',
-    ...(form.value.offboardingType ? [form.value.offboardingType] : []),
-  ]),
-])
-
-const departmentChoices = computed(() => [
-  ...new Set([
-    ...normalizeOptions(departmentOptions),
-    ...filteredRecords.value.map((item: any) => item.department),
-    ...addedRecords.value.map(item => item.department),
-    ...(form.value.department ? [form.value.department] : []),
-  ].filter(Boolean)),
-])
-
-const statusChoices = [
-  'Draft',
-  'Pending Clearance',
-  'Clearance In Progress',
-  'For Review',
-  'Ready for Final Pay',
-  'Completed',
-  'Cancelled',
-]
-
-const finalPayChoices = [
-  'Not Started',
-  'For Review',
-  'Ready for Release',
-  'Released',
-]
-
-const allRecords = computed<OffboardingRecord[]>(() => {
-  const base = filteredRecords.value.map((item: any) =>
-    editedRecords.value[String(item.id)] ?? item,
-  )
-
-  return [...addedRecords.value, ...base]
-})
-
-const matchesFilters = (item: OffboardingRecord) => {
-  const keyword = String(search.value ?? '').trim().toLowerCase()
-
-  const searchable = [
-    item.offboardingNumber,
-    item.employeeName,
-    item.employeeNumber,
-    item.position,
-    item.department,
-    item.offboardingType,
-    item.reason,
-    item.remarks,
-  ].join(' ').toLowerCase()
-
-  const matchesChoice = (selected: string, value: string) => {
-    const selectedValue = String(selected ?? '').toLowerCase()
-
-    return (
-      !selectedValue ||
-      selectedValue === 'all' ||
-      selectedValue.startsWith('all ') ||
-      selected === value
-    )
-  }
-
-  return (
-    (!keyword || searchable.includes(keyword)) &&
-    matchesChoice(String(offboardingType.value), item.offboardingType) &&
-    matchesChoice(String(department.value), item.department) &&
-    matchesChoice(String(status.value), item.status)
-  )
-}
-
-const displayRecords = computed(() => allRecords.value.filter(matchesFilters))
-
-const pageSize = computed(() => {
-  const currentCount = paginatedRecords.value.length
-  return Math.max(currentCount, 6)
-})
-
-const displayTotalPages = computed(() =>
-  Math.max(1, Math.ceil(displayRecords.value.length / pageSize.value)),
-)
-
-const displayPaginatedRecords = computed(() => {
-  const start = (currentPage.value - 1) * pageSize.value
-  return displayRecords.value.slice(start, start + pageSize.value)
-})
-
-const displayShowingFrom = computed(() =>
-  displayRecords.value.length
-    ? (currentPage.value - 1) * pageSize.value + 1
-    : 0,
-)
-
-const displayShowingTo = computed(() =>
-  Math.min(currentPage.value * pageSize.value, displayRecords.value.length),
-)
-
-watch([search, offboardingType, department, status], () => {
-  currentPage.value = 1
-})
-
-watch(displayTotalPages, pages => {
-  if (currentPage.value > pages) currentPage.value = pages
-})
-
-const closeModal = () => {
-  modalMode.value = null
-  selectedRecord.value = null
+const employee = computed(() => employees.value.find(e => e.employeeId === Number(form.value.employeeId)))
+const readonly = computed(() => modal.value === 'view')
+const open = (mode: 'create' | 'edit' | 'view', record?: OffboardingRecord) => {
+  selected.value = record || null
   formError.value = ''
+  form.value = record ? { ...emptyForm(), ...record, employeeId: String(record.employeeId),
+    exitInterviewDate: record.exitInterviewDate || '', remarks: record.remarks || '', checklist: { ...record.checklist } } : emptyForm()
+  modal.value = record && ['Completed', 'Cancelled'].includes(record.status) ? 'view' : mode
 }
-
-const handleStartOffboarding = () => {
-  selectedRecord.value = null
-  form.value = emptyForm()
+const close = () => { if (!saving.value) modal.value = null }
+const submit = async () => {
+  if (saving.value || readonly.value) return
+  saving.value = true
   formError.value = ''
-  modalMode.value = 'create'
+  try {
+    await save({ ...form.value, employeeId: Number(form.value.employeeId) }, selected.value?.id)
+    modal.value = null
+    toast.success('Offboarding saved', 'The employee exit record has been updated.')
+  } catch (err: any) {
+    formError.value = Object.values(err?.data?.errors || {}).flat().join(' ') || err?.data?.message || 'Unable to save. Please try again.'
+  } finally { saving.value = false }
 }
-
-const handleView = (item: OffboardingRecord) => {
-  selectedRecord.value = item
-  modalMode.value = 'view'
+const exportRecords = () => {
+  const rows = [['Reference', 'Employee ID', 'Employee', 'Department', 'Type', 'Notice date', 'Last working day', 'Separation date', 'Clearance %', 'Final pay', 'Status', 'Reason', 'Remarks'],
+    ...filteredRecords.value.map(r => [r.offboardingNumber, r.employeeNumber, r.employeeName, r.department, r.offboardingType, r.noticeDate, r.lastWorkingDay, r.separationDate, r.clearanceProgress, r.finalPayStatus, r.status, r.reason, r.remarks || ''])]
+  const csv = rows.map(row => row.map(value => `"${String(value).replace(/^[=+@-]/, "'$&").replace(/"/g, '""')}"`).join(',')).join('\r\n')
+  const url = URL.createObjectURL(new Blob(['\uFEFF', csv], { type: 'text/csv;charset=utf-8;' }))
+  const link = document.createElement('a'); link.href = url; link.download = 'employee-offboarding.csv'; link.click(); URL.revokeObjectURL(url)
 }
-
-const handleEdit = (item: OffboardingRecord) => {
-  selectedRecord.value = item
-
-  form.value = {
-    employeeName: item.employeeName,
-    employeeNumber: item.employeeNumber,
-    position: item.position,
-    department: item.department,
-    offboardingType: item.offboardingType,
-    exitInterviewDate: item.exitInterviewDate || '',
-    finalPayStatus: item.finalPayStatus || 'Not Started',
-    initiatedBy: item.initiatedBy,
-    approvedBy: item.approvedBy || '',
-    status: item.status,
-    reason: item.reason,
-    remarks: item.remarks || '',
-  }
-
-  formError.value = ''
-  modalMode.value = 'edit'
-}
-
-const handleSave = () => {
-  formError.value = ''
-
-  const values = form.value
-
-  if (
-    !values.employeeName.trim() ||
-    !values.employeeNumber.trim() ||
-    !values.position.trim() ||
-    !values.department.trim() ||
-    !values.offboardingType.trim() ||
-    !values.initiatedBy.trim() ||
-    !values.status.trim() ||
-    !values.reason.trim()
-  ) {
-    formError.value = 'Please complete all required fields.'
-    return
-  }
-
-  const isEdit = modalMode.value === 'edit'
-  const original = selectedRecord.value
-  const newId = Date.now()
-
-  const record: OffboardingRecord = {
-    ...(original ?? {}),
-    id: isEdit && original ? original.id : newId,
-    offboardingNumber: isEdit && original ? original.offboardingNumber : `OB-${newId}`,
-    employeeName: values.employeeName.trim(),
-    employeeNumber: values.employeeNumber.trim(),
-    position: values.position.trim(),
-    department: values.department,
-    offboardingType: values.offboardingType,
-    exitInterviewDate: values.exitInterviewDate || '',
-    finalPayStatus: values.finalPayStatus,
-    initiatedBy: values.initiatedBy.trim(),
-    approvedBy: values.approvedBy.trim(),
-    status: values.status,
-    reason: values.reason.trim(),
-    remarks: values.remarks.trim(),
-  }
-
-  if (isEdit && original) {
-    const index = addedRecords.value.findIndex(item => item.id === original.id)
-
-    if (index !== -1) addedRecords.value[index] = record
-    else editedRecords.value[String(original.id)] = record
-  } else {
-    addedRecords.value.unshift(record)
-  }
-
-  currentPage.value = 1
-
-  info(
-    isEdit ? 'Offboarding Updated' : 'Offboarding Created',
-    'Changes are stored in the current frontend session only.',
-  )
-
-  closeModal()
-}
-
-const handleExport = () => {
-  exportScope.value = 'filtered'
-  modalMode.value = 'export'
-}
-
-const escapeCsv = (value: unknown) => {
-  const text = String(value ?? '')
-  const safe = /^[\s]*[=+\-@]/.test(text) ? `'${text}` : text
-  return `"${safe.replace(/"/g, '""')}"`
-}
-
-const exportCsv = () => {
-  const records = exportScope.value === 'filtered'
-    ? displayRecords.value
-    : allRecords.value
-
-  const headers = [
-    'Offboarding No.',
-    'Employee Name',
-    'Employee ID',
-    'Position',
-    'Department',
-    'Offboarding Type',
-    'Exit Interview',
-    'Final Pay',
-    'Initiated By',
-    'Approved By',
-    'Status',
-    'Reason',
-    'Remarks',
-  ]
-
-  const rows = records.map(item => [
-    item.offboardingNumber,
-    item.employeeName,
-    item.employeeNumber,
-    item.position,
-    item.department,
-    item.offboardingType,
-    item.exitInterviewDate,
-    item.finalPayStatus,
-    item.initiatedBy,
-    item.approvedBy,
-    item.status,
-    item.reason,
-    item.remarks,
-  ])
-
-  const csv = [
-    headers.map(escapeCsv).join(','),
-    ...rows.map(row => row.map(escapeCsv).join(',')),
-  ].join('\r\n')
-
-  const blob = new Blob(['\uFEFF', csv], {
-    type: 'text/csv;charset=utf-8;',
-  })
-
-  const url = URL.createObjectURL(blob)
-  const anchor = document.createElement('a')
-  anchor.href = url
-  anchor.download = 'employee-offboarding.csv'
-  document.body.appendChild(anchor)
-  anchor.click()
-  anchor.remove()
-  setTimeout(() => URL.revokeObjectURL(url), 1000)
-
-  closeModal()
-}
-
-const handleKeydown = (event: KeyboardEvent) => {
-  if (event.key === 'Escape' && modalMode.value) closeModal()
-}
-
-watch(modalMode, value => {
-  if (!import.meta.client) return
-  document.body.style.overflow = value ? 'hidden' : ''
-})
-
-onMounted(() => {
-  document.addEventListener('keydown', handleKeydown)
-})
-
-onUnmounted(() => {
-  document.removeEventListener('keydown', handleKeydown)
-  document.body.style.overflow = ''
-})
 </script>
 
 <template>
   <section class="offboarding-page">
-    <PageHeader
-      title="Employee Offboarding"
-      description="Manage employee separation, clearance, asset return, exit interviews and final pay preparation."
-    >
-      <div class="header-actions">
-        <AppButton
-          variant="secondary"
-          :icon="Download"
-          @click="handleExport"
-        >
-          Export
-        </AppButton>
-
-        <AppButton
-          :icon="Plus"
-          @click="handleStartOffboarding"
-        >
-          Start Offboarding
-        </AppButton>
-      </div>
+    <PageHeader title="Employee Offboarding" description="Manage employee exits, clearance tasks, exit interviews and final pay status.">
+      <AppButton variant="secondary" :icon="Download" @click="exportRecords">Export</AppButton>
+      <AppButton :icon="Plus" @click="open('create')">Start Offboarding</AppButton>
     </PageHeader>
-
+    <p v-if="loading" role="status">Loading offboarding records…</p>
+    <p v-if="errorMessage" role="alert">{{ errorMessage }} <button @click="load">Retry</button></p>
     <OffboardingStats :stats="stats" />
-
-    <OffboardingFilters
-      v-model:search="search"
-      v-model:offboarding-type="offboardingType"
-      v-model:department="department"
-      v-model:status="status"
-      :offboarding-types="offboardingTypeOptions"
-      :departments="departmentOptions"
-      :statuses="statusOptions"
-      @reset="resetFilters"
-    />
-
-    <OffboardingTable
-      :records="displayPaginatedRecords"
-      @view="handleView"
-      @edit="handleEdit"
-    />
-
-    <div class="table-footer">
-      <p>
-        Showing
-        <strong>{{ displayShowingFrom }}–{{ displayShowingTo }}</strong>
-        of
-        <strong>{{ displayRecords.length }}</strong>
-        offboarding records
-      </p>
-
-      <AppPagination
-        v-model="currentPage"
-        :total-pages="displayTotalPages"
-      />
-    </div>
-
+    <OffboardingFilters v-model:search="search" v-model:offboarding-type="offboardingType" v-model:department="department" v-model:status="status"
+      :offboarding-types="offboardingTypeOptions" :departments="departmentOptions" :statuses="statusOptions" @reset="resetFilters" />
+    <OffboardingTable :records="paginatedRecords" @view="record => open('view', record)" @edit="record => open('edit', record)" />
+    <div class="table-footer"><p>Showing <strong>{{ showingFrom }}–{{ showingTo }}</strong> of {{ filteredRecords.length }} records</p><AppPagination v-model="currentPage" :total-pages="totalPages" /></div>
     <Teleport to="body">
-      <div
-        v-if="modalMode"
-        class="ob-modal-overlay"
-        @click.self="closeModal"
-      >
-        <div
-          class="ob-modal"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="ob-modal-heading"
-        >
-          <div class="ob-modal-header">
-            <div class="ob-modal-title">
-              <div class="ob-modal-icon">
-                <FileDown v-if="modalMode === 'export'" :size="19" />
-                <Eye v-else-if="modalMode === 'view'" :size="19" />
-                <Pencil v-else-if="modalMode === 'edit'" :size="19" />
-                <ClipboardCheck v-else :size="19" />
+      <div v-if="modal" class="exit-overlay" @click.self="close" @keydown.esc="close">
+        <section class="exit-modal" role="dialog" aria-modal="true" aria-labelledby="exit-title" tabindex="-1">
+          <header><div><h2 id="exit-title">{{ modal === 'create' ? 'Start Offboarding' : readonly ? 'Offboarding Details' : 'Edit Offboarding' }}</h2><p>{{ selected?.offboardingNumber || 'Create an employee exit record' }}</p></div><button type="button" aria-label="Close" @click="close"><X :size="20" /></button></header>
+          <form @submit.prevent="submit">
+            <p v-if="formError" class="form-error" role="alert">{{ formError }}</p>
+            <fieldset :disabled="readonly || saving">
+              <div class="form-grid">
+                <label class="full">Employee *<select v-model="form.employeeId" required :disabled="!!selected"><option value="" disabled>Select employee</option><option v-for="e in employees" :key="e.employeeId" :value="String(e.employeeId)">{{ e.employeeNumber }} — {{ e.employeeName }}</option></select></label>
+                <p v-if="employee || selected" class="full">{{ employee?.department || selected?.department }} · {{ employee?.position || selected?.position }}</p>
+                <label>Offboarding type *<select v-model="form.offboardingType" required><option v-for="s in offboardingTypeOptions" :key="s">{{ s }}</option></select></label>
+                <label>Status *<select v-model="form.status" required><option v-for="s in statusOptions" :key="s">{{ s }}</option></select></label>
+                <label>Notice date *<input v-model="form.noticeDate" type="date" required></label>
+                <label>Last working day *<input v-model="form.lastWorkingDay" type="date" :min="form.noticeDate" required></label>
+                <label>Separation date *<input v-model="form.separationDate" type="date" :min="form.lastWorkingDay" required></label>
+                <label>Exit interview date<input v-model="form.exitInterviewDate" type="date" :min="form.noticeDate"></label>
+                <label class="full">Reason *<textarea v-model="form.reason" required maxlength="5000" rows="3" /></label>
               </div>
-
-              <div>
-                <h2 id="ob-modal-heading">
-                  {{
-                    modalMode === 'export'
-                      ? 'Export Offboarding Records'
-                      : modalMode === 'view'
-                        ? 'View Offboarding'
-                        : modalMode === 'edit'
-                          ? 'Edit Offboarding'
-                          : 'Start Offboarding'
-                  }}
-                </h2>
-
-                <p>
-                  {{
-                    modalMode === 'export'
-                      ? 'Download offboarding records in CSV format.'
-                      : modalMode === 'view'
-                        ? 'Review employee offboarding details.'
-                        : 'Complete the employee offboarding information.'
-                  }}
-                </p>
+              <h3>Clearance checklist</h3>
+              <div class="checklist"><label v-for="(label, key) in checklistLabels" :key="key"><input v-model="form.checklist[key]" type="checkbox">{{ label }}</label></div>
+              <div class="form-grid">
+                <label>Final pay status *<select v-model="form.finalPayStatus"><option v-for="s in finalPayStatusOptions" :key="s">{{ s }}</option></select></label>
+                <label class="full">HR remarks<textarea v-model="form.remarks" maxlength="5000" rows="3" /></label>
               </div>
-            </div>
-
-            <button
-              type="button"
-              class="ob-modal-close"
-              aria-label="Close modal"
-              @click="closeModal"
-            >
-              <X :size="18" />
-            </button>
-          </div>
-
-          <div
-            v-if="modalMode === 'view' && selectedRecord"
-            class="ob-modal-body"
-          >
-            <div class="ob-details-grid">
-              <div
-                v-for="field in [
-                  { label: 'Offboarding No.', value: selectedRecord.offboardingNumber },
-                  { label: 'Employee Name', value: selectedRecord.employeeName },
-                  { label: 'Employee ID', value: selectedRecord.employeeNumber },
-                  { label: 'Position', value: selectedRecord.position },
-                  { label: 'Department', value: selectedRecord.department },
-                  { label: 'Offboarding Type', value: selectedRecord.offboardingType },
-                  { label: 'Exit Interview', value: selectedRecord.exitInterviewDate || 'Not Scheduled' },
-                  { label: 'Final Pay', value: selectedRecord.finalPayStatus || 'Not Started' },
-                  { label: 'Initiated By', value: selectedRecord.initiatedBy },
-                  { label: 'Approved By', value: selectedRecord.approvedBy || 'Pending' },
-                  { label: 'Status', value: selectedRecord.status },
-                ]"
-                :key="field.label"
-                class="ob-detail"
-              >
-                <span>{{ field.label }}</span>
-                <strong>{{ field.value }}</strong>
-              </div>
-
-              <div class="ob-detail full-width">
-                <span>Reason</span>
-                <strong>{{ selectedRecord.reason || '—' }}</strong>
-              </div>
-
-              <div class="ob-detail full-width">
-                <span>Remarks</span>
-                <strong>{{ selectedRecord.remarks || 'No remarks' }}</strong>
-              </div>
-            </div>
-          </div>
-
-          <form
-            v-else-if="modalMode === 'create' || modalMode === 'edit'"
-            @submit.prevent="handleSave"
-          >
-            <div class="ob-modal-body">
-              <div v-if="formError" class="ob-form-error">
-                {{ formError }}
-              </div>
-
-              <div class="ob-form-grid">
-                <label class="ob-field">
-                  Employee Name *
-                  <input v-model="form.employeeName" placeholder="Employee full name" required />
-                </label>
-
-                <label class="ob-field">
-                  Employee ID *
-                  <input v-model="form.employeeNumber" placeholder="EMP-001" required />
-                </label>
-
-                <label class="ob-field">
-                  Position *
-                  <input v-model="form.position" placeholder="Current position" required />
-                </label>
-
-                <label class="ob-field">
-                  Department *
-                  <select v-model="form.department" required>
-                    <option value="" disabled>Select department</option>
-                    <option v-for="option in departmentChoices" :key="option" :value="option">
-                      {{ option }}
-                    </option>
-                  </select>
-                </label>
-
-                <label class="ob-field">
-                  Offboarding Type *
-                  <select v-model="form.offboardingType" required>
-                    <option value="" disabled>Select offboarding type</option>
-                    <option v-for="option in offboardingTypeChoices" :key="option" :value="option">
-                      {{ option }}
-                    </option>
-                  </select>
-                </label>
-
-                <label class="ob-field">
-                  Status *
-                  <select v-model="form.status" required>
-                    <option v-for="option in statusChoices" :key="option" :value="option">
-                      {{ option }}
-                    </option>
-                  </select>
-                </label>
-
-                <label class="ob-field">
-                  Exit Interview Date
-                  <input v-model="form.exitInterviewDate" type="date" />
-                </label>
-
-                <label class="ob-field">
-                  Final Pay Status
-                  <select v-model="form.finalPayStatus">
-                    <option v-for="option in finalPayChoices" :key="option" :value="option">
-                      {{ option }}
-                    </option>
-                  </select>
-                </label>
-
-                <label class="ob-field">
-                  Initiated By *
-                  <input v-model="form.initiatedBy" placeholder="Initiating officer" required />
-                </label>
-
-                <label class="ob-field">
-                  Approved By
-                  <input v-model="form.approvedBy" placeholder="Approving officer" />
-                </label>
-
-                <label class="ob-field full-width">
-                  Reason *
-                  <textarea
-                    v-model="form.reason"
-                    rows="3"
-                    placeholder="Describe the reason for offboarding..."
-                    required
-                  />
-                </label>
-
-                <label class="ob-field full-width">
-                  Remarks
-                  <textarea
-                    v-model="form.remarks"
-                    rows="3"
-                    placeholder="Additional remarks (optional)"
-                  />
-                </label>
-              </div>
-
-              <p class="ob-demo-note">
-                Frontend demonstration only. Changes are not yet saved to the Laravel API.
-              </p>
-            </div>
-
-            <div class="ob-modal-footer">
-              <button type="button" class="ob-secondary-button" @click="closeModal">
-                Cancel
-              </button>
-
-              <button type="submit" class="ob-primary-button">
-                <Save :size="15" />
-                {{ modalMode === 'edit' ? 'Save Changes' : 'Create Offboarding' }}
-              </button>
-            </div>
+            </fieldset>
+            <footer><AppButton variant="secondary" type="button" @click="close">Close</AppButton><AppButton v-if="!readonly" type="submit" :disabled="saving">{{ saving ? 'Saving…' : 'Save Offboarding' }}</AppButton><AppButton v-else-if="selected && !['Completed', 'Cancelled'].includes(selected.status)" type="button" @click="modal = 'edit'">Edit</AppButton></footer>
           </form>
-
-          <div v-else-if="modalMode === 'export'" class="ob-modal-body">
-            <p class="ob-export-description">
-              Select the records you want to download in CSV format.
-            </p>
-
-            <label class="ob-export-option">
-              <input v-model="exportScope" type="radio" value="filtered" />
-              <span>
-                <strong>Filtered Records</strong>
-                <small>Export {{ displayRecords.length }} matching records.</small>
-              </span>
-            </label>
-
-            <label class="ob-export-option">
-              <input v-model="exportScope" type="radio" value="all" />
-              <span>
-                <strong>Currently Loaded Records</strong>
-                <small>Export loaded frontend records, not the entire database.</small>
-              </span>
-            </label>
-          </div>
-
-          <div v-if="modalMode === 'view' || modalMode === 'export'" class="ob-modal-footer">
-            <button type="button" class="ob-secondary-button" @click="closeModal">
-              Close
-            </button>
-
-            <button
-              v-if="modalMode === 'view' && selectedRecord"
-              type="button"
-              class="ob-primary-button"
-              @click="handleEdit(selectedRecord)"
-            >
-              <Pencil :size="15" />
-              Edit Offboarding
-            </button>
-
-            <button
-              v-if="modalMode === 'export'"
-              type="button"
-              class="ob-primary-button"
-              @click="exportCsv"
-            >
-              <Download :size="15" />
-              Export CSV
-            </button>
-          </div>
-        </div>
+        </section>
       </div>
     </Teleport>
   </section>
 </template>
 
 <style scoped>
-.offboarding-page {
-  width: 100%;
-  max-width: 1680px;
-  margin: 0 auto;
-}
-
-.header-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.table-footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 20px;
-  padding: 14px 3px 0;
-}
-
-.table-footer p {
-  margin: 0;
-  color: var(--text-muted);
-  font-size: 11px;
-}
-
-.table-footer strong {
-  color: var(--text-primary);
-  font-weight: 650;
-}
-
-@media (max-width: 650px) {
-  .header-actions {
-    width: 100%;
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .table-footer {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-}
-</style>
-
-<style>
-.ob-modal-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 100000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 20px;
-  background: rgba(3, 9, 22, .67);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-}
-
-.ob-modal {
-  width: 100%;
-  max-width: 760px;
-  max-height: 90vh;
-  overflow-y: auto;
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  background: var(--bg-card);
-  box-shadow: 0 24px 70px rgba(0, 0, 0, .35);
-}
-
-.ob-modal-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 20px 24px;
-  border-bottom: 1px solid var(--border);
-}
-
-.ob-modal-title {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.ob-modal-icon {
-  display: flex;
-  width: 40px;
-  height: 40px;
-  flex-shrink: 0;
-  align-items: center;
-  justify-content: center;
-  border-radius: 10px;
-  background: var(--primary-soft);
-  color: var(--primary);
-}
-
-.ob-modal-header h2 {
-  margin: 0;
-  color: var(--text-primary);
-  font-size: 17px;
-  font-weight: 700;
-}
-
-.ob-modal-header p {
-  margin: 5px 0 0;
-  color: var(--text-muted);
-  font-size: 11px;
-}
-
-.ob-modal-close {
-  display: flex;
-  width: 32px;
-  height: 32px;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid transparent;
-  border-radius: 8px;
-  background: transparent;
-  color: var(--text-secondary);
-  cursor: pointer;
-}
-
-.ob-modal-close:hover {
-  border-color: var(--border);
-  background: var(--bg-card-soft);
-}
-
-.ob-modal-body {
-  padding: 24px;
-}
-
-.ob-details-grid,
-.ob-form-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 18px;
-}
-
-.ob-detail,
-.ob-field {
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
-}
-
-.ob-detail span {
-  color: var(--text-muted);
-  font-size: 11px;
-}
-
-.ob-detail strong {
-  color: var(--text-primary);
-  font-size: 12px;
-  font-weight: 600;
-  overflow-wrap: anywhere;
-}
-
-.ob-field {
-  color: var(--text-secondary);
-  font-size: 11px;
-  font-weight: 600;
-}
-
-.ob-field input,
-.ob-field select,
-.ob-field textarea {
-  width: 100%;
-  min-height: 39px;
-  padding: 10px 12px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  outline: none;
-  background: var(--bg-card-soft);
-  color: var(--text-primary);
-  font-family: inherit;
-  font-size: 11px;
-  font-weight: 400;
-}
-
-.ob-field textarea {
-  resize: vertical;
-}
-
-.ob-field input:focus,
-.ob-field select:focus,
-.ob-field textarea:focus {
-  border-color: var(--primary);
-}
-
-.ob-field input::placeholder,
-.ob-field textarea::placeholder {
-  color: var(--text-muted);
-}
-
-.full-width {
-  grid-column: 1 / -1;
-}
-
-.ob-form-error {
-  margin-bottom: 16px;
-  padding: 12px;
-  border: 1px solid var(--red);
-  border-radius: 8px;
-  background: var(--red-soft);
-  color: var(--red);
-  font-size: 11px;
-}
-
-.ob-demo-note {
-  margin: 18px 0 0;
-  color: var(--text-muted);
-  font-size: 10px;
-}
-
-.ob-export-description {
-  margin: 0 0 16px;
-  color: var(--text-secondary);
-  font-size: 12px;
-}
-
-.ob-export-option {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  margin-top: 10px;
-  padding: 14px;
-  border: 1px solid var(--border);
-  border-radius: 9px;
-  background: var(--bg-card-soft);
-  cursor: pointer;
-}
-
-.ob-export-option input {
-  margin-top: 3px;
-  accent-color: var(--primary);
-}
-
-.ob-export-option span {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-}
-
-.ob-export-option strong {
-  color: var(--text-primary);
-  font-size: 12px;
-}
-
-.ob-export-option small {
-  color: var(--text-muted);
-  font-size: 10px;
-}
-
-.ob-modal-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-  padding: 16px 24px;
-  border-top: 1px solid var(--border);
-}
-
-.ob-secondary-button,
-.ob-primary-button {
-  display: inline-flex;
-  min-height: 38px;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 10px 17px;
-  border-radius: 8px;
-  font-family: inherit;
-  font-size: 11px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.ob-secondary-button {
-  border: 1px solid var(--border);
-  background: var(--bg-card-soft);
-  color: var(--text-primary);
-}
-
-.ob-primary-button {
-  border: 1px solid var(--primary);
-  background: var(--primary);
-  color: #fff;
-}
-
-.ob-primary-button:hover {
-  filter: brightness(1.08);
-}
-
-.ob-secondary-button:hover {
-  background: var(--primary-soft);
-}
-
-@media (max-width: 650px) {
-  .ob-modal-overlay {
-    padding: 12px;
-  }
-
-  .ob-modal {
-    max-height: 94vh;
-  }
-
-  .ob-modal-body {
-    padding: 18px;
-  }
-
-  .ob-details-grid,
-  .ob-form-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .ob-modal-footer {
-    flex-wrap: wrap;
-  }
-}
+.offboarding-page { max-width: 1680px; margin: 0 auto; }
+.table-footer, .exit-modal header, .exit-modal footer { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.table-footer { margin-top: 16px; font-size: 12px; color: var(--text-muted); }
+.exit-overlay { position: fixed; inset: 0; background: #0f172a80; z-index: 1100; display: grid; place-items: center; padding: 20px; }
+.exit-modal { width: min(760px, 100%); max-height: 90vh; overflow-y: auto; background: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border); border-radius: 16px; padding: 24px; box-shadow: var(--shadow); }
+.exit-modal h2 { font-size: 20px; margin: 0; }.exit-modal h3 { font-size: 14px; margin-top: 24px; }
+.exit-modal header { margin-bottom: 20px; }.exit-modal header p { color: var(--text-muted); font-size: 12px; }.exit-modal header button { border: 0; background: transparent; color: inherit; cursor: pointer; }
+.exit-modal fieldset { padding: 0; border: 0; margin: 0; min-width: 0; }
+.form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }.full { grid-column: 1 / -1; }
+.form-grid label { display: flex; flex-direction: column; gap: 7px; font-size: 12px; font-weight: 600; }
+.form-grid input, .form-grid select, .form-grid textarea { width: 100%; box-sizing: border-box; border: 1px solid var(--border); border-radius: 8px; padding: 10px; background: var(--bg-card); color: var(--text-primary); font: inherit; }
+.checklist { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 16px 0 24px; font-size: 12px; }.checklist label { display: flex; gap: 8px; align-items: center; }
+.exit-modal footer { justify-content: flex-end; margin-top: 24px; }.form-error { color: #dc2626; font-size: 13px; }
+@media (max-width: 600px) { .form-grid, .checklist { grid-template-columns: 1fr; }.exit-modal { padding: 16px; }.table-footer { flex-wrap: wrap; } }
 </style>

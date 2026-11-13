@@ -11,41 +11,18 @@ export const useOnboarding = () => {
       () => [
         {
           id: 1,
-
-          onboardingNumber:
-            'ONB-2026-001',
-
-          employeeId: 13,
-          employeeNumber:
-            'EMP-013',
-
-          employeeName:
-            'Joshua Fernandez',
-
-          email:
-            'joshua.fernandez@rworkcentral.com',
-
-          department:
-            'Operations',
-
-          position:
-            'Driver',
-
-          employmentType:
-            'Probationary',
-
-          dateHired:
-            '2026-10-01',
-
-          onboardingStartDate:
-            '2026-10-01',
-
-          targetCompletionDate:
-            '2026-10-08',
-
-          assignedHr:
-            'Maria Santos',
-
+          onboardingNumber: 'ONB-2026-001',
+          employeeId: 1,
+          employeeNumber: 'EMP-1001',
+          employeeName: 'Roger Perez Jr.',
+          email: 'roger.perez@rworkcentral.test',
+          department: 'R Web Solutions',
+          position: 'Web Developer',
+          employmentType: 'Probationary',
+          dateHired: '2026-10-12',
+          onboardingStartDate: '2026-10-12',
+          targetCompletionDate: '2026-10-19',
+          assignedHr: 'HR Administrator',
           checklist: {
             documents: true,
             employeeProfile: true,
@@ -54,124 +31,28 @@ export const useOnboarding = () => {
             policyAcknowledgment: false,
             departmentEndorsement: false,
           },
-
           completedTasks: 4,
           totalTasks: 6,
           progress: 67,
-
-          status:
-            'In Progress',
-
-          remarks:
-            'Pending policy acknowledgment and department endorsement.',
-
-          createdAt:
-            '2026-09-28T08:00:00',
-
-          updatedAt:
-            '2026-10-07T14:20:00',
+          status: 'In Progress',
+          remarks: 'Pending policy acknowledgment and department endorsement.',
+          createdAt: '2026-10-10T08:00:00',
+          updatedAt: '2026-10-15T14:20:00',
         },
-
         {
           id: 2,
-
-          onboardingNumber:
-            'ONB-2026-002',
-
-          employeeId: 14,
-          employeeNumber:
-            'EMP-014',
-
-          employeeName:
-            'Nicole Bautista',
-
-          email:
-            'nicole.bautista@rworkcentral.com',
-
-          department:
-            'Human Resources',
-
-          position:
-            'HR Assistant',
-
-          employmentType:
-            'Probationary',
-
-          dateHired:
-            '2026-10-03',
-
-          onboardingStartDate:
-            '2026-10-03',
-
-          targetCompletionDate:
-            '2026-10-10',
-
-          assignedHr:
-            'Maria Santos',
-
-          checklist: {
-            documents: true,
-            employeeProfile: true,
-            companyAccount: true,
-            orientation: true,
-            policyAcknowledgment: true,
-            departmentEndorsement: true,
-          },
-
-          completedTasks: 6,
-          totalTasks: 6,
-          progress: 100,
-
-          status:
-            'Completed',
-
-          remarks:
-            'Onboarding successfully completed.',
-
-          createdAt:
-            '2026-09-30T10:00:00',
-
-          updatedAt:
-            '2026-10-07T09:30:00',
-        },
-
-        {
-          id: 3,
-
-          onboardingNumber:
-            'ONB-2026-003',
-
-          employeeId: 15,
-          employeeNumber:
-            'EMP-015',
-
-          employeeName:
-            'Kevin Ramos',
-
-          email:
-            'kevin.ramos@rworkcentral.com',
-
-          department:
-            'Information Technology',
-
-          position:
-            'Junior Developer',
-
-          employmentType:
-            'Probationary',
-
-          dateHired:
-            '2026-10-06',
-
-          onboardingStartDate:
-            '2026-10-06',
-
-          targetCompletionDate:
-            '2026-10-13',
-
-          assignedHr:
-            'Jenny Ramos',
-
+          onboardingNumber: 'ONB-2026-002',
+          employeeId: 5,
+          employeeNumber: 'EMP-1005',
+          employeeName: 'Mark Villanueva',
+          email: 'mark.villanueva@rworkcentral.test',
+          department: 'Airpro',
+          position: 'Junior Technician',
+          employmentType: 'Probationary',
+          dateHired: '2026-08-12',
+          onboardingStartDate: '2026-08-12',
+          targetCompletionDate: '2026-08-19',
+          assignedHr: 'HR Administrator',
           checklist: {
             documents: true,
             employeeProfile: true,
@@ -180,121 +61,148 @@ export const useOnboarding = () => {
             policyAcknowledgment: false,
             departmentEndorsement: false,
           },
-
           completedTasks: 3,
           totalTasks: 6,
           progress: 50,
-
-          status:
-            'In Progress',
-
-          remarks:
-            'Scheduled for orientation.',
-
-          createdAt:
-            '2026-10-01T11:00:00',
-
-          updatedAt:
-            '2026-10-07T13:00:00',
+          status: 'In Progress',
+          remarks: 'Scheduled for technical and safety orientation.',
+          createdAt: '2026-08-10T09:00:00',
+          updatedAt: '2026-08-16T11:30:00',
         },
-
         {
-          id: 4,
-
-          onboardingNumber:
-            'ONB-2026-004',
-
-          employeeId: 16,
-          employeeNumber:
-            'EMP-016',
-
-          employeeName:
-            'Samantha Cruz',
-
-          email:
-            'samantha.cruz@rworkcentral.com',
-
-          department:
-            'Finance',
-
-          position:
-            'Accounting Staff',
-
-          employmentType:
-            'Probationary',
-
-          dateHired:
-            '2026-10-08',
-
-          onboardingStartDate:
-            '2026-10-08',
-
-          targetCompletionDate:
-            '2026-10-15',
-
-          assignedHr:
-            'Maria Santos',
-
+          id: 3,
+          onboardingNumber: 'ONB-2026-003',
+          employeeId: 9,
+          employeeNumber: 'EMP-1009',
+          employeeName: 'Daniel Aquino',
+          email: 'daniel.aquino@rworkcentral.test',
+          department: 'Airpro',
+          position: 'IT Support Specialist',
+          employmentType: 'Probationary',
+          dateHired: '2026-09-12',
+          onboardingStartDate: '2026-09-12',
+          targetCompletionDate: '2026-09-19',
+          assignedHr: 'HR Administrator',
           checklist: {
-            documents: false,
-            employeeProfile: false,
+            documents: true,
+            employeeProfile: true,
             companyAccount: false,
             orientation: false,
             policyAcknowledgment: false,
             departmentEndorsement: false,
           },
-
-          completedTasks: 0,
+          completedTasks: 2,
           totalTasks: 6,
-          progress: 0,
-
-          status:
-            'Not Started',
-
-          createdAt:
-            '2026-10-05T08:00:00',
-
-          updatedAt:
-            '2026-10-05T08:00:00',
+          progress: 33,
+          status: 'In Progress',
+          remarks: 'Company account setup in progress.',
+          createdAt: '2026-09-10T10:00:00',
+          updatedAt: '2026-09-14T15:00:00',
         },
-
+        {
+          id: 4,
+          onboardingNumber: 'ONB-2026-004',
+          employeeId: 10,
+          employeeNumber: 'EMP-1010',
+          employeeName: 'Bea Navarro Castillo',
+          email: 'bea.castillo@rworkcentral.test',
+          department: 'Airpro',
+          position: 'Field Technician',
+          employmentType: 'Probationary',
+          dateHired: '2026-06-12',
+          onboardingStartDate: '2026-06-12',
+          targetCompletionDate: '2026-06-19',
+          assignedHr: 'HR Administrator',
+          checklist: {
+            documents: true,
+            employeeProfile: true,
+            companyAccount: true,
+            orientation: false,
+            policyAcknowledgment: false,
+            departmentEndorsement: false,
+          },
+          completedTasks: 3,
+          totalTasks: 6,
+          progress: 50,
+          status: 'In Progress',
+          remarks: 'Field assignment endorsement scheduled.',
+          createdAt: '2026-06-10T08:30:00',
+          updatedAt: '2026-06-16T13:45:00',
+        },
         {
           id: 5,
-
-          onboardingNumber:
-            'ONB-2026-005',
-
-          employeeId: 17,
-          employeeNumber:
-            'EMP-017',
-
-          employeeName:
-            'Miguel Torres',
-
-          email:
-            'miguel.torres@rworkcentral.com',
-
-          department:
-            'Billing',
-
-          position:
-            'Billing Assistant',
-
-          employmentType:
-            'Contractual',
-
-          dateHired:
-            '2026-09-29',
-
-          onboardingStartDate:
-            '2026-09-29',
-
-          targetCompletionDate:
-            '2026-10-06',
-
-          assignedHr:
-            'Jenny Ramos',
-
+          onboardingNumber: 'ONB-2026-005',
+          employeeId: 7,
+          employeeNumber: 'EMP-1007',
+          employeeName: 'Joshua Ramos',
+          email: 'joshua.ramos@rworkcentral.test',
+          department: 'R Web Solutions',
+          position: 'Software Developer',
+          employmentType: 'Probationary',
+          dateHired: '2026-07-12',
+          onboardingStartDate: '2026-07-12',
+          targetCompletionDate: '2026-07-19',
+          assignedHr: 'HR Administrator',
+          checklist: {
+            documents: true,
+            employeeProfile: true,
+            companyAccount: true,
+            orientation: true,
+            policyAcknowledgment: false,
+            departmentEndorsement: false,
+          },
+          completedTasks: 4,
+          totalTasks: 6,
+          progress: 67,
+          status: 'In Progress',
+          remarks: 'Undergoing software engineering workspace setup.',
+          createdAt: '2026-07-10T09:15:00',
+          updatedAt: '2026-07-16T16:00:00',
+        },
+        {
+          id: 6,
+          onboardingNumber: 'ONB-2026-006',
+          employeeId: 6,
+          employeeNumber: 'EMP-1006',
+          employeeName: 'Kristine Bautista',
+          email: 'kristine.bautista@rworkcentral.test',
+          department: 'R Web Solutions',
+          position: 'UI/UX Designer',
+          employmentType: 'Regular',
+          dateHired: '2025-09-12',
+          onboardingStartDate: '2025-09-12',
+          targetCompletionDate: '2025-09-19',
+          assignedHr: 'HR Administrator',
+          checklist: {
+            documents: true,
+            employeeProfile: true,
+            companyAccount: true,
+            orientation: false,
+            policyAcknowledgment: false,
+            departmentEndorsement: false,
+          },
+          completedTasks: 3,
+          totalTasks: 6,
+          progress: 50,
+          status: 'In Progress',
+          remarks: 'Orientation and brand guide review ongoing.',
+          createdAt: '2025-09-10T08:00:00',
+          updatedAt: '2025-09-15T11:00:00',
+        },
+        {
+          id: 7,
+          onboardingNumber: 'ONB-2026-007',
+          employeeId: 4,
+          employeeNumber: 'EMP-1004',
+          employeeName: 'Angela Mae Flores',
+          email: 'angela.flores@rworkcentral.test',
+          department: 'Airpro',
+          position: 'Field Technician',
+          employmentType: 'Regular',
+          dateHired: '2023-11-12',
+          onboardingStartDate: '2023-11-12',
+          targetCompletionDate: '2023-11-19',
+          assignedHr: 'HR Administrator',
           checklist: {
             documents: true,
             employeeProfile: true,
@@ -303,61 +211,58 @@ export const useOnboarding = () => {
             policyAcknowledgment: true,
             departmentEndorsement: false,
           },
-
           completedTasks: 5,
           totalTasks: 6,
           progress: 83,
-
-          status:
-            'For Completion',
-
-          remarks:
-            'Department endorsement pending.',
-
-          createdAt:
-            '2026-09-27T09:00:00',
-
-          updatedAt:
-            '2026-10-07T10:45:00',
+          status: 'For Completion',
+          remarks: 'Department endorsement pending.',
+          createdAt: '2023-11-10T08:00:00',
+          updatedAt: '2023-11-18T10:00:00',
         },
-
         {
-          id: 6,
-
-          onboardingNumber:
-            'ONB-2026-006',
-
-          employeeId: 18,
-          employeeNumber:
-            'EMP-018',
-
-          employeeName:
-            'Andrea Mendoza',
-
-          email:
-            'andrea.mendoza@rworkcentral.com',
-
-          department:
-            'Operations',
-
-          position:
-            'Operations Coordinator',
-
-          employmentType:
-            'Regular',
-
-          dateHired:
-            '2026-09-22',
-
-          onboardingStartDate:
-            '2026-09-22',
-
-          targetCompletionDate:
-            '2026-09-29',
-
-          assignedHr:
-            'Maria Santos',
-
+          id: 8,
+          onboardingNumber: 'ONB-2026-008',
+          employeeId: 8,
+          employeeNumber: 'EMP-1008',
+          employeeName: 'Patricia Garcia',
+          email: 'patricia.garcia@rworkcentral.test',
+          department: 'R Web Solutions',
+          position: 'Web Development Manager',
+          employmentType: 'Regular',
+          dateHired: '2022-09-12',
+          onboardingStartDate: '2022-09-12',
+          targetCompletionDate: '2022-09-19',
+          assignedHr: 'HR Administrator',
+          checklist: {
+            documents: true,
+            employeeProfile: true,
+            companyAccount: true,
+            orientation: true,
+            policyAcknowledgment: true,
+            departmentEndorsement: false,
+          },
+          completedTasks: 5,
+          totalTasks: 6,
+          progress: 83,
+          status: 'For Completion',
+          remarks: 'Executive sign-off and endorsement in progress.',
+          createdAt: '2022-09-10T08:00:00',
+          updatedAt: '2022-09-17T14:30:00',
+        },
+        {
+          id: 9,
+          onboardingNumber: 'ONB-2026-009',
+          employeeId: 2,
+          employeeNumber: 'EMP-1002',
+          employeeName: 'Maria Santos',
+          email: 'maria.santos@rworkcentral.test',
+          department: 'R Web Solutions',
+          position: 'Project Coordinator',
+          employmentType: 'Regular',
+          dateHired: '2025-03-12',
+          onboardingStartDate: '2025-03-12',
+          targetCompletionDate: '2025-03-19',
+          assignedHr: 'HR Administrator',
           checklist: {
             documents: true,
             employeeProfile: true,
@@ -366,262 +271,43 @@ export const useOnboarding = () => {
             policyAcknowledgment: true,
             departmentEndorsement: true,
           },
-
           completedTasks: 6,
           totalTasks: 6,
           progress: 100,
-
-          status:
-            'Completed',
-
-          createdAt:
-            '2026-09-19T08:15:00',
-
-          updatedAt:
-            '2026-09-29T16:00:00',
+          status: 'Completed',
+          remarks: 'Onboarding successfully completed.',
+          createdAt: '2025-03-10T08:00:00',
+          updatedAt: '2025-03-19T17:00:00',
         },
-
         {
-          id: 7,
-
-          onboardingNumber:
-            'ONB-2026-007',
-
-          employeeId: 19,
-          employeeNumber:
-            'EMP-019',
-
-          employeeName:
-            'John Paul Garcia',
-
-          email:
-            'jp.garcia@rworkcentral.com',
-
-          department:
-            'Operations',
-
-          position:
-            'Driver',
-
-          employmentType:
-            'Project-Based',
-
-          dateHired:
-            '2026-10-02',
-
-          onboardingStartDate:
-            '2026-10-02',
-
-          targetCompletionDate:
-            '2026-10-09',
-
-          assignedHr:
-            'Jenny Ramos',
-
-          checklist: {
-            documents: true,
-            employeeProfile: true,
-            companyAccount: false,
-            orientation: false,
-            policyAcknowledgment: false,
-            departmentEndorsement: false,
-          },
-
-          completedTasks: 2,
-          totalTasks: 6,
-          progress: 33,
-
-          status:
-            'On Hold',
-
-          remarks:
-            'Waiting for client deployment confirmation.',
-
-          createdAt:
-            '2026-09-30T13:20:00',
-
-          updatedAt:
-            '2026-10-06T15:00:00',
-        },
-
-        {
-          id: 8,
-
-          onboardingNumber:
-            'ONB-2026-008',
-
-          employeeId: 20,
-          employeeNumber:
-            'EMP-020',
-
-          employeeName:
-            'Patricia Lim',
-
-          email:
-            'patricia.lim@rworkcentral.com',
-
-          department:
-            'Finance',
-
-          position:
-            'Payroll Assistant',
-
-          employmentType:
-            'Probationary',
-
-          dateHired:
-            '2026-10-07',
-
-          onboardingStartDate:
-            '2026-10-07',
-
-          targetCompletionDate:
-            '2026-10-14',
-
-          assignedHr:
-            'Maria Santos',
-
-          checklist: {
-            documents: true,
-            employeeProfile: true,
-            companyAccount: false,
-            orientation: false,
-            policyAcknowledgment: false,
-            departmentEndorsement: false,
-          },
-
-          completedTasks: 2,
-          totalTasks: 6,
-          progress: 33,
-
-          status:
-            'In Progress',
-
-          createdAt:
-            '2026-10-03T08:30:00',
-
-          updatedAt:
-            '2026-10-07T16:30:00',
-        },
-
-        {
-          id: 9,
-
-          onboardingNumber:
-            'ONB-2026-009',
-
-          employeeId: 21,
-          employeeNumber:
-            'EMP-021',
-
-          employeeName:
-            'Jerome Villanueva',
-
-          email:
-            'jerome.villanueva@rworkcentral.com',
-
-          department:
-            'Information Technology',
-
-          position:
-            'IT Support',
-
-          employmentType:
-            'Contractual',
-
-          dateHired:
-            '2026-10-01',
-
-          onboardingStartDate:
-            '2026-10-01',
-
-          targetCompletionDate:
-            '2026-10-08',
-
-          assignedHr:
-            'Jenny Ramos',
-
+          id: 10,
+          onboardingNumber: 'ONB-2026-010',
+          employeeId: 3,
+          employeeNumber: 'EMP-1003',
+          employeeName: 'Carlo Mendoza',
+          email: 'carlo.mendoza@rworkcentral.test',
+          department: 'Airpro',
+          position: 'Lead Technician',
+          employmentType: 'Regular',
+          dateHired: '2024-07-12',
+          onboardingStartDate: '2024-07-12',
+          targetCompletionDate: '2024-07-19',
+          assignedHr: 'HR Administrator',
           checklist: {
             documents: true,
             employeeProfile: true,
             companyAccount: true,
             orientation: true,
             policyAcknowledgment: true,
-            departmentEndorsement: false,
+            departmentEndorsement: true,
           },
-
-          completedTasks: 5,
+          completedTasks: 6,
           totalTasks: 6,
-          progress: 83,
-
-          status:
-            'For Completion',
-
-          createdAt:
-            '2026-09-28T08:45:00',
-
-          updatedAt:
-            '2026-10-07T11:20:00',
-        },
-
-        {
-          id: 10,
-
-          onboardingNumber:
-            'ONB-2026-010',
-
-          employeeId: 22,
-          employeeNumber:
-            'EMP-022',
-
-          employeeName:
-            'Camille Reyes',
-
-          email:
-            'camille.reyes@rworkcentral.com',
-
-          department:
-            'Human Resources',
-
-          position:
-            'Recruitment Assistant',
-
-          employmentType:
-            'Probationary',
-
-          dateHired:
-            '2026-10-08',
-
-          onboardingStartDate:
-            '2026-10-08',
-
-          targetCompletionDate:
-            '2026-10-15',
-
-          assignedHr:
-            'Maria Santos',
-
-          checklist: {
-            documents: false,
-            employeeProfile: true,
-            companyAccount: false,
-            orientation: false,
-            policyAcknowledgment: false,
-            departmentEndorsement: false,
-          },
-
-          completedTasks: 1,
-          totalTasks: 6,
-          progress: 17,
-
-          status:
-            'In Progress',
-
-          createdAt:
-            '2026-10-06T14:00:00',
-
-          updatedAt:
-            '2026-10-07T17:00:00',
+          progress: 100,
+          status: 'Completed',
+          remarks: 'Onboarding successfully completed.',
+          createdAt: '2024-07-10T08:00:00',
+          updatedAt: '2024-07-19T16:30:00',
         },
       ],
     )
@@ -673,7 +359,8 @@ export const useOnboarding = () => {
       'Regular',
       'Probationary',
       'Contractual',
-      'Project-Based',
+      'Part-Time',
+      'Training',
     ]
 
   const statusOptions:
@@ -750,13 +437,11 @@ export const useOnboarding = () => {
       const data =
         onboardingRecords.value
 
-      const active =
+      const inProgress =
         data.filter(
           item =>
             item.status ===
-              'In Progress' ||
-            item.status ===
-              'For Completion',
+              'In Progress',
         )
 
       const averageProgress =
@@ -780,7 +465,7 @@ export const useOnboarding = () => {
           data.length,
 
         active:
-          active.length,
+          inProgress.length,
 
         forCompletion:
           data.filter(
