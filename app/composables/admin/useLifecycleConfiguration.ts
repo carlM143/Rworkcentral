@@ -65,12 +65,8 @@ export const useLifecycleConfiguration = () => {
     const s = stages.value.find(item => item.id === id)
     if (s) return saveStage({ ...s, status: !s.status })
   }
-  const deletePolicy = (id: number) => {
-    if (window.confirm('Delete this policy? Policies with stages must be deactivated instead.')) return request(`/admin/lifecycle/policies/${id}`, 'DELETE')
-  }
-  const deleteStage = (id: number) => {
-    if (window.confirm('Delete this stage? Stages with milestones must be deactivated instead.')) return request(`/admin/lifecycle/stages/${id}`, 'DELETE')
-  }
+  const deletePolicy = (id: number) => request(`/admin/lifecycle/policies/${id}`, 'DELETE')
+  const deleteStage = (id: number) => request(`/admin/lifecycle/stages/${id}`, 'DELETE')
 
   onMounted(load)
   return { policies, stages, employmentTypes, loading, errorMessage, load, savePolicy, saveStage, togglePolicyStatus, toggleStageStatus, deletePolicy, deleteStage }

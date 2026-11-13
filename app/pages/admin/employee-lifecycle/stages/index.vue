@@ -33,6 +33,20 @@ const perPage = ref(6)
 
 const isModalOpen = ref(false)
 const editingStage = ref<Partial<LifecycleStage> | null>(null)
+const stageToDelete = ref<LifecycleStage | null>(null)
+const deleting = ref(false)
+
+const confirmDeleteStage = async () => {
+  if (!stageToDelete.value || deleting.value) return
+  deleting.value = true
+  try {
+    if (await deleteStage(stageToDelete.value.id)) {
+      stageToDelete.value = null
+    }
+  } finally {
+    deleting.value = false
+  }
+}
 
 const policyOptions = computed(() => policies.value.map(p => p.name))
 const statusOptions = ['Active', 'Inactive']
@@ -64,8 +78,17 @@ const filteredStages = computed(() => {
       (selectedStatus.value === 'Inactive' && !s.status)
 
     return matchesSearch && matchesPolicy && matchesStatus
+  }).slice().sort((a, b) => {
+    const policyCmp = a.policyName.localeCompare(b.policyName)
+    if (policyCmp !== 0) return policyCmp
+    if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder
+    return a.id - b.id
   })
 })
+
+const isNewPolicyGroup = (stage: LifecycleStage, idx: number) => {
+  return idx === 0 || paginatedStages.value[idx - 1]?.policyName !== stage.policyName
+}
 
 const totalPages = computed(() => Math.max(1, Math.ceil(filteredStages.value.length / perPage.value)))
 
@@ -259,7 +282,16 @@ const handleExport = () => {
                 </div>
               </td>
             </tr>
-            <tr v-for="stage in paginatedStages" :key="stage.id">
+            <template v-for="(stage, idx) in paginatedStages" :key="stage.id">
+              <tr v-if="isNewPolicyGroup(stage, idx)" class="policy-group-row">
+                <td colspan="6">
+                  <div class="policy-group-header">
+                    <Layers :size="14" />
+                    <span>{{ stage.policyName }}</span>
+                  </div>
+                </td>
+              </tr>
+              <tr>
               <td>
                 <div class="stage-info">
                   <strong class="stage-title">{{ stage.stageName }}</strong>
@@ -304,13 +336,14 @@ const handleExport = () => {
                     type="button"
                     class="action-icon-btn delete"
                     title="Delete Stage"
-                    @click="deleteStage(stage.id)"
+                    @click="stageToDelete = stage"
                   >
                     <Trash2 :size="15" />
                   </button>
                 </div>
               </td>
-            </tr>
+              </tr>
+            </template>
           </tbody>
         </table>
       </div>
@@ -440,10 +473,80 @@ const handleExport = () => {
         </section>
       </div>
     </Teleport>
+
+    <!-- DELETE CONFIRMATION MODAL -->
+    <Teleport to="body">
+      <div
+        v-if="stageToDelete"
+        class="modal-overlay"
+        @click.self="!deleting && (stageToDelete = null)"
+      >
+        <section class="modal-dialog modal-dialog-sm" role="dialog" aria-modal="true">
+          <header class="dialog-header">
+            <div class="dialog-header-left">
+              <span class="header-icon danger">
+                <Trash2 :size="20" />
+              </span>
+              <div>
+                <h2>Delete Lifecycle Stage</h2>
+                <p>{{ stageToDelete.stageName }}</p>
+              </div>
+            </div>
+            <button type="button" class="close-icon" aria-label="Close" :disabled="deleting" @click="stageToDelete = null">
+              <X :size="19" />
+            </button>
+          </header>
+          <div class="dialog-body">
+            <p class="confirm-text">
+              Are you sure you want to delete <strong>{{ stageToDelete.stageName }}</strong> ({{ stageToDelete.stageCode }})? Stages with existing employee milestones cannot be deleted and should be deactivated instead.
+            </p>
+          </div>
+          <footer class="dialog-footer">
+            <AppButton variant="secondary" :disabled="deleting" @click="stageToDelete = null">Cancel</AppButton>
+            <AppButton variant="danger" :disabled="deleting" @click="confirmDeleteStage">
+              {{ deleting ? 'Deleting…' : 'Delete Stage' }}
+            </AppButton>
+          </footer>
+        </section>
+      </div>
+    </Teleport>
   </section>
 </template>
 
 <style scoped>
+.policy-group-row td {
+  padding: 8px 16px;
+  background: rgba(59, 130, 246, 0.06);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.policy-group-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--primary);
+  letter-spacing: 0.02em;
+}
+
+.modal-dialog-sm {
+  max-width: 460px;
+}
+
+.header-icon.danger {
+  background: rgba(239, 68, 68, 0.14);
+  color: #f87171;
+}
+
+.confirm-text {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+
 .lifecycle-page {
   width: 100%;
   max-width: 1680px;
