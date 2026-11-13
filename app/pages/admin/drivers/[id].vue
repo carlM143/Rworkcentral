@@ -2,6 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import {
   ArrowLeft,
+  Pencil,
   CalendarDays,
   Clock3,
   Gauge,
@@ -10,6 +11,7 @@ import {
   Plus,
 } from 'lucide-vue-next'
 import DriverStatCard from '~/components/admin/drivers/DriverStatCard.vue'
+import DriverEditModal from '~/components/admin/drivers/DriverEditModal.vue'
 import BaseDataTable from '~/components/shared-table/BaseDataTable.vue'
 import {
   driverTimeText,
@@ -42,6 +44,7 @@ const AVAILABILITY_LABELS: Record<DriverAvailabilityStatus, string> = {
   rest_day: 'Rest Day',
   on_leave: 'On Leave',
   license_expired: 'License Expired',
+  inactive: 'Inactive',
 }
 
 const TRIP_LABELS: Record<TripTicketStatus, string> = {
@@ -51,13 +54,17 @@ const TRIP_LABELS: Record<TripTicketStatus, string> = {
   cancelled: 'Cancelled',
 }
 
-const driver = ref<DriverRecord | null>(null) 
-const tickets = ref<TripTicketRecord[]>([])
+// =====================================================
+// DATA
+// =====================================================
+
+const driver = ref<DriverRecord | null>(null) // availability for today
+const tickets = ref<TripTicketRecord[]>([]) // all tickets of this driver
 const loading = ref(true)
 const notFound = ref(false)
 
 const scheduleDate = ref(today)
-const scheduleDriver = ref<DriverRecord | null>(null)
+const scheduleDriver = ref<DriverRecord | null>(null) // availability for scheduleDate
 const scheduleLoading = ref(false)
 
 const load = async () => {
@@ -65,7 +72,7 @@ const load = async () => {
   try {
     const [availability, list] = await Promise.all([
       driverApi.availability(today),
-      tripApi.list(),
+      tripApi.list({ driver_id: driverId, per_page: 200 }),
     ])
     driver.value = availability.data.find(d => d.id === driverId) ?? null
     notFound.value = !driver.value
@@ -92,6 +99,15 @@ const loadSchedule = async () => {
 
 onMounted(load)
 watch(scheduleDate, loadSchedule)
+
+const editOpen = ref(false)
+const flash = ref('')
+
+const onEdited = async (_driver: DriverRecord, message: string) => {
+  editOpen.value = false
+  flash.value = message
+  await load()
+}
 
 // =====================================================
 // STATS
@@ -172,10 +188,29 @@ const openTicket = (ticketNo: string) => {
       <AppButton variant="secondary" :icon="ArrowLeft" @click="router.push('/admin/drivers')">
         Back
       </AppButton>
-      <AppButton v-if="driver" :icon="Plus" @click="router.push({ path: '/admin/trip-tickets/create', query: { driver: driverId } })">
+      <AppButton v-if="driver" variant="secondary" :icon="Pencil" @click="editOpen = true">
+        Edit Driver
+      </AppButton>
+      <AppButton
+        v-if="driver && driver.status !== 'inactive'"
+        :icon="Plus"
+        @click="router.push({ path: '/admin/trip-tickets/create', query: { driver: driverId } })"
+      >
         Create Trip Ticket
       </AppButton>
     </PageHeader>
+
+    <p v-if="flash" class="flash" role="status">
+      {{ flash }}
+      <button type="button" class="flash-close" aria-label="Dismiss" @click="flash = ''">×</button>
+    </p>
+
+    <DriverEditModal
+      v-if="editOpen && driver"
+      :driver="driver"
+      @close="editOpen = false"
+      @saved="onEdited"
+    />
 
     <!-- LOADING / NOT FOUND -->
     <div v-if="loading" class="state-card">Loading driver...</div>
@@ -666,6 +701,29 @@ const openTicket = (ticketNo: string) => {
 .avail-on_leave { background: rgba(245, 158, 11, 0.12); color: #fbbf24; }
 .avail-rest_day { background: rgba(148, 163, 184, 0.12); color: #a8b3c4; }
 .avail-license_expired { background: rgba(239, 68, 68, 0.12); color: #f87171; }
+.avail-inactive { background: rgba(100, 116, 139, 0.18); color: #94a3b8; }
+
+.flash {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 14px 0 0;
+  padding: 10px 12px;
+  border-radius: 9px;
+  background: var(--green-soft);
+  color: var(--green);
+  font-size: 13px;
+}
+
+.flash-close {
+  margin-left: auto;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
 
 .trip-scheduled { background: rgba(59, 130, 246, 0.12); color: #60a5fa; }
 .trip-ongoing { background: rgba(245, 158, 11, 0.12); color: #fbbf24; }

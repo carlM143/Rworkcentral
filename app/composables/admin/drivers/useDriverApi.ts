@@ -1,9 +1,23 @@
+/**
+ * Drivers API (drivers_info).
+ * Endpoints: routes/api/admin.php → DriverController
+ *
+ * Availability rules (computed by the backend):
+ *   0. Deactivated by HR                  -> inactive
+ *   1. License expired on that date      -> license_expired
+ *   2. Approved leave on that date        -> on_leave
+ *   3. Rest day in the work schedule      -> rest_day
+ *   4. Departed and not back yet          -> on_trip
+ *   5. Otherwise                          -> available
+ */
+
 export type DriverAvailabilityStatus =
   | 'available'
   | 'on_trip'
   | 'rest_day'
   | 'on_leave'
   | 'license_expired'
+  | 'inactive'
 
 export interface DriverBusyBlock {
   ticket_no: string
@@ -19,6 +33,7 @@ export interface DriverRecord {
   licence_no: string
   expire_date: string
   image_path: string | null
+  status: 'active' | 'inactive'
   employee: {
     id: number
     emp_id: string
@@ -40,6 +55,14 @@ export interface DriverEmployeeOption {
   name: string
   department: string | null
   position: string | null
+}
+
+export interface UpdateDriverPayload {
+  drivers_code: string
+  licence_no: string
+  expire_date: string
+  image?: File | null
+  remove_image?: boolean
 }
 
 export interface StoreDriverPayload {
@@ -139,7 +162,37 @@ export const useDriverApi = () => {
       headers: headers(),
     })
 
-  return { availability, eligibleEmployees, nextDriverCode, recent, store, show }
+  // POST /admin/drivers/{id} (multipart; POST because PHP ignores files on PUT)
+  const update = (id: number, payload: UpdateDriverPayload) => {
+    const form = new FormData()
+    form.append('drivers_code', payload.drivers_code.trim())
+    form.append('licence_no', payload.licence_no.trim())
+    form.append('expire_date', payload.expire_date)
+    if (payload.image) form.append('image', payload.image)
+    if (payload.remove_image) form.append('remove_image', '1')
+
+    return $api<ApiResponse<DriverRecord>>(`/admin/drivers/${id}`, {
+      method: 'POST',
+      body: form,
+      headers: headers(),
+    })
+  }
+
+  // PATCH /admin/drivers/{id}/deactivate
+  const deactivate = (id: number) =>
+    $api<ApiResponse<DriverRecord>>(`/admin/drivers/${id}/deactivate`, {
+      method: 'PATCH',
+      headers: headers(),
+    })
+
+  // PATCH /admin/drivers/{id}/activate
+  const activate = (id: number) =>
+    $api<ApiResponse<DriverRecord>>(`/admin/drivers/${id}/activate`, {
+      method: 'PATCH',
+      headers: headers(),
+    })
+
+  return { availability, eligibleEmployees, nextDriverCode, recent, store, show, update, deactivate, activate }
 }
 
 /** Readable message from a Laravel error response. */

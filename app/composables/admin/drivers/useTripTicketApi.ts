@@ -1,3 +1,8 @@
+/**
+ * Trip Tickets API.
+ * Endpoints: routes/api/admin/carl/newAdminRoute.php → TripTicketController
+ */
+
 export type TripTicketStatus = 'scheduled' | 'ongoing' | 'completed' | 'cancelled'
 
 export interface TripVehicle {
@@ -85,6 +90,26 @@ export interface StoreTripTicketPayload {
   remarks?: string
 }
 
+export interface TripTicketListParams {
+  page?: number
+  per_page?: number
+  search?: string
+  status?: TripTicketStatus | ''
+  driver_id?: number | null
+  department_id?: number | null
+  date_from?: string
+  date_to?: string
+}
+
+export interface TripTicketListResponse {
+  success: boolean
+  message: string
+  data: TripTicketRecord[]
+  meta: { current_page: number, last_page: number, per_page: number, total: number, from: number, to: number }
+  stats: { trips_today: number, ongoing: number, completed_today: number, km_today: number }
+  filters: { drivers: { id: number, name: string }[], departments: { id: number, name: string }[] }
+}
+
 interface ApiResponse<T> {
   success: boolean
   message: string
@@ -105,9 +130,21 @@ export const useTripTicketApi = () => {
   const headers = (): Record<string, string> =>
     token.value ? { Authorization: `Bearer ${token.value}` } : {}
 
-  // GET /admin/trip-tickets
-  const list = () =>
-    $api<ApiResponse<TripTicketRecord[]>>('/admin/trip-tickets', {
+  // GET /admin/trip-tickets (paginated; empty filters are left out)
+  const list = (params: TripTicketListParams = {}) => {
+    const query = Object.fromEntries(
+      Object.entries(params).filter(([, value]) => value !== '' && value !== null && value !== undefined),
+    )
+    return $api<TripTicketListResponse>('/admin/trip-tickets', {
+      method: 'GET',
+      query,
+      headers: headers(),
+    })
+  }
+
+  // GET /admin/trip-tickets/{id}
+  const show = (id: number) =>
+    $api<ApiResponse<TripTicketRecord>>(`/admin/trip-tickets/${id}`, {
       method: 'GET',
       headers: headers(),
     })
@@ -128,14 +165,27 @@ export const useTripTicketApi = () => {
     })
 
   // GET /admin/trip-tickets/options?date=&start=&end=&department_id=
-  const formOptions = async (date: string, start: string, end: string, departmentId?: number | null) => {
+  // excludeTicketId: when editing, the ticket's own booking does not block itself.
+  const formOptions = async (
+    date: string,
+    start: string,
+    end: string,
+    departmentId?: number | null,
+    excludeTicketId?: number | null,
+  ) => {
     const response = await $api<ApiResponse<{
       drivers: TripDriverOption[]
       vehicles: TripVehicleOption[]
       passengers: TripPassengerOption[]
     }>>('/admin/trip-tickets/options', {
       method: 'GET',
-      query: { date, start, end, ...(departmentId ? { department_id: departmentId } : {}) },
+      query: {
+        date,
+        start,
+        end,
+        ...(departmentId ? { department_id: departmentId } : {}),
+        ...(excludeTicketId ? { exclude_ticket_id: excludeTicketId } : {}),
+      },
       headers: headers(),
     })
     return response.data
@@ -145,6 +195,19 @@ export const useTripTicketApi = () => {
   const store = (payload: StoreTripTicketPayload) =>
     $api<ApiResponse<TripTicketRecord>>('/admin/trip-tickets', {
       method: 'POST',
+      body: {
+        ...payload,
+        destination: payload.destination.trim(),
+        purpose: payload.purpose.trim(),
+        remarks: payload.remarks?.trim() || null,
+      },
+      headers: headers(),
+    })
+
+  // PUT /admin/trip-tickets/{id} (scheduled tickets only)
+  const update = (id: number, payload: StoreTripTicketPayload) =>
+    $api<ApiResponse<TripTicketRecord>>(`/admin/trip-tickets/${id}`, {
+      method: 'PUT',
       body: {
         ...payload,
         destination: payload.destination.trim(),
@@ -178,5 +241,5 @@ export const useTripTicketApi = () => {
       headers: headers(),
     })
 
-  return { list, departments, requesters, formOptions, store, depart, returnTrip, cancel }
+  return { list, show, departments, requesters, formOptions, store, update, depart, returnTrip, cancel }
 }
