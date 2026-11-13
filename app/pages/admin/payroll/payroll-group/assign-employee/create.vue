@@ -8,6 +8,7 @@ import {
   CheckCircle2,
   AlertTriangle,
   X,
+  Undo2,
 } from 'lucide-vue-next'
 
 import type {
@@ -144,10 +145,119 @@ const resetFilters = () => {
   locationId.value = null
 }
 
+/* =========================================================
+   UNDO
+   DELETE /admin/payroll-groups/{group}/assignments/{assignment}
+   Backend only allows the employee's latest assignment and refuses
+   if payroll was already generated under it.
+========================================================= */
+
+const undoingId = ref<number | null>(null) // employee id being undone
+const undoingBatch = ref(false)
+const undoBusy = computed(() => undoingId.value !== null || undoingBatch.value)
+
+// The batch from the last bulk assign, so it can be undone in one click.
+const lastBatch = ref<{ groupId: number, effectiveFrom: string, employeeIds: number[] } | null>(null)
+
+// What the result panel is showing: a bulk assign or an undo.
+const resultKind = ref<'assign' | 'undo'>('assign')
+
+const fullName = (e: AssignableEmployee) => `${e.firstname} ${e.lastname}`.trim()
+
+const undoEmployee = async (e: AssignableEmployee) => {
+  const assignment = currentAssignment(e)
+  if (!groupId.value || !assignment || undoBusy.value) return
+
+  const confirmed = window.confirm(
+    `Undo ${fullName(e)}'s assignment to ${selectedGroup.value?.group_name ?? 'this group'}?\n\n` +
+    'The assignment will be deleted. If it replaced an earlier payroll group, the employee goes back to that group.',
+  )
+  if (!confirmed) return
+
+  undoingId.value = e.id
+  errorMessage.value = ''
+
+  try {
+    const res = await groupApi.undoAssignment(groupId.value, assignment.id)
+    resultKind.value = 'undo'
+    resultMessage.value = `${fullName(e)}: ${res.message}`
+    result.value = { assigned: [], skipped: [] }
+    if (lastBatch.value) {
+      lastBatch.value.employeeIds = lastBatch.value.employeeIds.filter(id => id !== e.id)
+    }
+    await loadEmployees()
+  } catch (err) {
+    errorMessage.value = `${fullName(e)}: ${groupApi.getErrorMessage(err)}`
+  } finally {
+    undoingId.value = null
+  }
+}
+
+const undoLastBatch = async () => {
+  const batch = lastBatch.value
+  if (!batch || !batch.employeeIds.length || undoBusy.value) return
+
+  const count = batch.employeeIds.length
+  const confirmed = window.confirm(
+    `Undo the assignment of all ${count} employee${count === 1 ? '' : 's'} you just assigned?\n\n` +
+    'Employees moved from another group go back to that group.',
+  )
+  if (!confirmed) return
+
+  undoingBatch.value = true
+  errorMessage.value = ''
+
+  const undone: BulkAssignResult['assigned'] = []
+  const failed: BulkAssignResult['skipped'] = []
+
+  try {
+    // Fresh, unfiltered list so every employee in the batch is found even if
+    // the filters changed after assigning.
+    const fresh = await groupApi.fetchAssignableEmployees({ date: batch.effectiveFrom })
+    const byId = new Map(fresh.map(e => [e.id, e]))
+
+    // One at a time: the backend locks each employee row.
+    for (const employeeId of batch.employeeIds) {
+      const employee = byId.get(employeeId)
+      const assignment = employee ? currentAssignment(employee) : null
+      const name = employee ? fullName(employee) : `Employee #${employeeId}`
+
+      if (!assignment || assignment.payroll_group_id !== batch.groupId) {
+        failed.push({ employee_id: employeeId, name, reason: 'No longer in this group.' })
+        continue
+      }
+
+      try {
+        await groupApi.undoAssignment(batch.groupId, assignment.id)
+        undone.push({ employee_id: employeeId, name, moved_from_group_id: null })
+      } catch (err) {
+        failed.push({ employee_id: employeeId, name, reason: groupApi.getErrorMessage(err) })
+      }
+    }
+
+    resultKind.value = 'undo'
+    resultMessage.value = failed.length
+      ? `Undid ${undone.length} of ${count} assignment(s).`
+      : `Undid all ${undone.length} assignment(s).`
+    result.value = { assigned: undone, skipped: failed }
+
+    // Keep only the ones that failed so they can be retried.
+    lastBatch.value = failed.length
+      ? { ...batch, employeeIds: failed.map(item => item.employee_id) }
+      : null
+  } catch (err) {
+    errorMessage.value = groupApi.getErrorMessage(err)
+  } finally {
+    undoingBatch.value = false
+    await loadEmployees()
+  }
+}
+
 const submit = async () => {
   errorMessage.value = ''
   resultMessage.value = ''
   result.value = null
+  lastBatch.value = null
 
   if (!groupId.value) {
     errorMessage.value = 'Select a payroll group.'
@@ -171,8 +281,16 @@ const submit = async () => {
       effectiveFrom.value,
     )
 
+    resultKind.value = 'assign'
     result.value = res.data
     resultMessage.value = res.message
+    lastBatch.value = res.data.assigned.length
+      ? {
+          groupId: groupId.value,
+          effectiveFrom: effectiveFrom.value,
+          employeeIds: res.data.assigned.map(item => item.employee_id),
+        }
+      : null
     clearSelection()
     await loadEmployees()
   } catch (err) {
@@ -235,14 +353,26 @@ onBeforeUnmount(() => clearTimeout(searchTimer))
     >
       <div class="result-head">
         <strong>{{ resultMessage }}</strong>
-        <button
-          type="button"
-          class="icon-btn"
-          aria-label="Dismiss"
-          @click="result = null"
-        >
-          <X :size="16" />
-        </button>
+        <div class="result-actions">
+          <button
+            v-if="lastBatch?.employeeIds.length"
+            type="button"
+            class="undo-btn"
+            :disabled="undoBusy"
+            @click="undoLastBatch"
+          >
+            <Undo2 :size="13" />
+            {{ undoingBatch ? 'Undoing…' : resultKind === 'undo' ? `Retry undo (${lastBatch.employeeIds.length})` : `Undo this assignment (${lastBatch.employeeIds.length})` }}
+          </button>
+          <button
+            type="button"
+            class="icon-btn"
+            aria-label="Dismiss"
+            @click="result = null"
+          >
+            <X :size="16" />
+          </button>
+        </div>
       </div>
 
       <div
@@ -250,7 +380,7 @@ onBeforeUnmount(() => clearTimeout(searchTimer))
         class="result-block"
       >
         <span class="result-title ok">
-          <CheckCircle2 :size="14" /> Assigned ({{ result.assigned.length }})
+          <CheckCircle2 :size="14" /> {{ resultKind === 'undo' ? 'Undone' : 'Assigned' }} ({{ result.assigned.length }})
         </span>
         <ul>
           <li
@@ -267,7 +397,7 @@ onBeforeUnmount(() => clearTimeout(searchTimer))
         class="result-block"
       >
         <span class="result-title warn">
-          <AlertTriangle :size="14" /> Skipped ({{ result.skipped.length }})
+          <AlertTriangle :size="14" /> {{ resultKind === 'undo' ? 'Could not undo' : 'Skipped' }} ({{ result.skipped.length }})
         </span>
         <ul>
           <li
@@ -454,12 +584,21 @@ onBeforeUnmount(() => clearTimeout(searchTimer))
                   </template>
                 </span>
               </span>
-              <span
-                v-if="isInSelectedGroup(e)"
-                class="badge same"
-              >
-                Already in this group
-              </span>
+              <template v-if="isInSelectedGroup(e)">
+                <span class="badge same">
+                  Already in this group
+                </span>
+                <button
+                  type="button"
+                  class="undo-btn"
+                  :disabled="undoBusy"
+                  :title="`Undo ${e.firstname}'s assignment to this group`"
+                  @click.stop.prevent="undoEmployee(e)"
+                >
+                  <Undo2 :size="13" />
+                  {{ undoingId === e.id ? 'Undoing…' : 'Undo' }}
+                </button>
+              </template>
               <span
                 v-else-if="currentAssignment(e)?.payroll_group"
                 class="badge move"
@@ -668,8 +807,44 @@ input[type='date']:focus,
   background: var(--primary-soft);
 }
 
-.employee-list li.disabled {
+/* Dim the content only, so the Undo button stays readable. */
+.employee-list li.disabled .emp,
+.employee-list li.disabled .badge,
+.employee-list li.disabled input {
   opacity: 0.55;
+}
+
+.undo-btn {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  border: 1px solid var(--border, rgb(127 127 127 / 30%));
+  border-radius: 7px;
+  background: var(--bg-card-soft, transparent);
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.undo-btn:hover:not(:disabled) {
+  border-color: #fb923c;
+  color: #fb923c;
+}
+
+.undo-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.result-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .employee-list li.disabled .check {

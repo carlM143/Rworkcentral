@@ -204,12 +204,12 @@ const menuItems = [
       },
       {
         label: 'Employee Payroll',
-        to: '/admin/employee-payroll',
+        to: '/admin/payroll/employee-payroll',
         icon: Calculator,
       },
       {
         label: 'Driver Payroll',
-        to: '/admin/driver-payroll',
+        to: '/admin/payroll/driver-payroll',
         icon: Truck,
       },
       {
@@ -243,12 +243,12 @@ const menuItems = [
         to: '/admin/contribution/bracket-management',
       },
       {
-        label: 'Contribution History',
-        to: '/admin/contribution/rate-brackets',
-      },
-      {
         label: 'Contribution Settings',
         to: '/admin/contribution/deduction-settings',
+      },
+      {
+        label: 'Contribution History',
+        to: '/admin/contribution/contribution-history',
       },
     ],
   },

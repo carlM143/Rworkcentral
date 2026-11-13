@@ -1,4 +1,7 @@
-import type { PayrollGenerationResult } from '~/types/payroll/payroll-generation/payrollGeneration'
+import type {
+  PayrollGenerationResult,
+  PayrollRunData,
+} from '~/types/payroll/payroll-generation/payrollGeneration'
 
 interface ApiResponse<T> {
   success: boolean
@@ -11,6 +14,7 @@ export const usePayrollGeneration = () => {
 
   const generating = ref(false)
   const finalizing = ref(false)
+  const loadingPayrolls = ref(false)
 
   const generatePayroll = async (periodId: number, groupId?: number | null) => {
     generating.value = true
@@ -42,16 +46,23 @@ export const usePayrollGeneration = () => {
   }
 
   const fetchPayrolls = async (periodId: number) => {
-    const response = await $api<ApiResponse<unknown>>(
-      `/admin/payroll-generation/${periodId}`,
-    )
+    loadingPayrolls.value = true
 
-    return response.data
+    try {
+      const response = await $api<ApiResponse<PayrollRunData>>(
+        `/admin/payroll-generation/${periodId}`,
+      )
+
+      return response.data
+    } finally {
+      loadingPayrolls.value = false
+    }
   }
 
   return {
     generating,
     finalizing,
+    loadingPayrolls,
     generatePayroll,
     finalizePayroll,
     fetchPayrolls,

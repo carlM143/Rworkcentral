@@ -9,15 +9,23 @@ import {
   Calculator,
   Lock,
   X,
+  ListChecks,
+  FileText,
 } from 'lucide-vue-next'
 import PayrollReadinessFilter from '~/components/admin/payroll/payroll-readiness/PayrollReadinessFilter.vue'
 import PayrollReadinessStats from '~/components/admin/payroll/payroll-readiness/PayrollReadinessStats.vue'
 import PayrollReadinessTable from '~/components/admin/payroll/payroll-readiness/PayrollReadinessTable.vue'
+import PayrollResultsTable from '~/components/admin/payroll/payroll-generation/PayrollResultsTable.vue'
 import type {
   PeriodStatus,
   ReadinessStatus,
 } from '~/types/payroll/payroll-readiness/payrollReadiness'
-import type { PayrollGenerationResult } from '~/types/payroll/payroll-generation/payrollGeneration'
+import type {
+  PayrollGenerationResult,
+  PayrollRecord,
+} from '~/types/payroll/payroll-generation/payrollGeneration'
+
+import ConfirmationModal from '~/components/ui/ConfirmationModal.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -31,7 +39,10 @@ const generationApi = usePayrollGeneration()
 const { readiness, loading, updatingStatus } = readinessApi
 const { periods } = periodApi
 const { groups } = groupApi
-const { generating, finalizing } = generationApi
+const { generating, finalizing, loadingPayrolls } = generationApi
+
+const payrolls = ref<PayrollRecord[]>([])
+const showChecks = ref(false)
 
 const generationResult = ref<PayrollGenerationResult | null>(null)
 const generationMessage = ref('')
@@ -66,6 +77,15 @@ const frequencyLabel = (value?: string) => ({
 const period = computed(() => readiness.value?.period ?? null)
 const periodStatus = computed(() => (period.value?.status ?? '').toLowerCase())
 
+const isProcessed = computed(() => ['processing', 'closed'].includes(periodStatus.value))
+const showReadiness = computed(() => !isProcessed.value || showChecks.value)
+
+const visiblePayrolls = computed(() =>
+  groupId.value
+    ? payrolls.value.filter(p => p.payroll_group_id === groupId.value)
+    : payrolls.value,
+)
+
 const periodBlockers = computed(() =>
   readiness.value?.period_issues.filter(i => i.severity === 'blocker') ?? [],
 )
@@ -99,6 +119,21 @@ const load = async () => {
 
   try {
     await readinessApi.fetchReadiness(periodId.value, groupId.value)
+    await loadPayrolls()
+  } catch (err) {
+    errorMessage.value = readinessApi.getErrorMessage(err)
+  }
+}
+
+const loadPayrolls = async () => {
+  if (!periodId.value || !isProcessed.value) {
+    payrolls.value = []
+    return
+  }
+
+  try {
+    const data = await generationApi.fetchPayrolls(periodId.value)
+    payrolls.value = data.payrolls
   } catch (err) {
     errorMessage.value = readinessApi.getErrorMessage(err)
   }
@@ -144,20 +179,62 @@ const canGenerate = computed(() =>
   !!readiness.value?.can_generate && ['open', 'processing'].includes(periodStatus.value),
 )
 
-const runGenerate = async () => {
+/* =========================================================
+   CONFIRMATION MODAL
+   The modal stays open (buttons disabled) while the action runs.
+========================================================= */
+
+interface PendingConfirm {
+  title: string
+  message: string
+  confirmText: string
+  variant: 'primary' | 'danger'
+  action: () => Promise<void>
+}
+
+const pendingConfirm = ref<PendingConfirm | null>(null)
+const confirmLoading = ref(false)
+
+const askConfirm = (options: PendingConfirm) => {
+  pendingConfirm.value = options
+}
+
+const cancelConfirm = () => {
+  if (!confirmLoading.value) pendingConfirm.value = null
+}
+
+const acceptConfirm = async () => {
+  if (!pendingConfirm.value || confirmLoading.value) return
+
+  confirmLoading.value = true
+  try {
+    await pendingConfirm.value.action()
+  } finally {
+    confirmLoading.value = false
+    pendingConfirm.value = null
+  }
+}
+
+const runGenerate = () => {
   if (!periodId.value || !readiness.value) return
 
   const isRegenerate = periodStatus.value === 'processing'
   const count = readiness.value.stats.included
   const name = period.value?.period_name || `Payroll Period #${periodId.value}`
 
-  const confirmed = window.confirm(
-    isRegenerate
-      ? `Regenerate payroll for ${name}?\n\nDraft payroll records will be recalculated. Finalized records are not changed.`
-      : `Generate payroll for ${count} employee(s) in ${name}?`,
-  )
+  askConfirm({
+    title: isRegenerate ? 'Regenerate Payroll?' : 'Generate Payroll?',
+    message: isRegenerate
+      ? `Draft payroll records for ${name} will be recalculated.\nFinalized records are not changed.`
+      : `Payroll will be generated for ${count} employee(s) in ${name}.`,
+    confirmText: isRegenerate ? 'Regenerate' : 'Generate Payroll',
+    variant: 'primary',
+    action: () => generate(isRegenerate),
+  })
+}
 
-  if (!confirmed) return
+const generate = async (isRegenerate: boolean) => {
+  if (!periodId.value) return
 
   try {
     const res = await generationApi.generatePayroll(periodId.value, groupId.value)
@@ -170,14 +247,20 @@ const runGenerate = async () => {
   }
 }
 
-const runFinalize = async () => {
+const runFinalize = () => {
   if (!periodId.value) return
 
-  const confirmed = window.confirm(
-    'Finalize this payroll?\n\nPayroll records will be locked, loan deductions will be posted, and the period will be closed. This cannot be undone.',
-  )
+  askConfirm({
+    title: 'Finalize Payroll?',
+    message: 'Payroll records will be locked, loan deductions will be posted, and the period will be closed.\nThis cannot be undone.',
+    confirmText: 'Finalize Payroll',
+    variant: 'danger',
+    action: finalize,
+  })
+}
 
-  if (!confirmed) return
+const finalize = async () => {
+  if (!periodId.value) return
 
   try {
     const res = await generationApi.finalizePayroll(periodId.value)
@@ -191,6 +274,7 @@ const runFinalize = async () => {
 
 watch(periodId, () => {
   generationResult.value = null
+  showChecks.value = false
 })
 
 onMounted(async () => {
@@ -272,6 +356,14 @@ onMounted(async () => {
           <StatusBadge :status="period.status" />
 
           <AppButton
+            v-if="periodStatus === 'closed'"
+            :icon="FileText"
+            @click="navigateTo({ path: '/admin/payroll/payslip', query: { period: String(period.id) } })"
+          >
+            View Payslips
+          </AppButton>
+
+          <AppButton
             v-if="periodStatus === 'draft'"
             :icon="PlayCircle"
             :disabled="updatingStatus"
@@ -315,7 +407,7 @@ onMounted(async () => {
       </div>
 
       <div
-        v-if="readiness.can_generate"
+        v-if="readiness.can_generate && !isProcessed"
         class="alert alert--ok"
       >
         <CheckCircle2 :size="16" />
@@ -341,7 +433,7 @@ onMounted(async () => {
       </div>
 
       <div
-        v-if="generationResult"
+        v-if="generationResult?.skipped.length"
         class="result-card"
       >
         <div class="result-head">
@@ -356,37 +448,7 @@ onMounted(async () => {
           </button>
         </div>
 
-        <div
-          v-if="generationResult.generated.length"
-          class="table-scroll"
-        >
-          <table class="result-table">
-            <thead>
-              <tr>
-                <th>Employee</th>
-                <th class="num">Gross Pay</th>
-                <th class="num">Deductions</th>
-                <th class="num">Net Pay</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr
-                v-for="line in generationResult.generated"
-                :key="line.payroll_id"
-              >
-                <td>{{ line.name }}</td>
-                <td class="num">{{ formatMoney(line.gross_pay) }}</td>
-                <td class="num">{{ formatMoney(line.total_deductions) }}</td>
-                <td class="num"><strong>{{ formatMoney(line.net_pay) }}</strong></td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
-        <ul
-          v-if="generationResult.skipped.length"
-          class="skipped"
-        >
+        <ul class="skipped">
           <li
             v-for="line in generationResult.skipped"
             :key="line.employee_id"
@@ -396,6 +458,24 @@ onMounted(async () => {
         </ul>
       </div>
 
+      <template v-if="isProcessed">
+        <PayrollResultsTable
+          :payrolls="visiblePayrolls"
+          :loading="loadingPayrolls"
+        />
+
+        <div class="checks-toggle">
+          <AppButton
+            variant="secondary"
+            :icon="ListChecks"
+            @click="showChecks = !showChecks"
+          >
+            {{ showChecks ? 'Hide readiness checks' : 'Show readiness checks' }}
+          </AppButton>
+        </div>
+      </template>
+
+      <template v-if="showReadiness">
       <PayrollReadinessStats :stats="readiness.stats" />
 
       <div
@@ -465,6 +545,7 @@ onMounted(async () => {
         :employees="filteredEmployees"
         :loading="loading"
       />
+      </template>
     </template>
 
     <div
@@ -473,6 +554,16 @@ onMounted(async () => {
     >
       Checking payroll readiness…
     </div>
+    <ConfirmationModal
+      :open="!!pendingConfirm"
+      :title="pendingConfirm?.title ?? ''"
+      :message="pendingConfirm?.message"
+      :confirm-text="confirmLoading ? 'Please wait…' : pendingConfirm?.confirmText"
+      :variant="pendingConfirm?.variant"
+      :loading="confirmLoading"
+      @confirm="acceptConfirm"
+      @cancel="cancelConfirm"
+    />
   </section>
 </template>
 
@@ -734,6 +825,12 @@ onMounted(async () => {
 
 .skipped strong {
   color: var(--text-primary);
+}
+
+.checks-toggle {
+  display: flex;
+  justify-content: center;
+  margin: 16px 0;
 }
 
 .empty-card {
