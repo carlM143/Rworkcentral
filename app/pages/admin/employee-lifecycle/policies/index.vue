@@ -32,6 +32,20 @@ const perPage = ref(6)
 
 const isModalOpen = ref(false)
 const editingPolicy = ref<Partial<LifecyclePolicy> | null>(null)
+const policyToDelete = ref<LifecyclePolicy | null>(null)
+const deleting = ref(false)
+
+const confirmDeletePolicy = async () => {
+  if (!policyToDelete.value || deleting.value) return
+  deleting.value = true
+  try {
+    if (await deletePolicy(policyToDelete.value.id)) {
+      policyToDelete.value = null
+    }
+  } finally {
+    deleting.value = false
+  }
+}
 
 const employmentTypes = computed(() => ['All Types', ...typeRecords.value.map(t => t.name)])
 const statusOptions = ['Active', 'Inactive']
@@ -301,7 +315,7 @@ const handleExport = () => {
                     type="button"
                     class="action-icon-btn delete"
                     title="Delete Policy"
-                    @click="deletePolicy(policy.id)"
+                    @click="policyToDelete = policy"
                   >
                     <Trash2 :size="15" />
                   </button>
@@ -410,10 +424,63 @@ const handleExport = () => {
         </section>
       </div>
     </Teleport>
+
+    <!-- DELETE CONFIRMATION MODAL -->
+    <Teleport to="body">
+      <div
+        v-if="policyToDelete"
+        class="modal-overlay"
+        @click.self="!deleting && (policyToDelete = null)"
+      >
+        <section class="modal-dialog modal-dialog-sm" role="dialog" aria-modal="true">
+          <header class="dialog-header">
+            <div class="dialog-header-left">
+              <span class="header-icon danger">
+                <Trash2 :size="20" />
+              </span>
+              <div>
+                <h2>Delete Lifecycle Policy</h2>
+                <p>{{ policyToDelete.name }}</p>
+              </div>
+            </div>
+            <button type="button" class="close-icon" aria-label="Close" :disabled="deleting" @click="policyToDelete = null">
+              <X :size="19" />
+            </button>
+          </header>
+          <div class="dialog-body">
+            <p class="confirm-text">
+              Are you sure you want to delete <strong>{{ policyToDelete.name }}</strong>? Policies with existing stages cannot be deleted and should be deactivated instead.
+            </p>
+          </div>
+          <footer class="dialog-footer">
+            <AppButton variant="secondary" :disabled="deleting" @click="policyToDelete = null">Cancel</AppButton>
+            <AppButton variant="danger" :disabled="deleting" @click="confirmDeletePolicy">
+              {{ deleting ? 'Deleting…' : 'Delete Policy' }}
+            </AppButton>
+          </footer>
+        </section>
+      </div>
+    </Teleport>
   </section>
 </template>
 
 <style scoped>
+.modal-dialog-sm {
+  max-width: 460px;
+}
+
+.header-icon.danger {
+  background: rgba(239, 68, 68, 0.14);
+  color: #f87171;
+}
+
+.confirm-text {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+
 .lifecycle-page {
   width: 100%;
   max-width: 1680px;

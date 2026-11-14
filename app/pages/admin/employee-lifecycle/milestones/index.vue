@@ -15,6 +15,8 @@ import {
   UploadCloud,
   Trash2,
   Award,
+  History,
+  AlertTriangle,
 } from 'lucide-vue-next'
 import StatCard from '~/components/shared/StatCard.vue'
 import AppButton from '~/components/ui/AppButton.vue'
@@ -30,7 +32,10 @@ definePageMeta({
 
 const {
   milestones,
-  loading, errorMessage, load,
+  departments,
+  stats,
+  meta,
+  loading, errorMessage, load, fetchAllForExport,
 } = useLifecycleMilestones()
 
 const { employmentTypes, loadEmploymentTypes } = useEmploymentTypes()
@@ -38,13 +43,25 @@ const { employmentTypes, loadEmploymentTypes } = useEmploymentTypes()
 const { $api } = useNuxtApp()
 const toast = useToast()
 const saving = ref(false)
+const exporting = ref(false)
 const selectedFile = ref<File | null>(null)
 const removedAttachment = ref(false)
 const employmentChangeOpen = ref(false)
 const employmentChangeEmployeeId = ref<number | undefined>()
-const openEmploymentChange = (employeeId?: number) => {
+const employmentChangeDefaultType = ref<string | undefined>()
+const regularizePromptEmployee = ref<{ employeeId: number; employeeName: string; employeeNumber: string } | null>(null)
+
+const openEmploymentChange = (employeeId?: number, defaultTypeName?: string) => {
   employmentChangeEmployeeId.value = employeeId
+  employmentChangeDefaultType.value = defaultTypeName
   employmentChangeOpen.value = true
+}
+
+const confirmProceedToRegularize = () => {
+  if (!regularizePromptEmployee.value) return
+  const { employeeId } = regularizePromptEmployee.value
+  regularizePromptEmployee.value = null
+  openEmploymentChange(employeeId, 'Regular')
 }
 
 const search = ref('')
@@ -65,10 +82,6 @@ const selectedFileName = ref<string | null>(null)
 const selectedFileSize = ref<string | null>(null)
 const fileInputRef = ref<HTMLInputElement | null>(null)
 
-const departments = computed(() => {
-  const set = new Set(milestones.value.map(m => m.department))
-  return Array.from(set).filter(Boolean)
-})
 const isActiveType = (status: unknown) => [true, 1, '1', 'active', 'Active'].includes(status as string | number | boolean)
 // Keep every active type from the Employment Types page, and fall back to any
 // type already present on a milestone when that list is unavailable.
@@ -83,57 +96,41 @@ const employmentTypeOptions = computed(() => {
   }
   return [...options].sort((a, b) => a.localeCompare(b))
 })
-const statusOptions = ['Pending', 'Completed']
+const statusOptions = ['Pending', 'Overdue', 'Due Soon', 'Completed']
 
-onMounted(() => { loadEmploymentTypes() })
+const getMilestoneUrgency = (m: EmployeeMilestone) => {
+  if (m.status === 'completed' || !m.dueDate) return null
+  const now = new Date()
+  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+  const todayDate = new Date(`${todayStr}T00:00:00`)
+  const dueDate = new Date(`${m.dueDate.slice(0, 10)}T00:00:00`)
+  if (Number.isNaN(dueDate.getTime())) return null
+  const diffDays = Math.round((dueDate.getTime() - todayDate.getTime()) / (1000 * 60 * 60 * 24))
+  if (diffDays < 0) return { type: 'overdue', label: 'Overdue' }
+  if (diffDays <= 30) return { type: 'due-soon', label: 'Due Soon' }
+  return null
+}
 
-const stats = computed(() => {
-  const total = milestones.value.length
-  const completed = milestones.value.filter(m => m.status === 'completed').length
-  const pending = total - completed
-  const probationaryUpcoming = milestones.value.filter(m => {
-    return m.employmentType === 'Probationary' && m.stageCode === 'M6_REGULARIZATION'
-  }).length
-
-  return { total, completed, pending, probationaryUpcoming }
+const currentQueryParams = () => ({
+  search: search.value,
+  department: selectedDepartment.value,
+  employmentType: selectedEmploymentType.value,
+  status: selectedStatus.value,
+  page: currentPage.value,
+  perPage: perPage.value,
 })
 
-const filteredMilestones = computed(() => {
-  return milestones.value.filter(m => {
-    const keyword = search.value.trim().toLowerCase()
-    const matchesSearch =
-      !keyword ||
-      m.employeeName.toLowerCase().includes(keyword) ||
-      m.employeeNumber.toLowerCase().includes(keyword) ||
-      m.stageName.toLowerCase().includes(keyword) ||
-      m.stageCode.toLowerCase().includes(keyword)
+const reloadMilestones = () => load(currentQueryParams())
 
-    const matchesDept =
-      !selectedDepartment.value ||
-      m.department === selectedDepartment.value
-
-    const matchesType =
-      !selectedEmploymentType.value ||
-      m.employmentType === selectedEmploymentType.value
-
-    const matchesStatus =
-      !selectedStatus.value ||
-      (selectedStatus.value === 'Pending' && m.status === 'pending') ||
-      (selectedStatus.value === 'Completed' && m.status === 'completed')
-
-    return matchesSearch && matchesDept && matchesType && matchesStatus
-  })
+onMounted(() => {
+  loadEmploymentTypes()
+  reloadMilestones()
 })
 
-const totalPages = computed(() => Math.max(1, Math.ceil(filteredMilestones.value.length / perPage.value)))
-
-const paginatedMilestones = computed(() => {
-  const start = (currentPage.value - 1) * perPage.value
-  return filteredMilestones.value.slice(start, start + perPage.value)
-})
-
-const showingFrom = computed(() => (filteredMilestones.value.length ? (currentPage.value - 1) * perPage.value + 1 : 0))
-const showingTo = computed(() => Math.min(currentPage.value * perPage.value, filteredMilestones.value.length))
+const paginatedMilestones = computed(() => milestones.value)
+const totalPages = computed(() => Math.max(1, meta.value.last_page))
+const showingFrom = computed(() => meta.value.from)
+const showingTo = computed(() => meta.value.to)
 
 const resetFilters = () => {
   search.value = ''
@@ -143,8 +140,28 @@ const resetFilters = () => {
   currentPage.value = 1
 }
 
-watch([search, selectedDepartment, selectedEmploymentType, selectedStatus], () => {
-  currentPage.value = 1
+let searchTimer: ReturnType<typeof setTimeout> | null = null
+watch(search, () => {
+  if (searchTimer) clearTimeout(searchTimer)
+  searchTimer = setTimeout(() => {
+    if (currentPage.value !== 1) {
+      currentPage.value = 1
+    } else {
+      reloadMilestones()
+    }
+  }, 300)
+})
+
+watch([selectedDepartment, selectedEmploymentType, selectedStatus], () => {
+  if (currentPage.value !== 1) {
+    currentPage.value = 1
+  } else {
+    reloadMilestones()
+  }
+})
+
+watch(currentPage, () => {
+  reloadMilestones()
 })
 
 const openEvaluationModal = (milestone: EmployeeMilestone) => {
@@ -211,11 +228,20 @@ const handleSaveEvaluation = async () => {
       milestone.evaluationDocumentId = documentId
       selectedFile.value = null
     }
-    await $api(`/admin/lifecycle/milestones/${milestone.id}`, { method: 'PUT', body: { remarks: editingRemarks.value, evaluation_document_id: documentId, status: resultingCompleted.value ? 'completed' : 'pending' } })
-    await load()
+    const wasCompleted = resultingCompleted.value
+    await $api(`/admin/lifecycle/milestones/${milestone.id}`, { method: 'PUT', body: { remarks: editingRemarks.value, evaluation_document_id: documentId, status: wasCompleted ? 'completed' : 'pending' } })
+    await reloadMilestones()
     saving.value = false
     closeModal()
     toast.success('Evaluation saved', 'Milestone status and remarks have been updated.')
+
+    if (wasCompleted && milestone.stageCode === 'M6_REGULARIZATION' && milestone.employmentType === 'Probationary') {
+      regularizePromptEmployee.value = {
+        employeeId: milestone.employeeId,
+        employeeName: milestone.employeeName,
+        employeeNumber: milestone.employeeNumber,
+      }
+    }
   } catch (err: any) { toast.error('Unable to save evaluation', err?.data?.message || 'Please try again.') }
   finally { saving.value = false }
 }
@@ -243,54 +269,63 @@ const formatDate = (dateStr: string) => {
   })
 }
 
-const handleExport = () => {
-  const headers = [
-    'Milestone ID',
-    'Employee ID',
-    'Employee Name',
-    'Department',
-    'Position',
-    'Employment Type',
-    'Stage Name',
-    'Stage Code',
-    'Policy Name',
-    'Target Date',
-    'Evaluation Attachment',
-    'Status',
-    'HR Remarks',
-  ]
-  const rows = filteredMilestones.value.map(m => [
-    m.id,
-    m.employeeNumber,
-    m.employeeName,
-    m.department,
-    m.position,
-    m.employmentType,
-    m.stageName,
-    m.stageCode,
-    m.policyName,
-    m.dueDate,
-    m.attachmentName || 'None',
-    m.status === 'completed' ? 'Completed' : 'Pending',
-    m.remarks || '',
-  ])
-  const csv = [headers, ...rows].map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\r\n')
-  const blob = new Blob(['\uFEFF', csv], { type: 'text/csv;charset=utf-8;' })
-  const url = URL.createObjectURL(blob)
-  const link = document.createElement('a')
-  link.href = url
-  link.download = `employee-lifecycle-milestones-${new Date().toISOString().slice(0, 10)}.csv`
-  document.body.appendChild(link)
-  link.click()
-  link.remove()
-  URL.revokeObjectURL(url)
+const handleExport = async () => {
+  if (exporting.value) return
+  exporting.value = true
+  try {
+    const allRecords = await fetchAllForExport(currentQueryParams())
+    const headers = [
+      'Milestone ID',
+      'Employee ID',
+      'Employee Name',
+      'Department',
+      'Position',
+      'Employment Type',
+      'Stage Name',
+      'Stage Code',
+      'Policy Name',
+      'Target Date',
+      'Evaluation Attachment',
+      'Status',
+      'HR Remarks',
+    ]
+    const rows = allRecords.map(m => [
+      m.id,
+      m.employeeNumber,
+      m.employeeName,
+      m.department,
+      m.position,
+      m.employmentType,
+      m.stageName,
+      m.stageCode,
+      m.policyName,
+      m.dueDate,
+      m.attachmentName || 'None',
+      m.status === 'completed' ? 'Completed' : 'Pending',
+      m.remarks || '',
+    ])
+    const csv = [headers, ...rows].map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\r\n')
+    const blob = new Blob(['\uFEFF', csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `employee-lifecycle-milestones-${new Date().toISOString().slice(0, 10)}.csv`
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    URL.revokeObjectURL(url)
+  } catch {
+    toast.error('Export failed', 'Unable to export milestones.')
+  } finally {
+    exporting.value = false
+  }
 }
 </script>
 
 <template>
   <section class="lifecycle-page">
     <p v-if="loading" role="status">Loading employee milestones…</p>
-    <p v-if="errorMessage" role="alert">{{ errorMessage }} <button @click="load">Retry</button></p>
+    <p v-if="errorMessage" role="alert">{{ errorMessage }} <button @click="reloadMilestones">Retry</button></p>
     <!-- PAGE HEADER -->
     <PageHeader
       title="Employee Milestones"
@@ -326,6 +361,13 @@ const handleExport = () => {
         description="Awaiting evaluation submission"
         :icon="Clock"
         tone="orange"
+      />
+      <StatCard
+        label="Overdue"
+        :value="stats.overdue"
+        description="Past target date & pending"
+        :icon="AlertTriangle"
+        tone="red"
       />
       <StatCard
         label="Regularization Targets"
@@ -382,8 +424,8 @@ const handleExport = () => {
           <p>Monitor employee milestone target dates, evaluation attachments, and completion records.</p>
         </div>
         <span class="record-count">
-          {{ filteredMilestones.length }}
-          {{ filteredMilestones.length === 1 ? 'Record' : 'Records' }}
+          {{ meta.total }}
+          {{ meta.total === 1 ? 'Record' : 'Records' }}
         </span>
       </div>
 
@@ -392,18 +434,16 @@ const handleExport = () => {
           <thead>
             <tr>
               <th>Employee</th>
-              <th>Department & Role</th>
+              <th>Department & Type</th>
               <th>Lifecycle Stage</th>
               <th>Target Date</th>
-              <th>Evaluation Proof</th>
-              <th>Status</th>
-              <th>HR Remarks</th>
+              <th>Status & Proof</th>
               <th class="actions-heading">Actions</th>
             </tr>
           </thead>
           <tbody>
             <tr v-if="paginatedMilestones.length === 0">
-              <td colspan="8">
+              <td colspan="6">
                 <div class="empty-state">
                   <div class="empty-icon">
                     <FileCheck :size="24" />
@@ -452,45 +492,50 @@ const handleExport = () => {
 
               <!-- TARGET DATE (Formerly Due Date) -->
               <td>
-                <div class="date-cell" :class="{ 'is-reg-target': milestone.stageCode === 'M6_REGULARIZATION' }">
-                  <CalendarDays :size="15" />
-                  <strong>{{ formatDate(milestone.dueDate) }}</strong>
+                <div class="date-cell-wrap">
+                  <div class="date-cell" :class="{ 'is-reg-target': milestone.stageCode === 'M6_REGULARIZATION' }">
+                    <CalendarDays :size="15" />
+                    <strong>{{ formatDate(milestone.dueDate) }}</strong>
+                  </div>
+                  <span
+                    v-if="getMilestoneUrgency(milestone)"
+                    class="urgency-badge"
+                    :class="getMilestoneUrgency(milestone)!.type"
+                  >
+                    {{ getMilestoneUrgency(milestone)!.label }}
+                  </span>
                 </div>
               </td>
 
-              <!-- EVALUATION PROOF (ATTACHMENT) -->
+              <!-- STATUS & EVALUATION PROOF -->
               <td>
-                <div v-if="milestone.attachmentName" class="attachment-pill" :title="milestone.attachmentName">
-                  <Paperclip :size="13" class="text-primary flex-shrink-0" />
-                  <span class="attachment-name">{{ milestone.attachmentName }}</span>
-                  <span class="attachment-size">{{ milestone.attachmentSize }}</span>
+                <div class="status-proof-cell">
+                  <span
+                    class="status-badge"
+                    :class="milestone.status === 'completed' ? 'completed' : 'for-completion'"
+                  >
+                    <span class="status-dot" />
+                    {{ milestone.status === 'completed' ? 'Completed' : 'Pending' }}
+                  </span>
+                  <div v-if="milestone.attachmentName" class="attachment-pill" :title="milestone.attachmentName">
+                    <Paperclip :size="12" class="text-primary flex-shrink-0" />
+                    <span class="attachment-name">{{ milestone.attachmentName }}</span>
+                  </div>
+                  <span v-else class="no-attachment-text">No attachment</span>
                 </div>
-                <div v-else class="no-attachment-text">
-                  <span>No attachment</span>
-                </div>
-              </td>
-
-              <!-- STATUS (AUTOMATIC BASED ON ATTACHMENT) -->
-              <td>
-                <span
-                  class="status-badge"
-                  :class="milestone.status === 'completed' ? 'completed' : 'for-completion'"
-                >
-                  <span class="status-dot" />
-                  {{ milestone.status === 'completed' ? 'Completed' : 'Pending' }}
-                </span>
-              </td>
-
-              <!-- REMARKS -->
-              <td>
-                <p class="remarks-text" :title="milestone.remarks || ''">
-                  {{ milestone.remarks || 'No remarks provided' }}
-                </p>
               </td>
 
               <!-- ACTIONS -->
               <td class="actions-cell">
                 <div class="actions-group">
+                  <NuxtLink
+                    :to="`/admin/employee-lifecycle/employee-history?employee=${milestone.employeeId}`"
+                    class="action-btn action-btn-icon"
+                    aria-label="View Employee History"
+                    title="View this employee's full lifecycle timeline"
+                  >
+                    <History :size="14" aria-hidden="true" />
+                  </NuxtLink>
                   <button
                     type="button"
                     class="action-btn"
@@ -523,7 +568,7 @@ const handleExport = () => {
           Showing
           <strong>{{ showingFrom }}–{{ showingTo }}</strong>
           of
-          <strong>{{ filteredMilestones.length }}</strong>
+          <strong>{{ meta.total }}</strong>
           employee milestones
         </p>
         <AppPagination
@@ -686,7 +731,51 @@ const handleExport = () => {
         </section>
       </div>
     </Teleport>
-    <EmploymentTypeChangeModal :open="employmentChangeOpen" :employee-id="employmentChangeEmployeeId" @close="employmentChangeOpen = false" @saved="load" />
+    <!-- PROCEED TO REGULARIZE PROMPT MODAL -->
+    <Teleport to="body">
+      <div
+        v-if="regularizePromptEmployee"
+        class="modal-overlay"
+        @click.self="regularizePromptEmployee = null"
+      >
+        <section class="modal-dialog modal-dialog-sm" role="dialog" aria-modal="true">
+          <header class="dialog-header">
+            <div class="dialog-header-left">
+              <span class="header-icon">
+                <Award :size="20" />
+              </span>
+              <div>
+                <h2>Proceed to Regularize?</h2>
+                <p>{{ regularizePromptEmployee.employeeName }} (EMP-{{ regularizePromptEmployee.employeeNumber }})</p>
+              </div>
+            </div>
+            <button type="button" class="close-icon" aria-label="Close" @click="regularizePromptEmployee = null">
+              <X :size="19" />
+            </button>
+          </header>
+          <div class="dialog-body">
+            <p class="prompt-message">
+              The 6th month regularization evaluation for <strong>{{ regularizePromptEmployee.employeeName }}</strong> has been saved and marked as completed.
+              Would you like to update their employment type from <strong>Probationary</strong> to <strong>Regular</strong> now?
+            </p>
+          </div>
+          <footer class="dialog-footer">
+            <AppButton variant="secondary" @click="regularizePromptEmployee = null">Not Now</AppButton>
+            <AppButton variant="primary" :icon="Award" @click="confirmProceedToRegularize">
+              Proceed to Regularize
+            </AppButton>
+          </footer>
+        </section>
+      </div>
+    </Teleport>
+
+    <EmploymentTypeChangeModal
+      :open="employmentChangeOpen"
+      :employee-id="employmentChangeEmployeeId"
+      :default-type-name="employmentChangeDefaultType"
+      @close="employmentChangeOpen = false"
+      @saved="reloadMilestones"
+    />
   </section>
 </template>
 
@@ -708,15 +797,61 @@ const handleExport = () => {
 /* STATS */
 .stats-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 14px;
   margin-bottom: 14px;
 }
 
-@media (max-width: 1100px) {
+@media (max-width: 1280px) {
+  .stats-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 820px) {
   .stats-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+}
+
+.date-cell-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.urgency-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.urgency-badge.overdue {
+  background: rgba(239, 68, 68, 0.14);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.35);
+}
+
+.urgency-badge.due-soon {
+  background: rgba(245, 158, 11, 0.14);
+  color: #fbbf24;
+  border: 1px solid rgba(245, 158, 11, 0.35);
+}
+
+.modal-dialog-sm {
+  max-width: 480px;
+}
+
+.prompt-message {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--text-secondary);
 }
 
 @media (max-width: 600px) {
@@ -802,12 +937,12 @@ const handleExport = () => {
 
 table {
   width: 100%;
-  min-width: 1180px;
+  min-width: 820px;
   border-collapse: collapse;
 }
 
 th {
-  padding: 13px 14px;
+  padding: 12px;
   background: var(--bg-card-soft);
   color: var(--text-secondary);
   font-size: 10px;
@@ -818,11 +953,22 @@ th {
 }
 
 td {
-  padding: 13px 14px;
+  padding: 12px;
   border-top: 1px solid var(--border-soft);
   color: var(--text-secondary);
   font-size: 10.5px;
   vertical-align: middle;
+}
+
+.status-proof-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 5px;
+}
+
+.action-btn-icon {
+  padding: 6px 8px;
 }
 
 tbody tr {

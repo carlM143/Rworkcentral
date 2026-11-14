@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { CalendarDays, X } from 'lucide-vue-next'
 
-const props = defineProps<{ open: boolean; employeeId?: number }>()
+const props = defineProps<{ open: boolean; employeeId?: number; defaultTypeName?: string }>()
 const emit = defineEmits<{ close: []; saved: [] }>()
 const { $api } = useNuxtApp()
 const toast = useToast()
@@ -93,6 +93,18 @@ watch(() => props.open, async open => {
     ])
     employees.value = people.data; types.value = typeResponse.data
     employeeId.value = props.employeeId ? String(props.employeeId) : ''
+    if (props.defaultTypeName) {
+      await nextTick()
+      const matched = availableTypes.value.find(
+        t => t.name.toLowerCase() === props.defaultTypeName!.toLowerCase() && t.id !== employee.value?.employmentTypeId,
+      )
+      if (matched) {
+        newTypeId.value = String(matched.id)
+        if (matched.name.toLowerCase() === 'regular') {
+          reason.value = 'Passed 6th month probationary evaluation and approved for regularization.'
+        }
+      }
+    }
     try {
       const [policyResponse, stageResponse] = await Promise.all([
         $api<{ data: LifecyclePolicy[] }>('/admin/lifecycle/policies'),

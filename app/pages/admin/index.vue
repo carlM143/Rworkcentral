@@ -199,6 +199,17 @@ const upcomingEvents = [
     icon: FileWarning,
   },
 ]
+
+const { user } = useAuth()
+
+const greeting = computed(() => {
+  const hour = new Date().getHours()
+  if (hour < 12) return 'Good morning'
+  if (hour < 18) return 'Good afternoon'
+  return 'Good evening'
+})
+
+const welcomeName = computed(() => user.value?.name?.trim() || 'User')
 </script>
 
 <template>
@@ -211,8 +222,8 @@ const upcomingEvents = [
         </h1>
 
         <p class="welcome-text">
-          Good morning,
-          <strong>Maria!</strong>
+          {{ greeting }},
+          <strong>{{ welcomeName }}!</strong>
           👋
         </p>
 
@@ -741,9 +752,9 @@ const upcomingEvents = [
             </p>
           </div>
 
-          <button class="view-all">
+          <NuxtLink to="/admin/work-calendar" class="view-all">
             View Calendar
-          </button>
+          </NuxtLink>
         </div>
 
         <div class="events-list">
