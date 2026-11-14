@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { onMounted, ref, watch } from 'vue'
 import {
   Ban,
   CalendarDays,
@@ -10,6 +10,7 @@ import {
   Gauge,
   LogIn,
   LogOut,
+  Pencil,
   Plus,
   Search,
   Truck,
@@ -20,9 +21,11 @@ import BaseTableFooter from '~/components/shared-table/BaseTableFooter.vue'
 import TableActionMenu from '~/components/shared-table/TableActionMenu.vue'
 import TripTicketActionModal from '~/components/admin/drivers/trip-tickets/TripTicketActionModal.vue'
 import TripTicketViewModal from '~/components/admin/drivers/trip-tickets/TripTicketViewModal.vue'
-import { driverTimeText, driverTodayLocal } from '~/composables/admin/drivers/useDriverApi'
+import { driverErrorMessage, driverTimeText } from '~/composables/admin/drivers/useDriverApi'
 import {
   useTripTicketApi,
+  type TripTicketListParams,
+  type TripTicketListResponse,
   type TripTicketRecord,
   type TripTicketStatus,
 } from '~/composables/admin/drivers/useTripTicketApi'
@@ -43,39 +46,7 @@ const STATUS_LABELS: Record<TripTicketStatus, string> = {
 }
 
 // =====================================================
-// DATA
-// =====================================================
-
-const tickets = ref<TripTicketRecord[]>([])
-const loading = ref(false)
-const flash = ref('')
-
-const load = async () => {
-  loading.value = true
-  try {
-    const response = await api.list()
-    tickets.value = response.data
-  } finally {
-    loading.value = false
-  }
-}
-
-onMounted(async () => {
-  await load()
-  // Coming back from the Create Trip Ticket page
-  const created = route.query.created
-  if (typeof created === 'string') flash.value = `Trip ticket ${created} created.`
-
-  // Opened from another page, e.g. /admin/trip-tickets?trip=TT-2026-0012
-  const ticketNo = route.query.trip
-  if (typeof ticketNo === 'string') {
-    const match = tickets.value.find(t => t.ticket_no === ticketNo)
-    if (match) viewRecord.value = match
-  }
-})
-
-// =====================================================
-// FILTERS + PAGINATION
+// FILTERS (sent to the backend)
 // =====================================================
 
 const searchQuery = ref('')
@@ -85,51 +56,86 @@ const statusFilter = ref<'All' | TripTicketStatus>('All')
 const dateFrom = ref('')
 const dateTo = ref('')
 const currentPage = ref(1)
-const itemsPerPage = 8
+const itemsPerPage = 10
 
-const driverOptions = computed(() => {
-  const seen = new Map<number, string>()
-  tickets.value.forEach(t => seen.set(t.driver.id, t.driver.name))
-  return [...seen.entries()].sort((a, b) => a[1].localeCompare(b[1]))
+const params = (overrides: TripTicketListParams = {}): TripTicketListParams => ({
+  page: currentPage.value,
+  per_page: itemsPerPage,
+  search: searchQuery.value.trim(),
+  status: statusFilter.value === 'All' ? '' : statusFilter.value,
+  driver_id: driverFilter.value === 'All' ? null : driverFilter.value,
+  department_id: departmentFilter.value === 'All' ? null : departmentFilter.value,
+  date_from: dateFrom.value,
+  date_to: dateTo.value,
+  ...overrides,
 })
 
-const departmentOptions = computed(() => {
-  const seen = new Map<number, string>()
-  tickets.value.forEach((t) => {
-    if (t.requesting_department) seen.set(t.requesting_department.id, t.requesting_department.name)
-  })
-  return [...seen.entries()].sort((a, b) => a[1].localeCompare(b[1]))
+// =====================================================
+// DATA (one page at a time)
+// =====================================================
+
+const tickets = ref<TripTicketRecord[]>([])
+const meta = ref<TripTicketListResponse['meta']>({ current_page: 1, last_page: 1, per_page: itemsPerPage, total: 0, from: 0, to: 0 })
+const stats = ref<TripTicketListResponse['stats']>({ trips_today: 0, ongoing: 0, completed_today: 0, km_today: 0 })
+const filterLists = ref<TripTicketListResponse['filters']>({ drivers: [], departments: [] })
+const loading = ref(false)
+const flash = ref('')
+const loadError = ref('')
+let loadRequest = 0
+
+const load = async () => {
+  const requestId = ++loadRequest
+  loading.value = true
+  loadError.value = ''
+  try {
+    const response = await api.list(params())
+    if (requestId !== loadRequest) return // a newer request is on its way
+    tickets.value = response.data
+    meta.value = response.meta
+    stats.value = response.stats
+    filterLists.value = response.filters
+  } catch (err) {
+    if (requestId === loadRequest) loadError.value = driverErrorMessage(err, 'Unable to load trip tickets.')
+  } finally {
+    if (requestId === loadRequest) loading.value = false
+  }
+}
+
+onMounted(async () => {
+  // Coming back from the Create / Edit page
+  const created = route.query.created
+  const updated = route.query.updated
+  if (typeof created === 'string') flash.value = `Trip ticket ${created} created.`
+  if (typeof updated === 'string') flash.value = `Trip ticket ${updated} updated.`
+
+  await load()
+
+  // Opened from another page, e.g. /admin/trip-tickets?trip=TT-2026-0012
+  const ticketNo = route.query.trip
+  if (typeof ticketNo === 'string') {
+    const response = await api.list({ search: ticketNo, per_page: 5 })
+    const match = response.data.find(t => t.ticket_no === ticketNo)
+    if (match) viewRecord.value = match
+  }
 })
 
-const filteredTickets = computed(() => {
-  const q = searchQuery.value.trim().toLowerCase()
-  return tickets.value.filter((t) => {
-    const haystack = [
-      t.ticket_no, t.driver.name, t.vehicle.plate_no, t.destination, t.purpose,
-      t.requesting_department?.name, t.requested_by?.name,
-      ...t.passengers.map(p => p.name),
-    ].join(' ').toLowerCase()
+// Filters reset to page 1; typing in search waits a moment before loading.
+let searchTimer: ReturnType<typeof setTimeout> | undefined
 
-    return (!q || haystack.includes(q))
-      && (driverFilter.value === 'All' || t.driver.id === driverFilter.value)
-      && (departmentFilter.value === 'All' || t.requesting_department?.id === departmentFilter.value)
-      && (statusFilter.value === 'All' || t.status === statusFilter.value)
-      && (!dateFrom.value || t.trip_date >= dateFrom.value)
-      && (!dateTo.value || t.trip_date <= dateTo.value)
-  })
+watch(searchQuery, () => {
+  clearTimeout(searchTimer)
+  searchTimer = setTimeout(() => {
+    if (currentPage.value !== 1) currentPage.value = 1
+    else load()
+  }, 350)
 })
 
-const totalPages = computed(() => Math.max(1, Math.ceil(filteredTickets.value.length / itemsPerPage)))
-const paginatedTickets = computed(() => {
-  const start = (currentPage.value - 1) * itemsPerPage
-  return filteredTickets.value.slice(start, start + itemsPerPage)
+watch([driverFilter, departmentFilter, statusFilter, dateFrom, dateTo], () => {
+  if (currentPage.value !== 1) currentPage.value = 1
+  else load()
 })
-const showingFrom = computed(() => (filteredTickets.value.length ? (currentPage.value - 1) * itemsPerPage + 1 : 0))
-const showingTo = computed(() => Math.min(currentPage.value * itemsPerPage, filteredTickets.value.length))
 
-watch([searchQuery, driverFilter, departmentFilter, statusFilter, dateFrom, dateTo], () => {
-  currentPage.value = 1
-})
+watch(currentPage, load)
 
 const resetFilters = () => {
   searchQuery.value = ''
@@ -141,21 +147,12 @@ const resetFilters = () => {
 }
 
 // =====================================================
-// STATS (today)
-// =====================================================
-
-const today = driverTodayLocal()
-const todays = computed(() => tickets.value.filter(t => t.trip_date === today && t.status !== 'cancelled'))
-const ongoingCount = computed(() => tickets.value.filter(t => t.status === 'ongoing').length)
-const completedToday = computed(() => todays.value.filter(t => t.status === 'completed').length)
-const kmToday = computed(() => todays.value.reduce((n, t) => n + (t.distance_km ?? 0), 0))
-
-// =====================================================
 // ROW ACTIONS
 // =====================================================
 
 const menuItems = (t: TripTicketRecord) => [
   { key: 'view', label: 'View Ticket', icon: Eye },
+  ...(t.status === 'scheduled' ? [{ key: 'edit', label: 'Edit Ticket', icon: Pencil }] : []),
   ...(t.status === 'scheduled' ? [{ key: 'depart', label: 'Record Departure', icon: LogOut }] : []),
   ...(t.status === 'ongoing' ? [{ key: 'return', label: 'Record Return', icon: LogIn }] : []),
   ...(t.status === 'scheduled' ? [{ key: 'cancel', label: 'Cancel Ticket', icon: Ban, danger: true, dividerBefore: true }] : []),
@@ -168,6 +165,10 @@ const actionType = ref<'depart' | 'return' | 'cancel'>('depart')
 const onAction = (t: TripTicketRecord, key: string) => {
   if (key === 'view') {
     viewRecord.value = t
+    return
+  }
+  if (key === 'edit') {
+    router.push(`/admin/trip-tickets/${t.id}/edit`)
     return
   }
   actionType.value = key as 'depart' | 'return' | 'cancel'
@@ -199,23 +200,43 @@ const csvEscape = (v: unknown) => {
   return `"${safe.replace(/"/g, '""')}"`
 }
 
-const exportCsv = () => {
-  const rows = [
-    ['Ticket No.', 'Trip Date', 'Requesting Department', 'Requested By', 'Driver', 'Driver Code', 'Plate', 'Vehicle', 'Destination', 'Purpose', 'Passengers', 'Planned Departure', 'Actual Departure', 'Expected Return', 'Actual Return', 'Odometer Out', 'Odometer In', 'Distance (km)', 'Status'],
-    ...filteredTickets.value.map(t => [
-      t.ticket_no, t.trip_date, t.requesting_department?.name, t.requested_by?.name, t.driver.name, t.driver.drivers_code, t.vehicle.plate_no, t.vehicle.description,
-      t.destination, t.purpose, t.passengers.map(p => p.name).join('; '),
-      t.scheduled_departure, t.departed_at, t.expected_return, t.returned_at,
-      t.odometer_out, t.odometer_in, t.distance_km, STATUS_LABELS[t.status],
-    ]),
-  ]
-  const csv = rows.map(r => r.map(csvEscape).join(',')).join('\r\n')
-  const url = URL.createObjectURL(new Blob(['\uFEFF', csv], { type: 'text/csv;charset=utf-8;' }))
-  const a = document.createElement('a')
-  a.href = url
-  a.download = 'trip-tickets.csv'
-  a.click()
-  setTimeout(() => URL.revokeObjectURL(url), 1000)
+const exporting = ref(false)
+
+// Exports every ticket matching the current filters, not just this page.
+const exportCsv = async () => {
+  exporting.value = true
+  try {
+    const all: TripTicketRecord[] = []
+    let page = 1
+    let lastPage = 1
+    do {
+      const response = await api.list(params({ page, per_page: 200 }))
+      all.push(...response.data)
+      lastPage = response.meta.last_page
+      page++
+    } while (page <= lastPage)
+
+    const rows = [
+      ['Ticket No.', 'Trip Date', 'Requesting Department', 'Requested By', 'Driver', 'Driver Code', 'Plate', 'Vehicle', 'Destination', 'Purpose', 'Passengers', 'Planned Departure', 'Actual Departure', 'Expected Return', 'Actual Return', 'Odometer Out', 'Odometer In', 'Distance (km)', 'Status'],
+      ...all.map(t => [
+        t.ticket_no, t.trip_date, t.requesting_department?.name, t.requested_by?.name, t.driver.name, t.driver.drivers_code, t.vehicle.plate_no, t.vehicle.description,
+        t.destination, t.purpose, t.passengers.map(p => p.name).join('; '),
+        t.scheduled_departure, t.departed_at, t.expected_return, t.returned_at,
+        t.odometer_out, t.odometer_in, t.distance_km, STATUS_LABELS[t.status],
+      ]),
+    ]
+    const csv = rows.map(r => r.map(csvEscape).join(',')).join('\r\n')
+    const url = URL.createObjectURL(new Blob(['\uFEFF', csv], { type: 'text/csv;charset=utf-8;' }))
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'trip-tickets.csv'
+    a.click()
+    setTimeout(() => URL.revokeObjectURL(url), 1000)
+  } catch (err) {
+    loadError.value = driverErrorMessage(err, 'Unable to export trip tickets.')
+  } finally {
+    exporting.value = false
+  }
 }
 </script>
 
@@ -225,7 +246,7 @@ const exportCsv = () => {
       title="Trip Tickets"
       description="Assign a driver and vehicle, record departure and return with odometer readings, and track passengers."
     >
-      <AppButton variant="secondary" :icon="Download" :disabled="!filteredTickets.length" @click="exportCsv">
+      <AppButton variant="secondary" :icon="Download" :disabled="!meta.total || exporting" @click="exportCsv">
         Export
       </AppButton>
       <AppButton :icon="Plus" @click="router.push('/admin/trip-tickets/create')">
@@ -234,11 +255,13 @@ const exportCsv = () => {
     </PageHeader>
 
     <section class="stats-grid">
-      <DriverStatCard label="Trips Today" :value="todays.length" description="Scheduled, ongoing or completed" accent="blue" :icon="CalendarDays" />
-      <DriverStatCard label="Ongoing" :value="ongoingCount" description="Departed, not yet returned" accent="orange" :icon="Truck" />
-      <DriverStatCard label="Completed Today" :value="completedToday" description="Returned to the office" accent="green" :icon="CheckCircle2" />
-      <DriverStatCard label="Distance Today" :value="`${kmToday.toLocaleString()} km`" description="From odometer readings" accent="purple" :icon="Gauge" />
+      <DriverStatCard label="Trips Today" :value="stats.trips_today" description="Scheduled, ongoing or completed" accent="blue" :icon="CalendarDays" />
+      <DriverStatCard label="Ongoing" :value="stats.ongoing" description="Departed, not yet returned" accent="orange" :icon="Truck" />
+      <DriverStatCard label="Completed Today" :value="stats.completed_today" description="Returned to the office" accent="green" :icon="CheckCircle2" />
+      <DriverStatCard label="Distance Today" :value="`${stats.km_today.toLocaleString()} km`" description="From odometer readings" accent="purple" :icon="Gauge" />
     </section>
+
+    <p v-if="loadError" class="load-error" role="alert">{{ loadError }}</p>
 
     <p v-if="flash" class="flash" role="status">
       <CheckCircle2 :size="15" /> {{ flash }}
@@ -264,7 +287,7 @@ const exportCsv = () => {
       <div class="select-wrap">
         <select v-model="departmentFilter" aria-label="Requesting department">
           <option value="All">All Departments</option>
-          <option v-for="[id, name] in departmentOptions" :key="id" :value="id">{{ name }}</option>
+          <option v-for="d in filterLists.departments" :key="d.id" :value="d.id">{{ d.name }}</option>
         </select>
         <ChevronDown :size="14" class="select-icon" />
       </div>
@@ -272,7 +295,7 @@ const exportCsv = () => {
       <div class="select-wrap">
         <select v-model="driverFilter" aria-label="Driver">
           <option value="All">All Drivers</option>
-          <option v-for="[id, name] in driverOptions" :key="id" :value="id">{{ name }}</option>
+          <option v-for="d in filterLists.drivers" :key="d.id" :value="d.id">{{ d.name }}</option>
         </select>
         <ChevronDown :size="14" class="select-icon" />
       </div>
@@ -291,7 +314,7 @@ const exportCsv = () => {
     <BaseDataTable
       title="Trip Ticket Records"
       description="One ticket per trip: driver, vehicle, passengers, time out and in, and odometer."
-      :has-rows="paginatedTickets.length > 0"
+      :has-rows="tickets.length > 0"
       :loading="loading"
       min-width="1320px"
       empty-title="No trip tickets found"
@@ -312,7 +335,7 @@ const exportCsv = () => {
       </template>
 
       <template #rows>
-        <tr v-for="t in paginatedTickets" :key="t.id">
+        <tr v-for="t in tickets" :key="t.id">
           <td>
             <span class="ticket-no">{{ t.ticket_no }}</span>
             <small class="cell-sub">{{ dateText(t.trip_date) }}</small>
@@ -367,10 +390,10 @@ const exportCsv = () => {
 
     <BaseTableFooter
       v-model="currentPage"
-      :showing-from="showingFrom"
-      :showing-to="showingTo"
-      :total-items="filteredTickets.length"
-      :total-pages="totalPages"
+      :showing-from="meta.from"
+      :showing-to="meta.to"
+      :total-items="meta.total"
+      :total-pages="meta.last_page"
       item-label="trip tickets"
     />
 
@@ -414,6 +437,15 @@ const exportCsv = () => {
   border-radius: 9px;
   background: var(--green-soft);
   color: var(--green);
+  font-size: 13px;
+}
+
+.load-error {
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  border-radius: 9px;
+  background: rgba(239, 68, 68, 0.12);
+  color: #f87171;
   font-size: 13px;
 }
 

@@ -263,11 +263,11 @@ const menuItems = [
     ],
   },
   
-  {
+   {
     label: 'All Drivers',
     key: 'drivers',
     icon: Truck,
-        children: [
+    children: [
       {
         label: 'Drivers Directory',
         to: '/admin/drivers',
@@ -275,6 +275,10 @@ const menuItems = [
       {
         label: 'Trip Tickets',
         to: '/admin/trip-tickets',
+      },
+      {
+        label: 'Vehicles',
+        to: '/admin/vehicles',
       },
     ],
   },
