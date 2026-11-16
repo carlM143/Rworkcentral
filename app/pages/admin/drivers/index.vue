@@ -5,7 +5,10 @@ import {
   CheckCircle2,
   ChevronDown,
   Eye,
+  Pencil,
   Plus,
+  Power,
+  PowerOff,
   Search,
   Truck,
   UserX,
@@ -15,7 +18,10 @@ import DriverStatCard from '~/components/admin/drivers/DriverStatCard.vue'
 import BaseDataTable from '~/components/shared-table/BaseDataTable.vue'
 import BaseTableFooter from '~/components/shared-table/BaseTableFooter.vue'
 import TableActionMenu from '~/components/shared-table/TableActionMenu.vue'
+import AppConfirmModal from '~/components/shared/AppConfirmModal.vue'
+import DriverEditModal from '~/components/admin/drivers/DriverEditModal.vue'
 import {
+  driverErrorMessage,
   driverTodayLocal,
   useDriverApi,
   type DriverAvailabilityStatus,
@@ -35,6 +41,7 @@ const STATUS_LABELS: Record<DriverAvailabilityStatus, string> = {
   rest_day: 'Rest Day',
   on_leave: 'On Leave',
   license_expired: 'License Expired',
+  inactive: 'Inactive',
 }
 
 // =====================================================
@@ -121,7 +128,7 @@ const countBy = (...statuses: DriverAvailabilityStatus[]) =>
 
 const availableCount = computed(() => countBy('available'))
 const onTripCount = computed(() => countBy('on_trip'))
-const unavailableCount = computed(() => countBy('rest_day', 'on_leave', 'license_expired'))
+const unavailableCount = computed(() => countBy('rest_day', 'on_leave', 'license_expired', 'inactive'))
 
 // =====================================================
 // LICENSE EXPIRY
@@ -148,12 +155,56 @@ const goToCreateDriver = () => {
   router.push('/admin/drivers/create')
 }
 
-const menuItems = [
+const menuItems = (driver: DriverRecord) => [
   { key: 'profile', label: 'View Profile', icon: Eye },
+  { key: 'edit', label: 'Edit Driver', icon: Pencil },
+  driver.status === 'inactive'
+    ? { key: 'activate', label: 'Activate Driver', icon: Power, dividerBefore: true }
+    : { key: 'deactivate', label: 'Deactivate Driver', icon: PowerOff, danger: true, dividerBefore: true },
 ]
 
-const onAction = (driverId: number, key: string) => {
-  if (key === 'profile') router.push(`/admin/drivers/${driverId}`)
+const flash = ref('')
+const editing = ref<DriverRecord | null>(null)
+const confirmDriver = ref<{ driver: DriverRecord, action: 'activate' | 'deactivate' } | null>(null)
+const confirmBusy = ref(false)
+const confirmError = ref('')
+
+const onAction = (driver: DriverRecord, key: string) => {
+  if (key === 'profile') {
+    router.push(`/admin/drivers/${driver.id}`)
+    return
+  }
+  if (key === 'edit') {
+    editing.value = driver
+    return
+  }
+  confirmError.value = ''
+  confirmDriver.value = { driver, action: key as 'activate' | 'deactivate' }
+}
+
+const runConfirm = async () => {
+  if (!confirmDriver.value) return
+  const { driver, action } = confirmDriver.value
+  confirmBusy.value = true
+  confirmError.value = ''
+  try {
+    const response = action === 'deactivate'
+      ? await api.deactivate(driver.id)
+      : await api.activate(driver.id)
+    flash.value = response.message
+    confirmDriver.value = null
+    await load()
+  } catch (err) {
+    confirmError.value = driverErrorMessage(err, 'Unable to update the driver.')
+  } finally {
+    confirmBusy.value = false
+  }
+}
+
+const onSaved = async (_driver: DriverRecord, message: string) => {
+  editing.value = null
+  flash.value = message
+  await load()
 }
 </script>
 
@@ -167,6 +218,11 @@ const onAction = (driverId: number, key: string) => {
         Add Driver
       </AppButton>
     </PageHeader>
+
+    <p v-if="flash" class="flash" role="status">
+      <CheckCircle2 :size="15" /> {{ flash }}
+      <button type="button" class="flash-close" aria-label="Dismiss" @click="flash = ''">×</button>
+    </p>
 
     <section class="stats-grid">
       <DriverStatCard
@@ -193,7 +249,7 @@ const onAction = (driverId: number, key: string) => {
       <DriverStatCard
         label="Unavailable"
         :value="unavailableCount"
-        description="Rest day, leave or expired license"
+        description="Rest day, leave, expired license or inactive"
         accent="purple"
         :icon="UserX"
       />
@@ -278,9 +334,9 @@ const onAction = (driverId: number, key: string) => {
 
           <td class="text-right">
             <TableActionMenu
-              :items="menuItems"
+              :items="menuItems(driver)"
               :label="`Actions for ${driver.employee.name}`"
-              @select="key => onAction(driver.id, key)"
+              @select="key => onAction(driver, key)"
             />
           </td>
         </tr>
@@ -294,6 +350,27 @@ const onAction = (driverId: number, key: string) => {
       :total-items="filteredDrivers.length"
       :total-pages="totalPages"
       item-label="drivers"
+    />
+
+    <DriverEditModal
+      v-if="editing"
+      :driver="editing"
+      @close="editing = null"
+      @saved="onSaved"
+    />
+
+    <AppConfirmModal
+      v-if="confirmDriver"
+      :title="`${confirmDriver.action === 'deactivate' ? 'Deactivate' : 'Activate'} ${confirmDriver.driver.employee.name}?`"
+      :message="confirmDriver.action === 'deactivate'
+        ? 'The driver will no longer appear in new trip tickets. Their trip history is kept, and you can activate them again later.'
+        : 'The driver can be assigned to trip tickets again.'"
+      :confirm-label="confirmDriver.action === 'deactivate' ? 'Deactivate' : 'Activate'"
+      :danger="confirmDriver.action === 'deactivate'"
+      :busy="confirmBusy"
+      :error="confirmError"
+      @close="confirmDriver = null"
+      @confirm="runConfirm"
     />
   </section>
 </template>
@@ -429,6 +506,29 @@ const onAction = (driverId: number, key: string) => {
 .avail-on_leave { background: rgba(245, 158, 11, 0.12); color: #fbbf24; }
 .avail-rest_day { background: rgba(148, 163, 184, 0.12); color: #a8b3c4; }
 .avail-license_expired { background: rgba(239, 68, 68, 0.12); color: #f87171; }
+.avail-inactive { background: rgba(100, 116, 139, 0.18); color: #94a3b8; }
+
+.flash {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 14px 0 0;
+  padding: 10px 12px;
+  border-radius: 9px;
+  background: var(--green-soft);
+  color: var(--green);
+  font-size: 13px;
+}
+
+.flash-close {
+  margin-left: auto;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
 
 .busy-list {
   display: grid;

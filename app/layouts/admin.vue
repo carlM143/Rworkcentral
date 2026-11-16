@@ -263,11 +263,11 @@ const menuItems = [
     ],
   },
   
-  {
+   {
     label: 'All Drivers',
     key: 'drivers',
     icon: Truck,
-        children: [
+    children: [
       {
         label: 'Drivers Directory',
         to: '/admin/drivers',
@@ -275,6 +275,10 @@ const menuItems = [
       {
         label: 'Trip Tickets',
         to: '/admin/trip-tickets',
+      },
+      {
+        label: 'Vehicles',
+        to: '/admin/vehicles',
       },
     ],
   },
@@ -298,12 +302,13 @@ const menuItems = [
     ],
   },
   {
-    label: 'Work Calendar',
-    key: 'work-calendar',
+    label: 'Holiday Management',
+    key: 'holidays',
     icon: CalendarDays,
     children: [
-      { label: 'Holiday', to: '/admin/work-calendar' },
-      { label: 'Holiday Coverage', to: '/admin/work-calendar/coverage' },
+      { label: 'Holiday', to: '/admin/holiday-management/holiday' },
+      { label: 'Holiday Coverage', to: '/admin/holiday-management/holiday-coverage' },
+      { label: 'Holiday Pay', to: '/admin/holiday-management/holiday-pay' },
     ],
   },
   {
