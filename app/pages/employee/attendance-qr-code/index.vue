@@ -152,9 +152,9 @@ onBeforeUnmount(() => {
         <div v-else class="steps">
           <h2>How it works</h2>
           <ol>
-            <li><CheckCircle2 :size="16" /> Tap <strong>Start Scanning</strong> and allow camera access.</li>
-            <li><CheckCircle2 :size="16" /> Point your camera at the QR code on the office screen.</li>
-            <li><CheckCircle2 :size="16" /> Your time in or time out is recorded automatically.</li>
+            <li><CheckCircle2 :size="16" /><span>Tap <strong>Start Scanning</strong> and allow camera access.</span></li>
+            <li><CheckCircle2 :size="16" /><span>Point your camera at the QR code on the office screen.</span></li>
+            <li><CheckCircle2 :size="16" /><span>Your time in or time out is recorded automatically.</span></li>
           </ol>
           <p class="note">The code on the screen changes every minute, so a photo or screenshot of it will not work.</p>
         </div>
@@ -165,6 +165,7 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .scan-page{display:grid;gap:16px;width:100%;max-width:1100px;margin:0 auto}
+.scan-page,.panel{box-sizing:border-box;min-width:0}
 .heading h1{margin:0;color:var(--text-primary);font-size:22px;font-weight:750}
 .heading p{margin:6px 0 0;color:var(--text-secondary);font-size:13px;line-height:1.5}
 .heading strong{color:var(--text-primary)}
@@ -182,6 +183,7 @@ onBeforeUnmount(() => {
 .placeholder p{margin:0;font-size:13px}
 .overlay-text{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);margin:0;padding:7px 12px;border-radius:999px;background:rgba(15,23,42,.8);color:#fff;font-size:12px;white-space:nowrap}
 .overlay-text.warn{background:rgba(180,83,9,.92)}
+.overlay-text{box-sizing:border-box;max-width:calc(100% - 24px);white-space:normal;text-align:center;overflow-wrap:anywhere}
 .spinner{width:34px;height:34px;border:3px solid rgba(148,163,184,.35);border-top-color:#fff;border-radius:50%;animation:spin .8s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
 @media (prefers-reduced-motion:reduce){.laser{animation:none;top:50%}.spinner{animation-duration:2s}}
@@ -194,6 +196,8 @@ onBeforeUnmount(() => {
 /* Result */
 .result-banner{display:flex;align-items:flex-start;gap:12px;padding:14px;border-radius:12px}
 .result-banner div{display:grid;gap:3px}
+.result-banner div,.steps li span,.details div{min-width:0;overflow-wrap:anywhere}
+.result-banner svg{flex-shrink:0}
 .result-banner strong{font-size:16px}
 .result-banner span{font-size:13px;line-height:1.45}
 .result-banner.in{background:var(--green-soft);color:var(--green)}
@@ -216,5 +220,18 @@ onBeforeUnmount(() => {
 @media (max-width:820px){
   .scan-layout{grid-template-columns:1fr}
   .heading h1{font-size:19px}
+}
+@media (max-width:600px){
+  .scan-page{gap:12px;padding-top:8px;padding-bottom:16px}
+  .scan-layout{gap:12px}
+  .panel{padding:12px;gap:12px}
+  .viewfinder{aspect-ratio:auto;height:clamp(180px,34vh,300px);height:clamp(180px,34dvh,300px)}
+  .frame{inset:auto;width:min(65%,190px);aspect-ratio:1}
+  .heading p{font-size:13px}
+  .details dd{font-size:13px}
+  .note{margin-top:10px}
+}
+@media (max-width:360px){
+  .details{grid-template-columns:1fr}
 }
 </style>
