@@ -33,6 +33,8 @@ import {
   ShieldCheck,
 } from 'lucide-vue-next'
 
+import NotificationBell from '~/components/admin/notifications/NotificationBell.vue'
+
 const route = useRoute()
 const router = useRouter()
 
@@ -136,6 +138,10 @@ const menuItems = [
       {
         label: 'Transfer Department',
         to: '/admin/employees/transfer-department',
+      },
+      {
+        label: 'Birthdays & Anniversaries',
+        to: '/admin/employees/celebrations',
       },
     ],
   },
@@ -865,17 +871,7 @@ onBeforeUnmount(() => {
           </button>
 
           <!-- NOTIFICATIONS -->
-          <button
-            type="button"
-            class="icon-button notification-button"
-            title="Notifications"
-          >
-            <Bell :size="20" />
-
-            <span class="notification-count">
-              8
-            </span>
-          </button>
+          <NotificationBell />
 
           <div class="topbar-separator" />
 

@@ -19,6 +19,7 @@ import {
   usePendingRequests,
   waitingLabel,
 } from '~/composables/admin/dashboard/usePendingRequests'
+import { useDashboardPayroll } from '~/composables/admin/dashboard/useDashboardPayroll'
 import {
   UPCOMING_EVENT_STYLE,
   eventDateLabel,
@@ -49,10 +50,60 @@ const {
 
 const EVENT_DAYS = 30
 
+const {
+  payroll,
+  loaded: payrollLoaded,
+  loading: payrollLoading,
+  error: payrollError,
+  getPayroll,
+} = useDashboardPayroll()
+
 onMounted(() => {
   void getSummary()
   void getPendingSummary()
   void getEvents(EVENT_DAYS, 6)
+  void getPayroll()
+})
+
+// =====================================================
+// PAYROLL STATUS (live)
+// =====================================================
+
+const shortDate = (date: string, withYear = false) =>
+  new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', ...(withYear ? { year: 'numeric' } : {}) })
+    .format(new Date(`${date}T00:00:00`))
+
+const peso = (value: number) =>
+  new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP', maximumFractionDigits: 0 }).format(value)
+
+const payrollView = computed(() => {
+  const p = payroll.value
+  if (!p) return null
+
+  const days = p.period.days_to_payday
+  const paydayWhen = days === 0 ? 'today' : days > 0 ? `in ${days} day${days === 1 ? '' : 's'}` : `${Math.abs(days)} day${days === -1 ? '' : 's'} ago`
+  const netChange = p.previous && p.previous.net > 0 && p.totals.net > 0
+    ? ((p.totals.net - p.previous.net) / p.previous.net) * 100
+    : null
+
+  return {
+    title: p.period.name,
+    cutoff: `${shortDate(p.period.cutoff_start)} – ${shortDate(p.period.cutoff_end, true)}`,
+    badge: p.status_label,
+    badgeTone: ['draft', 'open', 'review', 'progress', 'paid'][p.step] ?? 'review',
+    steps: p.steps.map((label, index) => ({
+      label,
+      done: index < p.step || (index === p.step && index === p.steps.length - 1),
+      current: index === p.step && index !== p.steps.length - 1,
+    })),
+    employees: `${p.employees.generated} / ${p.employees.active}`,
+    employeesNote: p.employees.finalized ? `${p.employees.finalized} finalized` : 'generated',
+    net: p.employees.generated ? peso(p.totals.net) : '—',
+    netNote: netChange === null ? 'net pay' : `${netChange >= 0 ? '+' : ''}${netChange.toFixed(1)}% vs last cutoff`,
+    payday: shortDate(p.period.payment_date),
+    paydayNote: paydayWhen,
+    action: p.next_action,
+  }
 })
 
 const display = (value?: number) =>
@@ -424,7 +475,7 @@ const upcomingEvents = computed(() => {
         </div>
       </article>
 
-      <!-- PAYROLL -->
+      <!-- PAYROLL (live) -->
       <div class="status-column">
         <article class="dashboard-card status-card">
           <div class="card-header">
@@ -433,50 +484,70 @@ const upcomingEvents = computed(() => {
               <p>Current payroll cutoff</p>
             </div>
 
-            <button class="view-all">View all</button>
+            <button type="button" class="view-all" @click="router.push('/admin/payroll/payroll-period')">
+              View all
+              <ArrowUpRight :size="14" />
+            </button>
           </div>
 
-          <div class="status-box payroll-box">
-            <div class="status-box-top">
-              <strong>May 16–31, 2026 Cutoff</strong>
-              <span class="status-badge review">For Review</span>
-            </div>
-
-            <div class="stepper">
-              <div class="step completed">
-                <span><CheckCircle2 :size="18" /></span>
-                <small>Draft</small>
-              </div>
-
-              <div class="step-line completed" />
-
-              <div class="step completed">
-                <span>2</span>
-                <small>Review</small>
-              </div>
-
-              <div class="step-line" />
-
-              <div class="step">
-                <span>3</span>
-                <small>Approval</small>
-              </div>
-
-              <div class="step-line" />
-
-              <div class="step">
-                <span>4</span>
-                <small>Finalized</small>
-              </div>
-
-              <div class="step-line" />
-
-              <div class="step">
-                <span>5</span>
-                <small>Paid</small>
-              </div>
-            </div>
+          <p v-if="payrollError" class="request-empty">
+            {{ payrollError }}
+            <button type="button" class="view-all inline" @click="getPayroll()">Retry</button>
+          </p>
+          <p v-else-if="payrollLoading && !payrollLoaded" class="request-empty">Loading...</p>
+          <div v-else-if="!payrollView" class="request-empty">
+            No payroll period yet.
+            <button type="button" class="view-all inline" @click="router.push('/admin/payroll/payroll-period')">Create a pay period</button>
           </div>
+
+          <template v-else>
+            <div class="status-box payroll-box">
+              <div class="status-box-top">
+                <div>
+                  <strong>{{ payrollView.title }}</strong>
+                  <small class="cutoff">Cutoff {{ payrollView.cutoff }}</small>
+                </div>
+
+                <span class="status-badge" :class="payrollView.badgeTone">{{ payrollView.badge }}</span>
+              </div>
+
+              <div class="stepper">
+                <template v-for="(step, index) in payrollView.steps" :key="step.label">
+                  <div v-if="index > 0" class="step-line" :class="{ completed: step.done || step.current }" />
+                  <div class="step" :class="{ completed: step.done, current: step.current }">
+                    <span>
+                      <CheckCircle2 v-if="step.done" :size="18" />
+                      <template v-else>{{ index + 1 }}</template>
+                    </span>
+                    <small>{{ step.label }}</small>
+                  </div>
+                </template>
+              </div>
+            </div>
+
+            <div class="payroll-figures">
+              <div>
+                <span>Employees</span>
+                <strong>{{ payrollView.employees }}</strong>
+                <small>{{ payrollView.employeesNote }}</small>
+              </div>
+              <div>
+                <span>Net Pay</span>
+                <strong>{{ payrollView.net }}</strong>
+                <small>{{ payrollView.netNote }}</small>
+              </div>
+              <div>
+                <span>Payday</span>
+                <strong>{{ payrollView.payday }}</strong>
+                <small>{{ payrollView.paydayNote }}</small>
+              </div>
+            </div>
+
+            <button type="button" class="next-action" @click="router.push(payrollView.action.url)">
+              {{ payrollView.action.label }}
+              <ArrowUpRight :size="14" />
+            </button>
+          </template>
         </article>
       </div>
 
@@ -553,7 +624,10 @@ const upcomingEvents = computed(() => {
             </p>
           </div>
 
-          <button type="button" class="view-all" @click="router.push('/admin/work-calendar')">View Calendar</button>
+          <button type="button" class="view-all" @click="router.push('/admin/upcoming-events')">
+            View all
+            <ArrowUpRight :size="14" />
+          </button>
         </div>
 
         <p v-if="eventsError" class="request-empty">
@@ -579,9 +653,14 @@ const upcomingEvents = computed(() => {
             <span class="event-date" :class="{ soon: event.days_until <= 1 }">{{ event.dateLabel }}</span>
           </div>
 
-          <p v-if="upcoming && upcoming.total > upcoming.items.length" class="events-more">
+          <button
+            v-if="upcoming && upcoming.total > upcoming.items.length"
+            type="button"
+            class="events-more"
+            @click="router.push('/admin/upcoming-events')"
+          >
             +{{ upcoming.total - upcoming.items.length }} more in the next {{ EVENT_DAYS }} days
-          </p>
+          </button>
         </div>
       </article>
     </div>
@@ -703,6 +782,21 @@ button.request-row:focus-visible { outline: 2px solid var(--primary); outline-of
 .status-box-top strong { color: var(--text-primary); font-size: 9px; }
 .status-badge { padding: 4px 7px; border-radius: 5px; font-size: 7px; font-weight: 700; text-transform: uppercase; }
 .status-badge.review { background: var(--green-soft); color: var(--green); }
+.status-badge.draft { background: var(--bg-card-soft); color: var(--text-secondary); }
+.status-badge.open { background: var(--primary-soft); color: var(--primary); }
+.status-badge.progress { background: var(--orange-soft); color: var(--orange); }
+.status-badge.paid { background: var(--green-soft); color: var(--green); }
+.status-box-top .cutoff { display: block; margin-top: 3px; color: var(--text-muted); font-size: 8px; }
+.step.current > span { border-color: var(--primary); background: var(--primary-soft); color: var(--primary); }
+.step.current small { color: var(--primary); font-weight: 700; }
+.payroll-figures { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 0 14px 12px; }
+.payroll-figures div { padding: 10px; border: 1px solid var(--border); border-radius: 9px; background: var(--bg-card-soft); }
+.payroll-figures span { display: block; color: var(--text-muted); font-size: 8px; }
+.payroll-figures strong { display: block; margin-top: 4px; color: var(--text-primary); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.payroll-figures small { display: block; margin-top: 3px; color: var(--text-secondary); font-size: 8px; }
+.next-action { display: flex; width: calc(100% - 28px); align-items: center; justify-content: center; gap: 6px; margin: 0 14px 14px; padding: 9px; border: 1px dashed color-mix(in srgb, var(--primary) 45%, var(--border)); border-radius: 9px; background: transparent; color: var(--primary); font-family: inherit; font-size: 10px; font-weight: 600; cursor: pointer; }
+.next-action:hover { background: var(--primary-soft); }
+.next-action:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 .stepper { display: flex; align-items: flex-start; margin-top: 22px; }
 .step { position: relative; display: flex; width: 38px; flex-shrink: 0; flex-direction: column; align-items: center; }
 .step > span { position: relative; z-index: 2; display: flex; width: 22px; height: 22px; align-items: center; justify-content: center; border: 1px solid var(--border); border-radius: 50%; background: var(--bg-card); color: var(--text-muted); font-size: 8px; font-weight: 600; }
@@ -748,7 +842,9 @@ button.request-row:focus-visible { outline: 2px solid var(--primary); outline-of
 .event-date { color: var(--text-secondary); font-size: 8px; white-space: nowrap; }
 .event-date.soon { color: var(--primary); font-weight: 700; }
 .event-red { background: var(--red-soft); color: var(--red); }
-.events-more { margin: 8px 0 0; color: var(--text-muted); font-size: 9px; text-align: center; }
+.events-more { display: block; width: 100%; margin: 8px 0 0; padding: 6px; border: 0; border-radius: 6px; background: transparent; color: var(--primary); font-family: inherit; font-size: 9px; font-weight: 600; text-align: center; cursor: pointer; }
+.events-more:hover { background: var(--bg-card-soft); }
+.events-more:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 
 /* RESPONSIVE */
 @media (max-width: 1400px) {
