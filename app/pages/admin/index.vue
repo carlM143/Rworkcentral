@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import {
   Users,
   UserCheck,
@@ -9,9 +9,7 @@ import {
   CalendarDays,
   ChevronDown,
   ArrowUpRight,
-  Umbrella,
   CheckCircle2,
-  AlertTriangle,
 } from 'lucide-vue-next'
 import { useDashboardSummary } from '~/composables/admin/dashboard/useDashboardSummary'
 import {
@@ -20,6 +18,14 @@ import {
   waitingLabel,
 } from '~/composables/admin/dashboard/usePendingRequests'
 import { useDashboardPayroll } from '~/composables/admin/dashboard/useDashboardPayroll'
+import { useDashboardCharts, type AttendanceRange } from '~/composables/admin/dashboard/useDashboardCharts'
+import {
+  LEVEL_TONE,
+  notificationIcon,
+  timeAgo,
+  useNotifications,
+  type AppNotification,
+} from '~/composables/admin/notifications/useNotifications'
 import {
   UPCOMING_EVENT_STYLE,
   eventDateLabel,
@@ -58,12 +64,124 @@ const {
   getPayroll,
 } = useDashboardPayroll()
 
+// Shares its data with the bell in the top bar.
+const {
+  latest: latestNotifications,
+  loaded: notificationsLoaded,
+  error: notificationsError,
+  loadSummary: loadNotifications,
+  markRead,
+} = useNotifications()
+
+const {
+  attendance, attendanceLoading, attendanceError, getAttendance,
+  headcount, headcountLoading, headcountError, getHeadcount,
+} = useDashboardCharts()
+
+const attendanceRange = ref<AttendanceRange>('this_week')
+watch(attendanceRange, range => void getAttendance(range))
+
 onMounted(() => {
   void getSummary()
   void getPendingSummary()
   void getEvents(EVENT_DAYS, 6)
   void getPayroll()
+  void loadNotifications()
+  void getAttendance(attendanceRange.value)
+  void getHeadcount(5)
 })
+
+// =====================================================
+// ATTENDANCE CHART (live)
+// =====================================================
+
+const CHART_W = 700
+const CHART_H = 220
+const CHART_PAD = 15
+
+// Round the highest value up to a clean axis maximum (5, 10, 20, 25, 50, 100...).
+const niceMax = (value: number) => {
+  if (value <= 5) return 5
+  const power = 10 ** Math.floor(Math.log10(value))
+  const step = [1, 2, 2.5, 5, 10].find(f => f * power >= value) ?? 10
+  return step * power
+}
+
+const attendanceChart = computed(() => {
+  const days = attendance.value?.days ?? []
+  if (!days.length) return null
+
+  const peak = Math.max(...days.map(d => Math.max(d.present ?? 0, d.late ?? 0, d.absent ?? 0, d.scheduled)))
+  const max = niceMax(peak)
+  const x = (i: number) => (days.length === 1 ? CHART_W / 2 : CHART_PAD + (i * (CHART_W - CHART_PAD * 2)) / (days.length - 1))
+  const y = (v: number) => CHART_H - (v / max) * CHART_H
+
+  // Only past and current days are plotted.
+  const series = (key: 'present' | 'late' | 'absent') =>
+    days
+      .map((d, i) => (d[key] === null ? null : { x: x(i), y: y(d[key] as number), value: d[key] as number, day: d }))
+      .filter((p): p is NonNullable<typeof p> => p !== null)
+
+  const present = series('present')
+  const late = series('late')
+  const absent = series('absent')
+  const points = (list: typeof present) => list.map(p => `${p.x},${p.y}`).join(' ')
+
+  // Every label for a week; every other label for 14 days.
+  const labelEvery = days.length > 7 ? 2 : 1
+
+  return {
+    ticks: [5, 4, 3, 2, 1, 0].map(n => Math.round((max / 5) * n)),
+    present,
+    late,
+    absent,
+    presentLine: points(present),
+    lateLine: points(late),
+    absentLine: points(absent),
+    labels: days.map((d, i) => ({ text: i % labelEvery === 0 ? d.label : '', holiday: d.is_holiday, title: d.holiday_name })),
+    holidays: days
+      .map((d, i) => (d.is_holiday ? { x: x(i), name: d.holiday_name } : null))
+      .filter((h): h is { x: number, name: string | null } => h !== null),
+  }
+})
+
+const pointTitle = (label: string, value: number, day: { date: string, scheduled: number, on_leave: number, wfh: number }) =>
+  `${label}: ${value} · ${day.date} (scheduled ${day.scheduled}, leave ${day.on_leave}, WFH ${day.wfh})`
+
+// =====================================================
+// DEPARTMENT HEADCOUNT (live)
+// =====================================================
+
+const DEPT_COLORS = ['#3b82f6', '#22c55e', '#f59e0b', '#8b5cf6', '#ec4899', '#94a3b8']
+
+const headcountView = computed(() => {
+  const h = headcount.value
+  if (!h || !h.total) return null
+
+  let start = 0
+  const stops: string[] = []
+  const rows = h.departments.map((d, i) => {
+    const color = d.name === 'Others' ? DEPT_COLORS[5]! : DEPT_COLORS[i % 5]!
+    const share = (d.count / h.total) * 100
+    stops.push(`${color} ${start}% ${start + share}%`)
+    start += share
+    return { ...d, color }
+  })
+
+  return { total: h.total, rows, gradient: `conic-gradient(${stops.join(', ')})` }
+})
+
+
+const recentNotifications = computed(() => latestNotifications.value.slice(0, 4))
+
+const openNotification = async (item: AppNotification) => {
+  try {
+    await markRead(item)
+  } catch {
+    // Still navigate.
+  }
+  if (item.url) await router.push(item.url)
+}
 
 // =====================================================
 // PAYROLL STATUS (live)
@@ -205,44 +323,8 @@ const todayLabel = computed(() =>
 )
 
 // =====================================================
-// MOCK DATA (not yet connected)
+// UPCOMING EVENTS (live)
 // =====================================================
-
-const departments = [
-  { name: 'Operations', count: 86, percent: 33.6, className: 'dept-blue' },
-  { name: 'Finance', count: 42, percent: 16.4, className: 'dept-green' },
-  { name: 'HR', count: 28, percent: 10.9, className: 'dept-orange' },
-  { name: 'IT', count: 24, percent: 9.4, className: 'dept-purple' },
-  { name: 'Sales', count: 22, percent: 8.6, className: 'dept-pink' },
-  { name: 'Others', count: 54, percent: 21.1, className: 'dept-gray' },
-]
-
-const notifications = [
-  {
-    title: 'Time log correction request approved',
-    meta: 'Juan Dela Cruz · May 26, 2026 9:15 AM',
-    type: 'success',
-    icon: CheckCircle2,
-  },
-  {
-    title: 'Overtime request for May 27 approved',
-    meta: 'Maria Reyes · May 26, 2026 8:45 AM',
-    type: 'warning',
-    icon: Clock3,
-  },
-  {
-    title: 'Leave request for May 29–30 pending',
-    meta: 'Pedro Santos · May 26, 2026 8:30 AM',
-    type: 'purple',
-    icon: Umbrella,
-  },
-  {
-    title: 'Missing time out detected',
-    meta: '5 employees affected · May 26, 2026 8:00 AM',
-    type: 'danger',
-    icon: AlertTriangle,
-  },
-]
 
 // Upcoming Events card (live): next 30 days, nearest first.
 // Events of the same type on the same day are combined into one row,
@@ -341,35 +423,45 @@ const upcomingEvents = computed(() => {
 
     <!-- MAIN GRID -->
     <div class="dashboard-grid">
-      <!-- ATTENDANCE -->
+      <!-- ATTENDANCE (live) -->
       <article class="dashboard-card attendance-card">
         <div class="card-header">
           <div>
             <h3>Attendance Overview</h3>
-            <p>Weekly attendance performance</p>
+            <p>
+              Scheduled employees per day
+              <template v-if="attendance?.summary.attendance_rate !== null && attendance?.summary.attendance_rate !== undefined">
+                · {{ attendance.summary.attendance_rate }}% attendance
+              </template>
+            </p>
           </div>
 
-          <button class="small-filter">
-            This Week
-            <ChevronDown :size="14" />
-          </button>
+          <div class="filter-wrap">
+            <select v-model="attendanceRange" class="small-filter" aria-label="Attendance period">
+              <option value="this_week">This Week</option>
+              <option value="last_week">Last Week</option>
+              <option value="last_14_days">Last 14 Days</option>
+            </select>
+            <ChevronDown :size="14" class="filter-icon" />
+          </div>
         </div>
 
         <div class="legend">
           <span><i class="legend-dot green" /> Present</span>
           <span><i class="legend-dot orange" /> Late</span>
           <span><i class="legend-dot red" /> Absent</span>
+          <span v-if="attendanceChart?.holidays.length"><i class="legend-dot holiday" /> Holiday</span>
         </div>
 
-        <!-- MOCK CHART -->
-        <div class="chart-wrapper">
+        <p v-if="attendanceError" class="request-empty">
+          {{ attendanceError }}
+          <button type="button" class="view-all inline" @click="getAttendance(attendanceRange)">Retry</button>
+        </p>
+        <p v-else-if="attendanceLoading && !attendance" class="request-empty">Loading...</p>
+
+        <div v-else-if="attendanceChart" class="chart-wrapper" :class="{ dimmed: attendanceLoading }">
           <div class="chart-y-axis">
-            <span>250</span>
-            <span>200</span>
-            <span>150</span>
-            <span>100</span>
-            <span>50</span>
-            <span>0</span>
+            <span v-for="(tick, i) in attendanceChart.ticks" :key="i">{{ tick }}</span>
           </div>
 
           <div class="chart-area">
@@ -379,50 +471,44 @@ const upcomingEvents = computed(() => {
             <div class="grid-line line-4" />
             <div class="grid-line line-5" />
 
-            <svg class="chart-svg" viewBox="0 0 700 220" preserveAspectRatio="none">
-              <polyline class="line-present" points="15,64 125,55 235,47 345,68 455,56 565,86 675,140" />
-              <polyline class="line-late" points="15,174 125,170 235,176 345,168 455,171 565,182 675,189" />
-              <polyline class="line-absent" points="15,186 125,183 235,184 345,185 455,187 565,190 675,193" />
+            <svg class="chart-svg" :viewBox="`0 0 ${CHART_W} ${CHART_H}`" preserveAspectRatio="none" role="img" aria-label="Attendance per day">
+              <rect
+                v-for="h in attendanceChart.holidays"
+                :key="h.x"
+                class="holiday-band"
+                :x="h.x - 14"
+                y="0"
+                width="28"
+                :height="CHART_H"
+              >
+                <title>{{ h.name }}</title>
+              </rect>
+
+              <polyline class="line-present" :points="attendanceChart.presentLine" />
+              <polyline class="line-late" :points="attendanceChart.lateLine" />
+              <polyline class="line-absent" :points="attendanceChart.absentLine" />
 
               <g class="chart-points present-points">
-                <circle cx="15" cy="64" r="5" />
-                <circle cx="125" cy="55" r="5" />
-                <circle cx="235" cy="47" r="5" />
-                <circle cx="345" cy="68" r="5" />
-                <circle cx="455" cy="56" r="5" />
-                <circle cx="565" cy="86" r="5" />
-                <circle cx="675" cy="140" r="5" />
+                <circle v-for="p in attendanceChart.present" :key="`p-${p.day.date}`" :cx="p.x" :cy="p.y" r="5">
+                  <title>{{ pointTitle('Present', p.value, p.day) }}</title>
+                </circle>
               </g>
-
               <g class="chart-points late-points">
-                <circle cx="15" cy="174" r="4" />
-                <circle cx="125" cy="170" r="4" />
-                <circle cx="235" cy="176" r="4" />
-                <circle cx="345" cy="168" r="4" />
-                <circle cx="455" cy="171" r="4" />
-                <circle cx="565" cy="182" r="4" />
-                <circle cx="675" cy="189" r="4" />
+                <circle v-for="p in attendanceChart.late" :key="`l-${p.day.date}`" :cx="p.x" :cy="p.y" r="4">
+                  <title>{{ pointTitle('Late', p.value, p.day) }}</title>
+                </circle>
               </g>
-
               <g class="chart-points absent-points">
-                <circle cx="15" cy="186" r="4" />
-                <circle cx="125" cy="183" r="4" />
-                <circle cx="235" cy="184" r="4" />
-                <circle cx="345" cy="185" r="4" />
-                <circle cx="455" cy="187" r="4" />
-                <circle cx="565" cy="190" r="4" />
-                <circle cx="675" cy="193" r="4" />
+                <circle v-for="p in attendanceChart.absent" :key="`a-${p.day.date}`" :cx="p.x" :cy="p.y" r="4">
+                  <title>{{ pointTitle('Absent', p.value, p.day) }}</title>
+                </circle>
               </g>
             </svg>
 
             <div class="x-labels">
-              <span>Mon</span>
-              <span>Tue</span>
-              <span>Wed</span>
-              <span>Thu</span>
-              <span>Fri</span>
-              <span>Sat</span>
-              <span>Sun</span>
+              <span v-for="(label, i) in attendanceChart.labels" :key="i" :class="{ holiday: label.holiday }" :title="label.title ?? undefined">
+                {{ label.text }}
+              </span>
             </div>
           </div>
         </div>
@@ -551,29 +637,42 @@ const upcomingEvents = computed(() => {
         </article>
       </div>
 
-      <!-- DEPARTMENT -->
+      <!-- DEPARTMENT (live) -->
       <article class="dashboard-card department-card">
         <div class="card-header">
           <div>
             <h3>Department Headcount</h3>
-            <p>Workforce distribution</p>
+            <p>
+              Workforce distribution
+              <template v-if="headcount"> · {{ headcount.department_count }} department{{ headcount.department_count === 1 ? '' : 's' }}</template>
+            </p>
           </div>
 
-          <button class="view-all">View all</button>
+          <button type="button" class="view-all" @click="router.push('/admin/departments')">
+            View all
+            <ArrowUpRight :size="14" />
+          </button>
         </div>
 
-        <div class="department-content">
-          <div class="donut-chart">
+        <p v-if="headcountError" class="request-empty">
+          {{ headcountError }}
+          <button type="button" class="view-all inline" @click="getHeadcount(5)">Retry</button>
+        </p>
+        <p v-else-if="headcountLoading && !headcount" class="request-empty">Loading...</p>
+        <p v-else-if="!headcountView" class="request-empty">No active employees yet.</p>
+
+        <div v-else class="department-content">
+          <div class="donut-chart" :style="{ background: headcountView.gradient }" role="img" :aria-label="`${headcountView.total} active employees by department`">
             <div class="donut-center">
-              <strong>256</strong>
+              <strong>{{ headcountView.total }}</strong>
               <span>Total</span>
             </div>
           </div>
 
           <div class="department-list">
-            <div v-for="department in departments" :key="department.name" class="department-row">
+            <div v-for="department in headcountView.rows" :key="department.name" class="department-row">
               <div class="department-name">
-                <span class="department-dot" :class="department.className" />
+                <span class="department-dot" :style="{ background: department.color }" />
                 {{ department.name }}
               </div>
 
@@ -586,7 +685,7 @@ const upcomingEvents = computed(() => {
         </div>
       </article>
 
-      <!-- NOTIFICATIONS -->
+      <!-- NOTIFICATIONS (live, same data as the bell) -->
       <article class="dashboard-card notifications-card">
         <div class="card-header">
           <div>
@@ -594,22 +693,41 @@ const upcomingEvents = computed(() => {
             <p>Latest HR activities</p>
           </div>
 
-          <button class="view-all">View all</button>
+          <button type="button" class="view-all" @click="router.push('/admin/notifications')">
+            View all
+            <ArrowUpRight :size="14" />
+          </button>
         </div>
 
-        <div class="notification-list">
-          <div v-for="item in notifications" :key="item.title" class="notification-row">
-            <div class="activity-icon" :class="`activity-${item.type}`">
-              <component :is="item.icon" :size="17" />
+        <p v-if="notificationsError && !notificationsLoaded" class="request-empty">
+          {{ notificationsError }}
+          <button type="button" class="view-all inline" @click="loadNotifications()">Retry</button>
+        </p>
+        <p v-else-if="!notificationsLoaded" class="request-empty">Loading...</p>
+        <p v-else-if="!recentNotifications.length" class="request-empty">
+          No notifications yet. New requests, approvals and trip updates will appear here.
+        </p>
+
+        <div v-else class="notification-list">
+          <button
+            v-for="item in recentNotifications"
+            :key="item.id"
+            type="button"
+            class="notification-row"
+            @click="openNotification(item)"
+          >
+            <div class="activity-icon" :class="`request-${LEVEL_TONE[item.level] ?? 'blue'}`">
+              <component :is="notificationIcon(item.category)" :size="17" />
             </div>
 
             <div class="activity-content">
               <strong>{{ item.title }}</strong>
-              <span>{{ item.meta }}</span>
+              <span>{{ item.message }}</span>
+              <span>{{ timeAgo(item.created_at) }}<template v-if="item.actor"> · {{ item.actor }}</template></span>
             </div>
 
-            <span class="unread-dot" />
-          </div>
+            <span v-if="!item.read" class="unread-dot" aria-label="Unread" />
+          </button>
         </div>
       </article>
 
@@ -715,6 +833,14 @@ const upcomingEvents = computed(() => {
 .view-all, .small-filter { display: flex; align-items: center; gap: 5px; border: 0; background: transparent; color: var(--primary); font-size: 10px; font-weight: 500; }
 .view-all:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; border-radius: 4px; }
 .small-filter { padding: 7px 9px; border: 1px solid var(--border); border-radius: 7px; color: var(--text-secondary); }
+.filter-wrap { position: relative; }
+select.small-filter { padding-right: 26px; background: var(--bg-card); font-family: inherit; appearance: none; cursor: pointer; }
+select.small-filter:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.filter-icon { position: absolute; top: 50%; right: 8px; transform: translateY(-50%); color: var(--text-muted); pointer-events: none; }
+.legend-dot.holiday { border-radius: 2px; background: color-mix(in srgb, var(--purple) 35%, transparent); }
+.holiday-band { fill: color-mix(in srgb, var(--purple) 12%, transparent); }
+.x-labels span.holiday { color: var(--purple); font-weight: 700; }
+.dimmed { opacity: 0.6; }
 
 /* ATTENDANCE */
 .attendance-card { min-height: 360px; }
@@ -836,6 +962,10 @@ button.request-row:focus-visible { outline: 2px solid var(--primary); outline-of
 .activity-warning { background: var(--orange-soft); color: var(--orange); }
 .activity-purple { background: var(--purple-soft); color: var(--purple); }
 .activity-danger { background: var(--red-soft); color: var(--red); }
+button.notification-row { width: 100%; padding: 6px 4px; border-top: 0; border-right: 0; border-left: 0; background: transparent; color: inherit; font-family: inherit; text-align: left; cursor: pointer; }
+button.notification-row:hover { background: var(--bg-card-soft); }
+button.notification-row:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
+.activity-content span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .unread-dot { width: 5px; height: 5px; flex-shrink: 0; border-radius: 100%; background: var(--primary); }
 
 /* EVENTS */

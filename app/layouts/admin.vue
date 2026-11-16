@@ -25,7 +25,6 @@ import {
   UserRound,
   BriefcaseBusiness,
   ClipboardCheck,
-  MapPin,
   LogOut,
   Calculator,
   History,
@@ -34,6 +33,7 @@ import {
 } from 'lucide-vue-next'
 
 import NotificationBell from '~/components/admin/notifications/NotificationBell.vue'
+import { useCompanyApi } from '~/composables/admin/useCompanyApi'
 
 const route = useRoute()
 const router = useRouter()
@@ -548,10 +548,29 @@ const closeCompanyMenu = () => {
   companyMenuOpen.value = false
 }
 
+const goToMyAccount = async () => {
+  closeCompanyMenu()
+
+  await router.push('/admin/settings/my-account')
+}
+
 const goToCompanySettings = async () => {
   closeCompanyMenu()
 
-  await router.push('/admin/settings')
+  await router.push('/admin/settings/company')
+}
+
+// Company name from Company Settings (falls back while loading).
+const companyName = ref('RWorkCentral Inc.')
+const companyApi = useCompanyApi()
+
+const loadCompanyName = async () => {
+  try {
+    const response = await companyApi.getCurrentCompany()
+    if (response.data?.company_name) companyName.value = response.data.company_name
+  } catch {
+    // Keep the fallback name.
+  }
 }
 
 const handleAdminLogout = async () => {
@@ -592,6 +611,8 @@ onMounted(async () => {
   }
 
   applyTheme()
+
+  void loadCompanyName()
 
   document.addEventListener(
     'click',
@@ -893,8 +914,8 @@ onBeforeUnmount(() => {
               </div>
 
               <div class="company-info">
-                <strong>RWorkCentral Inc.</strong>
-                <span>Main Branch</span>
+                <strong>{{ companyName }}</strong>
+                <span>{{ displayRole }}</span>
               </div>
 
               <ChevronDown
@@ -918,8 +939,8 @@ onBeforeUnmount(() => {
                   </div>
 
                   <div>
-                    <strong>RWorkCentral Inc.</strong>
-                    <span>Main Branch</span>
+                    <strong>{{ companyName }}</strong>
+                    <span>Signed in as {{ displayName }}</span>
                   </div>
                 </div>
 
@@ -928,7 +949,7 @@ onBeforeUnmount(() => {
                 <button
                   type="button"
                   class="dropdown-item"
-                  @click="closeCompanyMenu"
+                  @click="goToMyAccount"
                 >
                   <UserRound :size="16" />
 
@@ -947,25 +968,8 @@ onBeforeUnmount(() => {
 
                   <div>
                     <strong>Company Settings</strong>
-                    <span>Company information</span>
+                    <span>Company profile and locations</span>
                   </div>
-                </button>
-
-                <button
-                  type="button"
-                  class="dropdown-item"
-                  @click="closeCompanyMenu"
-                >
-                  <MapPin :size="16" />
-
-                  <div>
-                    <strong>Main Branch</strong>
-                    <span>Current branch</span>
-                  </div>
-
-                  <span class="current-badge">
-                    Current
-                  </span>
                 </button>
 
                 <div class="dropdown-divider" />

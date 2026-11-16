@@ -1,820 +1,405 @@
-
 <script setup lang="ts">
+import { computed, onMounted, reactive, ref } from 'vue'
 import {
-  UserRound, Mail, Phone, ShieldCheck, LockKeyhole,
-  Eye, EyeOff, Pencil, Save, X, Camera, CheckCircle2,
-  Info, KeyRound,
+  ArrowLeft,
+  BriefcaseBusiness,
+  CircleCheck,
+  CircleX,
+  Eye,
+  EyeOff,
+  KeyRound,
+  LogOut,
+  MonitorSmartphone,
+  Save,
+  UserRound,
 } from 'lucide-vue-next'
+import AppSwitch from '~/components/shared/AppSwitch.vue'
+import {
+  accountApiError,
+  useAccountApi,
+  type AccountRecord,
+} from '~/composables/admin/account/useAccountApi'
 
-definePageMeta({ layout: 'default' })
+definePageMeta({
+  layout: 'admin',
+})
 
-const editing = ref(false)
-const showCurrentPassword = ref(false)
-const showNewPassword = ref(false)
-const showConfirmPassword = ref(false)
-const showPasswordForm = ref(false)
-const avatarPreview = ref<string | null>(null)
+const router = useRouter()
+const api = useAccountApi()
+const { refreshUser } = useAuth()
+const { success, error: toastError } = useToast()
 
-type Profile = {
-  name: string
-  username: string
-  email: string
-  phone: string
+// =====================================================
+// LOAD
+// =====================================================
+
+const account = ref<AccountRecord | null>(null)
+const loading = ref(true)
+const loadError = ref('')
+
+const load = async () => {
+  loading.value = true
+  loadError.value = ''
+  try {
+    const response = await api.show()
+    account.value = response.data
+    details.name = response.data.name
+    details.email = response.data.email
+  } catch (err) {
+    loadError.value = accountApiError(err, 'Unable to load your account.').message
+  } finally {
+    loading.value = false
+  }
 }
 
-const profile = ref<Profile>({
-  name: 'Maria Santos',
-  username: 'maria.santos',
-  email: 'maria@rworkcentral.com',
-  phone: '',
-})
-
-const form = reactive<Profile>({ ...profile.value })
-
-const password = reactive({
-  current: '',
-  next: '',
-  confirm: '',
-})
-
-const message = ref('')
-const messageType = ref<'success' | 'error'>('success')
+onMounted(load)
 
 const initials = computed(() =>
-  profile.value.name.split(' ')
-    .map(item => item.charAt(0))
-    .slice(0, 2).join('').toUpperCase()
+  (account.value?.name ?? 'U')
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map(part => part.charAt(0))
+    .join('')
+    .toUpperCase(),
 )
 
-const startEdit = () => {
-  Object.assign(form, profile.value)
-  editing.value = true
-  message.value = ''
+const roleLabel = computed(() => {
+  const role = account.value?.role ?? ''
+  return role ? role.replace(/\b\w/g, c => c.toUpperCase()) : 'No assigned role'
+})
+
+const dateLabel = (value?: string | null) =>
+  value ? new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(value.length <= 10 ? `${value}T00:00:00` : value)) : '—'
+
+// =====================================================
+// ACCOUNT DETAILS
+// =====================================================
+
+const details = reactive({ name: '', email: '' })
+const detailsErrors = ref<Record<string, string[]>>({})
+const savingDetails = ref(false)
+
+const detailsDirty = computed(() =>
+  !!account.value && (details.name.trim() !== account.value.name || details.email.trim().toLowerCase() !== account.value.email),
+)
+
+const saveDetails = async () => {
+  detailsErrors.value = {}
+  if (!details.name.trim()) { detailsErrors.value = { name: ['Enter your name.'] }; return }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(details.email.trim())) { detailsErrors.value = { email: ['Enter a valid email address.'] }; return }
+
+  savingDetails.value = true
+  try {
+    const response = await api.update({ name: details.name.trim(), email: details.email.trim() })
+    account.value = response.data
+    details.name = response.data.name
+    details.email = response.data.email
+    await refreshUser() // update the name in the sidebar and top bar
+    success('Account updated', response.message)
+  } catch (err) {
+    const e = accountApiError(err, 'Unable to save your details.')
+    detailsErrors.value = e.errors
+    toastError('Unable to save', e.message)
+  } finally {
+    savingDetails.value = false
+  }
 }
 
-const cancelEdit = () => {
-  Object.assign(form, profile.value)
-  editing.value = false
+const resetDetails = () => {
+  if (!account.value) return
+  details.name = account.value.name
+  details.email = account.value.email
+  detailsErrors.value = {}
 }
 
-const saveProfile = () => {
-  if (!form.name.trim() || !form.username.trim() || !form.email.trim()) {
-    message.value = 'Name, username and email are required.'
-    messageType.value = 'error'
-    return
-  }
+// =====================================================
+// PASSWORD
+// =====================================================
 
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
-    message.value = 'Please enter a valid email address.'
-    messageType.value = 'error'
-    return
-  }
+const password = reactive({ current: '', next: '', confirm: '', signOutOthers: true })
+const show = reactive({ current: false, next: false, confirm: false })
+const passwordErrors = ref<Record<string, string[]>>({})
+const savingPassword = ref(false)
 
-  profile.value = { ...form }
-  editing.value = false
-  messageType.value = 'success'
-  message.value = 'Profile updated in this preview only. Backend saving is not connected.'
+const checks = computed(() => [
+  { label: 'At least 8 characters', ok: password.next.length >= 8 },
+  { label: 'A letter', ok: /[A-Za-z]/.test(password.next) },
+  { label: 'A number', ok: /\d/.test(password.next) },
+  { label: 'Matches the confirmation', ok: !!password.next && password.next === password.confirm },
+])
+
+const passwordReady = computed(() => !!password.current && checks.value.every(c => c.ok))
+
+const changePassword = async () => {
+  passwordErrors.value = {}
+  if (!passwordReady.value) return
+
+  savingPassword.value = true
+  try {
+    const response = await api.updatePassword({
+      current_password: password.current,
+      password: password.next,
+      password_confirmation: password.confirm,
+      sign_out_other_devices: password.signOutOthers,
+    })
+    account.value = response.data
+    Object.assign(password, { current: '', next: '', confirm: '' })
+    success('Password changed', password.signOutOthers ? 'Other devices were signed out.' : response.message)
+  } catch (err) {
+    const e = accountApiError(err, 'Unable to change your password.')
+    passwordErrors.value = e.errors
+    toastError('Unable to change password', e.message)
+  } finally {
+    savingPassword.value = false
+  }
 }
 
-const chooseAvatar = (event: Event) => {
-  const input = event.target as HTMLInputElement
-  const file = input.files?.[0]
-  if (!file) return
+// =====================================================
+// SESSIONS
+// =====================================================
 
-  if (!file.type.startsWith('image/') || file.size > 2 * 1024 * 1024) {
-    messageType.value = 'error'
-    message.value = 'Select an image smaller than 2 MB.'
-    input.value = ''
-    return
-  }
+const signingOut = ref(false)
 
-  const reader = new FileReader()
-  reader.onload = () => {
-    avatarPreview.value = String(reader.result)
+const otherSessions = computed(() => Math.max(0, (account.value?.sessions.active ?? 1) - 1))
+
+const signOutOthers = async () => {
+  if (!window.confirm('Sign out of RWorkCentral on every other device? This device stays signed in.')) return
+  signingOut.value = true
+  try {
+    const response = await api.signOutOtherDevices()
+    account.value = response.data
+    success('Signed out other devices', response.message)
+  } catch (err) {
+    toastError('Unable to sign out other devices', accountApiError(err, 'Please try again.').message)
+  } finally {
+    signingOut.value = false
   }
-  reader.readAsDataURL(file)
 }
 
-const changePassword = () => {
-  if (!password.current || !password.next || !password.confirm) {
-    messageType.value = 'error'
-    message.value = 'Please complete all password fields.'
-    return
-  }
-
-  if (password.next.length < 8) {
-    messageType.value = 'error'
-    message.value = 'New password must contain at least 8 characters.'
-    return
-  }
-
-  if (password.next !== password.confirm) {
-    messageType.value = 'error'
-    message.value = 'New password and confirmation do not match.'
-    return
-  }
-
-  messageType.value = 'success'
-  message.value = 'Password form validated. Actual password changes require backend integration.'
-
-  password.current = ''
-  password.next = ''
-  password.confirm = ''
-  showPasswordForm.value = false
-}
+const fieldError = (bag: Record<string, string[]>, key: string) => bag[key]?.[0] ?? ''
 </script>
 
 <template>
-  <section class="account-page">
-    <PageHeader
-      title="My Account"
-      description="Manage your personal information, account details and security preferences."
-    />
+  <section class="settings-detail-page">
+    <button type="button" class="back-link" @click="router.push('/admin/settings')">
+      <ArrowLeft :size="14" /> Back to Settings
+    </button>
 
-    <div
-      v-if="message"
-      class="notice"
-      :class="messageType"
-    >
-      <CheckCircle2 v-if="messageType === 'success'" :size="17" />
-      <Info v-else :size="17" />
-      <span>{{ message }}</span>
-      <button type="button" @click="message = ''">
-        <X :size="16" />
-      </button>
+    <PageHeader title="My Account" description="Your sign-in details, password and devices." />
+
+    <div v-if="loading" class="state-card">Loading your account...</div>
+    <div v-else-if="loadError || !account" class="state-card">
+      <strong>Unable to load your account</strong>
+      <span>{{ loadError }}</span>
+      <AppButton variant="secondary" @click="load">Retry</AppButton>
     </div>
 
-    <div class="account-grid">
-      <div class="main-column">
-
-        <article class="panel">
-          <div class="profile-banner"></div>
-
-          <div class="profile-heading">
-            <div class="avatar-wrap">
-              <img
-                v-if="avatarPreview"
-                :src="avatarPreview"
-                alt="Profile preview"
-                class="avatar"
-              />
-              <div v-else class="avatar initials">{{ initials }}</div>
-
-              <label class="avatar-edit" title="Change profile photo">
-                <Camera :size="14" />
-                <input
-                  type="file"
-                  accept="image/*"
-                  hidden
-                  @change="chooseAvatar"
-                />
-              </label>
-            </div>
-
-            <div class="profile-name">
-              <h2>{{ profile.name }}</h2>
-              <p>{{ profile.email }}</p>
-              <span class="role-pill">
-                <ShieldCheck :size="13" />
-                HR Administrator
-              </span>
+    <div v-else class="content-grid">
+      <div class="form-column">
+        <!-- PROFILE SUMMARY -->
+        <section class="panel profile-card">
+          <div class="avatar" aria-hidden="true">{{ initials }}</div>
+          <div class="profile-text">
+            <h2>{{ account.name }}</h2>
+            <p>{{ account.email }}</p>
+            <div class="badges">
+              <span class="badge">{{ roleLabel }}</span>
+              <span class="muted">Member since {{ dateLabel(account.member_since) }}</span>
             </div>
           </div>
+        </section>
 
-          <div class="panel-heading">
+        <!-- ACCOUNT DETAILS -->
+        <section class="panel">
+          <header class="panel-header">
+            <span class="panel-icon"><UserRound :size="17" /></span>
             <div>
-              <h3>Personal Information</h3>
-              <p>Manage your administrator profile details.</p>
+              <h2>Account Details</h2>
+              <p>The name shown in the HRIS and the email you sign in with.</p>
             </div>
-
-            <button
-              v-if="!editing"
-              type="button"
-              class="btn secondary"
-              @click="startEdit"
-            >
-              <Pencil :size="15" />
-              Edit Profile
-            </button>
-          </div>
-
-          <form class="profile-form" @submit.prevent="saveProfile">
+          </header>
+          <form class="panel-body" @submit.prevent="saveDetails">
             <div class="form-grid">
-              <label class="field">
-                <span>Full Name <b>*</b></span>
-                <div class="input-wrap">
-                  <UserRound :size="16" />
-                  <input
-                    v-model="form.name"
-                    :disabled="!editing"
-                    required
-                    placeholder="Full name"
-                  />
+              <div class="field" :class="{ invalid: fieldError(detailsErrors, 'name') }">
+                <label for="acc-name">Full name</label>
+                <div class="unit-input">
+                  <input id="acc-name" v-model="details.name" type="text" autocomplete="name" maxlength="255">
                 </div>
-              </label>
-
-              <label class="field">
-                <span>Username <b>*</b></span>
-                <div class="input-wrap">
-                  <UserRound :size="16" />
-                  <input
-                    v-model="form.username"
-                    :disabled="!editing"
-                    required
-                    placeholder="Username"
-                  />
+                <small v-if="fieldError(detailsErrors, 'name')" class="field-error">{{ fieldError(detailsErrors, 'name') }}</small>
+              </div>
+              <div class="field" :class="{ invalid: fieldError(detailsErrors, 'email') }">
+                <label for="acc-email">Email</label>
+                <div class="unit-input">
+                  <input id="acc-email" v-model="details.email" type="email" autocomplete="email" maxlength="255">
                 </div>
-              </label>
-
-              <label class="field">
-                <span>Email Address <b>*</b></span>
-                <div class="input-wrap">
-                  <Mail :size="16" />
-                  <input
-                    v-model="form.email"
-                    type="email"
-                    :disabled="!editing"
-                    required
-                    placeholder="Email address"
-                  />
-                </div>
-              </label>
-
-              <label class="field">
-                <span>Contact Number</span>
-                <div class="input-wrap">
-                  <Phone :size="16" />
-                  <input
-                    v-model="form.phone"
-                    type="tel"
-                    :disabled="!editing"
-                    placeholder="09XXXXXXXXX"
-                  />
-                </div>
-              </label>
+                <small :class="{ 'field-error': fieldError(detailsErrors, 'email') }">
+                  {{ fieldError(detailsErrors, 'email') || 'Changing this changes the email you sign in with.' }}
+                </small>
+              </div>
             </div>
-
-            <div v-if="editing" class="form-actions">
-              <button
-                type="button"
-                class="btn secondary"
-                @click="cancelEdit"
-              >
-                <X :size="15" />
-                Cancel
-              </button>
-
-              <button type="submit" class="btn primary">
-                <Save :size="15" />
-                Save Changes
-              </button>
+            <div class="actions">
+              <AppButton variant="secondary" :disabled="!detailsDirty || savingDetails" @click="resetDetails">Cancel</AppButton>
+              <AppButton :icon="Save" :disabled="!detailsDirty || savingDetails" @click="saveDetails">
+                {{ savingDetails ? 'Saving...' : 'Save Details' }}
+              </AppButton>
             </div>
           </form>
-        </article>
+        </section>
 
-        <article class="panel">
-          <div class="panel-heading">
+        <!-- PASSWORD -->
+        <section class="panel">
+          <header class="panel-header">
+            <span class="panel-icon"><KeyRound :size="17" /></span>
             <div>
-              <h3>Account Security</h3>
-              <p>Manage your password and account protection.</p>
+              <h2>Change Password</h2>
+              <p>Use at least 8 characters with letters and numbers.</p>
             </div>
-            <div class="heading-icon">
-              <LockKeyhole :size="18" />
-            </div>
-          </div>
-
-          <div class="security-content">
-            <div class="security-intro">
-              <div class="security-icon">
-                <KeyRound :size="19" />
-              </div>
-
-              <div>
-                <h4>Account Password</h4>
-                <p>Use a strong password to protect your HRIS account.</p>
-              </div>
-
-              <button
-                v-if="!showPasswordForm"
-                type="button"
-                class="btn secondary"
-                @click="showPasswordForm = true"
-              >
-                Change Password
-              </button>
-            </div>
-
-            <form
-              v-if="showPasswordForm"
-              class="password-form"
-              @submit.prevent="changePassword"
-            >
-              <label class="field">
-                <span>Current Password</span>
-                <div class="input-wrap">
-                  <LockKeyhole :size="16" />
-                  <input
-                    v-model="password.current"
-                    :type="showCurrentPassword ? 'text' : 'password'"
-                    autocomplete="current-password"
-                    required
-                    placeholder="Enter current password"
-                  />
-                  <button
-                    type="button"
-                    class="eye-button"
-                    @click="showCurrentPassword = !showCurrentPassword"
-                  >
-                    <EyeOff v-if="showCurrentPassword" :size="16" />
-                    <Eye v-else :size="16" />
+          </header>
+          <form class="panel-body" @submit.prevent="changePassword">
+            <div class="form-grid">
+              <div class="field wide" :class="{ invalid: fieldError(passwordErrors, 'current_password') }">
+                <label for="pw-current">Current password</label>
+                <div class="unit-input">
+                  <input id="pw-current" v-model="password.current" :type="show.current ? 'text' : 'password'" autocomplete="current-password">
+                  <button type="button" class="eye" :aria-label="show.current ? 'Hide password' : 'Show password'" @click="show.current = !show.current">
+                    <EyeOff v-if="show.current" :size="15" /><Eye v-else :size="15" />
                   </button>
                 </div>
-              </label>
-
-              <div class="form-grid">
-                <label class="field">
-                  <span>New Password</span>
-                  <div class="input-wrap">
-                    <LockKeyhole :size="16" />
-                    <input
-                      v-model="password.next"
-                      :type="showNewPassword ? 'text' : 'password'"
-                      autocomplete="new-password"
-                      required
-                      minlength="8"
-                      placeholder="New password"
-                    />
-                    <button
-                      type="button"
-                      class="eye-button"
-                      @click="showNewPassword = !showNewPassword"
-                    >
-                      <EyeOff v-if="showNewPassword" :size="16" />
-                      <Eye v-else :size="16" />
-                    </button>
-                  </div>
-                </label>
-
-                <label class="field">
-                  <span>Confirm New Password</span>
-                  <div class="input-wrap">
-                    <LockKeyhole :size="16" />
-                    <input
-                      v-model="password.confirm"
-                      :type="showConfirmPassword ? 'text' : 'password'"
-                      autocomplete="new-password"
-                      required
-                      minlength="8"
-                      placeholder="Confirm new password"
-                    />
-                    <button
-                      type="button"
-                      class="eye-button"
-                      @click="showConfirmPassword = !showConfirmPassword"
-                    >
-                      <EyeOff v-if="showConfirmPassword" :size="16" />
-                      <Eye v-else :size="16" />
-                    </button>
-                  </div>
-                </label>
+                <small v-if="fieldError(passwordErrors, 'current_password')" class="field-error">{{ fieldError(passwordErrors, 'current_password') }}</small>
               </div>
 
-              <div class="form-actions">
-                <button
-                  type="button"
-                  class="btn secondary"
-                  @click="showPasswordForm = false; password.current = ''; password.next = ''; password.confirm = ''"
-                >
-                  Cancel
-                </button>
-                <button type="submit" class="btn primary">
-                  <LockKeyhole :size="15" />
-                  Update Password
-                </button>
+              <div class="field" :class="{ invalid: fieldError(passwordErrors, 'password') }">
+                <label for="pw-new">New password</label>
+                <div class="unit-input">
+                  <input id="pw-new" v-model="password.next" :type="show.next ? 'text' : 'password'" autocomplete="new-password">
+                  <button type="button" class="eye" :aria-label="show.next ? 'Hide password' : 'Show password'" @click="show.next = !show.next">
+                    <EyeOff v-if="show.next" :size="15" /><Eye v-else :size="15" />
+                  </button>
+                </div>
+                <small v-if="fieldError(passwordErrors, 'password')" class="field-error">{{ fieldError(passwordErrors, 'password') }}</small>
               </div>
-            </form>
 
-            <p class="helper">
-              Password changes require Laravel API integration.
-            </p>
-          </div>
-        </article>
+              <div class="field">
+                <label for="pw-confirm">Confirm new password</label>
+                <div class="unit-input">
+                  <input id="pw-confirm" v-model="password.confirm" :type="show.confirm ? 'text' : 'password'" autocomplete="new-password">
+                  <button type="button" class="eye" :aria-label="show.confirm ? 'Hide password' : 'Show password'" @click="show.confirm = !show.confirm">
+                    <EyeOff v-if="show.confirm" :size="15" /><Eye v-else :size="15" />
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <ul class="checks" aria-label="Password requirements">
+              <li v-for="check in checks" :key="check.label" :class="{ ok: check.ok }">
+                <CircleCheck v-if="check.ok" :size="14" /><CircleX v-else :size="14" />
+                {{ check.label }}
+              </li>
+            </ul>
+
+            <AppSwitch
+              id="pw-signout"
+              v-model="password.signOutOthers"
+              label="Sign out on other devices"
+              description="Recommended if you think someone else knows your password."
+            />
+
+            <div class="actions">
+              <AppButton :icon="KeyRound" :disabled="!passwordReady || savingPassword" @click="changePassword">
+                {{ savingPassword ? 'Changing...' : 'Change Password' }}
+              </AppButton>
+            </div>
+          </form>
+        </section>
       </div>
 
+      <!-- SIDE -->
       <aside class="side-column">
-        <article class="panel">
-          <div class="panel-heading">
+        <section class="panel">
+          <header class="panel-header">
+            <span class="panel-icon"><BriefcaseBusiness :size="17" /></span>
             <div>
-              <h3>Account Overview</h3>
-              <p>Your system access details.</p>
+              <h2>Employee Record</h2>
+              <p>The employee profile linked to this account.</p>
             </div>
-          </div>
+          </header>
+          <dl v-if="account.employee" class="info-list">
+            <div><dt>Name</dt><dd>{{ account.employee.name }}</dd></div>
+            <div><dt>Employee No.</dt><dd>{{ account.employee.emp_id ?? '—' }}</dd></div>
+            <div><dt>Position</dt><dd>{{ account.employee.position ?? '—' }}</dd></div>
+            <div><dt>Department</dt><dd>{{ account.employee.department ?? '—' }}</dd></div>
+            <div><dt>Date Hired</dt><dd>{{ dateLabel(account.employee.date_hired) }}</dd></div>
+          </dl>
+          <p v-else class="empty">This account is not linked to an employee record (for example, a system administrator).</p>
+        </section>
 
-          <div class="detail-list">
-            <div class="detail-row">
-              <span>Account Name</span>
-              <strong>{{ profile.name }}</strong>
-            </div>
-            <div class="detail-row">
-              <span>User Role</span>
-              <strong>HR Administrator</strong>
-            </div>
-            <div class="detail-row">
-              <span>Company</span>
-              <strong>RWorkCentral Inc.</strong>
-            </div>
-            <div class="detail-row">
-              <span>Account Status</span>
-              <span class="active-pill">
-                <span class="status-dot"></span>
-                Active
-              </span>
-            </div>
-          </div>
-        </article>
-
-        <article class="panel access-panel">
-          <div class="panel-heading">
+        <section class="panel">
+          <header class="panel-header">
+            <span class="panel-icon"><MonitorSmartphone :size="17" /></span>
             <div>
-              <h3>Access & Permissions</h3>
-              <p>Your administrative access.</p>
+              <h2>Devices</h2>
+              <p>Where you are signed in.</p>
             </div>
-            <ShieldCheck :size="18" class="blue-text" />
-          </div>
-
-          <div class="access-body">
-            <div class="access-icon">
-              <ShieldCheck :size="22" />
-            </div>
-            <h4>HR Administrator</h4>
+          </header>
+          <div class="panel-body sessions">
             <p>
-              Your permissions control which HRIS modules
-              and actions are available to your account.
+              <strong>{{ account.sessions.active }}</strong>
+              active sign-in{{ account.sessions.active === 1 ? '' : 's' }}, including this device.
             </p>
-
-            <div class="access-note">
-              <Info :size="15" />
-              Actual permissions will be loaded from your assigned role.
-            </div>
+            <AppButton variant="secondary" :icon="LogOut" :disabled="!otherSessions || signingOut" @click="signOutOthers">
+              {{ signingOut ? 'Signing out...' : `Sign out ${otherSessions} other device${otherSessions === 1 ? '' : 's'}` }}
+            </AppButton>
           </div>
-        </article>
+        </section>
       </aside>
     </div>
   </section>
 </template>
 
+<style scoped src="../../../assets/css/settings-form.css"></style>
+
 <style scoped>
-.account-page {
-  width: 100%;
-  max-width: 1560px;
-  margin: 0 auto;
+.state-card {
+  display: flex; min-height: 220px; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
+  border: 1px solid var(--border); border-radius: 12px; background: var(--bg-card); color: var(--text-muted); font-size: 13px;
 }
-.account-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 320px;
-  gap: 14px;
-}
-.main-column, .side-column {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  min-width: 0;
-}
-.panel {
-  overflow: hidden;
-  border: 1px solid var(--border);
-  border-radius: 11px;
-  background: var(--bg-card);
-  box-shadow: var(--shadow);
-}
-.profile-banner {
-  height: 105px;
-  background: linear-gradient(110deg, #0b3674, #2563eb 65%, #588cf8);
-}
-.profile-heading {
-  display: flex;
-  align-items: center;
-  gap: 17px;
-  padding: 0 22px 22px;
-}
-.avatar-wrap {
-  position: relative;
-  flex-shrink: 0;
-  margin-top: -35px;
-}
+
+.state-card strong { color: var(--text-primary); font-size: 15px; }
+
+.profile-card { display: flex; align-items: center; gap: 16px; padding: 18px; }
+
 .avatar {
-  display: flex;
-  width: 88px;
-  height: 88px;
-  align-items: center;
-  justify-content: center;
-  border: 4px solid var(--bg-card);
-  border-radius: 20px;
-  background: #1d4ed8;
-  object-fit: cover;
+  display: flex; width: 60px; height: 60px; flex-shrink: 0; align-items: center; justify-content: center; border-radius: 50%;
+  background: linear-gradient(135deg, #ddeaff, #b8d1ff); color: #164b9b; font-size: 20px; font-weight: 700;
 }
-.initials {
-  color: white;
-  font-size: 25px;
-  font-weight: 750;
+
+.profile-text h2 { margin: 0; font-size: 18px; }
+.profile-text p { margin: 3px 0 0; color: var(--text-secondary); font-size: 13px; }
+.badges { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 8px; }
+.badge { padding: 4px 10px; border-radius: 999px; background: var(--primary-soft); color: var(--primary); font-size: 11px; font-weight: 700; }
+.muted { color: var(--text-muted); font-size: 12px; }
+
+.actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px; }
+
+.eye {
+  display: flex; align-items: center; padding: 0 12px; border: 0; background: transparent; color: var(--text-muted); cursor: pointer;
 }
-.avatar-edit {
-  position: absolute;
-  right: -5px;
-  bottom: -4px;
-  display: flex;
-  width: 30px;
-  height: 30px;
-  align-items: center;
-  justify-content: center;
-  border: 2px solid var(--bg-card);
-  border-radius: 50%;
-  background: var(--primary);
-  color: white;
-  cursor: pointer;
-}
-.profile-name {
-  padding-top: 15px;
-}
-.profile-name h2 {
-  margin: 0 0 5px;
-  color: var(--text-primary);
-  font-size: 20px;
-}
-.profile-name p {
-  margin: 0 0 9px;
-  color: var(--text-muted);
-  font-size: 11px;
-}
-.role-pill, .active-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 5px 9px;
-  border-radius: 20px;
-  background: var(--primary-soft);
-  color: var(--primary);
-  font-size: 10px;
-  font-weight: 650;
-}
-.active-pill {
-  background: var(--green-soft);
-  color: var(--green);
-}
-.status-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: currentColor;
-}
-.panel-heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 14px;
-  padding: 17px 20px;
-  border-bottom: 1px solid var(--border-soft);
-}
-.panel-heading h3 {
-  margin: 0;
-  color: var(--text-primary);
-  font-size: 13px;
-  font-weight: 700;
-}
-.panel-heading p {
-  margin: 5px 0 0;
-  color: var(--text-muted);
-  font-size: 10px;
-}
-.profile-form, .security-content {
-  padding: 20px;
-}
-.form-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
-}
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  min-width: 0;
-}
-.field > span {
-  color: var(--text-secondary);
-  font-size: 11px;
-  font-weight: 600;
-}
-.field b {
-  color: var(--red);
-}
-.input-wrap {
-  display: flex;
-  height: 42px;
-  align-items: center;
-  gap: 10px;
-  padding: 0 12px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--bg-card-soft);
-  color: var(--text-muted);
-}
-.input-wrap:focus-within {
-  border-color: var(--primary);
-}
-.input-wrap input {
-  width: 100%;
-  min-width: 0;
-  border: 0;
-  outline: 0;
-  background: transparent;
-  color: var(--text-primary);
-  font-family: inherit;
-  font-size: 11px;
-}
-.input-wrap input:disabled {
-  cursor: default;
-  opacity: .75;
-}
-.form-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 9px;
-  margin-top: 20px;
-  padding-top: 17px;
-  border-top: 1px solid var(--border-soft);
-}
-.btn {
-  display: inline-flex;
-  min-height: 36px;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 0 14px;
-  border: 1px solid transparent;
-  border-radius: 7px;
-  font-family: inherit;
-  font-size: 11px;
-  font-weight: 650;
-  cursor: pointer;
-}
-.btn.primary {
-  background: var(--primary);
-  color: white;
-}
-.btn.secondary {
-  border-color: var(--border);
-  background: var(--bg-card-soft);
-  color: var(--text-primary);
-}
-.btn:hover {
-  filter: brightness(1.12);
-}
-.security-intro {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-.security-icon, .heading-icon, .access-icon {
-  display: flex;
-  width: 40px;
-  height: 40px;
-  flex-shrink: 0;
-  align-items: center;
-  justify-content: center;
-  border-radius: 9px;
-  background: var(--primary-soft);
-  color: var(--primary);
-}
-.security-intro > div:nth-child(2) {
-  flex: 1;
-}
-.security-intro h4, .access-body h4 {
-  margin: 0;
-  color: var(--text-primary);
-  font-size: 12px;
-}
-.security-intro p, .helper {
-  margin: 5px 0 0;
-  color: var(--text-muted);
-  font-size: 10px;
-  line-height: 1.6;
-}
-.password-form {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  margin-top: 22px;
-  padding-top: 20px;
-  border-top: 1px solid var(--border-soft);
-}
-.eye-button {
-  display: flex;
-  border: 0;
-  background: transparent;
-  color: var(--text-muted);
-  cursor: pointer;
-}
-.helper {
-  margin-top: 18px;
-}
-.detail-list {
-  padding: 6px 17px;
-}
-.detail-row {
-  display: flex;
-  min-height: 52px;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  border-bottom: 1px solid var(--border-soft);
-}
-.detail-row:last-child {
-  border: 0;
-}
-.detail-row > span:first-child {
-  color: var(--text-muted);
-  font-size: 10px;
-}
-.detail-row strong {
-  color: var(--text-primary);
-  font-size: 10px;
-  font-weight: 650;
-  text-align: right;
-}
-.access-body {
-  padding: 20px;
-}
-.access-body h4 {
-  margin-top: 15px;
-}
-.access-body > p {
-  color: var(--text-secondary);
-  font-size: 11px;
-  line-height: 1.7;
-}
-.access-note {
-  display: flex;
-  align-items: flex-start;
-  gap: 9px;
-  margin-top: 17px;
-  padding: 12px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--bg-card-soft);
-  color: var(--text-muted);
-  font-size: 10px;
-  line-height: 1.6;
-}
-.blue-text {
-  color: var(--primary);
-}
-.notice {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 14px;
-  padding: 13px 15px;
-  border-radius: 9px;
-  font-size: 11px;
-}
-.notice.success {
-  background: var(--green-soft);
-  color: var(--green);
-}
-.notice.error {
-  background: var(--red-soft);
-  color: var(--red);
-}
-.notice span {
-  flex: 1;
-}
-.notice button {
-  border: 0;
-  background: transparent;
-  color: inherit;
-  cursor: pointer;
-}
-@media (max-width: 1050px) {
-  .account-grid {
-    grid-template-columns: 1fr;
-  }
-}
-@media (max-width: 650px) {
-  .form-grid {
-    grid-template-columns: 1fr;
-  }
-  .profile-heading {
-    padding: 0 14px 18px;
-  }
-  .panel-heading, .profile-form, .security-content {
-    padding: 15px;
-  }
-  .security-intro {
-    flex-wrap: wrap;
-  }
-  .security-intro > .btn {
-    width: 100%;
-  }
-}
+
+.eye:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
+
+.checks { display: flex; flex-wrap: wrap; gap: 8px 16px; margin: 14px 0 6px; padding: 0; list-style: none; }
+.checks li { display: flex; align-items: center; gap: 6px; color: var(--text-muted); font-size: 12px; }
+.checks li.ok { color: var(--green); }
+
+.info-list { display: grid; gap: 0; margin: 0; padding: 6px 18px 14px; }
+.info-list div { display: flex; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border-soft); font-size: 13px; }
+.info-list div:last-child { border-bottom: 0; }
+.info-list dt { color: var(--text-secondary); }
+.info-list dd { margin: 0; font-weight: 600; text-align: right; }
+
+.empty { margin: 0; padding: 16px 18px; color: var(--text-muted); font-size: 13px; line-height: 1.5; }
+
+.sessions p { margin: 0 0 12px; color: var(--text-secondary); font-size: 13px; }
+.sessions strong { color: var(--text-primary); }
 </style>
