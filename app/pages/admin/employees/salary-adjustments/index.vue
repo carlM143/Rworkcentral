@@ -26,9 +26,14 @@ const {
   createAdjustment, changeStatus,
 } = useSalaryAdjustments()
 
+const router = useRouter()
 const { success, error: showError } = useToast()
 const showCreate = ref(false)
-const selectedDetail = ref<SalaryAdjustment | null>(null)
+
+// View Details opens its own page (edit, approve, reject and apply are there).
+const openDetails = (item: SalaryAdjustment) => {
+  router.push(`/admin/employees/salary-adjustments/${item.id}`)
+}
 const pendingConfirmation = ref<{ action: ApprovalAction; item: SalaryAdjustment } | null>(null)
 const confirmationError = ref('')
 
@@ -46,6 +51,7 @@ const openCreate = async () => {
   if (choicesError.value || !choices.value.length) await getSalaryChoices()
 }
 
+// The payload now includes `allowances`; the backend saves everything in one request.
 const submitCreate = async (payload: CreateSalaryAdjustmentPayload) => {
   try {
     await createAdjustment(payload)
@@ -95,7 +101,7 @@ const confirmationText = computed(() => {
   const target = pendingConfirmation.value
   if (!target) return ''
   if (target.action === 'apply') {
-    return 'This will update the employee salary setup. The backend only allows approved adjustments on or after their effective date.'
+    return 'This will update the employee salary setup and allowances. The backend only allows approved adjustments on or after their effective date.'
   }
   if (target.action === 'approve') return 'Approval records the decision but does not change the employee salary yet.'
   return 'Rejecting will close this pending adjustment without changing the employee salary.'
@@ -139,7 +145,7 @@ const money = (value: MoneyValue) => value == null ? '—' :
       :adjustments="paginatedAdjustments"
       :loading="loading"
       :busy="mutating"
-      @view="selectedDetail = $event"
+      @view="openDetails"
       @approve="askForConfirmation('approve', $event)"
       @reject="askForConfirmation('reject', $event)"
       @apply="askForConfirmation('apply', $event)"
@@ -162,37 +168,6 @@ const money = (value: MoneyValue) => value == null ? '—' :
       @save="submitCreate"
     />
 
-    <!-- Record detail modal. -->
-    <Teleport to="body">
-      <div v-if="selectedDetail" class="dialog-backdrop" @mousedown.self="selectedDetail = null">
-        <section class="detail-dialog" role="dialog" aria-modal="true" aria-labelledby="adjustment-details-title">
-          <div class="dialog-header">
-            <div>
-              <h2 id="adjustment-details-title">Salary Adjustment #{{ selectedDetail.id }}</h2>
-              <p>{{ selectedDetail.employee_name }} · {{ selectedDetail.emp_id || selectedDetail.employee_id }}</p>
-            </div>
-            <button type="button" class="close-button" aria-label="Close details" @click="selectedDetail = null"><X :size="17" /></button>
-          </div>
-          <div class="detail-grid">
-            <div><span>Salary Type</span><strong>{{ selectedDetail.salary_type || '—' }}</strong></div>
-            <div><span>Adjustment Type</span><strong class="capitalize">{{ selectedDetail.adjustment_type }}</strong></div>
-            <div><span>Previous Basic Salary</span><strong>{{ money(selectedDetail.previous_basic_salary) }}</strong></div>
-            <div><span>New Basic Salary</span><strong>{{ money(selectedDetail.new_basic_salary) }}</strong></div>
-            <div><span>Previous Allowance</span><strong>{{ money(selectedDetail.previous_allowance) }}</strong></div>
-            <div><span>New Allowance</span><strong>{{ money(selectedDetail.new_allowance) }}</strong></div>
-            <div><span>Effective Date</span><strong>{{ selectedDetail.effective_date }}</strong></div>
-            <div><span>Status</span><strong class="capitalize">{{ selectedDetail.status }}</strong></div>
-            <div><span>Approved By</span><strong>{{ selectedDetail.approved_by_name || '—' }}</strong></div>
-            <div><span>Approved At</span><strong>{{ selectedDetail.approved_at || '—' }}</strong></div>
-            <div><span>Applied By</span><strong>{{ selectedDetail.applied_by_name || '—' }}</strong></div>
-            <div><span>Applied At</span><strong>{{ selectedDetail.applied_at || '—' }}</strong></div>
-            <div class="full-width"><span>Reason</span><strong>{{ selectedDetail.reason || 'Not provided' }}</strong></div>
-          </div>
-          <div class="dialog-footer"><button class="button secondary" type="button" @click="selectedDetail = null">Close</button></div>
-        </section>
-      </div>
-    </Teleport>
-
     <!-- Confirmation required for approval, rejection and actual salary application. -->
     <Teleport to="body">
       <div v-if="pendingConfirmation" class="dialog-backdrop" @mousedown.self="closeConfirmation">
@@ -207,6 +182,10 @@ const money = (value: MoneyValue) => value == null ? '—' :
           <div class="confirm-content">
             <p>{{ confirmationText }}</p>
             <p><strong>New basic salary:</strong> {{ money(pendingConfirmation.item.new_basic_salary) }}</p>
+            <p v-if="pendingConfirmation.item.allowances?.length">
+              <strong>Additional allowances:</strong>
+              {{ pendingConfirmation.item.allowances.length }} item(s), total {{ money(pendingConfirmation.item.allowances_total) }}
+            </p>
             <p v-if="confirmationError" class="inline-error" role="alert">{{ confirmationError }}</p>
           </div>
           <div class="dialog-footer">
@@ -242,6 +221,9 @@ const money = (value: MoneyValue) => value == null ? '—' :
 .detail-grid strong { color: var(--text-primary); font-size: 12px; font-weight: 600; overflow-wrap: anywhere; }
 .full-width { grid-column: 1 / -1; }
 .capitalize { text-transform: capitalize; }
+.allowance-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.allowance-list li { display: flex; justify-content: space-between; gap: 10px; padding: 7px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-card-soft); }
+.allowance-list li span { color: var(--text-secondary); font-size: 12px; }
 .confirm-content { padding: 20px 22px; color: var(--text-secondary); font-size: 12px; line-height: 1.6; }
 .confirm-content p { margin: 0 0 12px; }
 .confirm-content strong { color: var(--text-primary); }
