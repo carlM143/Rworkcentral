@@ -43,7 +43,7 @@ const closeMore = () => {
 }
 
 const moreActive = computed(() =>
-  ['/employee/profile', '/employee/leave-credit', '/employee/loans', '/employee/calendar', '/employee/attendance-qr-code']
+  ['/employee/profile', '/employee/leave-credit', '/employee/loans', '/employee/calendar', '/employee/payslips']
     .includes(route.path)
 )
 
@@ -88,8 +88,8 @@ const menuItems = [
 const bottomItems = [
   { label: 'Home', icon: House, to: '/employee' },
   { label: 'Attendance', icon: Clock3, to: '/employee/attendance' },
+  { label: 'Scan QR', icon: ScanLine, to: '/employee/attendance-qr-code' },
   { label: 'Requests', icon: ClipboardCheck, to: '/employee/requests' },
-  { label: 'Payslips', icon: WalletCards, to: '/employee/payslips' },
 ]
 
 const applyTheme = () => {
@@ -251,7 +251,7 @@ watch(() => route.fullPath, () => {
         <button v-if="item.to === '/employee/requests'" type="button" class="bottom-link" :class="{ selected: requestsActive || mobileRequestsOpen }" aria-haspopup="dialog" aria-controls="employee-mobile-requests" :aria-expanded="mobileRequestsOpen" @click="openRequests">
           <component :is="item.icon" :size="21" :stroke-width="1.9" /><span>{{ item.label }}</span>
         </button>
-        <NuxtLink v-else :to="item.to" class="bottom-link" :class="{ selected: route.path === item.to }" :aria-current="route.path === item.to ? 'page' : undefined">
+        <NuxtLink v-else :to="item.to" class="bottom-link" :aria-label="item.to === '/employee/attendance-qr-code' ? 'Scan Attendance QR' : item.label" :class="{ selected: route.path === item.to }" :aria-current="route.path === item.to ? 'page' : undefined">
           <component :is="item.icon" :size="21" :stroke-width="1.9" /><span>{{ item.label }}</span>
         </NuxtLink>
       </template>
@@ -299,9 +299,9 @@ watch(() => route.fullPath, () => {
         </button>
       </div>
       <nav class="sheet-links" aria-label="More employee pages">
-        <NuxtLink to="/employee/attendance-qr-code" :aria-current="route.path === '/employee/attendance-qr-code' ? 'page' : undefined" @click="closeMore">
-          <ScanLine :size="20" />
-          <span>Scan QR</span>
+        <NuxtLink to="/employee/payslips" :aria-current="route.path === '/employee/payslips' ? 'page' : undefined" @click="closeMore">
+          <WalletCards :size="20" />
+          <span>Payslips</span>
         </NuxtLink>
         <NuxtLink to="/employee/calendar" :aria-current="route.path === '/employee/calendar' ? 'page' : undefined" @click="closeMore">
           <CalendarDays :size="20" />
