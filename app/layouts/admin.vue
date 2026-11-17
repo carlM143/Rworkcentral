@@ -71,6 +71,7 @@ const openMenus = reactive<Record<string, boolean>>({
   documents: false,
   'employee-lifecycle': false,
   reports: false,
+  compensation: false,
 })
 
 // =====================================================
@@ -210,12 +211,12 @@ const menuItems = [
       },
       {
         label: 'Employee Payroll',
-        to: '/admin/payroll/employee-payroll',
+        to: '/admin/employee-payroll',
         icon: Calculator,
       },
       {
         label: 'Driver Payroll',
-        to: '/admin/payroll/driver-payroll',
+        to: '/admin/driver-payroll',
         icon: Truck,
       },
       {
@@ -249,12 +250,12 @@ const menuItems = [
         to: '/admin/contribution/bracket-management',
       },
       {
-        label: 'Contribution Settings',
-        to: '/admin/contribution/deduction-settings',
+        label: 'Contribution History',
+        to: '/admin/contribution/rate-brackets',
       },
       {
-        label: 'Contribution History',
-        to: '/admin/contribution/contribution-history',
+        label: 'Contribution Settings',
+        to: '/admin/contribution/deduction-settings',
       },
     ],
   },
@@ -308,13 +309,12 @@ const menuItems = [
     ],
   },
   {
-    label: 'Holiday Management',
-    key: 'holidays',
+    label: 'Work Calendar',
+    key: 'work-calendar',
     icon: CalendarDays,
     children: [
-      { label: 'Holiday', to: '/admin/holiday-management/holiday' },
-      { label: 'Holiday Coverage', to: '/admin/holiday-management/holiday-coverage' },
-      { label: 'Holiday Pay', to: '/admin/holiday-management/holiday-pay' },
+      { label: 'Holiday', to: '/admin/work-calendar' },
+      { label: 'Holiday Coverage', to: '/admin/work-calendar/coverage' },
     ],
   },
   {
@@ -385,24 +385,32 @@ const menuItems = [
     icon: UserRound,
     children: [
       {
-        label: 'Lifecycle Policies',
-        to: '/admin/employee-lifecycle/policies',
+        label: 'Onboarding',
+        to: '/admin/employee-lifecycle/onboarding',
       },
       {
-        label: 'Lifecycle Stages',
-        to: '/admin/employee-lifecycle/stages',
+        label: 'Regularization',
+        to: '/admin/employee-lifecycle/regularization',
       },
       {
-        label: 'Employee Milestones',
-        to: '/admin/employee-lifecycle/milestones',
+        label: 'Employee Transfers',
+        to: '/admin/employee-lifecycle/transfers',
       },
       {
-        label: 'Employee Offboarding',
+        label: 'Promotions',
+        to: '/admin/employee-lifecycle/promotions',
+      },
+      {
+        label: 'Employment Changes',
+        to: '/admin/employee-lifecycle/changes',
+      },
+      {
+        label: 'Offboarding',
         to: '/admin/employee-lifecycle/offboarding',
       },
       {
-        label: 'Employee History',
-        to: '/admin/employee-lifecycle/employee-history',
+        label: 'Lifecycle History',
+        to: '/admin/employee-lifecycle/history',
       },
     ],
   },
@@ -494,7 +502,20 @@ const hasActiveChild = (
   }) ?? false
 }
 
+// System › Compensation submenu (detail pages keep the item active).
+const compensationMenu = [
+  { label: 'Wage Orders', to: '/admin/settings/compensation/wage-orders' },
+  { label: 'Wage Adjustments', to: '/admin/settings/compensation/wage-adjustments' },
+  { label: 'Regional Rates', to: '/admin/settings/compensation/regional-rates' },
+]
+
+const isCompensationRoute = computed(() =>
+  route.path.startsWith('/admin/settings/compensation'),
+)
+
 const expandActiveMenu = () => {
+  if (isCompensationRoute.value) openMenus.compensation = true
+
   visibleMenuItems.value.forEach((item) => {
     if (
       item.key &&
@@ -800,22 +821,48 @@ onBeforeUnmount(() => {
           <span>Settings</span>
         </NuxtLink>
 
-        <NuxtLink
-          to="/admin/settings/compensation/wage-orders"
-          class="menu-link"
-          :class="{
-            active: isRouteActive(
-              '/admin/settings/compensation/wage-orders',
-            ),
-          }"
-          @click="sidebarOpen = false"
-        >
-          <WalletCards
-            :size="19"
-            :stroke-width="1.9"
-          />
-          <span>Wage Orders</span>
-        </NuxtLink>
+        <!-- COMPENSATION: wage orders and regional minimum wage -->
+        <div class="menu-group">
+          <button
+            type="button"
+            class="menu-link menu-button"
+            :class="{ active: isCompensationRoute }"
+            :aria-expanded="openMenus.compensation"
+            @click="toggleMenu('compensation')"
+          >
+            <WalletCards
+              :size="19"
+              :stroke-width="1.9"
+            />
+
+            <span>Compensation</span>
+
+            <component
+              :is="openMenus.compensation ? ChevronDown : ChevronRight"
+              class="menu-arrow"
+              :size="17"
+            />
+          </button>
+
+          <Transition name="submenu">
+            <div
+              v-show="openMenus.compensation"
+              class="submenu"
+            >
+              <NuxtLink
+                v-for="child in compensationMenu"
+                :key="child.to"
+                :to="child.to"
+                class="submenu-link"
+                :class="{ active: route.path.startsWith(child.to) }"
+                @click="sidebarOpen = false"
+              >
+                <span class="submenu-dot" />
+                {{ child.label }}
+              </NuxtLink>
+            </div>
+          </Transition>
+        </div>
       </div>
 
       <!-- LOGGED-IN USER -->
