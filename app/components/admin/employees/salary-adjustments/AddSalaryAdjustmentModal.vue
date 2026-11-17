@@ -1,12 +1,17 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { X, Search, Info, ArrowRight } from 'lucide-vue-next'
+import { X, Search, Info, ArrowRight, Plus, Trash2 } from 'lucide-vue-next'
 import type {
   AdjustmentType,
   CreateSalaryAdjustmentPayload,
   MoneyValue,
   SalarySetupChoice,
 } from '~/types/salaryAdjustments/salaryAdjustment'
+
+interface AllowanceRow {
+  allowance_name: string
+  amount: string
+}
 
 const props = withDefaults(defineProps<{
   open: boolean
@@ -29,12 +34,15 @@ const emit = defineEmits<{
   save: [payload: CreateSalaryAdjustmentPayload]
 }>()
 
+const MAX_EXTRA_ALLOWANCES = 20
+
 const employeeSearch = ref('')
 const employeeId = ref<number | null>(null)
 const dropdownOpen = ref(false)
 const adjustmentType = ref<AdjustmentType>('increase')
 const newBasic = ref('')
 const newAllowance = ref('')
+const extraAllowances = ref<AllowanceRow[]>([])
 const effectiveDate = ref('')
 const reason = ref('')
 const localError = ref('')
@@ -53,12 +61,28 @@ const matchingEmployees = computed(() => {
   )
 })
 
-const money = (value: MoneyValue): string => {
+const extrasTotal = computed(() =>
+  extraAllowances.value.reduce((sum, row) => sum + (Number(row.amount) || 0), 0),
+)
+
+const money = (value: MoneyValue | number): string => {
   if (value == null || value === '') return '—'
   return new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(Number(value))
 }
 
 const fieldError = (key: string) => props.fieldErrors[key]?.[0] ?? ''
+
+const allowanceFieldError = (index: number, key: 'allowance_name' | 'amount') =>
+  props.fieldErrors[`allowances.${index}.${key}`]?.[0] ?? ''
+
+const addAllowanceRow = () => {
+  if (extraAllowances.value.length >= MAX_EXTRA_ALLOWANCES) return
+  extraAllowances.value.push({ allowance_name: '', amount: '' })
+}
+
+const removeAllowanceRow = (index: number) => {
+  extraAllowances.value.splice(index, 1)
+}
 
 const resetForm = () => {
   employeeSearch.value = ''
@@ -67,6 +91,7 @@ const resetForm = () => {
   adjustmentType.value = 'increase'
   newBasic.value = ''
   newAllowance.value = ''
+  extraAllowances.value = []
   effectiveDate.value = ''
   reason.value = ''
   localError.value = ''
@@ -95,6 +120,23 @@ const onClose = () => { if (!props.saving) emit('close') }
 const isValidAmount = (value: string): boolean =>
   /^(?:\d+)(?:\.\d{1,2})?$/.test(value.trim()) && Number.isFinite(Number(value))
 
+// Completely empty rows are ignored. Partially filled rows are errors.
+const validateExtraAllowances = (): string => {
+  const seen = new Set<string>()
+  for (const row of extraAllowances.value) {
+    const name = row.allowance_name.trim()
+    const amount = String(row.amount ?? '').trim()
+    if (!name && !amount) continue
+    if (!name) return 'Each additional allowance needs a name.'
+    if (!isValidAmount(amount)) return `Enter a valid amount for "${name}" (up to 2 decimal places).`
+    if (Number(amount) > 9999999999.99) return `Amount for "${name}" exceeds the allowed limit.`
+    const key = name.toLowerCase()
+    if (seen.has(key)) return `Allowance "${name}" is listed more than once.`
+    seen.add(key)
+  }
+  return ''
+}
+
 const submit = () => {
   localError.value = ''
   const selected = selectedEmployee.value
@@ -118,6 +160,11 @@ const submit = () => {
     localError.value = 'Salary values exceed the allowed limit.'
     return
   }
+  const allowanceError = validateExtraAllowances()
+  if (allowanceError) {
+    localError.value = allowanceError
+    return
+  }
 
   emit('save', {
     employee_id: selected.employee_id,
@@ -125,6 +172,12 @@ const submit = () => {
     adjustment_type: adjustmentType.value,
     new_basic_salary: Number(newBasic.value),
     new_allowance: newAllowance.value.trim() ? Number(newAllowance.value) : null,
+    allowances: extraAllowances.value
+      .filter(row => row.allowance_name.trim() !== '')
+      .map(row => ({
+        allowance_name: row.allowance_name.trim(),
+        amount: Number(row.amount),
+      })),
     effective_date: effectiveDate.value,
     reason: reason.value.trim() || null,
   })
@@ -211,12 +264,64 @@ const submit = () => {
               <input id="new-basic" v-model="newBasic" inputmode="decimal" placeholder="e.g. 23000.00" :disabled="saving" />
               <small v-if="fieldError('new_basic_salary')" class="error-text">{{ fieldError('new_basic_salary') }}</small>
             </div>
+
+            <!-- NEW ALLOWANCE + ADD BUTTON -->
             <div class="field">
-              <label for="new-allowance">New Allowance (PHP)</label>
+              <div class="label-row">
+                <label for="new-allowance">New Allowance (PHP)</label>
+                <button
+                  type="button"
+                  class="add-allowance-btn"
+                  title="Add another allowance"
+                  :disabled="saving || extraAllowances.length >= MAX_EXTRA_ALLOWANCES"
+                  @click="addAllowanceRow"
+                >
+                  <Plus :size="13" /> Add
+                </button>
+              </div>
               <input id="new-allowance" v-model="newAllowance" inputmode="decimal" placeholder="Leave blank for none" :disabled="saving" />
               <small v-if="fieldError('new_allowance')" class="error-text">{{ fieldError('new_allowance') }}</small>
             </div>
           </div>
+
+          <!-- MULTIPLE ADDITIONAL ALLOWANCES -->
+          <div v-if="extraAllowances.length" class="extra-allowances">
+            <div class="extra-head">
+              <span>Additional Allowances</span>
+              <strong>Total: {{ money(extrasTotal) }}</strong>
+            </div>
+
+            <div v-for="(row, index) in extraAllowances" :key="index" class="extra-row">
+              <div class="extra-inputs">
+                <input
+                  v-model="row.allowance_name"
+                  type="text"
+                  maxlength="100"
+                  placeholder="Allowance name (e.g. Rice, Transport)"
+                  :disabled="saving"
+                />
+                <input
+                  v-model="row.amount"
+                  inputmode="decimal"
+                  placeholder="Amount"
+                  :disabled="saving"
+                />
+                <button
+                  type="button"
+                  class="remove-btn"
+                  aria-label="Remove allowance"
+                  :disabled="saving"
+                  @click="removeAllowanceRow(index)"
+                >
+                  <Trash2 :size="15" />
+                </button>
+              </div>
+              <small v-if="allowanceFieldError(index, 'allowance_name') || allowanceFieldError(index, 'amount')" class="error-text">
+                {{ allowanceFieldError(index, 'allowance_name') || allowanceFieldError(index, 'amount') }}
+              </small>
+            </div>
+          </div>
+
           <div class="field">
             <label for="adjustment-reason">Reason</label>
             <textarea id="adjustment-reason" v-model="reason" rows="3" maxlength="5000" placeholder="Reason for this adjustment..." :disabled="saving" />
@@ -273,11 +378,33 @@ const submit = () => {
 .current-salary span { color: var(--text-muted); font-size: 10px; }
 .current-salary strong { color: var(--text-primary); font-size: 14px; font-weight: 600; }
 .current-salary svg { color: var(--text-muted); }
+
+/* Add allowance button + extra rows */
+.label-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 20px; }
+.add-allowance-btn { display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px; border: 1px solid #2563eb; border-radius: 6px; background: rgba(37,99,235,.12); color: #60a5fa; font-size: 11px; font-weight: 600; cursor: pointer; }
+.add-allowance-btn:hover:not(:disabled) { background: rgba(37,99,235,.25); }
+.add-allowance-btn:disabled { opacity: .5; cursor: not-allowed; }
+.extra-allowances { display: flex; flex-direction: column; gap: 9px; padding: 13px; border: 1px dashed var(--border); border-radius: 10px; background: var(--bg-card-soft); }
+.extra-head { display: flex; align-items: center; justify-content: space-between; color: var(--text-primary); font-size: 11px; font-weight: 600; }
+.extra-head strong { color: #34d399; font-weight: 600; }
+.extra-row { display: flex; flex-direction: column; gap: 4px; }
+.extra-inputs { display: grid; grid-template-columns: 1fr 150px 38px; gap: 8px; }
+.extra-inputs input { min-width: 0; min-height: 38px; padding: 0 11px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-card); color: var(--text-primary); font-size: 12px; outline: none; }
+.extra-inputs input:focus { border-color: var(--primary); }
+.remove-btn { display: grid; place-items: center; border: 1px solid var(--border); border-radius: 8px; background: transparent; color: #fb7185; cursor: pointer; }
+.remove-btn:hover:not(:disabled) { background: rgba(244,63,94,.12); }
+.remove-btn:disabled { opacity: .5; cursor: not-allowed; }
+.extra-row .error-text { font-size: 11px; color: #fb7185; }
+
 .form-error { margin: 0; padding: 10px; border: 1px solid rgba(244,63,94,.3); border-radius: 8px; background: rgba(244,63,94,.08); color: #fb7185; font-size: 12px; }
 .modal-footer { display: flex; justify-content: flex-end; gap: 9px; padding: 15px 24px 22px; border-top: 1px solid var(--border); }
 .button { min-height: 37px; padding: 8px 14px; border-radius: 8px; cursor: pointer; font-size: 12px; font-weight: 600; }
 .button.secondary { background: transparent; border: 1px solid var(--border); color: var(--text-primary); }
 .button.primary { background: #2563eb; color: #fff; border: 1px solid #2563eb; }
 .button:disabled { opacity: .5; cursor: not-allowed; }
-@media (max-width: 600px) { .modal-heading { padding: 18px; } .modal-body { padding: 0 18px 18px; } .modal-footer { padding: 15px 18px; } .form-grid { grid-template-columns: 1fr; } }
+@media (max-width: 600px) {
+  .modal-heading { padding: 18px; } .modal-body { padding: 0 18px 18px; } .modal-footer { padding: 15px 18px; }
+  .form-grid { grid-template-columns: 1fr; }
+  .extra-inputs { grid-template-columns: 1fr 110px 38px; }
+}
 </style>

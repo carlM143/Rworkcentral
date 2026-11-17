@@ -9,13 +9,7 @@ import type {
 
 const {
   modules,
-  roles,
-
   stats,
-
-  configurationStatus,
-
-  recentActivity,
 } = useSettingsOverview()
 
 const {
@@ -32,11 +26,18 @@ const router =
 const handleOpenModule = (
   module: SettingsModule,
 ) => {
-  if (
-    module.route === '/admin/settings/users' ||
-    module.route === '/admin/settings/company' ||
-    module.route === '/admin/settings/qr-generation'
-  ) {
+  const pages = [
+    '/admin/settings/users',
+    '/admin/settings/company',
+    '/admin/settings/qr-generation',
+    '/admin/settings/timekeeping',
+    '/admin/settings/leave-overtime',
+    '/admin/settings/payroll',
+    '/admin/settings/approvals',
+    '/admin/settings/system',
+  ]
+
+  if (pages.includes(module.route)) {
     router.push(module.route)
     return
   }
@@ -44,30 +45,6 @@ const handleOpenModule = (
   info(
     module.title,
     `${module.title} settings UI will be implemented in the detailed settings modules.`,
-  )
-}
-
-const handleAddUser = () => {
-  info(
-    'Add System User',
-    'User creation UI will be implemented in Users & Access.',
-  )
-}
-
-const handleManageRoles = () => {
-  router.push(
-    '/admin/settings/roles',
-  )
-}
-
-const handleCompany = () => {
-  router.push('/admin/settings/company')
-}
-
-const handleApprovals = () => {
-  info(
-    'Approval Workflow',
-    'Approval workflow configuration UI will be implemented later.',
   )
 }
 </script>
@@ -98,34 +75,11 @@ const handleApprovals = () => {
       :stats="stats"
     />
 
-    <!-- MAIN -->
-    <div class="settings-layout">
-
-      <div class="settings-main">
-
-        <SettingsConfigurationGrid
-          :modules="modules"
-          @open="handleOpenModule"
-        />
-
-        <RecentSettingsActivity
-          :activities="recentActivity"
-        />
-
-      </div>
-
-      <SettingsSidePanel
-        :roles="roles"
-        :configuration-status="
-          configurationStatus
-        "
-        @add-user="handleAddUser"
-        @manage-roles="handleManageRoles"
-        @company="handleCompany"
-        @approvals="handleApprovals"
-      />
-
-    </div>
+    <!-- CONFIGURATION AREAS -->
+    <SettingsConfigurationGrid
+      :modules="modules"
+      @open="handleOpenModule"
+    />
 
   </section>
 </template>
@@ -137,31 +91,5 @@ const handleApprovals = () => {
   max-width: 1660px;
 
   margin: 0 auto;
-}
-
-.settings-layout {
-  display: grid;
-
-  grid-template-columns:
-    minmax(0, 1fr)
-    320px;
-
-  gap: 14px;
-}
-
-.settings-main {
-  display: flex;
-
-  min-width: 0;
-
-  flex-direction: column;
-
-  gap: 14px;
-}
-
-@media (max-width: 1100px) {
-  .settings-layout {
-    grid-template-columns: 1fr;
-  }
 }
 </style>
