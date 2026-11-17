@@ -11,184 +11,360 @@ import {
   ArrowUpRight,
   CheckCircle2,
 } from 'lucide-vue-next'
+import { useDashboardSummary } from '~/composables/admin/dashboard/useDashboardSummary'
+import {
+  PENDING_TYPE_STYLE,
+  usePendingRequests,
+  waitingLabel,
+} from '~/composables/admin/dashboard/usePendingRequests'
+import { useDashboardPayroll } from '~/composables/admin/dashboard/useDashboardPayroll'
+import { useDashboardCharts, type AttendanceRange } from '~/composables/admin/dashboard/useDashboardCharts'
+import {
+  LEVEL_TONE,
+  notificationIcon,
+  timeAgo,
+  useNotifications,
+  type AppNotification,
+} from '~/composables/admin/notifications/useNotifications'
+import {
+  UPCOMING_EVENT_STYLE,
+  eventDateLabel,
+  useUpcomingEvents,
+} from '~/composables/admin/dashboard/useUpcomingEvents'
 
-const stats = [
-  {
-    label: 'Total Employees',
-    value: '256',
-    description: 'Active employees',
-    trend: '+12 from last month',
-    type: 'blue',
-    icon: Users,
-  },
-  {
-    label: 'Present Today',
-    value: '198',
-    description: '77.3% of total',
-    trend: 'Good attendance',
-    type: 'green',
-    icon: UserCheck,
-  },
-  {
-    label: 'Late',
-    value: '23',
-    description: '9.0% of total',
-    trend: 'Needs monitoring',
-    type: 'orange',
-    icon: Clock3,
-  },
-  {
-    label: 'Absent',
-    value: '18',
-    description: '7.0% of total',
-    trend: 'Today',
-    type: 'red',
-    icon: UserX,
-  },
-  {
-    label: 'WFH / Remote',
-    value: '32',
-    description: '12.5% of total',
-    trend: 'Approved today',
-    type: 'purple',
-    icon: House,
-  },
-]
+// =====================================================
+// LIVE DATA: SUMMARY CARDS + PENDING REQUESTS
+// =====================================================
 
-const pendingRequests = [
-  {
-    label: 'Leave Request',
-    subtitle: '6 for approval',
-    count: 10,
-    type: 'green',
-    icon: Umbrella,
-  },
-  {
-    label: 'Overtime Request',
-    subtitle: '3 for approval',
-    count: 7,
-    type: 'orange',
-    icon: TimerReset,
-  },
-  {
-    label: 'Time Log Correction',
-    subtitle: '5 for approval',
-    count: 12,
-    type: 'purple',
-    icon: PencilLine,
-  },
-  {
-    label: 'WFH Request',
-    subtitle: '2 for approval',
-    count: 6,
-    type: 'blue',
-    icon: House,
-  },
-  {
-    label: 'Cash Advance Request',
-    subtitle: '2 for approval',
-    count: 3,
-    type: 'green',
-    icon: WalletCards,
-  },
-]
+const router = useRouter()
+const { user } = useAuth()
+const { summary, loading, error, getSummary } = useDashboardSummary()
 
-const departments = [
-  {
-    name: 'Operations',
-    count: 86,
-    percent: 33.6,
-    className: 'dept-blue',
-  },
-  {
-    name: 'Finance',
-    count: 42,
-    percent: 16.4,
-    className: 'dept-green',
-  },
-  {
-    name: 'HR',
-    count: 28,
-    percent: 10.9,
-    className: 'dept-orange',
-  },
-  {
-    name: 'IT',
-    count: 24,
-    percent: 9.4,
-    className: 'dept-purple',
-  },
-  {
-    name: 'Sales',
-    count: 22,
-    percent: 8.6,
-    className: 'dept-pink',
-  },
-  {
-    name: 'Others',
-    count: 54,
-    percent: 21.1,
-    className: 'dept-gray',
-  },
-]
+const {
+  summary: pendingSummary,
+  summaryLoading: pendingLoading,
+  summaryError: pendingError,
+  getSummary: getPendingSummary,
+} = usePendingRequests()
 
-const notifications = [
-  {
-    title: 'Time log correction request approved',
-    meta: 'Juan Dela Cruz · May 26, 2026 9:15 AM',
-    type: 'success',
-    icon: CheckCircle2,
-  },
-  {
-    title: 'Overtime request for May 27 approved',
-    meta: 'Maria Reyes · May 26, 2026 8:45 AM',
-    type: 'warning',
-    icon: Clock3,
-  },
-  {
-    title: 'Leave request for May 29–30 pending',
-    meta: 'Pedro Santos · May 26, 2026 8:30 AM',
-    type: 'purple',
-    icon: Umbrella,
-  },
-  {
-    title: 'Missing time out detected',
-    meta: '5 employees affected · May 26, 2026 8:00 AM',
-    type: 'danger',
-    icon: AlertTriangle,
-  },
-]
+const {
+  events: upcoming,
+  loading: eventsLoading,
+  error: eventsError,
+  getEvents,
+} = useUpcomingEvents()
 
-const upcomingEvents = [
-  {
-    label: 'Employee Birthday',
-    person: 'Juan Dela Cruz',
-    date: 'May 27',
-    type: 'purple',
-    icon: Cake,
-  },
-  {
-    label: 'Work Anniversary',
-    person: 'Anna Reyes (3 years)',
-    date: 'May 28',
-    type: 'blue',
-    icon: BriefcaseBusiness,
-  },
-  {
-    label: 'Regularization',
-    person: '5 employees',
-    date: 'May 30',
-    type: 'green',
-    icon: UserCheck,
-  },
-  {
-    label: 'Contract Expiration',
-    person: '3 employees',
-    date: 'Jun 02',
-    type: 'orange',
-    icon: FileWarning,
-  },
-]
+const EVENT_DAYS = 30
+
+const {
+  payroll,
+  loaded: payrollLoaded,
+  loading: payrollLoading,
+  error: payrollError,
+  getPayroll,
+} = useDashboardPayroll()
+
+// Shares its data with the bell in the top bar.
+const {
+  latest: latestNotifications,
+  loaded: notificationsLoaded,
+  error: notificationsError,
+  loadSummary: loadNotifications,
+  markRead,
+} = useNotifications()
+
+const {
+  attendance, attendanceLoading, attendanceError, getAttendance,
+  headcount, headcountLoading, headcountError, getHeadcount,
+} = useDashboardCharts()
+
+const attendanceRange = ref<AttendanceRange>('this_week')
+watch(attendanceRange, range => void getAttendance(range))
+
+onMounted(() => {
+  void getSummary()
+  void getPendingSummary()
+  void getEvents(EVENT_DAYS, 6)
+  void getPayroll()
+  void loadNotifications()
+  void getAttendance(attendanceRange.value)
+  void getHeadcount(5)
+})
+
+// =====================================================
+// ATTENDANCE CHART (live)
+// =====================================================
+
+const CHART_W = 700
+const CHART_H = 220
+const CHART_PAD = 15
+
+// Round the highest value up to a clean axis maximum (5, 10, 20, 25, 50, 100...).
+const niceMax = (value: number) => {
+  if (value <= 5) return 5
+  const power = 10 ** Math.floor(Math.log10(value))
+  const step = [1, 2, 2.5, 5, 10].find(f => f * power >= value) ?? 10
+  return step * power
+}
+
+const attendanceChart = computed(() => {
+  const days = attendance.value?.days ?? []
+  if (!days.length) return null
+
+  const peak = Math.max(...days.map(d => Math.max(d.present ?? 0, d.late ?? 0, d.absent ?? 0, d.scheduled)))
+  const max = niceMax(peak)
+  const x = (i: number) => (days.length === 1 ? CHART_W / 2 : CHART_PAD + (i * (CHART_W - CHART_PAD * 2)) / (days.length - 1))
+  const y = (v: number) => CHART_H - (v / max) * CHART_H
+
+  // Only past and current days are plotted.
+  const series = (key: 'present' | 'late' | 'absent') =>
+    days
+      .map((d, i) => (d[key] === null ? null : { x: x(i), y: y(d[key] as number), value: d[key] as number, day: d }))
+      .filter((p): p is NonNullable<typeof p> => p !== null)
+
+  const present = series('present')
+  const late = series('late')
+  const absent = series('absent')
+  const points = (list: typeof present) => list.map(p => `${p.x},${p.y}`).join(' ')
+
+  // Every label for a week; every other label for 14 days.
+  const labelEvery = days.length > 7 ? 2 : 1
+
+  return {
+    ticks: [5, 4, 3, 2, 1, 0].map(n => Math.round((max / 5) * n)),
+    present,
+    late,
+    absent,
+    presentLine: points(present),
+    lateLine: points(late),
+    absentLine: points(absent),
+    labels: days.map((d, i) => ({ text: i % labelEvery === 0 ? d.label : '', holiday: d.is_holiday, title: d.holiday_name })),
+    holidays: days
+      .map((d, i) => (d.is_holiday ? { x: x(i), name: d.holiday_name } : null))
+      .filter((h): h is { x: number, name: string | null } => h !== null),
+  }
+})
+
+const pointTitle = (label: string, value: number, day: { date: string, scheduled: number, on_leave: number, wfh: number }) =>
+  `${label}: ${value} · ${day.date} (scheduled ${day.scheduled}, leave ${day.on_leave}, WFH ${day.wfh})`
+
+// =====================================================
+// DEPARTMENT HEADCOUNT (live)
+// =====================================================
+
+const DEPT_COLORS = ['#3b82f6', '#22c55e', '#f59e0b', '#8b5cf6', '#ec4899', '#94a3b8']
+
+const headcountView = computed(() => {
+  const h = headcount.value
+  if (!h || !h.total) return null
+
+  let start = 0
+  const stops: string[] = []
+  const rows = h.departments.map((d, i) => {
+    const color = d.name === 'Others' ? DEPT_COLORS[5]! : DEPT_COLORS[i % 5]!
+    const share = (d.count / h.total) * 100
+    stops.push(`${color} ${start}% ${start + share}%`)
+    start += share
+    return { ...d, color }
+  })
+
+  return { total: h.total, rows, gradient: `conic-gradient(${stops.join(', ')})` }
+})
+
+
+const recentNotifications = computed(() => latestNotifications.value.slice(0, 4))
+
+const openNotification = async (item: AppNotification) => {
+  try {
+    await markRead(item)
+  } catch {
+    // Still navigate.
+  }
+  if (item.url) await router.push(item.url)
+}
+
+// =====================================================
+// PAYROLL STATUS (live)
+// =====================================================
+
+const shortDate = (date: string, withYear = false) =>
+  new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', ...(withYear ? { year: 'numeric' } : {}) })
+    .format(new Date(`${date}T00:00:00`))
+
+const peso = (value: number) =>
+  new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP', maximumFractionDigits: 0 }).format(value)
+
+const payrollView = computed(() => {
+  const p = payroll.value
+  if (!p) return null
+
+  const days = p.period.days_to_payday
+  const paydayWhen = days === 0 ? 'today' : days > 0 ? `in ${days} day${days === 1 ? '' : 's'}` : `${Math.abs(days)} day${days === -1 ? '' : 's'} ago`
+  const netChange = p.previous && p.previous.net > 0 && p.totals.net > 0
+    ? ((p.totals.net - p.previous.net) / p.previous.net) * 100
+    : null
+
+  return {
+    title: p.period.name,
+    cutoff: `${shortDate(p.period.cutoff_start)} – ${shortDate(p.period.cutoff_end, true)}`,
+    badge: p.status_label,
+    badgeTone: ['draft', 'open', 'review', 'progress', 'paid'][p.step] ?? 'review',
+    steps: p.steps.map((label, index) => ({
+      label,
+      done: index < p.step || (index === p.step && index === p.steps.length - 1),
+      current: index === p.step && index !== p.steps.length - 1,
+    })),
+    employees: `${p.employees.generated} / ${p.employees.active}`,
+    employeesNote: p.employees.finalized ? `${p.employees.finalized} finalized` : 'generated',
+    net: p.employees.generated ? peso(p.totals.net) : '—',
+    netNote: netChange === null ? 'net pay' : `${netChange >= 0 ? '+' : ''}${netChange.toFixed(1)}% vs last cutoff`,
+    payday: shortDate(p.period.payment_date),
+    paydayNote: paydayWhen,
+    action: p.next_action,
+  }
+})
+
+const display = (value?: number) =>
+  loading.value && !summary.value ? '…' : String(value ?? 0)
+
+const percentText = (percent?: number) =>
+  `${(percent ?? 0).toFixed(1)}% of total`
+
+const stats = computed(() => {
+  const s = summary.value
+
+  return [
+    {
+      label: 'Total Employees',
+      value: display(s?.total_employees.value),
+      description: 'Active employees',
+      trend: s?.total_employees.new_this_month
+        ? `+${s.total_employees.new_this_month} new this month`
+        : 'No new employees this month',
+      type: 'blue',
+      icon: Users,
+    },
+    {
+      label: 'Present Today',
+      value: display(s?.present.value),
+      description: percentText(s?.present.percent),
+      trend: (s?.present.percent ?? 0) >= 90 ? 'Good attendance' : 'Needs attention',
+      type: 'green',
+      icon: UserCheck,
+    },
+    {
+      label: 'Late',
+      value: display(s?.late.value),
+      description: percentText(s?.late.percent),
+      trend: (s?.late.value ?? 0) > 0 ? 'Needs monitoring' : 'No late employees',
+      type: 'orange',
+      icon: Clock3,
+    },
+    {
+      label: 'Absent',
+      value: display(s?.absent.value),
+      description: percentText(s?.absent.percent),
+      trend: (s?.absent.value ?? 0) > 0 ? 'Today' : 'No absences',
+      type: 'red',
+      icon: UserX,
+    },
+    {
+      label: 'WFH / Remote',
+      value: display(s?.wfh.value),
+      description: percentText(s?.wfh.percent),
+      trend: 'Approved today',
+      type: 'purple',
+      icon: House,
+    },
+  ]
+})
+
+// Pending Requests card (live): one row per request type.
+const pendingRequests = computed(() =>
+  (pendingSummary.value?.types ?? []).map(t => ({
+    ...t,
+    icon: PENDING_TYPE_STYLE[t.type].icon,
+    color: PENDING_TYPE_STYLE[t.type].color,
+    subtitle: t.count
+      ? `${t.count} for approval · oldest ${waitingLabel(t.oldest_days).toLowerCase()}`
+      : 'Nothing pending',
+  })),
+)
+
+// A type with pending items opens the filtered View all page; an empty
+// type goes straight to its module page.
+const openPendingType = (type: string, count: number, url: string) => {
+  router.push(count ? `/admin/pending-requests?type=${type}` : url)
+}
+
+// =====================================================
+// HEADER (greeting + date)
+// =====================================================
+
+const greeting = computed(() => {
+  const hour = new Date().getHours()
+  if (hour < 12) return 'Good morning'
+  if (hour < 18) return 'Good afternoon'
+  return 'Good evening'
+})
+
+const firstName = computed(() => {
+  const name = user.value?.name?.trim() || ''
+  return name.split(/\s+/)[0] || 'there'
+})
+
+const todayLabel = computed(() =>
+  new Intl.DateTimeFormat('en-US', {
+    month: 'short',
+    day: '2-digit',
+    year: 'numeric',
+    weekday: 'short',
+  }).format(new Date()),
+)
+
+// =====================================================
+// UPCOMING EVENTS (live)
+// =====================================================
+
+// Upcoming Events card (live): next 30 days, nearest first.
+// Events of the same type on the same day are combined into one row,
+// and the person (or holiday) name is the main text.
+const SHORT_LABEL: Record<string, [string, string]> = {
+  birthday: ['Birthday', 'birthdays'],
+  anniversary: ['Work Anniversary', 'work anniversaries'],
+  regularization: ['Regularization', 'regularizations'],
+  holiday: ['Holiday', 'holidays'],
+  milestone: ['Milestone', 'milestones'],
+}
+
+const upcomingEvents = computed(() => {
+  const groups = new Map<string, NonNullable<typeof upcoming.value>['items']>()
+
+  for (const event of upcoming.value?.items ?? []) {
+    const key = `${event.type}|${event.date}`
+    groups.set(key, [...(groups.get(key) ?? []), event])
+  }
+
+  return [...groups.values()].map((group) => {
+    const first = group[0]!
+    const [single, plural] = SHORT_LABEL[first.type] ?? [first.label, 'events']
+    const names = group.map(e => e.title)
+
+    return {
+      key: `${first.type}-${first.date}`,
+      days_until: first.days_until,
+      icon: UPCOMING_EVENT_STYLE[first.type].icon,
+      color: UPCOMING_EVENT_STYLE[first.type].color,
+      dateLabel: eventDateLabel(first),
+      title: names.length <= 2 ? names.join(', ') : `${names[0]} and ${names.length - 1} others`,
+      subtitle: group.length === 1
+        ? `${first.type === 'milestone' ? first.label : single} · ${first.detail}`
+        : `${group.length} ${plural}`,
+      tooltip: group.map(e => `${e.title} — ${e.label}: ${e.detail}`).join('\n'),
+    }
+  })
+})
+
 </script>
 
 <template>
@@ -199,8 +375,8 @@ const upcomingEvents = [
         <h1>Dashboard</h1>
 
         <p class="welcome-text">
-          Good morning,
-          <strong>Maria!</strong>
+          {{ greeting }},
+          <strong>{{ firstName }}!</strong>
           👋
         </p>
 
@@ -566,8 +742,9 @@ const upcomingEvents = [
             </p>
           </div>
 
-          <button class="view-all">
-            View Calendar
+          <button type="button" class="view-all" @click="router.push('/admin/upcoming-events')">
+            View all
+            <ArrowUpRight :size="14" />
           </button>
         </div>
 
