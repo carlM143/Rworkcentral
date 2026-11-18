@@ -30,6 +30,7 @@ import {
   History,
   ReceiptText,
   ShieldCheck,
+  Scale,
 } from 'lucide-vue-next'
 
 import NotificationBell from '~/components/admin/notifications/NotificationBell.vue'
@@ -71,6 +72,7 @@ const openMenus = reactive<Record<string, boolean>>({
   documents: false,
   'employee-lifecycle': false,
   reports: false,
+  compensation: false,
 })
 
 // =====================================================
@@ -210,12 +212,12 @@ const menuItems = [
       },
       {
         label: 'Employee Payroll',
-        to: '/admin/payroll/employee-payroll',
+        to: '/admin/employee-payroll',
         icon: Calculator,
       },
       {
         label: 'Driver Payroll',
-        to: '/admin/payroll/driver-payroll',
+        to: '/admin/driver-payroll',
         icon: Truck,
       },
       {
@@ -227,6 +229,26 @@ const menuItems = [
         label: 'Payslips',
         to: '/admin/payroll-payslips',
         icon: ReceiptText,
+      },
+    ],
+  },
+
+  {
+    label: 'Compensation',
+    key: 'compensation',
+    icon: Scale,
+    children: [
+      {
+        label: 'Wage Orders',
+        to: '/admin/settings/compensation/wage-orders',
+      },
+      {
+        label: 'Wage Adjustments',
+        to: '/admin/settings/compensation/wage-adjustments',
+      },
+      {
+        label: 'Regional Rates',
+        to: '/admin/settings/compensation/regional-rates',
       },
     ],
   },
@@ -249,12 +271,12 @@ const menuItems = [
         to: '/admin/contribution/bracket-management',
       },
       {
-        label: 'Contribution Settings',
-        to: '/admin/contribution/deduction-settings',
+        label: 'Contribution History',
+        to: '/admin/contribution/rate-brackets',
       },
       {
-        label: 'Contribution History',
-        to: '/admin/contribution/contribution-history',
+        label: 'Contribution Settings',
+        to: '/admin/contribution/deduction-settings',
       },
     ],
   },
@@ -308,13 +330,12 @@ const menuItems = [
     ],
   },
   {
-    label: 'Holiday Management',
-    key: 'holidays',
+    label: 'Work Calendar',
+    key: 'work-calendar',
     icon: CalendarDays,
     children: [
-      { label: 'Holiday', to: '/admin/holiday-management/holiday' },
-      { label: 'Holiday Coverage', to: '/admin/holiday-management/holiday-coverage' },
-      { label: 'Holiday Pay', to: '/admin/holiday-management/holiday-pay' },
+      { label: 'Holiday', to: '/admin/work-calendar' },
+      { label: 'Holiday Coverage', to: '/admin/work-calendar/coverage' },
     ],
   },
   {
@@ -385,24 +406,32 @@ const menuItems = [
     icon: UserRound,
     children: [
       {
-        label: 'Lifecycle Policies',
-        to: '/admin/employee-lifecycle/policies',
+        label: 'Onboarding',
+        to: '/admin/employee-lifecycle/onboarding',
       },
       {
-        label: 'Lifecycle Stages',
-        to: '/admin/employee-lifecycle/stages',
+        label: 'Regularization',
+        to: '/admin/employee-lifecycle/regularization',
       },
       {
-        label: 'Employee Milestones',
-        to: '/admin/employee-lifecycle/milestones',
+        label: 'Employee Transfers',
+        to: '/admin/employee-lifecycle/transfers',
       },
       {
-        label: 'Employee Offboarding',
+        label: 'Promotions',
+        to: '/admin/employee-lifecycle/promotions',
+      },
+      {
+        label: 'Employment Changes',
+        to: '/admin/employee-lifecycle/changes',
+      },
+      {
+        label: 'Offboarding',
         to: '/admin/employee-lifecycle/offboarding',
       },
       {
-        label: 'Employee History',
-        to: '/admin/employee-lifecycle/employee-history',
+        label: 'Lifecycle History',
+        to: '/admin/employee-lifecycle/history',
       },
     ],
   },
@@ -477,11 +506,23 @@ const isRouteActive = (to?: string) => {
   return route.path === to
 }
 
+// The submenu item whose path is the longest prefix of the current page,
+// so detail pages (e.g. /wage-orders/3/apply) highlight "Wage Orders".
+const activeChildPath = (
+  children?: { to: string }[],
+) => {
+  return (children ?? [])
+    .filter(child => route.path === child.to || route.path.startsWith(`${child.to}/`))
+    .sort((a, b) => b.to.length - a.to.length)[0]?.to ?? null
+}
+
 const hasActiveChild = (
   children?: { to: string }[],
 ) => {
   return children?.some((child) => {
     if (route.path === child.to) return true
+
+    if (activeChildPath(children) === child.to) return true
 
     if (
       child.to === '/admin/employees' &&
@@ -495,6 +536,7 @@ const hasActiveChild = (
 }
 
 const expandActiveMenu = () => {
+
   visibleMenuItems.value.forEach((item) => {
     if (
       item.key &&
@@ -767,7 +809,7 @@ onBeforeUnmount(() => {
                     :to="child.to"
                     class="submenu-link"
                     :class="{
-                      active: isRouteActive(child.to),
+                      active: activeChildPath(item.children) === child.to,
                     }"
                     @click="sidebarOpen = false"
                   >
@@ -800,22 +842,6 @@ onBeforeUnmount(() => {
           <span>Settings</span>
         </NuxtLink>
 
-        <NuxtLink
-          to="/admin/settings/compensation/wage-orders"
-          class="menu-link"
-          :class="{
-            active: isRouteActive(
-              '/admin/settings/compensation/wage-orders',
-            ),
-          }"
-          @click="sidebarOpen = false"
-        >
-          <WalletCards
-            :size="19"
-            :stroke-width="1.9"
-          />
-          <span>Wage Orders</span>
-        </NuxtLink>
       </div>
 
       <!-- LOGGED-IN USER -->
