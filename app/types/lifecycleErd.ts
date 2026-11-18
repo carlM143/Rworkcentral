@@ -8,18 +8,23 @@ export interface LifecyclePolicy {
   creatorName: string
   status: boolean
   stagesCount: number
+  regularizationStartMonth: number | null
+  regularizationEndMonth: number | null
   createdAt: string
   updatedAt: string
 }
 
 export interface LifecycleStage {
   requiresAttachment?: boolean
+  managedRegularizationPolicy?: boolean
+  isManagedRegularization?: boolean
   id: number
   lifecyclePolicyId: number
   policyName: string
   stageName: string
   stageCode: string
   monthsAfterHire: number
+  endMonthAfterHire?: number | null
   sortOrder: number
   status: boolean
   milestonesCount: number
@@ -40,10 +45,19 @@ export interface EmployeeMilestone {
   stageCode: string
   policyName: string
   dueDate: string // Displayed as "Target Date" in UI
+  reviewWindowStart?: string | null
+  reviewWindowEnd?: string | null
   status: 'pending' | 'completed'
   remarks: string | null
   attachmentName?: string | null
   evaluationDocumentId?: number | null
   attachmentSize?: string | null
   attachedAt?: string | null
+}
+
+export interface MilestoneEvaluationInput {
+  milestone_id: number
+  evaluation_document_id: number | null
+  remarks: string
+  status: EmployeeMilestone['status']
 }

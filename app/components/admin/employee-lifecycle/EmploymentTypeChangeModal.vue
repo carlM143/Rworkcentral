@@ -1,7 +1,14 @@
 <script setup lang="ts">
 import { CalendarDays, X } from 'lucide-vue-next'
+import type { MilestoneEvaluationInput } from '~/types/lifecycleErd'
 
-const props = defineProps<{ open: boolean; employeeId?: number; defaultTypeName?: string }>()
+const props = defineProps<{
+  open: boolean
+  employeeId?: number
+  prepareEvaluation?: () => Promise<MilestoneEvaluationInput>
+  evaluationDirty?: boolean
+  evaluationProofMissing?: boolean
+}>()
 const emit = defineEmits<{ close: []; saved: [] }>()
 const { $api } = useNuxtApp()
 const toast = useToast()
@@ -12,9 +19,9 @@ interface EmployeeOption {
 }
 interface EmploymentTypeOption { id: number; name: string; status?: string | boolean | number }
 interface LifecyclePolicy { id: number; name: string; employment_type_id: number | null; status: string | boolean | number }
-interface LifecycleStage { id: number; lifecycle_policy_id: number; stage_name: string; months_after_hire: number; status: string | boolean | number }
+interface LifecycleStage { id: number; lifecycle_policy_id: number; stage_name: string; months_after_hire: number; end_month_after_hire?: number | null; status: string | boolean | number }
 interface Change {
-  id: number; previous_type_name: string; new_type_name: string; reason: string; changed_by_name: string; created_at: string
+  id: number; previous_type_name: string; new_type_name: string; reason: string; changed_by_name: string; created_at: string; effective_date?: string | null
 }
 const employees = ref<EmployeeOption[]>([])
 const types = ref<EmploymentTypeOption[]>([])
@@ -23,7 +30,7 @@ const stages = ref<LifecycleStage[]>([])
 const history = ref<Change[]>([])
 const employeeId = ref('')
 const newTypeId = ref('')
-const reason = ref('')
+const effectiveDate = ref('')
 const loading = ref(false)
 const saving = ref(false)
 const historyLoading = ref(false)
@@ -31,6 +38,10 @@ const error = ref('')
 const historyError = ref('')
 const employee = computed(() => employees.value.find(e => e.employeeId === Number(employeeId.value)))
 const newType = computed(() => types.value.find(t => t.id === Number(newTypeId.value)))
+const savingEvaluationOnly = computed(() => !!props.prepareEvaluation && !newTypeId.value)
+const canSave = computed(() => !loading.value && !saving.value && (savingEvaluationOnly.value
+  ? !!props.evaluationDirty
+  : !!(employee.value?.employmentId && newTypeId.value && effectiveDate.value && !props.evaluationProofMissing)))
 const isActive = (status: unknown) => [true, 1, '1', 'active', 'Active'].includes(status as string | number | boolean)
 const availableTypes = computed(() => {
   const active = types.value.filter(t => isActive(t.status))
@@ -63,12 +74,16 @@ const planStages = computed(() => {
     .filter(stage => isActive(stage.status) && policyIds.includes(Number(stage.lifecycle_policy_id)))
     .slice()
     .sort((a, b) => a.months_after_hire - b.months_after_hire)
-    .map(stage => ({ ...stage, targetDate: formatDate(addMonths(current.dateHired, stage.months_after_hire)) }))
+    .map(stage => {
+      const start = formatDate(addMonths(current.dateHired, stage.months_after_hire))
+      const end = stage.end_month_after_hire
+      return { ...stage, targetDate: end == null ? start : `${start} – ${formatDate(addMonths(current.dateHired, end))}` }
+    })
 })
 let historyRequest = 0
 watch(employeeId, async id => {
   newTypeId.value = ''
-  reason.value = ''
+  effectiveDate.value = ''
   history.value = []
   historyError.value = ''
   const request = ++historyRequest
@@ -83,7 +98,7 @@ watch(employeeId, async id => {
 watch(() => props.open, async open => {
   if (!open) { dialog.value?.close(); return }
   dialog.value?.showModal()
-  error.value = ''; employeeId.value = ''; newTypeId.value = ''; reason.value = ''
+  error.value = ''; employeeId.value = ''; newTypeId.value = ''; effectiveDate.value = ''
   employees.value = []; types.value = []; policies.value = []; stages.value = []; history.value = []
   loading.value = true
   try {
@@ -93,18 +108,6 @@ watch(() => props.open, async open => {
     ])
     employees.value = people.data; types.value = typeResponse.data
     employeeId.value = props.employeeId ? String(props.employeeId) : ''
-    if (props.defaultTypeName) {
-      await nextTick()
-      const matched = availableTypes.value.find(
-        t => t.name.toLowerCase() === props.defaultTypeName!.toLowerCase() && t.id !== employee.value?.employmentTypeId,
-      )
-      if (matched) {
-        newTypeId.value = String(matched.id)
-        if (matched.name.toLowerCase() === 'regular') {
-          reason.value = 'Passed 6th month probationary evaluation and approved for regularization.'
-        }
-      }
-    }
     try {
       const [policyResponse, stageResponse] = await Promise.all([
         $api<{ data: LifecyclePolicy[] }>('/admin/lifecycle/policies'),
@@ -119,18 +122,29 @@ watch(() => props.open, async open => {
 })
 const close = () => { if (!saving.value) emit('close') }
 const save = async () => {
-  if (saving.value || !employee.value?.employmentId) return
+  if (!canSave.value) return
   saving.value = true; error.value = ''
   try {
-    await $api(`/admin/lifecycle/employees/${employee.value.employeeId}/employment-type-changes`, {
-      method: 'POST', body: {
-        employment_id: employee.value.employmentId, previous_type_id: employee.value.employmentTypeId,
-        employment_type_id: Number(newTypeId.value), reason: reason.value.trim(),
-      },
-    })
-    toast.success('Employment type updated', `${employee.value.employeeName}'s milestones now follow the new employment type policy.`)
+    const evaluation = await props.prepareEvaluation?.()
+    const current = employee.value
+    if (savingEvaluationOnly.value && evaluation) {
+      const { milestone_id, ...body } = evaluation
+      await $api(`/admin/lifecycle/milestones/${milestone_id}`, { method: 'PUT', body })
+      toast.success('Evaluation saved', 'Milestone status and remarks have been updated.')
+    } else if (current) {
+      await $api(`/admin/lifecycle/employees/${current.employeeId}/employment-type-changes`, {
+        method: 'POST', body: {
+          employment_id: current.employmentId, previous_type_id: current.employmentTypeId,
+          employment_type_id: Number(newTypeId.value), effective_date: effectiveDate.value,
+          ...(evaluation ? { evaluation } : {}),
+        },
+      })
+      toast.success('Employment type updated', evaluation
+        ? 'The evaluation, proof, and effective date were saved together.'
+        : 'The effective date has been recorded in employee history.')
+    }
     emit('saved'); emit('close')
-  } catch (err: any) { error.value = Object.values(err?.data?.errors || {}).flat().join(' ') || err?.data?.message || 'Unable to update employment type.' }
+  } catch (err: any) { error.value = Object.values(err?.data?.errors || {}).flat().join(' ') || err?.data?.message || 'Unable to save changes. Please try again.' }
   finally { saving.value = false }
 }
 </script>
@@ -138,16 +152,17 @@ const save = async () => {
 <template>
   <dialog ref="dialog" class="employment-dialog" aria-labelledby="employment-change-title" @cancel.prevent="close">
     <header><h2 id="employment-change-title">Change Employment Type</h2><button type="button" aria-label="Close" :disabled="saving" @click="close"><X :size="20" /></button></header>
-    <p>Update the employee’s employment type. Their lifecycle milestones are recalculated from the hire date and the new type’s policy stages. Completed history is kept.</p>
+    <p>Changing employment type applies immediately and records the effective date in employee history.</p>
     <p v-if="loading" role="status">Loading employment details…</p>
     <p v-if="error" class="error" role="alert">{{ error }}</p>
+    <slot name="evaluation" :disabled="saving" />
     <form @submit.prevent="save">
       <fieldset :disabled="loading || saving">
-        <label>Employee<select v-model="employeeId" required><option value="" disabled>Select employee</option><option v-for="e in employees" :key="e.employeeId" :value="String(e.employeeId)">{{ e.employeeNumber }} — {{ e.employeeName }}</option></select></label>
+        <label>Employee<select v-model="employeeId" required :disabled="!!$slots.evaluation"><option value="" disabled>Select employee</option><option v-for="e in employees" :key="e.employeeId" :value="String(e.employeeId)">{{ e.employeeNumber }} — {{ e.employeeName }}</option></select></label>
         <p v-if="employee">Current employment type: <strong>{{ employee.employmentType }}</strong><span v-if="hireDate"> · Hired {{ formatDate(hireDate) }}</span></p>
         <p v-if="employee && !employee.employmentId" role="status">This employee needs an employment record before their type can be changed.</p>
-        <label>New employment type<select v-model="newTypeId" required :disabled="!employee?.employmentId"><option value="" disabled>Select new employment type</option><option v-for="t in availableTypes.filter(t => t.id !== employee?.employmentTypeId)" :key="t.id" :value="String(t.id)">{{ t.name }}</option></select></label>
-        <label>Reason for change<textarea v-model="reason" required maxlength="5000" rows="3" placeholder="For example: qualified for regularization after evaluation" /></label>
+        <label>Change type to<select v-model="newTypeId" :required="!prepareEvaluation" :disabled="!employee?.employmentId"><option value="" :disabled="!prepareEvaluation">{{ prepareEvaluation ? 'No type change (save evaluation only)' : 'Select new employment type' }}</option><option v-for="t in availableTypes.filter(t => t.id !== employee?.employmentTypeId)" :key="t.id" :value="String(t.id)">{{ t.name }}</option></select></label>
+        <label>Effective Date<input v-model="effectiveDate" type="date" :disabled="!newTypeId" required /></label>
       </fieldset>
 
       <section v-if="newTypeId && employee" class="plan-preview" aria-live="polite">
@@ -165,13 +180,23 @@ const save = async () => {
         </template>
       </section>
 
-      <footer><AppButton type="button" variant="secondary" :disabled="saving" @click="close">Cancel</AppButton><AppButton type="submit" :disabled="loading || saving || !employee?.employmentId || !newTypeId || !reason.trim()">{{ saving ? 'Saving…' : 'Save Employment Type' }}</AppButton></footer>
+      <p v-if="newTypeId && evaluationProofMissing" role="status">Attach the required evaluation proof before saving.</p>
+      <p v-else-if="newTypeId && prepareEvaluation">The evaluation and any attached proof will be saved with the type change.</p>
+      <footer>
+        <AppButton type="button" variant="secondary" :disabled="saving" @click="close">Cancel</AppButton>
+        <AppButton type="submit" :disabled="!canSave">{{ saving ? 'Saving…' : savingEvaluationOnly ? 'Save Evaluation' : 'Save Employment Type' }}</AppButton>
+      </footer>
     </form>
     <section v-if="employeeId" class="history">
       <h3>Employment Type History</h3>
       <p v-if="historyLoading" role="status">Loading history…</p><p v-else-if="historyError" role="alert">{{ historyError }}</p>
       <p v-else-if="!history.length">No employment type changes recorded.</p>
-      <article v-for="change in history" :key="change.id"><strong>{{ change.previous_type_name }} → {{ change.new_type_name }}</strong><p>{{ change.reason }}</p><small>{{ change.changed_by_name }} · {{ change.created_at }}</small></article>
+      <article v-for="change in history" :key="change.id">
+        <strong>{{ change.previous_type_name }} → {{ change.new_type_name }}</strong>
+        <p v-if="change.reason">{{ change.reason }}</p>
+        <p v-if="change.effective_date">Effective {{ formatDate(addMonths(change.effective_date, 0)) }}</p>
+        <small>{{ change.changed_by_name }} · Recorded {{ change.created_at }}</small>
+      </article>
     </section>
   </dialog>
 </template>
@@ -183,7 +208,7 @@ header, footer { display: flex; align-items: center; justify-content: space-betw
 header button { border: 0; background: transparent; color: inherit; cursor: pointer; }
 p, small { color: var(--text-muted); font-size: 12px; line-height: 1.6; } fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
 label { display: flex; flex-direction: column; gap: 8px; margin: 18px 0; font-size: 12px; font-weight: 600; }
-select, textarea { box-sizing: border-box; width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 8px; color: var(--text-primary); background: var(--bg-card); font: inherit; }
+select, input[type="date"] { box-sizing: border-box; width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 8px; color: var(--text-primary); background: var(--bg-card); font: inherit; }
 footer { justify-content: flex-end; flex-wrap: wrap; margin-top: 18px; }.history { margin-top: 24px; border-top: 1px solid var(--border); } article { border-bottom: 1px solid var(--border); padding: 12px 0; font-size: 12px; }.error { color: #dc2626; }
 .plan-preview { margin-top: 20px; padding: 14px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg-card-soft); }
 .plan-preview h3 { display: flex; align-items: center; gap: 7px; margin: 0 0 6px; color: var(--text-primary); }

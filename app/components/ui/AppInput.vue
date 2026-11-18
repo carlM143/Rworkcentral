@@ -13,6 +13,7 @@ withDefaults(
     placeholder?: string
     searchable?: boolean
     clearable?: boolean
+    ariaLabel?: string
   }>(),
   {
     placeholder: '',
@@ -39,6 +40,7 @@ withDefaults(
         'with-clear': clearable,
       }"
       :placeholder="placeholder"
+      :aria-label="ariaLabel"
     >
 
     <button

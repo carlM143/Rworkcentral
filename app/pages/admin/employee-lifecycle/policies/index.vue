@@ -32,6 +32,7 @@ const perPage = ref(6)
 
 const isModalOpen = ref(false)
 const editingPolicy = ref<Partial<LifecyclePolicy> | null>(null)
+const editingRegularization = computed(() => editingPolicy.value?.regularizationStartMonth != null)
 const policyToDelete = ref<LifecyclePolicy | null>(null)
 const deleting = ref(false)
 
@@ -274,6 +275,12 @@ const handleExport = () => {
               <td>
                 <div class="policy-info">
                   <strong class="policy-title">{{ policy.name }}</strong>
+                  <p v-if="policy.regularizationStartMonth !== null" class="policy-desc">
+                    <template v-if="policy.regularizationEndMonth !== null">
+                      Review window: {{ policy.regularizationStartMonth }}–{{ policy.regularizationEndMonth }} months after hire
+                    </template>
+                    <template v-else>Review month: {{ policy.regularizationStartMonth }} months after hire</template>
+                  </p>
                   <p class="policy-desc">{{ policy.description }}</p>
                 </div>
               </td>
@@ -389,7 +396,7 @@ const handleExport = () => {
 
             <div class="form-group">
               <label class="form-label">Covered Employment Type *</label>
-              <select v-model="editingPolicy.employmentTypeName" class="form-select">
+              <select v-model="editingPolicy.employmentTypeName" class="form-select" :disabled="editingRegularization">
                 <option v-for="t in employmentTypes" :key="t" :value="t">{{ t }}</option>
               </select>
             </div>

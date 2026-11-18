@@ -27,12 +27,20 @@ const { policies, stages, loading, errorMessage, load, saveStage, toggleStageSta
 
 const search = ref('')
 const selectedPolicyName = ref('')
-const selectedStatus = ref('')
+const selectedStatus = ref('Active')
 const currentPage = ref(1)
 const perPage = ref(6)
 
 const isModalOpen = ref(false)
 const editingStage = ref<Partial<LifecycleStage> | null>(null)
+const editingManagedStage = computed(() => editingStage.value?.isManagedRegularization === true)
+const validReviewWindow = computed(() => {
+  const start = editingStage.value?.monthsAfterHire
+  const end = editingStage.value?.endMonthAfterHire
+  const endIsBlank = !end && end !== 0
+  return typeof start === 'number' && Number.isInteger(start) && start >= 0 && start <= 1200
+    && (endIsBlank || (typeof end === 'number' && Number.isInteger(end) && end >= start && end <= 1200))
+})
 const stageToDelete = ref<LifecycleStage | null>(null)
 const deleting = ref(false)
 
@@ -50,17 +58,22 @@ const confirmDeleteStage = async () => {
 
 const policyOptions = computed(() => policies.value.map(p => p.name))
 const statusOptions = ['Active', 'Inactive']
+// Keep the single review window, not the retired checkpoints it replaced.
+const configurableStages = computed(() => stages.value.filter(stage =>
+  !stage.managedRegularizationPolicy
+  || !['M1_CHECKIN', 'M3_EVAL', 'M5_REVIEW'].includes(stage.stageCode),
+))
 
 const stats = computed(() => {
-  const total = stages.value.length
-  const active = stages.value.filter(s => s.status).length
+  const total = configurableStages.value.length
+  const active = configurableStages.value.filter(s => s.status).length
   const inactive = total - active
-  const avgMonths = total ? (stages.value.reduce((acc, s) => acc + s.monthsAfterHire, 0) / total).toFixed(1) : '0'
+  const avgMonths = total ? (configurableStages.value.reduce((acc, s) => acc + (s.endMonthAfterHire ?? s.monthsAfterHire), 0) / total).toFixed(1) : '0'
   return { total, active, inactive, avgMonths: `${avgMonths} mo` }
 })
 
 const filteredStages = computed(() => {
-  return stages.value.filter(s => {
+  return configurableStages.value.filter(s => {
     const keyword = search.value.trim().toLowerCase()
     const matchesSearch =
       !keyword ||
@@ -103,7 +116,7 @@ const showingTo = computed(() => Math.min(currentPage.value * perPage.value, fil
 const resetFilters = () => {
   search.value = ''
   selectedPolicyName.value = ''
-  selectedStatus.value = ''
+  selectedStatus.value = 'Active'
   currentPage.value = 1
 }
 
@@ -115,9 +128,9 @@ const openAddModal = () => {
   editingStage.value = {
     lifecyclePolicyId: policies.value[0]?.id || 1,
     stageName: '',
-    stageCode: '',
     requiresAttachment: true,
     monthsAfterHire: 1,
+    endMonthAfterHire: null,
     sortOrder: stages.value.length + 1,
     status: true,
   }
@@ -135,18 +148,19 @@ const closeModal = () => {
 }
 
 const handleSave = async () => {
-  if (!editingStage.value?.stageName?.trim() || !editingStage.value?.stageCode?.trim()) return
+  if (!editingStage.value?.stageName?.trim() || !validReviewWindow.value) return
   if (await saveStage(editingStage.value)) closeModal()
 }
 
 const handleExport = () => {
-  const headers = ['ID', 'Stage Name', 'Stage Code', 'Policy', 'Months After Hire', 'Sort Order', 'Status']
+  const headers = ['ID', 'Stage Name', 'Stage Code', 'Policy', 'Start Month', 'End Month', 'Sort Order', 'Status']
   const rows = filteredStages.value.map(s => [
     s.id,
     s.stageName,
     s.stageCode,
     s.policyName,
     s.monthsAfterHire,
+    s.endMonthAfterHire ?? '',
     s.sortOrder,
     s.status ? 'Active' : 'Inactive',
   ])
@@ -250,7 +264,7 @@ const handleExport = () => {
       <div class="table-heading">
         <div>
           <h3>Lifecycle Stages</h3>
-          <p>Monitor stage definitions, progression sequences, and elapsed hire timelines.</p>
+          <p>Set stage timing and the probationary review window in months after hire.</p>
         </div>
         <span class="record-count">
           {{ filteredStages.length }}
@@ -264,7 +278,7 @@ const handleExport = () => {
             <tr>
               <th>Stage Name & Code</th>
               <th>Associated Policy</th>
-              <th>Trigger (Months After Hire)</th>
+              <th>Window / Trigger (Months After Hire)</th>
               <th>Sequence Order</th>
               <th>Status</th>
               <th class="actions-heading">Actions</th>
@@ -302,10 +316,8 @@ const handleExport = () => {
                 <span class="policy-pill">{{ stage.policyName }}</span>
               </td>
               <td>
-                <div class="timeline-cell">
-                  <Clock :size="14" />
-                  <span>{{ stage.monthsAfterHire }} {{ stage.monthsAfterHire === 1 ? 'Month' : 'Months' }}</span>
-                </div>
+                <span v-if="stage.endMonthAfterHire != null" class="timeline-cell">{{ stage.monthsAfterHire }}–{{ stage.endMonthAfterHire }} months</span>
+                <span v-else class="timeline-cell">{{ stage.monthsAfterHire }} {{ stage.monthsAfterHire === 1 ? 'Month' : 'Months' }}</span>
               </td>
               <td>
                 <span class="order-badge">#{{ stage.sortOrder }}</span>
@@ -333,6 +345,7 @@ const handleExport = () => {
                     <Edit2 :size="15" />
                   </button>
                   <button
+                    v-if="!stage.isManagedRegularization"
                     type="button"
                     class="action-icon-btn delete"
                     title="Delete Stage"
@@ -379,9 +392,6 @@ const handleExport = () => {
           <!-- MODAL HEADER -->
           <header class="dialog-header">
             <div class="dialog-header-left">
-              <span class="header-icon">
-                <Layers :size="20" />
-              </span>
               <div>
                 <h2>{{ editingStage?.id ? 'Edit Lifecycle Stage' : 'Add Lifecycle Stage' }}</h2>
                 <p>Configure stage rules and trigger months based on ERD</p>
@@ -401,14 +411,15 @@ const handleExport = () => {
           <div class="dialog-body" v-if="editingStage">
             <div class="form-group">
               <label class="form-label">Lifecycle Policy *</label>
-              <select v-model="editingStage.lifecyclePolicyId" class="form-select">
+              <select v-model="editingStage.lifecyclePolicyId" class="form-select" :disabled="editingManagedStage">
                 <option v-for="p in policies" :key="p.id" :value="p.id">{{ p.name }}</option>
               </select>
             </div>
 
             <div class="form-group">
-              <label class="form-label">Stage Name *</label>
+              <label for="lifecycle-stage-name" class="form-label">Stage Name *</label>
               <input
+                id="lifecycle-stage-name"
                 v-model="editingStage.stageName"
                 type="text"
                 placeholder="e.g. 3rd Month Mid-Probationary Evaluation"
@@ -416,35 +427,35 @@ const handleExport = () => {
               />
             </div>
 
-            <div class="form-group">
-              <label class="form-label">Stage Code (Unique Identifier) *</label>
-              <input
-                v-model="editingStage.stageCode"
-                type="text"
-                placeholder="e.g. M3_EVAL"
-                class="form-input uppercase-text"
-              />
-            </div>
-
             <div class="form-row-2">
               <div class="form-group">
-                <label class="form-label">Months After Hire *</label>
+                <label for="stage-start-month" class="form-label">Start Month *</label>
                 <input
+                  id="stage-start-month"
                   v-model.number="editingStage.monthsAfterHire"
                   type="number"
                   min="0"
+                  max="1200"
+                  step="1"
+                  required
                   class="form-input"
                 />
               </div>
               <div class="form-group">
-                <label class="form-label">Sort Sequence *</label>
-                <input
-                  v-model.number="editingStage.sortOrder"
-                  type="number"
-                  min="1"
-                  class="form-input"
-                />
+                <label for="stage-end-month" class="form-label">End Month (optional)</label>
+                <input id="stage-end-month" v-model.number="editingStage.endMonthAfterHire" type="number" min="0" max="1200" step="1" class="form-input" />
               </div>
+            </div>
+            <p class="stage-month-help">Months after hire. Leave the end month blank for a single target month.</p>
+            <div class="form-group">
+              <label for="stage-sort-sequence" class="form-label">Sort Sequence *</label>
+              <input
+                id="stage-sort-sequence"
+                v-model.number="editingStage.sortOrder"
+                type="number"
+                min="1"
+                class="form-input"
+              />
             </div>
 
             <div class="form-group-checkbox">
@@ -468,7 +479,7 @@ const handleExport = () => {
           <!-- MODAL FOOTER -->
           <footer class="dialog-footer">
             <AppButton variant="secondary" @click="closeModal">Cancel</AppButton>
-            <AppButton variant="primary" @click="handleSave">Save Stage</AppButton>
+            <AppButton variant="primary" :disabled="!validReviewWindow" @click="handleSave">Save Stage</AppButton>
           </footer>
         </section>
       </div>
@@ -724,17 +735,10 @@ tbody tr:hover {
 }
 
 .timeline-cell {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
   color: var(--text-primary);
   font-size: 10.5px;
   font-weight: 600;
   white-space: nowrap;
-}
-
-.timeline-cell svg {
-  color: var(--text-muted);
 }
 
 .order-badge {
@@ -979,6 +983,12 @@ tbody tr:hover {
   gap: 12px;
 }
 
+.stage-month-help {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
 .form-label {
   color: var(--text-secondary);
   font-size: 10.5px;
@@ -1001,10 +1011,6 @@ tbody tr:hover {
 .form-input:focus,
 .form-select:focus {
   border-color: var(--primary);
-}
-
-.uppercase-text {
-  text-transform: uppercase;
 }
 
 .form-group-checkbox {

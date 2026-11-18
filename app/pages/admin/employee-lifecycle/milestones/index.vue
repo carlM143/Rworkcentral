@@ -4,26 +4,23 @@ import {
   RotateCcw,
   CheckCircle2,
   Clock,
-  CalendarDays,
   AlertCircle,
   FileCheck,
-  UserRound,
   UserCog,
   X,
-  FileText,
   Paperclip,
   UploadCloud,
   Trash2,
-  Award,
   History,
-  AlertTriangle,
+  Eye,
 } from 'lucide-vue-next'
 import StatCard from '~/components/shared/StatCard.vue'
+import TableActionMenu from '~/components/shared-table/TableActionMenu.vue'
 import AppButton from '~/components/ui/AppButton.vue'
 import AppInput from '~/components/ui/AppInput.vue'
 import AppSelect from '~/components/ui/AppSelect.vue'
 import AppPagination from '~/components/ui/AppPagination.vue'
-import type { EmployeeMilestone } from '~/types/lifecycleErd'
+import type { EmployeeMilestone, MilestoneEvaluationInput } from '~/types/lifecycleErd'
 import EmploymentTypeChangeModal from '~/components/admin/employee-lifecycle/EmploymentTypeChangeModal.vue'
 
 definePageMeta({
@@ -42,26 +39,21 @@ const { employmentTypes, loadEmploymentTypes } = useEmploymentTypes()
 
 const { $api } = useNuxtApp()
 const toast = useToast()
-const saving = ref(false)
 const exporting = ref(false)
 const selectedFile = ref<File | null>(null)
+const uploadedDocumentId = ref<number | null>(null)
 const removedAttachment = ref(false)
 const employmentChangeOpen = ref(false)
 const employmentChangeEmployeeId = ref<number | undefined>()
-const employmentChangeDefaultType = ref<string | undefined>()
-const regularizePromptEmployee = ref<{ employeeId: number; employeeName: string; employeeNumber: string } | null>(null)
-
-const openEmploymentChange = (employeeId?: number, defaultTypeName?: string) => {
-  employmentChangeEmployeeId.value = employeeId
-  employmentChangeDefaultType.value = defaultTypeName
+const openEmploymentChange = (milestone?: EmployeeMilestone) => {
+  setEvaluationMilestone(milestone ?? null)
+  employmentChangeEmployeeId.value = milestone?.employeeId
   employmentChangeOpen.value = true
 }
 
-const confirmProceedToRegularize = () => {
-  if (!regularizePromptEmployee.value) return
-  const { employeeId } = regularizePromptEmployee.value
-  regularizePromptEmployee.value = null
-  openEmploymentChange(employeeId, 'Regular')
+const closeEmploymentChange = () => {
+  employmentChangeOpen.value = false
+  setEvaluationMilestone(null)
 }
 
 const search = ref('')
@@ -72,15 +64,26 @@ const currentPage = ref(1)
 const perPage = ref(6)
 
 // Modal State
-const isModalOpen = ref(false)
 const selectedMilestone = ref<EmployeeMilestone | null>(null)
+const detailsMilestone = ref<EmployeeMilestone | null>(null)
+const detailsDialog = ref<HTMLDialogElement | null>(null)
 const editingRemarks = ref('')
 const editingCompleted = ref(false)
 const requiresAttachment = computed(() => selectedMilestone.value?.requiresAttachment !== false)
-const resultingCompleted = computed(() => requiresAttachment.value ? !!selectedFileName.value : editingCompleted.value)
+const hasEvaluationProof = computed(() => !!selectedFile.value
+  || (!removedAttachment.value && !!selectedMilestone.value?.evaluationDocumentId))
+const resultingCompleted = computed(() => requiresAttachment.value ? hasEvaluationProof.value : editingCompleted.value)
 const selectedFileName = ref<string | null>(null)
 const selectedFileSize = ref<string | null>(null)
 const fileInputRef = ref<HTMLInputElement | null>(null)
+const evaluationDirty = computed(() => {
+  const milestone = selectedMilestone.value
+  return !!milestone && (
+    !!selectedFile.value || removedAttachment.value
+    || editingRemarks.value !== (milestone.remarks || '')
+    || (!requiresAttachment.value && editingCompleted.value !== (milestone.status === 'completed'))
+  )
+})
 
 const isActiveType = (status: unknown) => [true, 1, '1', 'active', 'Active'].includes(status as string | number | boolean)
 // Keep every active type from the Employment Types page, and fall back to any
@@ -96,20 +99,7 @@ const employmentTypeOptions = computed(() => {
   }
   return [...options].sort((a, b) => a.localeCompare(b))
 })
-const statusOptions = ['Pending', 'Overdue', 'Due Soon', 'Completed']
-
-const getMilestoneUrgency = (m: EmployeeMilestone) => {
-  if (m.status === 'completed' || !m.dueDate) return null
-  const now = new Date()
-  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
-  const todayDate = new Date(`${todayStr}T00:00:00`)
-  const dueDate = new Date(`${m.dueDate.slice(0, 10)}T00:00:00`)
-  if (Number.isNaN(dueDate.getTime())) return null
-  const diffDays = Math.round((dueDate.getTime() - todayDate.getTime()) / (1000 * 60 * 60 * 24))
-  if (diffDays < 0) return { type: 'overdue', label: 'Overdue' }
-  if (diffDays <= 30) return { type: 'due-soon', label: 'Due Soon' }
-  return null
-}
+const statusOptions = ['Pending', 'Due Soon', 'Completed']
 
 const currentQueryParams = () => ({
   search: search.value,
@@ -164,24 +154,15 @@ watch(currentPage, () => {
   reloadMilestones()
 })
 
-const openEvaluationModal = (milestone: EmployeeMilestone) => {
+const setEvaluationMilestone = (milestone: EmployeeMilestone | null) => {
   selectedFile.value = null
+  uploadedDocumentId.value = null
   removedAttachment.value = false
   selectedMilestone.value = milestone
-  editingCompleted.value = milestone.status === 'completed'
-  editingRemarks.value = milestone.remarks || ''
-  selectedFileName.value = milestone.attachmentName || null
-  selectedFileSize.value = milestone.attachmentSize || null
-  isModalOpen.value = true
-}
-
-const closeModal = () => {
-  if (saving.value) return
-  isModalOpen.value = false
-  selectedMilestone.value = null
-  editingRemarks.value = ''
-  selectedFileName.value = null
-  selectedFileSize.value = null
+  editingCompleted.value = milestone?.status === 'completed'
+  editingRemarks.value = milestone?.remarks || ''
+  selectedFileName.value = milestone?.attachmentName || null
+  selectedFileSize.value = milestone?.attachmentSize || null
   if (fileInputRef.value) fileInputRef.value.value = ''
 }
 
@@ -199,6 +180,7 @@ const handleFileSelect = (event: Event) => {
       return
     }
     selectedFile.value = file
+    uploadedDocumentId.value = null
     removedAttachment.value = false
     selectedFileName.value = file.name
     const sizeInKb = Math.round(file.size / 1024)
@@ -208,42 +190,33 @@ const handleFileSelect = (event: Event) => {
 
 const handleRemoveAttachment = () => {
   selectedFile.value = null
+  uploadedDocumentId.value = null
   removedAttachment.value = true
   selectedFileName.value = null
   selectedFileSize.value = null
   if (fileInputRef.value) fileInputRef.value.value = ''
 }
 
-const handleSaveEvaluation = async () => {
-  if (!selectedMilestone.value || saving.value) return
-  saving.value = true
-  try {
-    const milestone = selectedMilestone.value
-    let documentId = removedAttachment.value ? null : milestone.evaluationDocumentId || null
-    if (selectedFile.value) {
+const prepareMilestoneEvaluation = async (): Promise<MilestoneEvaluationInput> => {
+  const milestone = selectedMilestone.value
+  if (!milestone) throw new Error('No milestone selected.')
+
+  let documentId = removedAttachment.value ? null : milestone.evaluationDocumentId ?? null
+  if (selectedFile.value) {
+    if (uploadedDocumentId.value === null) {
       const body = new FormData()
       body.append('document', selectedFile.value)
-      const uploaded = await $api<any>(`/admin/employees/${milestone.employeeId}/lifecycle-evaluations`, { method: 'POST', body })
-      documentId = uploaded.data.id
-      milestone.evaluationDocumentId = documentId
-      selectedFile.value = null
+      const uploaded = await $api<{ data: { id: number } }>(`/admin/employees/${milestone.employeeId}/lifecycle-evaluations`, { method: 'POST', body })
+      uploadedDocumentId.value = uploaded.data.id
     }
-    const wasCompleted = resultingCompleted.value
-    await $api(`/admin/lifecycle/milestones/${milestone.id}`, { method: 'PUT', body: { remarks: editingRemarks.value, evaluation_document_id: documentId, status: wasCompleted ? 'completed' : 'pending' } })
-    await reloadMilestones()
-    saving.value = false
-    closeModal()
-    toast.success('Evaluation saved', 'Milestone status and remarks have been updated.')
-
-    if (wasCompleted && milestone.stageCode === 'M6_REGULARIZATION' && milestone.employmentType === 'Probationary') {
-      regularizePromptEmployee.value = {
-        employeeId: milestone.employeeId,
-        employeeName: milestone.employeeName,
-        employeeNumber: milestone.employeeNumber,
-      }
-    }
-  } catch (err: any) { toast.error('Unable to save evaluation', err?.data?.message || 'Please try again.') }
-  finally { saving.value = false }
+    documentId = uploadedDocumentId.value
+  }
+  return {
+    milestone_id: milestone.id,
+    evaluation_document_id: documentId,
+    remarks: editingRemarks.value,
+    status: resultingCompleted.value ? 'completed' : 'pending',
+  }
 }
 
 const downloadAttachment = async () => {
@@ -261,13 +234,64 @@ watch(totalPages, pages => { currentPage.value = Math.min(currentPage.value, pag
 
 const formatDate = (dateStr: string) => {
   if (!dateStr) return '—'
-  const d = new Date(dateStr)
+  const d = new Date(/^\d{4}-\d{2}-\d{2}$/.test(dateStr) ? `${dateStr}T00:00:00` : dateStr)
   return d.toLocaleDateString('en-US', {
     year: 'numeric',
     month: 'short',
     day: 'numeric',
   })
 }
+
+const hasReviewWindow = (milestone: EmployeeMilestone) => !!(milestone.reviewWindowStart && milestone.reviewWindowEnd)
+
+const milestoneDateLabel = (milestone: EmployeeMilestone) =>
+  milestone.reviewWindowStart && milestone.reviewWindowEnd
+    ? `${formatDate(milestone.reviewWindowStart)} – ${formatDate(milestone.reviewWindowEnd)}`
+    : formatDate(milestone.dueDate)
+
+const employeeHistoryRoute = (milestone: EmployeeMilestone) => ({
+  path: '/admin/employee-lifecycle/employee-history',
+  query: { employee: milestone.employeeId },
+})
+
+const milestoneActions = [
+  { key: 'details', label: 'View Details', icon: Eye },
+  { key: 'history', label: 'Employee History', icon: History },
+  { key: 'change-type', label: 'Change Type', icon: UserCog },
+]
+
+const handleMilestoneAction = async (key: string, milestone: EmployeeMilestone) => {
+  switch (key) {
+    case 'details':
+      detailsMilestone.value = milestone
+      await nextTick()
+      detailsDialog.value?.showModal()
+      break
+    case 'history':
+      await navigateTo(employeeHistoryRoute(milestone))
+      break
+    case 'change-type':
+      openEmploymentChange(milestone)
+      break
+  }
+}
+
+const milestoneDetails = computed(() => {
+  const milestone = detailsMilestone.value
+  if (!milestone) return []
+
+  return [
+    { label: 'Department', value: milestone.department },
+    { label: 'Position', value: milestone.position },
+    { label: 'Employment Type', value: milestone.employmentType },
+    { label: 'Hire Date', value: formatDate(milestone.dateHired) },
+    { label: 'Milestone', value: milestone.stageName },
+    { label: 'Policy', value: milestone.policyName },
+    { label: hasReviewWindow(milestone) ? 'Review Window' : 'Target Date', value: milestoneDateLabel(milestone) },
+    { label: 'Status', value: milestone.status === 'completed' ? 'Completed' : 'Pending' },
+    { label: 'Evaluation Proof', value: milestone.attachmentName || 'No attachment' },
+  ]
+})
 
 const handleExport = async () => {
   if (exporting.value) return
@@ -285,6 +309,8 @@ const handleExport = async () => {
       'Stage Code',
       'Policy Name',
       'Target Date',
+      'Review Window Start',
+      'Review Window End',
       'Evaluation Attachment',
       'Status',
       'HR Remarks',
@@ -300,6 +326,8 @@ const handleExport = async () => {
       m.stageCode,
       m.policyName,
       m.dueDate,
+      m.reviewWindowStart || '',
+      m.reviewWindowEnd || '',
       m.attachmentName || 'None',
       m.status === 'completed' ? 'Completed' : 'Pending',
       m.remarks || '',
@@ -363,13 +391,6 @@ const handleExport = async () => {
         tone="orange"
       />
       <StatCard
-        label="Overdue"
-        :value="stats.overdue"
-        description="Past target date & pending"
-        :icon="AlertTriangle"
-        tone="red"
-      />
-      <StatCard
         label="Regularization Targets"
         :value="stats.probationaryUpcoming"
         description="Probationary to regular transitions"
@@ -421,7 +442,7 @@ const handleExport = async () => {
       <div class="table-heading">
         <div>
           <h3>Employee Milestones</h3>
-          <p>Monitor employee milestone target dates, evaluation attachments, and completion records.</p>
+          <p>The regularization review window follows the lifecycle policy. HR records the effective date manually.</p>
         </div>
         <span class="record-count">
           {{ meta.total }}
@@ -434,10 +455,10 @@ const handleExport = async () => {
           <thead>
             <tr>
               <th>Employee</th>
-              <th>Department & Type</th>
-              <th>Lifecycle Stage</th>
+              <th>Department</th>
+              <th>Milestone</th>
               <th>Target Date</th>
-              <th>Status & Proof</th>
+              <th>Status</th>
               <th class="actions-heading">Actions</th>
             </tr>
           </thead>
@@ -455,107 +476,48 @@ const handleExport = async () => {
             </tr>
             <tr v-for="milestone in paginatedMilestones" :key="milestone.id">
               <!-- EMPLOYEE CELL -->
-              <td>
-                <div class="employee-cell">
-                  <div class="employee-avatar">
-                    <UserRound :size="17" />
-                  </div>
-                  <div class="employee-info">
-                    <NuxtLink :to="{ path: '/admin/employee-lifecycle/employee-history', query: { employee: milestone.employeeId } }" class="employee-history-link">{{ milestone.employeeName }}</NuxtLink>
-                    <span class="employee-meta">EMP-{{ milestone.employeeNumber }} · {{ milestone.position }} · Hired {{ formatDate(milestone.dateHired) }}</span>
-                  </div>
-                </div>
+              <td class="employee-cell">
+                <NuxtLink
+                  :to="employeeHistoryRoute(milestone)"
+                  class="employee-history-link"
+                >
+                  {{ milestone.employeeName }}
+                </NuxtLink>
               </td>
 
               <!-- DEPARTMENT -->
               <td>
-                <div class="dept-info">
-                  <span class="dept-name">{{ milestone.department }}</span>
-                  <span class="type-sub" :class="{ 'is-probationary': milestone.employmentType === 'Probationary' }">
-                    {{ milestone.employmentType }}
-                  </span>
-                </div>
+                <span class="dept-name">{{ milestone.department }}</span>
               </td>
 
               <!-- STAGE -->
               <td>
-                <div class="stage-info">
-                  <div class="stage-title-row">
-                    <strong class="stage-name">{{ milestone.stageName }}</strong>
-                    <span v-if="milestone.stageCode === 'M6_REGULARIZATION'" class="regularization-pill">
-                      Probi → Regular
-                    </span>
-                  </div>
-                  <span class="policy-sub">{{ milestone.policyName }}</span>
-                </div>
+                <strong class="stage-name">{{ milestone.stageName }}</strong>
               </td>
 
-              <!-- TARGET DATE (Formerly Due Date) -->
+              <!-- TARGET DATE -->
               <td>
-                <div class="date-cell-wrap">
-                  <div class="date-cell" :class="{ 'is-reg-target': milestone.stageCode === 'M6_REGULARIZATION' }">
-                    <CalendarDays :size="15" />
-                    <strong>{{ formatDate(milestone.dueDate) }}</strong>
-                  </div>
-                  <span
-                    v-if="getMilestoneUrgency(milestone)"
-                    class="urgency-badge"
-                    :class="getMilestoneUrgency(milestone)!.type"
-                  >
-                    {{ getMilestoneUrgency(milestone)!.label }}
-                  </span>
-                </div>
+                <strong class="target-date">{{ milestoneDateLabel(milestone) }}</strong>
               </td>
 
-              <!-- STATUS & EVALUATION PROOF -->
+              <!-- STATUS -->
               <td>
-                <div class="status-proof-cell">
-                  <span
-                    class="status-badge"
-                    :class="milestone.status === 'completed' ? 'completed' : 'for-completion'"
-                  >
-                    <span class="status-dot" />
-                    {{ milestone.status === 'completed' ? 'Completed' : 'Pending' }}
-                  </span>
-                  <div v-if="milestone.attachmentName" class="attachment-pill" :title="milestone.attachmentName">
-                    <Paperclip :size="12" class="text-primary flex-shrink-0" />
-                    <span class="attachment-name">{{ milestone.attachmentName }}</span>
-                  </div>
-                  <span v-else class="no-attachment-text">No attachment</span>
-                </div>
+                <span
+                  class="status-badge"
+                  :class="milestone.status === 'completed' ? 'completed' : 'for-completion'"
+                >
+                  <span class="status-dot" />
+                  {{ milestone.status === 'completed' ? 'Completed' : 'Pending' }}
+                </span>
               </td>
 
               <!-- ACTIONS -->
               <td class="actions-cell">
-                <div class="actions-group">
-                  <NuxtLink
-                    :to="`/admin/employee-lifecycle/employee-history?employee=${milestone.employeeId}`"
-                    class="action-btn action-btn-icon"
-                    aria-label="View Employee History"
-                    title="View this employee's full lifecycle timeline"
-                  >
-                    <History :size="14" aria-hidden="true" />
-                  </NuxtLink>
-                  <button
-                    type="button"
-                    class="action-btn"
-                    title="Change this employee's employment type"
-                    @click="openEmploymentChange(milestone.employeeId)"
-                  >
-                    <UserCog :size="14" aria-hidden="true" />
-                    <span>Change Type</span>
-                  </button>
-                  <button
-                    type="button"
-                    class="action-btn"
-                    :title="milestone.attachmentName ? 'View or update this milestone evaluation proof' : 'Upload evaluation proof and complete this milestone'"
-                    @click="openEvaluationModal(milestone)"
-                  >
-                    <FileText v-if="milestone.attachmentName" :size="14" aria-hidden="true" />
-                    <Paperclip v-else :size="14" aria-hidden="true" />
-                    <span>{{ milestone.attachmentName ? 'View Proof' : 'Upload Proof' }}</span>
-                  </button>
-                </div>
+                <TableActionMenu
+                  :items="milestoneActions"
+                  :label="`Actions for ${milestone.employeeName}: ${milestone.stageName}`"
+                  @select="handleMilestoneAction($event, milestone)"
+                />
               </td>
             </tr>
           </tbody>
@@ -578,55 +540,50 @@ const handleExport = async () => {
       </div>
     </article>
 
-    <!-- EVALUATION & ATTACHMENT MODAL -->
-    <Teleport to="body">
-      <div
-        v-if="isModalOpen"
-        class="modal-overlay"
-        @click.self="closeModal"
-      >
-        <section
-          class="modal-dialog"
-          role="dialog"
-          aria-modal="true"
-        >
-          <!-- MODAL HEADER -->
-          <header class="dialog-header">
-            <div class="dialog-header-left">
-              <span class="header-icon">
-                <FileCheck :size="20" />
-              </span>
-              <div>
-                <h2>Evaluation Proof & Completion</h2>
-                <p v-if="selectedMilestone">
-                  {{ selectedMilestone.employeeName }} (EMP-{{ selectedMilestone.employeeNumber }})
-                </p>
-              </div>
-            </div>
-            <button
-              type="button"
-              class="close-icon"
-              aria-label="Close"
-              @click="closeModal"
-            >
-              <X :size="19" />
+    <dialog
+      ref="detailsDialog"
+      class="details-dialog"
+      aria-labelledby="milestone-details-title"
+      @click.self="detailsDialog?.close()"
+      @close="detailsMilestone = null"
+    >
+      <template v-if="detailsMilestone">
+        <header class="dialog-header">
+          <div>
+            <h2 id="milestone-details-title">Milestone Details</h2>
+            <p>{{ detailsMilestone.employeeName }} (EMP-{{ detailsMilestone.employeeNumber }})</p>
+          </div>
+          <form method="dialog">
+            <button type="submit" class="close-icon" aria-label="Close milestone details">
+              <X :size="16" aria-hidden="true" />
             </button>
-          </header>
+          </form>
+        </header>
+        <dl class="details-grid">
+          <div v-for="detail in milestoneDetails" :key="detail.label">
+            <dt>{{ detail.label }}</dt>
+            <dd>{{ detail.value || '—' }}</dd>
+          </div>
+          <div class="details-remarks">
+            <dt>HR Remarks</dt>
+            <dd>{{ detailsMilestone.remarks || '—' }}</dd>
+          </div>
+        </dl>
+      </template>
+    </dialog>
 
-          <!-- MODAL BODY -->
-          <div class="dialog-body" v-if="selectedMilestone">
-            <!-- REGULARIZATION TRIGGER BANNER -->
-            <div v-if="selectedMilestone.stageCode === 'M6_REGULARIZATION'" class="regularization-banner">
-              <div class="banner-icon">
-                <Award :size="20" />
-              </div>
-              <div class="banner-text">
-                <strong>Manual review required</strong>
-                <p>
-                  Save the evaluation here to complete this milestone. Use Change Employment Type on this page to record the employment decision.
-                </p>
-              </div>
-            </div>
+    <EmploymentTypeChangeModal
+      :open="employmentChangeOpen"
+      :employee-id="employmentChangeEmployeeId"
+      :prepare-evaluation="selectedMilestone ? prepareMilestoneEvaluation : undefined"
+      :evaluation-dirty="evaluationDirty"
+      :evaluation-proof-missing="!!selectedMilestone && requiresAttachment && !hasEvaluationProof"
+      @close="closeEmploymentChange"
+      @saved="reloadMilestones"
+    >
+      <template v-if="selectedMilestone" #evaluation="{ disabled }">
+        <fieldset class="evaluation-panel" :disabled="disabled">
+          <legend>Evaluation Proof & Completion</legend>
 
             <!-- MILESTONE CONTEXT CARD -->
             <div class="info-card">
@@ -635,8 +592,8 @@ const handleExport = async () => {
                 <strong class="info-val">{{ selectedMilestone.stageName }}</strong>
               </div>
               <div class="info-row">
-                <span class="info-label">Target Date:</span>
-                <strong class="info-val">{{ formatDate(selectedMilestone.dueDate) }}</strong>
+                <span class="info-label">{{ hasReviewWindow(selectedMilestone) ? 'Review Window:' : 'Target Date:' }}</span>
+                <strong class="info-val">{{ milestoneDateLabel(selectedMilestone) }}</strong>
               </div>
               <div class="info-row">
                 <span class="info-label">Current Employment:</span>
@@ -661,15 +618,17 @@ const handleExport = async () => {
               <label><input v-model="editingCompleted" type="checkbox" /> Mark milestone as completed</label>
               <p>This stage does not require an attachment.</p>
             </div>
-            <div v-if="requiresAttachment || selectedFileName" class="form-group">
-              <label class="form-label">{{ requiresAttachment ? 'Evaluation Attachment (Required to complete milestone) *' : 'Existing Evaluation Attachment' }}</label>
+            <div class="form-group">
+              <label class="form-label" for="milestone-evaluation-file">{{ requiresAttachment ? 'Evaluation Attachment (Required to complete milestone)' : 'Evaluation Attachment (Optional)' }}</label>
 
               <!-- HIDDEN FILE INPUT -->
               <input
+                id="milestone-evaluation-file"
                 ref="fileInputRef"
                 type="file"
                 class="hidden-file-input"
                 accept=".pdf,.png,.jpg,.jpeg"
+                tabindex="-1"
                 @change="handleFileSelect"
               />
 
@@ -698,90 +657,37 @@ const handleExport = async () => {
               </div>
 
               <!-- EMPTY UPLOAD DROPZONE -->
-              <div
+              <button
                 v-else
+                type="button"
                 class="upload-dropzone"
                 @click="triggerFileInput"
               >
                 <UploadCloud :size="28" class="upload-icon" />
-                <strong>Click to upload evaluation proof / rating form</strong>
+                <strong>Upload proof</strong>
                 <span>PDF, PNG or JPG, up to 10 MB</span>
-              </div>
+              </button>
             </div>
 
             <!-- HR REMARKS -->
             <div class="form-group">
-              <label class="form-label">HR Evaluation Notes / Remarks</label>
+              <label class="form-label" for="milestone-evaluation-remarks">HR Evaluation Notes / Remarks</label>
               <textarea
+                id="milestone-evaluation-remarks"
                 v-model="editingRemarks"
+                maxlength="5000"
                 rows="3"
                 placeholder="Enter evaluation outcome, performance assessment notes, or supervisor remarks..."
                 class="form-textarea"
               ></textarea>
             </div>
-          </div>
-
-          <!-- MODAL FOOTER -->
-          <footer class="dialog-footer">
-            <AppButton variant="secondary" @click="closeModal">Cancel</AppButton>
-            <AppButton variant="primary" :disabled="saving" @click="handleSaveEvaluation">
-              {{ saving ? 'Saving…' : 'Save Evaluation' }}
-            </AppButton>
-          </footer>
-        </section>
-      </div>
-    </Teleport>
-    <!-- PROCEED TO REGULARIZE PROMPT MODAL -->
-    <Teleport to="body">
-      <div
-        v-if="regularizePromptEmployee"
-        class="modal-overlay"
-        @click.self="regularizePromptEmployee = null"
-      >
-        <section class="modal-dialog modal-dialog-sm" role="dialog" aria-modal="true">
-          <header class="dialog-header">
-            <div class="dialog-header-left">
-              <span class="header-icon">
-                <Award :size="20" />
-              </span>
-              <div>
-                <h2>Proceed to Regularize?</h2>
-                <p>{{ regularizePromptEmployee.employeeName }} (EMP-{{ regularizePromptEmployee.employeeNumber }})</p>
-              </div>
-            </div>
-            <button type="button" class="close-icon" aria-label="Close" @click="regularizePromptEmployee = null">
-              <X :size="19" />
-            </button>
-          </header>
-          <div class="dialog-body">
-            <p class="prompt-message">
-              The 6th month regularization evaluation for <strong>{{ regularizePromptEmployee.employeeName }}</strong> has been saved and marked as completed.
-              Would you like to update their employment type from <strong>Probationary</strong> to <strong>Regular</strong> now?
-            </p>
-          </div>
-          <footer class="dialog-footer">
-            <AppButton variant="secondary" @click="regularizePromptEmployee = null">Not Now</AppButton>
-            <AppButton variant="primary" :icon="Award" @click="confirmProceedToRegularize">
-              Proceed to Regularize
-            </AppButton>
-          </footer>
-        </section>
-      </div>
-    </Teleport>
-
-    <EmploymentTypeChangeModal
-      :open="employmentChangeOpen"
-      :employee-id="employmentChangeEmployeeId"
-      :default-type-name="employmentChangeDefaultType"
-      @close="employmentChangeOpen = false"
-      @saved="reloadMilestones"
-    />
+        </fieldset>
+      </template>
+    </EmploymentTypeChangeModal>
   </section>
 </template>
 
 <style scoped>
-.employee-history-link { color: var(--primary); font-weight: 650; text-decoration: none; }
-.employee-history-link:hover { text-decoration: underline; }
 .lifecycle-page {
   width: 100%;
   max-width: 1680px;
@@ -797,7 +703,7 @@ const handleExport = async () => {
 /* STATS */
 .stats-grid {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 14px;
   margin-bottom: 14px;
 }
@@ -812,46 +718,6 @@ const handleExport = async () => {
   .stats-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-}
-
-.date-cell-wrap {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 4px;
-}
-
-.urgency-badge {
-  display: inline-flex;
-  align-items: center;
-  padding: 2px 7px;
-  border-radius: 999px;
-  font-size: 10.5px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-}
-
-.urgency-badge.overdue {
-  background: rgba(239, 68, 68, 0.14);
-  color: #f87171;
-  border: 1px solid rgba(239, 68, 68, 0.35);
-}
-
-.urgency-badge.due-soon {
-  background: rgba(245, 158, 11, 0.14);
-  color: #fbbf24;
-  border: 1px solid rgba(245, 158, 11, 0.35);
-}
-
-.modal-dialog-sm {
-  max-width: 480px;
-}
-
-.prompt-message {
-  margin: 0;
-  font-size: 13.5px;
-  line-height: 1.6;
-  color: var(--text-secondary);
 }
 
 @media (max-width: 600px) {
@@ -937,7 +803,7 @@ const handleExport = async () => {
 
 table {
   width: 100%;
-  min-width: 820px;
+  min-width: 680px;
   border-collapse: collapse;
 }
 
@@ -960,17 +826,6 @@ td {
   vertical-align: middle;
 }
 
-.status-proof-cell {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 5px;
-}
-
-.action-btn-icon {
-  padding: 6px 8px;
-}
-
 tbody tr {
   transition: background 0.15s ease;
 }
@@ -981,93 +836,25 @@ tbody tr:hover {
 
 /* EMPLOYEE CELL */
 .employee-cell {
-  display: flex;
-  min-width: 220px;
-  align-items: center;
-  gap: 10px;
+  min-width: 170px;
 }
 
-.employee-avatar {
-  display: flex;
-  width: 36px;
-  height: 36px;
-  flex-shrink: 0;
-  align-items: center;
-  justify-content: center;
-  border-radius: 9px;
-  background: var(--primary-soft);
-  color: var(--primary);
-}
-
-.employee-info {
-  min-width: 0;
-}
-
-.employee-info strong {
-  display: block;
+.employee-history-link {
   color: var(--text-primary);
-  font-size: 11px;
-  font-weight: 700;
-  white-space: nowrap;
+  font-weight: 600;
+  text-decoration: none;
 }
 
-.employee-meta {
-  display: block;
-  margin-top: 2px;
-  color: var(--text-muted);
-  font-size: 10px;
-  white-space: nowrap;
+.employee-history-link:hover {
+  text-decoration: underline;
 }
 
-/* DEPT & ROLE */
-.dept-info {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  white-space: nowrap;
-}
-
+/* DEPARTMENT */
 .dept-name {
   color: var(--text-primary);
   font-size: 10.5px;
   font-weight: 650;
-}
-
-.type-sub {
-  color: var(--primary);
-  font-size: 9.5px;
-  font-weight: 600;
-}
-
-.type-sub.is-probationary {
-  color: var(--orange);
-}
-
-/* STAGE */
-.stage-info {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 220px;
-}
-
-.stage-title-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-
-.regularization-pill {
-  display: inline-block;
-  padding: 2px 7px;
-  border-radius: 4px;
-  background: var(--green-soft);
-  color: var(--green);
-  font-size: 9px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.3px;
+  white-space: nowrap;
 }
 
 .stage-name {
@@ -1076,64 +863,10 @@ tbody tr:hover {
   font-weight: 700;
 }
 
-.policy-sub {
-  color: var(--text-muted);
-  font-size: 9.5px;
-}
-
-/* DATE */
-.date-cell {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  white-space: nowrap;
-}
-
-.date-cell.is-reg-target strong {
-  color: var(--green);
-}
-
-.date-cell svg {
-  color: var(--text-muted);
-}
-
-.date-cell strong {
+.target-date {
   color: var(--text-primary);
-  font-size: 10.5px;
   font-weight: 650;
-}
-
-/* ATTACHMENT PROOF PILL */
-.attachment-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 8px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--bg-card-soft);
-  max-width: 190px;
-}
-
-.attachment-name {
-  color: var(--text-primary);
-  font-size: 10px;
-  font-weight: 600;
-  overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.attachment-size {
-  color: var(--text-muted);
-  font-size: 9px;
-  white-space: nowrap;
-}
-
-.no-attachment-text {
-  color: var(--text-muted);
-  font-size: 10px;
-  font-style: italic;
 }
 
 /* STATUS BADGE */
@@ -1166,55 +899,11 @@ tbody tr:hover {
   color: var(--orange);
 }
 
-/* REMARKS */
-.remarks-text {
-  max-width: 220px;
-  margin: 0;
-  overflow: hidden;
-  color: var(--text-secondary);
-  font-size: 10px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 /* ACTIONS */
-.actions-heading {
-  text-align: right;
-}
-
+.actions-heading,
 .actions-cell {
-  width: 200px;
+  width: 1%;
   text-align: right;
-}
-
-.actions-group {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 6px;
-}
-
-.action-btn {
-  display: inline-flex;
-  height: 28px;
-  align-items: center;
-  gap: 5px;
-  padding: 0 9px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--bg-card-soft);
-  color: var(--text-secondary);
-  font-size: 10px;
-  font-weight: 650;
-  white-space: nowrap;
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-.action-btn:hover {
-  border-color: var(--primary);
-  color: var(--primary);
-  background: var(--primary-soft);
 }
 
 /* EMPTY STATE */
@@ -1272,30 +961,45 @@ tbody tr:hover {
 }
 
 /* MODAL / DIALOG */
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 10050;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 16px;
-  background: rgba(3, 9, 23, 0.78);
-  backdrop-filter: blur(5px);
-}
-
-.modal-dialog {
-  display: flex;
-  width: 100%;
-  max-width: 520px;
+.details-dialog {
+  width: min(520px, calc(100% - 32px));
   max-height: 90vh;
-  flex-direction: column;
-  overflow: hidden;
+  margin: auto;
+  padding: 0;
   border: 1px solid var(--border);
   border-radius: 14px;
   background: var(--bg-card);
   color: var(--text-primary);
   box-shadow: 0 24px 70px rgba(0, 0, 0, 0.3);
+}
+
+.details-dialog::backdrop {
+  background: rgba(3, 9, 23, 0.78);
+  backdrop-filter: blur(5px);
+}
+
+.details-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px 20px;
+  margin: 0;
+  padding: 20px;
+  font-size: 12px;
+}
+
+.details-grid dt {
+  color: var(--text-muted);
+}
+
+.details-grid dd {
+  margin: 3px 0 0;
+  overflow-wrap: anywhere;
+  font-weight: 600;
+}
+
+.details-remarks {
+  grid-column: 1 / -1;
+  white-space: pre-wrap;
 }
 
 .dialog-header {
@@ -1305,23 +1009,6 @@ tbody tr:hover {
   padding: 18px 20px;
   border-bottom: 1px solid var(--border-soft);
   background: var(--bg-card);
-}
-
-.dialog-header-left {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.header-icon {
-  display: flex;
-  width: 38px;
-  height: 38px;
-  align-items: center;
-  justify-content: center;
-  border-radius: 10px;
-  background: var(--primary-soft);
-  color: var(--primary);
 }
 
 .dialog-header h2 {
@@ -1357,12 +1044,21 @@ tbody tr:hover {
   border-color: var(--red);
 }
 
-.dialog-body {
-  padding: 20px;
-  overflow-y: auto;
+.evaluation-panel {
   display: flex;
   flex-direction: column;
   gap: 14px;
+  min-width: 0;
+  margin: 18px 0;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.evaluation-panel legend {
+  padding: 0 5px;
+  font-size: 13px;
+  font-weight: 700;
 }
 
 .text-orange {
@@ -1371,43 +1067,6 @@ tbody tr:hover {
 
 .text-green {
   color: var(--green);
-}
-
-/* REGULARIZATION BANNER */
-.regularization-banner {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  padding: 12px 14px;
-  border: 1px solid rgba(22, 166, 99, 0.3);
-  border-radius: 9px;
-  background: var(--green-soft);
-}
-
-.banner-icon {
-  display: flex;
-  width: 32px;
-  height: 32px;
-  align-items: center;
-  justify-content: center;
-  border-radius: 8px;
-  background: rgba(22, 166, 99, 0.2);
-  color: var(--green);
-  flex-shrink: 0;
-}
-
-.banner-text strong {
-  display: block;
-  color: var(--green);
-  font-size: 11.5px;
-  font-weight: 700;
-}
-
-.banner-text p {
-  margin: 3px 0 0;
-  color: var(--text-secondary);
-  font-size: 10.5px;
-  line-height: 1.4;
 }
 
 .form-group-checkbox {
@@ -1597,13 +1256,4 @@ tbody tr:hover {
   border-color: var(--primary);
 }
 
-.dialog-footer {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 8px;
-  padding: 14px 20px;
-  border-top: 1px solid var(--border-soft);
-  background: var(--bg-card-soft);
-}
 </style>
