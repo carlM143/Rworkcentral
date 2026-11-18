@@ -20,6 +20,21 @@ const minutes = (value: number) => {
   return h ? `${h}h${m ? ` ${m}m` : ''}` : `${m}m`
 }
 
+const shortDate = (value: string) => {
+  const d = new Date(`${value.slice(0, 10)}T00:00:00`)
+  return Number.isNaN(d.getTime())
+    ? value
+    : new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(d)
+}
+
+const scenarioLabels: Record<string, string> = {
+  unworked: 'Not worked',
+  worked: 'Worked',
+  worked_overtime: 'Worked – overtime',
+  rest_day_worked: 'Rest day worked',
+  rest_day_overtime: 'Rest day – overtime',
+}
+
 const name = computed(() => {
   const p = props.payroll
   if (!p) return ''
@@ -33,6 +48,14 @@ const basicPayNote = computed(() => {
   if (p.breakdown?.rate_type === 'hourly') return `${minutes(p.worked_minutes)} worked`
   return `${money(p.basic_salary)} monthly ÷ cutoff`
 })
+
+// Holiday pay lines (added to gross pay)
+const holidayLines = computed(() => props.payroll?.breakdown?.holidays ?? [])
+
+// Holidays the employee was not paid for (shown under the unpaid holiday deduction)
+const unpaidHolidays = computed(() =>
+  (props.payroll?.breakdown?.holiday_days ?? []).filter(d => !d.worked && !d.paid && !d.rest_day),
+)
 
 // Running totals: gross → after contributions & tax → net
 const afterContributions = computed(() => {
@@ -89,6 +112,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
         </div>
 
         <div class="body">
+          <!-- EARNINGS -->
           <section>
             <h4>Earnings</h4>
             <dl>
@@ -96,14 +120,34 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
                 <dt>Basic pay <small>{{ basicPayNote }}</small></dt>
                 <dd>{{ money(payroll.basic_pay) }}</dd>
               </div>
-              <div>
+
+
+              <div v-if="num(payroll.allowance_pay)">
                 <dt>Allowance</dt>
                 <dd>{{ money(payroll.allowance_pay) }}</dd>
               </div>
+
+              <div v-if="num(payroll.holiday_pay)">
+                <dt>
+                  Holiday pay
+                  <small
+                    v-for="line in holidayLines"
+                    :key="`${line.holiday_id}-${line.holiday_date}`"
+                  >
+                    {{ line.holiday_name }} · {{ shortDate(line.holiday_date) }} ·
+                    {{ scenarioLabels[line.scenario] ?? line.scenario }} · {{ line.rate_percent }}%
+                  </small>
+                </dt>
+                <dd class="plus">+ {{ money(payroll.holiday_pay) }}</dd>
+              </div>
+
               <div>
                 <dt>Overtime <small>{{ minutes(payroll.overtime_minutes) }}</small></dt>
                 <dd>{{ money(payroll.overtime_pay) }}</dd>
               </div>
+
+  
+
               <div>
                 <dt>Late <small>{{ minutes(payroll.late_minutes) }}</small></dt>
                 <dd class="minus">− {{ money(payroll.late_deduction) }}</dd>
@@ -116,6 +160,20 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
                 <dt>Unpaid leave <small>{{ num(payroll.unpaid_leave_days) }} day(s)</small></dt>
                 <dd class="minus">− {{ money(payroll.unpaid_leave_deduction) }}</dd>
               </div>
+
+              <div v-if="num(payroll.unpaid_holiday_deduction)">
+                <dt>
+                  Unpaid holiday
+                  <small
+                    v-for="day in unpaidHolidays"
+                    :key="day.date"
+                  >
+                    {{ day.holiday_name }} · {{ shortDate(day.date) }} · {{ day.reason }}
+                  </small>
+                </dt>
+                <dd class="minus">− {{ money(payroll.unpaid_holiday_deduction) }}</dd>
+              </div>
+
               <div class="total">
                 <dt>Gross pay</dt>
                 <dd>{{ money(payroll.gross_pay) }}</dd>
@@ -123,6 +181,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
             </dl>
           </section>
 
+          <!-- CONTRIBUTIONS -->
           <section>
             <h4>Government contributions</h4>
             <dl class="carry">
@@ -166,6 +225,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
             </dl>
           </section>
 
+          <!-- LOANS -->
           <section>
             <h4>Loans</h4>
             <dl class="carry">
@@ -210,12 +270,12 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
           </section>
         </div>
 
-      <div class="foot">
-  <div class="net">
-    <span>Net pay</span>
-    <strong>{{ money(payroll.net_pay) }}</strong>
-  </div>
-</div>
+        <div class="foot">
+          <div class="net">
+            <span>Net pay</span>
+            <strong>{{ money(payroll.net_pay) }}</strong>
+          </div>
+        </div>
       </div>
     </div>
   </Teleport>
@@ -241,13 +301,12 @@ dd{margin:0;color:var(--text-primary);font-weight:600;white-space:nowrap}
 dl .total{padding-top:12px;border-top:1px solid var(--border-soft);font-size:15px;font-weight:700}
 .spaced{margin-top:18px}
 .minus{color:#f87171}
+.plus{color:#22c55e}
 .empty{margin:0;color:var(--text-muted);font-size:13px}
 .pill{display:inline-flex;padding:5px 12px;border-radius:20px;font-size:12px;font-weight:600}
 .pill--draft{background:rgb(251 146 60 / 12%);color:#fb923c}
 .pill--finalized{background:rgb(34 197 94 / 11%);color:#22c55e}
 .foot{display:flex;align-items:center;justify-content:flex-end;gap:12px;padding:16px 24px;border-top:1px solid var(--border-soft)}
-.foot-right{display:flex;align-items:center;gap:20px}
-.formula{margin:0;color:var(--text-muted);font-size:13px}
 .net{text-align:right}
 .net span{display:block;color:var(--text-muted);font-size:12px}
 .net strong{color:#22c55e;font-size:24px}

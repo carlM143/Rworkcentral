@@ -30,6 +30,41 @@ export interface PayrollLoanLine {
   partial: boolean
 }
 
+export type HolidayPayScenario =
+  | 'unworked'
+  | 'worked'
+  | 'worked_overtime'
+  | 'rest_day_worked'
+  | 'rest_day_overtime'
+
+/** One holiday pay line (amount added to gross pay). */
+export interface PayrollHolidayLine {
+  holiday_id: number
+  holiday_name: string
+  holiday_pay_rule_id: number | null
+  time_log_id: number | null
+  holiday_date: string
+  scenario: HolidayPayScenario
+  worked_minutes: number
+  overtime_minutes: number
+  daily_rate: number
+  rate_percent: number
+  amount: number
+}
+
+/** How each holiday in the cut-off applied to the employee. */
+export interface PayrollHolidayDay {
+  date: string
+  holiday_id: number
+  holiday_name: string
+  type: string | null
+  covered: boolean
+  worked: boolean
+  rest_day: boolean
+  paid: boolean
+  reason: string
+}
+
 export interface PayrollContributionLine {
   id: number
   contribution_type_id: number
@@ -63,6 +98,9 @@ export interface PayrollRecord {
   undertime_deduction: Money
   unpaid_leave_days: Money
   unpaid_leave_deduction: Money
+  holiday_pay: Money
+  unpaid_holiday_days: Money
+  unpaid_holiday_deduction: Money
   gross_pay: Money
   contributions_total: Money
   loan_deductions_total: Money
@@ -75,6 +113,8 @@ export interface PayrollRecord {
     monthly_rate: number
     minute_rate: number
     loans: PayrollLoanLine[]
+    holidays?: PayrollHolidayLine[]
+    holiday_days?: PayrollHolidayDay[]
   } | null
   employee?: {
     id: number
@@ -98,6 +138,8 @@ export interface PayrollRunTotals {
   employees: number
   draft: number
   finalized: number
+  holiday_pay: number
+  unpaid_holiday_deduction: number
   gross_pay: number
   total_deductions: number
   net_pay: number

@@ -1,78 +1,34 @@
 <script setup lang="ts">
-import {
-  UserRound,
-  CreditCard,
-  FileCheck2,
-} from 'lucide-vue-next'
+import { UserRound } from 'lucide-vue-next'
 
-import type {
-  EmployeePayroll,
-  EmployeePayrollPaymentStatus,
-} from '~/types/employeePayroll'
+import type { EmployeePayrollRow } from '~/types/payroll/employee-payroll/employeePayroll'
 
 defineProps<{
-  payrolls:
-    EmployeePayroll[]
+  payrolls: EmployeePayrollRow[]
 }>()
 
-const emit = defineEmits<{ action: [mode: string, record: EmployeePayroll] }>()
+const emit = defineEmits<{ action: [mode: string, record: EmployeePayrollRow] }>()
 
-const money = (
-  value: number,
-) => {
-  return new Intl.NumberFormat(
-    'en-PH',
-    {
-      style: 'currency',
-      currency: 'PHP',
-      minimumFractionDigits: 2,
-    },
-  ).format(value)
+const money = (value: number) => {
+  return new Intl.NumberFormat('en-PH', {
+    style: 'currency',
+    currency: 'PHP',
+    minimumFractionDigits: 2,
+  }).format(value)
 }
 
-const formatDate = (
-  value: string,
-) => {
-  return new Intl.DateTimeFormat(
-    'en-US',
-    {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    },
-  ).format(
-    new Date(
-      `${value}T00:00:00`,
-    ),
-  )
-}
+const formatDate = (value?: string | null) => {
+  if (!value) return '—'
 
-const paymentClass = (
-  status:
-    EmployeePayrollPaymentStatus,
-) => {
-  if (
-    status ===
-    'Paid'
-  ) {
-    return 'paid'
-  }
+  const date = new Date(`${value.slice(0, 10)}T00:00:00`)
 
-  if (
-    status ===
-    'Released'
-  ) {
-    return 'released'
-  }
-
-  if (
-    status ===
-    'Pending Payment'
-  ) {
-    return 'pending'
-  }
-
-  return 'unpaid'
+  return Number.isNaN(date.getTime())
+    ? value
+    : new Intl.DateTimeFormat('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+      }).format(date)
 }
 </script>
 
@@ -113,13 +69,13 @@ const paymentClass = (
             <th>Pay Period</th>
             <th>Basic Pay</th>
             <th>OT Pay</th>
+            <th>Holiday Pay</th>
             <th>Allowances</th>
             <th>Gross Pay</th>
             <th>Deductions</th>
             <th>Net Pay</th>
             <th>Payroll Status</th>
-            <th>Payment Status</th>
-            <th>Reference</th>
+            <th>Payment Date</th>
             <th />
           </tr>
 
@@ -128,262 +84,114 @@ const paymentClass = (
         <tbody>
 
           <tr
-            v-for="
-              payroll in
-              payrolls
-            "
-            :key="
-              payroll.id
-            "
+            v-for="payroll in payrolls"
+            :key="payroll.payroll_id"
           >
 
             <!-- PAYROLL -->
 
             <td>
-
               <strong class="payroll-number">
-                {{
-                  payroll.payrollNumber
-                }}
+                {{ payroll.payslip_no ?? '—' }}
               </strong>
 
               <span class="subtext">
-                {{
-                  payroll.periodCode
-                }}
+                {{ payroll.payroll_group ?? '—' }}
               </span>
-
             </td>
 
             <!-- EMPLOYEE -->
 
             <td>
-
               <div class="employee-cell">
-
                 <div class="employee-icon">
-
                   <UserRound :size="15" />
-
                 </div>
 
                 <div>
-
-                  <strong>
-                    {{
-                      payroll.employeeName
-                    }}
-                  </strong>
+                  <strong>{{ payroll.employee.name }}</strong>
 
                   <span>
-                    {{
-                      payroll.employeeNumber
-                    }}
+                    {{ payroll.employee.emp_id ?? '—' }}
                     ·
-                    {{
-                      payroll.department
-                    }}
+                    {{ payroll.employee.department ?? '—' }}
                   </span>
-
-                  <small>
-                    {{
-                      payroll.position
-                    }}
-                  </small>
-
                 </div>
-
               </div>
-
             </td>
 
             <!-- PERIOD -->
 
             <td>
-
               <div class="period-cell">
-
-                <strong>
-                  {{
-                    payroll.periodName
-                  }}
-                </strong>
+                <strong>{{ payroll.period?.period_name ?? '—' }}</strong>
 
                 <span>
-                  {{
-                    formatDate(
-                      payroll.periodStart,
-                    )
-                  }}
+                  {{ formatDate(payroll.period?.pay_period_start) }}
                   →
-                  {{
-                    formatDate(
-                      payroll.periodEnd,
-                    )
-                  }}
+                  {{ formatDate(payroll.period?.pay_period_end) }}
                 </span>
-
               </div>
-
             </td>
 
             <!-- BASIC -->
 
             <td>
-
-              <strong class="basic-pay">
-                {{
-                  money(
-                    payroll.basicPay,
-                  )
-                }}
-              </strong>
-
+              <strong class="basic-pay">{{ money(payroll.basic_pay) }}</strong>
             </td>
 
             <!-- OT -->
 
             <td>
+              <span class="ot-pay">{{ money(payroll.overtime_pay) }}</span>
+            </td>
 
-              <span class="ot-pay">
-                {{
-                  money(
-                    payroll.overtimePay,
-                  )
-                }}
-              </span>
+            <!-- HOLIDAY -->
 
+            <td>
+              <span class="holiday-pay">{{ money(payroll.holiday_pay ?? 0) }}</span>
             </td>
 
             <!-- ALLOWANCE -->
 
             <td>
-
-              <span>
-                {{
-                  money(
-                    payroll.allowances,
-                  )
-                }}
-              </span>
-
+              <span>{{ money(payroll.allowance_pay) }}</span>
             </td>
 
             <!-- GROSS -->
 
             <td>
-
-              <strong class="gross">
-                {{
-                  money(
-                    payroll.grossPay,
-                  )
-                }}
-              </strong>
-
+              <strong class="gross">{{ money(payroll.gross_pay) }}</strong>
             </td>
 
             <!-- DEDUCTION -->
 
             <td>
-
-              <span class="deduction">
-                {{
-                  money(
-                    payroll.totalDeductions,
-                  )
-                }}
-              </span>
-
+              <span class="deduction">{{ money(payroll.total_deductions) }}</span>
             </td>
 
             <!-- NET -->
 
             <td>
-
-              <strong class="net">
-                {{
-                  money(
-                    payroll.netPay,
-                  )
-                }}
-              </strong>
-
+              <strong class="net">{{ money(payroll.net_pay) }}</strong>
             </td>
 
             <!-- PAYROLL STATUS -->
 
             <td>
-
-              <StatusBadge
-                :status="
-                  payroll.payrollStatus
-                "
-              />
-
+              <StatusBadge :status="payroll.status" />
             </td>
 
-            <!-- PAYMENT -->
+            <!-- PAYMENT DATE -->
 
             <td>
-
-              <span
-                class="payment-badge"
-                :class="
-                  paymentClass(
-                    payroll.paymentStatus,
-                  )
-                "
-              >
-
-                <CreditCard :size="11" />
-
-                {{
-                  payroll.paymentStatus
-                }}
-
-              </span>
-
-            </td>
-
-            <!-- REFERENCE -->
-
-            <td>
-
-              <div
-                v-if="
-                  payroll.referenceNumber
-                "
-                class="reference-cell"
-              >
-
-                <FileCheck2
-                  :size="12"
-                />
-
-                <span>
-                  {{
-                    payroll.referenceNumber
-                  }}
-                </span>
-
-              </div>
-
-              <span
-                v-else
-                class="no-reference"
-              >
-                —
-              </span>
-
+              {{ formatDate(payroll.period?.payment_date) }}
             </td>
 
             <!-- ACTION -->
 
             <td>
-
-              <PayrollActionMenu :label="'Actions for ' + payroll.employeeName" :items="[{ key: 'details', label: 'View Payroll Details' }, { key: 'payslip', label: 'Payslip Preview' }, { key: 'history', label: 'Payment History' }]" @select="mode => emit('action', mode, payroll)" />
-
+              <PayrollActionMenu :label="'Actions for ' + payroll.employee.name" :items="[{ key: 'details', label: 'View Payroll Details' }, { key: 'payslip', label: 'Payslip Preview' }, { key: 'history', label: 'Payment History' }]" @select="mode => emit('action', mode, payroll)" />
             </td>
 
           </tr>
@@ -649,6 +457,13 @@ tbody tr:hover {
   white-space: nowrap;
 }
 
+.holiday-pay {
+  color:
+    var(--orange);
+
+  white-space: nowrap;
+}
+
 .deduction {
   color:
     var(--red);
@@ -663,87 +478,6 @@ tbody tr:hover {
   font-size: 10px;
 
   white-space: nowrap;
-}
-
-/* PAYMENT */
-
-.payment-badge {
-  display: inline-flex;
-
-  align-items: center;
-
-  gap: 4px;
-
-  padding:
-    5px 7px;
-
-  border-radius: 20px;
-
-  font-size: 8px;
-  font-weight: 650;
-
-  white-space: nowrap;
-}
-
-.payment-badge.unpaid {
-  background:
-    var(--bg-card-soft);
-
-  color:
-    var(--text-secondary);
-}
-
-.payment-badge.pending {
-  background:
-    var(--orange-soft);
-
-  color:
-    var(--orange);
-}
-
-.payment-badge.paid {
-  background:
-    var(--green-soft);
-
-  color:
-    var(--green);
-}
-
-.payment-badge.released {
-  background:
-    var(--primary-soft);
-
-  color:
-    var(--primary);
-}
-
-/* REFERENCE */
-
-.reference-cell {
-  display: flex;
-
-  min-width: 150px;
-
-  align-items: center;
-
-  gap: 5px;
-
-  color:
-    var(--green);
-}
-
-.reference-cell span {
-  color:
-    var(--text-secondary);
-
-  font-size: 8px;
-
-  white-space: nowrap;
-}
-
-.no-reference {
-  color:
-    var(--text-muted);
 }
 
 /* ACTION */

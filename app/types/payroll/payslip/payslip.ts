@@ -17,9 +17,14 @@ export interface PayslipListItem {
   name: string
   department: string | null
   payroll_group: string | null
+  basic_pay: number
+  overtime_pay: number
+  holiday_pay: number
+  allowance_pay: number
   gross_pay: number
   total_deductions: number
   net_pay: number
+  status: 'draft' | 'finalized'
 }
 
 export interface PayslipList {
@@ -47,6 +52,12 @@ export interface Payslip {
     payroll_group: string | null
     salary_type: string | null
     basic_salary: number
+  }
+  days: {
+    worked: number
+    paid_holidays: number
+    unpaid_leave: number
+    total_paid: number
   }
   earnings: PayslipLine[]
   time_deductions: PayslipLine[]

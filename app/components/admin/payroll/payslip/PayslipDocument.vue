@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { Payslip } from '~/types/payroll/payslip/payslip'
 
-defineProps<{
+const props = defineProps<{
   payslip: Payslip
 }>()
 
@@ -15,6 +15,15 @@ const date = (value?: string | null) => {
     ? value
     : new Intl.DateTimeFormat('en-US', { month: 'long', day: 'numeric', year: 'numeric' }).format(d)
 }
+
+// The basic pay line says "Semi-monthly rate"; that note is not shown on the payslip
+const isRateNote = (note: string) => /\brate$/i.test(note.trim())
+
+// Basic Pay line: total paid days (days worked + paid holidays), number only
+const basicDays = computed(() => {
+  const n = Number(props.payslip.days?.total_paid ?? 0)
+  return Number.isInteger(n) ? String(n) : n.toFixed(2)
+})
 
 const range = (start?: string | null, end?: string | null) => `${date(start)} â€“ ${date(end)}`
 </script>
@@ -44,8 +53,7 @@ const range = (start?: string | null, end?: string | null) => `${date(start)} â€
       <dl>
         <div><dt>Payroll Period</dt><dd>{{ range(payslip.period.pay_period_start, payslip.period.pay_period_end) }}</dd></div>
         <div><dt>Cut-off Period</dt><dd>{{ range(payslip.period.cutoff_start, payslip.period.cutoff_end) }}</dd></div>
-        <div><dt>Payment Date</dt><dd>{{ date(payslip.period.payment_date) }}</dd></div>
-        <div><dt>Basic Salary</dt><dd>{{ money(payslip.employee.basic_salary) }}</dd></div>
+
       </dl>
     </section>
 
@@ -55,12 +63,16 @@ const range = (start?: string | null, end?: string | null) => `${date(start)} â€
         <h3>Earnings</h3>
         <table>
           <tbody>
-            <tr v-for="line in payslip.earnings" :key="line.label">
-              <td>{{ line.label }} <small v-if="line.note">{{ line.note }}</small></td>
+            <tr v-for="(line, index) in payslip.earnings" :key="`e-${index}`">
+              <td>
+                {{ line.label }}
+                <small v-if="index === 0" class="inline-note">{{ basicDays }}</small>
+                <small v-else-if="line.note && !isRateNote(line.note)">{{ line.note }}</small>
+              </td>
               <td class="amt">{{ money(line.amount) }}</td>
             </tr>
-            <tr v-for="line in payslip.time_deductions" :key="line.label">
-              <td>Less: {{ line.label }} <small v-if="line.note">{{ line.note }}</small></td>
+            <tr v-for="(line, index) in payslip.time_deductions" :key="`t-${index}`">
+              <td>Less: {{ line.label }} <small v-if="line.note" class="inline-note">{{ line.note }}</small></td>
               <td class="amt minus">({{ money(line.amount) }})</td>
             </tr>
           </tbody>
@@ -145,9 +157,10 @@ const range = (start?: string | null, end?: string | null) => `${date(start)} â€
 
 .ps-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; padding: 18px 0; }
 .ps-col h3 { margin: 0 0 10px; font-size: 14px; text-transform: uppercase; letter-spacing: .06em; color: var(--text-secondary); }
-.ps-col table { width: 100%; border-collapse: collapse; }
+.ps-col table { position: relative; width: 100%; border-collapse: collapse; }
 .ps-col td { padding: 7px 0; border-bottom: 1px solid var(--border-soft); vertical-align: top; }
 .ps-col td small { display: block; color: var(--text-muted); font-size: 11px; }
+.ps-col td small.inline-note { position: absolute; left: 50%; display: inline; transform: translateX(-50%); }
 .ps-col tfoot td { padding-top: 10px; border-bottom: none; font-weight: 700; }
 .amt { text-align: right; white-space: nowrap; }
 .minus { color: #f87171; }

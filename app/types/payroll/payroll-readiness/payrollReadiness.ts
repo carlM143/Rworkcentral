@@ -17,6 +17,25 @@ export interface ReadinessPending {
   transfers: number
 }
 
+/** How one holiday in the cut-off applies to an employee. */
+export interface ReadinessHoliday {
+  date: string
+  holiday_id: number
+  holiday_name: string
+  type: string | null
+  covered: boolean
+  worked: boolean
+  rest_day: boolean
+  paid: boolean
+  reason: string
+}
+
+/** Holidays that fall in the cut-off, grouped by date. */
+export interface ReadinessPeriodHoliday {
+  date: string
+  holidays: { id: number, name: string, type: string | null }[]
+}
+
 export interface ReadinessEmployee {
   employee_id: number
   emp_id: string
@@ -33,6 +52,11 @@ export interface ReadinessEmployee {
   salary_type: string | null
   time_logs_count: number
   incomplete_logs_count: number
+  /** Unworked holidays the employee is paid for. */
+  paid_holidays_count: number
+  /** Time logs + paid holidays. */
+  paid_days_count: number
+  holidays: ReadinessHoliday[]
   pending: ReadinessPending
   status: ReadinessStatus
   issues: ReadinessIssue[]
@@ -77,6 +101,7 @@ export interface ReadinessPeriod {
 export interface PayrollReadinessResult {
   period: ReadinessPeriod
   period_issues: ReadinessIssue[]
+  period_holidays: ReadinessPeriodHoliday[]
   stats: ReadinessStats
   groups: ReadinessGroupSummary[]
   employees: ReadinessEmployee[]

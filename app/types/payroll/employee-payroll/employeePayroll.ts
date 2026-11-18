@@ -18,6 +18,7 @@ export interface EmployeePayrollRow {
   } | null
   basic_pay: number
   overtime_pay: number
+  holiday_pay: number
   allowance_pay: number
   gross_pay: number
   total_deductions: number

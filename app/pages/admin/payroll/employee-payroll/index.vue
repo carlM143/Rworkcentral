@@ -198,7 +198,6 @@ onBeforeUnmount(() => {
       </template>
 
       <template #headers>
-        <th>Payslip No.</th>
         <th>Employee</th>
         <th>Pay Period</th>
         <th class="num">Basic Pay</th>
@@ -218,7 +217,7 @@ onBeforeUnmount(() => {
           :class="{ clickable: row.status === 'finalized' }"
           @click="openPayslip(row)"
         >
-          <td><span class="mono">{{ row.payslip_no ?? '—' }}</span></td>
+
           <td>
             <strong>{{ row.employee.name }}</strong>
             <small class="sub">{{ row.employee.emp_id }}<template v-if="row.employee.department"> · {{ row.employee.department }}</template></small>

@@ -3,7 +3,7 @@ import { Eye } from 'lucide-vue-next'
 import PayrollBreakdownModal from '~/components/admin/payroll/payroll-generation/PayrollBreakdownModal.vue'
 import type { Money, PayrollRecord } from '~/types/payroll/payroll-generation/payrollGeneration'
 
-const props = withDefaults(defineProps<{
+withDefaults(defineProps<{
   payrolls: PayrollRecord[]
   loading?: boolean
 }>(), {
@@ -20,9 +20,12 @@ const money = (value: Money | null | undefined) =>
 const name = (p: PayrollRecord) =>
   p.employee ? `${p.employee.lastname}, ${p.employee.firstname}` : `Employee #${p.employee_id}`
 
+// Late, undertime, unpaid leave and unpaid holidays — all reduce gross pay
 const timeDeductions = (p: PayrollRecord) =>
-  num(p.late_deduction) + num(p.undertime_deduction) + num(p.unpaid_leave_deduction)
-
+  num(p.late_deduction)
+  + num(p.undertime_deduction)
+  + num(p.unpaid_leave_deduction)
+  + num(p.unpaid_holiday_deduction)
 </script>
 
 <template>
@@ -31,7 +34,7 @@ const timeDeductions = (p: PayrollRecord) =>
     description="Computed pay for each employee in this period. Click a row to see the full breakdown."
     :has-rows="payrolls.length > 0"
     :loading="loading"
-    min-width="1200px"
+    min-width="1300px"
     empty-title="No payroll records yet"
     empty-description="Generate payroll to see the computed results here."
   >
@@ -40,7 +43,8 @@ const timeDeductions = (p: PayrollRecord) =>
       <th class="num">Basic Pay</th>
       <th class="num">Allowance</th>
       <th class="num">Overtime</th>
-      <th class="num">Late / UT / Leave</th>
+      <th class="num">Holiday Pay</th>
+      <th class="num">Late / UT / Leave / Holiday</th>
       <th class="num">Gross Pay</th>
       <th class="num">Contributions</th>
       <th class="num">Loans</th>
@@ -68,6 +72,7 @@ const timeDeductions = (p: PayrollRecord) =>
         <td class="num">{{ money(p.basic_pay) }}</td>
         <td class="num">{{ num(p.allowance_pay) ? money(p.allowance_pay) : '—' }}</td>
         <td class="num">{{ num(p.overtime_pay) ? money(p.overtime_pay) : '—' }}</td>
+        <td class="num plus">{{ num(p.holiday_pay) ? `+ ${money(p.holiday_pay)}` : '—' }}</td>
         <td class="num minus">{{ timeDeductions(p) ? `− ${money(timeDeductions(p))}` : '—' }}</td>
         <td class="num"><strong>{{ money(p.gross_pay) }}</strong></td>
         <td class="num minus">{{ num(p.contributions_total) ? `− ${money(p.contributions_total)}` : '—' }}</td>
@@ -93,7 +98,6 @@ const timeDeductions = (p: PayrollRecord) =>
         </td>
       </tr>
     </template>
-
   </BaseDataTable>
 
   <PayrollBreakdownModal
@@ -103,86 +107,21 @@ const timeDeductions = (p: PayrollRecord) =>
 </template>
 
 <style scoped>
-.num {
-  text-align: right;
-  white-space: nowrap;
-}
-
-.minus {
-  color: #f87171;
-}
-
-.net {
-  color: #22c55e;
-}
-
-.clickable {
-  cursor: pointer;
-}
+.num { text-align: right; white-space: nowrap; }
+.minus { color: #f87171; }
+.plus { color: #22c55e; }
+.net { color: #22c55e; }
+.clickable { cursor: pointer; }
 
 .stack strong,
-.stack span {
-  display: block;
-}
+.stack span { display: block; }
+.stack strong { color: var(--text-primary); font-size: 12px; }
+.stack span { margin-top: 3px; color: var(--text-muted); font-size: 10px; }
 
-.stack strong {
-  color: var(--text-primary);
-  font-size: 12px;
-}
+.pill { display: inline-flex; padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+.pill--draft { background: rgb(251 146 60 / 12%); color: #fb923c; }
+.pill--finalized { background: rgb(34 197 94 / 11%); color: #22c55e; }
 
-.stack span {
-  margin-top: 3px;
-  color: var(--text-muted);
-  font-size: 10px;
-}
-
-.pill {
-  display: inline-flex;
-  padding: 4px 10px;
-  border-radius: 20px;
-  font-size: 11px;
-  font-weight: 600;
-}
-
-.pill--draft {
-  background: rgb(251 146 60 / 12%);
-  color: #fb923c;
-}
-
-.pill--finalized {
-  background: rgb(34 197 94 / 11%);
-  color: #22c55e;
-}
-
-.view-btn {
-  display: inline-grid;
-  width: 30px;
-  height: 30px;
-  place-items: center;
-  border: 1px solid var(--border);
-  border-radius: 7px;
-  background: transparent;
-  color: var(--text-secondary);
-  cursor: pointer;
-}
-
-.view-btn:hover {
-  background: var(--primary-soft);
-  color: var(--primary);
-}
-
-.summary {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 18px;
-  padding: 12px 16px;
-  border-top: 1px solid var(--border-soft);
-  color: var(--text-secondary);
-  font-size: 12px;
-}
-
-.summary strong {
-  color: var(--text-primary);
-}
+.view-btn { display: inline-grid; width: 30px; height: 30px; place-items: center; border: 1px solid var(--border); border-radius: 7px; background: transparent; color: var(--text-secondary); cursor: pointer; }
+.view-btn:hover { background: var(--primary-soft); color: var(--primary); }
 </style>

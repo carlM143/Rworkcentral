@@ -62,7 +62,7 @@ const frequencyLabel = (value?: string) => ({
       <th>Employee</th>
       <th>Payroll Group</th>
       <th>Salary</th>
-      <th>Time Logs</th>
+      <th>Paid Days</th>
       <th>Pending Approvals</th>
       <th>Status</th>
       <th>Issues</th>
@@ -107,13 +107,21 @@ const frequencyLabel = (value?: string) => ({
         </td>
 
         <td>
-          <div class="stack">
-            <strong>{{ row.time_logs_count }}</strong>
-            <span
-              v-if="row.incomplete_logs_count"
-              class="warn-text"
-            >{{ row.incomplete_logs_count }} incomplete</span>
-          </div>
+          <strong>{{ row.paid_days_count ?? row.time_logs_count }}</strong>
+
+          <template v-if="row.paid_holidays_count">
+            <small class="sub">
+              {{ row.time_logs_count }} logs + {{ row.paid_holidays_count }}
+              paid {{ row.paid_holidays_count === 1 ? 'holiday' : 'holidays' }}
+            </small>
+            <small
+              v-for="h in (row.holidays ?? []).filter(d => d.paid && !d.worked)"
+              :key="h.date"
+              class="sub c-ready"
+            >
+              {{ h.holiday_name }}
+            </small>
+          </template>
         </td>
 
         <td>
@@ -254,4 +262,9 @@ const frequencyLabel = (value?: string) => ({
 .issues .warning {
   color: var(--text-secondary);
 }
+
+.sub { display: block; margin-top: 3px; font-size: 10px; }
+.c-ready { color: #22c55e; }
+.c-muted { color: var(--text-muted); }
+
 </style>

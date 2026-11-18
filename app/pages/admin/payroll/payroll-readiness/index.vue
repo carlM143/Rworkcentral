@@ -15,15 +15,11 @@ import {
 import PayrollReadinessFilter from '~/components/admin/payroll/payroll-readiness/PayrollReadinessFilter.vue'
 import PayrollReadinessStats from '~/components/admin/payroll/payroll-readiness/PayrollReadinessStats.vue'
 import PayrollReadinessTable from '~/components/admin/payroll/payroll-readiness/PayrollReadinessTable.vue'
-import PayrollResultsTable from '~/components/admin/payroll/payroll-generation/PayrollResultsTable.vue'
 import type {
   PeriodStatus,
   ReadinessStatus,
 } from '~/types/payroll/payroll-readiness/payrollReadiness'
-import type {
-  PayrollGenerationResult,
-  PayrollRecord,
-} from '~/types/payroll/payroll-generation/payrollGeneration'
+import type { PayrollGenerationResult } from '~/types/payroll/payroll-generation/payrollGeneration'
 
 import ConfirmationModal from '~/components/ui/ConfirmationModal.vue'
 
@@ -39,9 +35,8 @@ const generationApi = usePayrollGeneration()
 const { readiness, loading, updatingStatus } = readinessApi
 const { periods } = periodApi
 const { groups } = groupApi
-const { generating, finalizing, loadingPayrolls } = generationApi
+const { generating, finalizing } = generationApi
 
-const payrolls = ref<PayrollRecord[]>([])
 const showChecks = ref(false)
 
 const generationResult = ref<PayrollGenerationResult | null>(null)
@@ -54,6 +49,7 @@ const search = ref('')
 const errorMessage = ref('')
 
 const ASSIGN_ROUTE = '/admin/payroll/payroll-group/assign-employee/create'
+const EMPLOYEE_PAYROLL_ROUTE = '/admin/payroll/employee-payroll'
 
 const formatDate = (value?: string | null) => {
   if (!value) return '—'
@@ -79,12 +75,6 @@ const periodStatus = computed(() => (period.value?.status ?? '').toLowerCase())
 
 const isProcessed = computed(() => ['processing', 'closed'].includes(periodStatus.value))
 const showReadiness = computed(() => !isProcessed.value || showChecks.value)
-
-const visiblePayrolls = computed(() =>
-  groupId.value
-    ? payrolls.value.filter(p => p.payroll_group_id === groupId.value)
-    : payrolls.value,
-)
 
 const periodBlockers = computed(() =>
   readiness.value?.period_issues.filter(i => i.severity === 'blocker') ?? [],
@@ -119,21 +109,6 @@ const load = async () => {
 
   try {
     await readinessApi.fetchReadiness(periodId.value, groupId.value)
-    await loadPayrolls()
-  } catch (err) {
-    errorMessage.value = readinessApi.getErrorMessage(err)
-  }
-}
-
-const loadPayrolls = async () => {
-  if (!periodId.value || !isProcessed.value) {
-    payrolls.value = []
-    return
-  }
-
-  try {
-    const data = await generationApi.fetchPayrolls(periodId.value)
-    payrolls.value = data.payrolls
   } catch (err) {
     errorMessage.value = readinessApi.getErrorMessage(err)
   }
@@ -356,11 +331,12 @@ onMounted(async () => {
           <StatusBadge :status="period.status" />
 
           <AppButton
-            v-if="periodStatus === 'closed'"
+            v-if="isProcessed"
+            variant="secondary"
             :icon="FileText"
-            @click="navigateTo({ path: '/admin/payroll/payslip', query: { period: String(period.id) } })"
+            @click="navigateTo({ path: EMPLOYEE_PAYROLL_ROUTE, query: { period: String(period.id) } })"
           >
-            View Payslips
+            View Employee Payroll
           </AppButton>
 
           <AppButton
@@ -459,11 +435,6 @@ onMounted(async () => {
       </div>
 
       <template v-if="isProcessed">
-        <PayrollResultsTable
-          :payrolls="visiblePayrolls"
-          :loading="loadingPayrolls"
-        />
-
         <div class="checks-toggle">
           <AppButton
             variant="secondary"
