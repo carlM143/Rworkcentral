@@ -30,6 +30,7 @@ import {
   History,
   ReceiptText,
   ShieldCheck,
+  Scale,
 } from 'lucide-vue-next'
 
 import NotificationBell from '~/components/admin/notifications/NotificationBell.vue'
@@ -228,6 +229,26 @@ const menuItems = [
         label: 'Payslips',
         to: '/admin/payroll-payslips',
         icon: ReceiptText,
+      },
+    ],
+  },
+
+  {
+    label: 'Compensation',
+    key: 'compensation',
+    icon: Scale,
+    children: [
+      {
+        label: 'Wage Orders',
+        to: '/admin/settings/compensation/wage-orders',
+      },
+      {
+        label: 'Wage Adjustments',
+        to: '/admin/settings/compensation/wage-adjustments',
+      },
+      {
+        label: 'Regional Rates',
+        to: '/admin/settings/compensation/regional-rates',
       },
     ],
   },
@@ -485,11 +506,23 @@ const isRouteActive = (to?: string) => {
   return route.path === to
 }
 
+// The submenu item whose path is the longest prefix of the current page,
+// so detail pages (e.g. /wage-orders/3/apply) highlight "Wage Orders".
+const activeChildPath = (
+  children?: { to: string }[],
+) => {
+  return (children ?? [])
+    .filter(child => route.path === child.to || route.path.startsWith(`${child.to}/`))
+    .sort((a, b) => b.to.length - a.to.length)[0]?.to ?? null
+}
+
 const hasActiveChild = (
   children?: { to: string }[],
 ) => {
   return children?.some((child) => {
     if (route.path === child.to) return true
+
+    if (activeChildPath(children) === child.to) return true
 
     if (
       child.to === '/admin/employees' &&
@@ -502,19 +535,7 @@ const hasActiveChild = (
   }) ?? false
 }
 
-// System › Compensation submenu (detail pages keep the item active).
-const compensationMenu = [
-  { label: 'Wage Orders', to: '/admin/settings/compensation/wage-orders' },
-  { label: 'Wage Adjustments', to: '/admin/settings/compensation/wage-adjustments' },
-  { label: 'Regional Rates', to: '/admin/settings/compensation/regional-rates' },
-]
-
-const isCompensationRoute = computed(() =>
-  route.path.startsWith('/admin/settings/compensation'),
-)
-
 const expandActiveMenu = () => {
-  if (isCompensationRoute.value) openMenus.compensation = true
 
   visibleMenuItems.value.forEach((item) => {
     if (
@@ -788,7 +809,7 @@ onBeforeUnmount(() => {
                     :to="child.to"
                     class="submenu-link"
                     :class="{
-                      active: isRouteActive(child.to),
+                      active: activeChildPath(item.children) === child.to,
                     }"
                     @click="sidebarOpen = false"
                   >
@@ -821,48 +842,6 @@ onBeforeUnmount(() => {
           <span>Settings</span>
         </NuxtLink>
 
-        <!-- COMPENSATION: wage orders and regional minimum wage -->
-        <div class="menu-group">
-          <button
-            type="button"
-            class="menu-link menu-button"
-            :class="{ active: isCompensationRoute }"
-            :aria-expanded="openMenus.compensation"
-            @click="toggleMenu('compensation')"
-          >
-            <WalletCards
-              :size="19"
-              :stroke-width="1.9"
-            />
-
-            <span>Compensation</span>
-
-            <component
-              :is="openMenus.compensation ? ChevronDown : ChevronRight"
-              class="menu-arrow"
-              :size="17"
-            />
-          </button>
-
-          <Transition name="submenu">
-            <div
-              v-show="openMenus.compensation"
-              class="submenu"
-            >
-              <NuxtLink
-                v-for="child in compensationMenu"
-                :key="child.to"
-                :to="child.to"
-                class="submenu-link"
-                :class="{ active: route.path.startsWith(child.to) }"
-                @click="sidebarOpen = false"
-              >
-                <span class="submenu-dot" />
-                {{ child.label }}
-              </NuxtLink>
-            </div>
-          </Transition>
-        </div>
       </div>
 
       <!-- LOGGED-IN USER -->

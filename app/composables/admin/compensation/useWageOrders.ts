@@ -83,6 +83,17 @@ export interface WageEmployee {
   suggested_salary: number | null
   included: number | null
   blocked_reason: string | null
+  blocking: {
+    id: number
+    status: 'pending' | 'approved'
+    type: string
+    source: 'wage_order' | 'manual'
+    order_no: string | null
+    this_order: boolean
+    previous_salary: number
+    new_salary: number
+    effective_date: string
+  } | null
 }
 
 export interface WageEmployeesResponse {
@@ -251,10 +262,14 @@ export const useWageOrders = () => {
       { method: 'PATCH', body: { action, ids } },
     )
 
+  // Delete a salary adjustment that is not applied yet (wage order or manual).
+  const deleteAdjustment = (adjustmentId: number) =>
+    $api<ApiResponse<null>>(`/admin/salary-adjustments/${adjustmentId}`, { method: 'DELETE' })
+
   const regionalRates = () => $api<ApiResponse<RegionalRates>>('/admin/regional-rates', { method: 'GET' })
 
   const updateLocation = (id: number, payload: { region_code: string, wage_classification: string }) =>
     $api<ApiResponse<RegionalRates['locations'][number]>>(`/admin/regional-rates/locations/${id}`, { method: 'PATCH', body: payload })
 
-  return { meta, list, show, store, update, destroy, publish, cancel, uploadDocument, deleteDocument, employees, apply, wageAdjustments, bulkAdjustments, regionalRates, updateLocation }
+  return { meta, list, show, store, update, destroy, publish, cancel, uploadDocument, deleteDocument, employees, apply, wageAdjustments, bulkAdjustments, deleteAdjustment, regionalRates, updateLocation }
 }

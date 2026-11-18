@@ -3,16 +3,20 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import {
   AlertTriangle,
   ArrowLeft,
-  ArrowRight,
+  CalendarDays,
   CheckCircle2,
   CircleCheckBig,
+  Coins,
+  Gift,
   Pencil,
   Plus,
   Save,
   Trash2,
+  WalletCards,
   X,
   XCircle,
 } from 'lucide-vue-next'
+import DriverStatCard from '~/components/admin/drivers/DriverStatCard.vue'
 import AppConfirmModal from '~/components/shared/AppConfirmModal.vue'
 import { getSalaryAdjustmentApiError } from '~/composables/admin/salaryAdjustments/useSalaryAdjustments'
 import { useToast } from '~/composables/useToast'
@@ -47,6 +51,8 @@ interface AdjustmentDetail {
   new_allowance: Money
   allowances: ExtraAllowance[]
   allowances_total: Money
+  clears_allowances?: boolean
+  current_allowances?: ExtraAllowance[]
   effective_date: string
   reason: string | null
   status: Status
@@ -72,6 +78,7 @@ const router = useRouter()
 const { $api } = useNuxtApp()
 const { success, error: showError } = useToast()
 
+const LIST_PATH = '/admin/employees/salary-adjustments'
 const adjustmentId = Number(route.params.id)
 const item = ref<AdjustmentDetail | null>(null)
 const loading = ref(true)
@@ -96,10 +103,10 @@ onMounted(load)
 // FORMATTING
 // =====================================================
 
-const toNumber = (value: Money) => (value === null || value === '' ? 0 : Number(value))
+const toNumber = (value: Money) => (value === null || value === '' || value === undefined ? 0 : Number(value))
 
 const money = (value: Money) =>
-  value === null || value === ''
+  value === null || value === '' || value === undefined
     ? '—'
     : new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(Number(value))
 
@@ -119,15 +126,71 @@ const dateLabel = (value?: string | null) => {
 }
 
 const titleCase = (value: string) => value.charAt(0).toUpperCase() + value.slice(1)
-
-const basicDiff = computed(() => (item.value ? toNumber(item.value.new_basic_salary) - toNumber(item.value.previous_basic_salary) : 0))
-const allowanceDiff = computed(() => (item.value ? toNumber(item.value.new_allowance) - toNumber(item.value.previous_allowance) : 0))
-const newTotalPay = computed(() =>
-  item.value ? toNumber(item.value.new_basic_salary) + toNumber(item.value.new_allowance) + toNumber(item.value.allowances_total) : 0,
-)
+const sum = (rows: ExtraAllowance[]) => rows.reduce((total, row) => total + toNumber(row.amount), 0)
 
 // =====================================================
-// EDIT (pending only)
+// SALARY COMPARISON
+// =====================================================
+
+const currentExtras = computed(() => item.value?.current_allowances ?? [])
+
+// What the employee will have after this adjustment is applied.
+const newExtras = computed<ExtraAllowance[]>(() => {
+  if (!item.value) return []
+  if (item.value.allowances.length) return item.value.allowances
+  return item.value.clears_allowances ? [] : currentExtras.value
+})
+
+const extrasUnchanged = computed(() => !!item.value && !item.value.allowances.length && !item.value.clears_allowances)
+
+const rows = computed(() => {
+  const a = item.value
+  if (!a) return []
+  const list = [
+    { label: 'Basic salary', before: toNumber(a.previous_basic_salary), after: toNumber(a.new_basic_salary) },
+    { label: 'Allowance', before: toNumber(a.previous_allowance), after: toNumber(a.new_allowance) },
+    { label: 'Additional allowances', before: sum(currentExtras.value), after: sum(newExtras.value) },
+  ]
+  return [
+    ...list,
+    { label: 'Total', before: list.reduce((t, r) => t + r.before, 0), after: list.reduce((t, r) => t + r.after, 0), total: true },
+  ]
+})
+
+const basicDiff = computed(() => (item.value ? toNumber(item.value.new_basic_salary) - toNumber(item.value.previous_basic_salary) : 0))
+
+const totalRow = computed(() => rows.value[rows.value.length - 1] ?? { before: 0, after: 0 })
+
+// One line per allowance name: current vs new.
+const extraLines = computed(() => {
+  const lines = new Map<string, { name: string, current: number | null, next: number | null }>()
+  currentExtras.value.forEach(row => lines.set(row.allowance_name.toLowerCase(), { name: row.allowance_name, current: toNumber(row.amount), next: null }))
+  newExtras.value.forEach((row) => {
+    const key = row.allowance_name.toLowerCase()
+    const existing = lines.get(key)
+    lines.set(key, { name: existing?.name ?? row.allowance_name, current: existing?.current ?? null, next: toNumber(row.amount) })
+  })
+  return [...lines.values()]
+})
+
+const changeTag = (line: { current: number | null, next: number | null }) => {
+  if (line.current === null) return { label: 'New', tone: 'up' }
+  if (line.next === null) return { label: 'Removed', tone: 'down' }
+  if (line.next > line.current) return { label: 'Increased', tone: 'up' }
+  if (line.next < line.current) return { label: 'Decreased', tone: 'down' }
+  return { label: 'No change', tone: '' }
+}
+
+// =====================================================
+// PERMISSIONS BY STATUS
+// =====================================================
+
+const canEdit = computed(() => !!item.value && ['pending', 'approved'].includes(item.value.status))
+const canDelete = computed(() => !!item.value && item.value.status !== 'applied')
+const isFutureEffective = computed(() => !!item.value && item.value.effective_date > new Date().toISOString().slice(0, 10))
+
+// =====================================================
+// EDIT (pending or approved)
 // =====================================================
 
 interface ExtraRow { key: number, allowance_name: string, amount: string }
@@ -155,7 +218,8 @@ const startEdit = () => {
     new_basic_salary: item.value.new_basic_salary == null ? '' : String(item.value.new_basic_salary),
     new_allowance: item.value.new_allowance == null ? '' : String(item.value.new_allowance),
     reason: item.value.reason ?? '',
-    allowances: item.value.allowances.map(a => ({ key: ++rowKey, allowance_name: a.allowance_name, amount: String(a.amount ?? '') })),
+    // Start from the allowances the employee will have after this adjustment.
+    allowances: newExtras.value.map(a => ({ key: ++rowKey, allowance_name: a.allowance_name, amount: String(a.amount ?? '') })),
   })
   formError.value = ''
   fieldErrors.value = {}
@@ -174,7 +238,7 @@ const removeExtra = (key: number) => {
   form.allowances = form.allowances.filter(row => row.key !== key)
 }
 
-const extrasTotal = computed(() => form.allowances.reduce((sum, row) => sum + (Number(row.amount) || 0), 0))
+const extrasTotal = computed(() => form.allowances.reduce((total, row) => total + (Number(row.amount) || 0), 0))
 
 const isAmount = (value: string) => /^\d+(?:\.\d{1,2})?$/.test(value.trim())
 const fieldError = (key: string) => fieldErrors.value[key]?.[0] ?? ''
@@ -210,6 +274,8 @@ const saveEdit = async () => {
         new_basic_salary: Number(form.new_basic_salary),
         new_allowance: form.new_allowance.trim() ? Number(form.new_allowance) : null,
         reason: form.reason.trim() || null,
+        // The list below is complete: removed rows end those allowances.
+        replace_allowances: true,
         allowances: form.allowances.map(row => ({ allowance_name: row.allowance_name.trim(), amount: Number(row.amount) })),
       },
     })
@@ -226,10 +292,70 @@ const saveEdit = async () => {
 }
 
 // =====================================================
-// APPROVE / REJECT / APPLY
+// REMOVE AN ALLOWANCE (allowances are not permanent)
 // =====================================================
 
-type Action = 'approve' | 'reject' | 'apply'
+interface RemoveTarget { kind: 'base' | 'extra', name: string, amount: number }
+
+const removeTarget = ref<RemoveTarget | null>(null)
+const removing = ref(false)
+const removeError = ref('')
+
+const askRemove = (target: RemoveTarget) => {
+  removeError.value = ''
+  removeTarget.value = target
+}
+
+const removeMessage = computed(() => {
+  const t = removeTarget.value
+  if (!t || !item.value) return ''
+  const back = item.value.status === 'approved'
+    ? ' This adjustment is already approved, so it goes back to Pending for a new approval.'
+    : ''
+  return `${t.name} (${money(t.amount)}) will be removed from this adjustment. When it is applied, the employee no longer receives this allowance.${back}`
+})
+
+const confirmRemove = async () => {
+  const t = removeTarget.value
+  const a = item.value
+  if (!t || !a) return
+
+  const remaining = newExtras.value.filter(e => !(t.kind === 'extra' && e.allowance_name === t.name))
+  const newAllowance = t.kind === 'base' ? null : a.new_allowance
+  const after = toNumber(a.new_basic_salary) + toNumber(newAllowance) + sum(remaining)
+  const before = totalRow.value.before
+
+  removing.value = true
+  removeError.value = ''
+  try {
+    const response = await $api<ApiResponse<AdjustmentDetail>>(`/admin/salary-adjustments/${adjustmentId}`, {
+      method: 'PUT',
+      body: {
+        // Keep the type consistent with the new total.
+        adjustment_type: after > before ? 'increase' : after < before ? 'decrease' : a.adjustment_type,
+        effective_date: a.effective_date,
+        new_basic_salary: toNumber(a.new_basic_salary),
+        new_allowance: newAllowance === null ? null : toNumber(newAllowance),
+        reason: a.reason,
+        replace_allowances: true,
+        allowances: remaining.map(e => ({ allowance_name: e.allowance_name, amount: toNumber(e.amount) })),
+      },
+    })
+    item.value = response.data
+    removeTarget.value = null
+    success('Allowance removed', `${t.name} was removed from this adjustment.`)
+  } catch (err) {
+    removeError.value = getSalaryAdjustmentApiError(err).message
+  } finally {
+    removing.value = false
+  }
+}
+
+// =====================================================
+// APPROVE / REJECT / APPLY / DELETE
+// =====================================================
+
+type Action = 'approve' | 'reject' | 'apply' | 'delete'
 
 const confirmAction = ref<Action | null>(null)
 const acting = ref(false)
@@ -257,6 +383,13 @@ const ACTIONS: Record<Action, { title: string, message: string, label: string, d
     done: 'applied',
     danger: false,
   },
+  delete: {
+    title: 'Delete this salary adjustment?',
+    message: 'The adjustment and its allowance lines are removed permanently. The employee salary is not changed.',
+    label: 'Delete',
+    done: 'deleted',
+    danger: true,
+  },
 }
 
 const openAction = (action: Action) => {
@@ -270,6 +403,13 @@ const runAction = async () => {
   acting.value = true
   actionError.value = ''
   try {
+    if (action === 'delete') {
+      await $api(`/admin/salary-adjustments/${adjustmentId}`, { method: 'DELETE' })
+      confirmAction.value = null
+      success('Salary Adjustment Deleted', 'The adjustment was removed.')
+      await router.push(LIST_PATH)
+      return
+    }
     const response = await $api<ApiResponse<AdjustmentDetail>>(`/admin/salary-adjustments/${adjustmentId}/${action}`, { method: 'PATCH' })
     item.value = response.data
     confirmAction.value = null
@@ -281,111 +421,206 @@ const runAction = async () => {
     acting.value = false
   }
 }
-
-const isFutureEffective = computed(() => !!item.value && item.value.effective_date > new Date().toISOString().slice(0, 10))
 </script>
 
 <template>
-  <section class="detail-page">
-    <button type="button" class="back-link" @click="router.push('/admin/employees/salary-adjustments')">
-      <ArrowLeft :size="14" /> Back to Salary Adjustments
-    </button>
+  <section class="adjustment-page">
+    <PageHeader
+      title="Salary Adjustment"
+      :description="item ? `${item.employee_name} · salary change, allowances and approval history.` : 'Salary change, allowances and approval history.'"
+    >
+      <AppButton variant="secondary" :icon="ArrowLeft" :disabled="saving" @click="router.push(LIST_PATH)">
+        Back
+      </AppButton>
 
+      <template v-if="item && !editing">
+        <AppButton v-if="canEdit" variant="secondary" :icon="Pencil" @click="startEdit">Edit</AppButton>
+        <AppButton v-if="canDelete" variant="secondary" :icon="Trash2" @click="openAction('delete')">Delete</AppButton>
+        <AppButton v-if="item.status === 'pending'" variant="secondary" :icon="XCircle" @click="openAction('reject')">Reject</AppButton>
+        <AppButton v-if="item.status === 'pending'" :icon="CheckCircle2" @click="openAction('approve')">Approve</AppButton>
+        <AppButton v-if="item.status === 'approved'" :icon="CircleCheckBig" :disabled="isFutureEffective" @click="openAction('apply')">
+          Apply Adjustment
+        </AppButton>
+      </template>
+
+      <template v-if="editing">
+        <AppButton variant="secondary" :icon="X" :disabled="saving" @click="cancelEdit">Cancel</AppButton>
+        <AppButton :icon="Save" :disabled="saving" @click="saveEdit">{{ saving ? 'Saving...' : 'Save Changes' }}</AppButton>
+      </template>
+    </PageHeader>
+
+    <!-- LOADING / NOT FOUND -->
     <div v-if="loading" class="state-card">Loading salary adjustment...</div>
 
-    <div v-else-if="loadError || !item" class="state-card error">
-      <AlertTriangle :size="20" />
+    <div v-else-if="loadError || !item" class="state-card">
+      <AlertTriangle :size="20" class="state-icon" />
       <strong>Unable to load this salary adjustment</strong>
-      <span>{{ loadError || 'Record not found.' }}</span>
-      <AppButton variant="secondary" @click="load">Retry</AppButton>
+      <span>{{ loadError || 'This adjustment may have been removed.' }}</span>
+      <AppButton variant="secondary" :icon="ArrowLeft" @click="router.push(LIST_PATH)">Back to Salary Adjustments</AppButton>
     </div>
 
     <template v-else>
-      <!-- HEADER -->
-      <PageHeader
-        :title="`Salary Adjustment #${item.id}`"
-        :description="`${item.employee_name} · ${item.emp_id ?? `Employee #${item.employee_id}`}`"
-      >
-        <div class="header-actions">
-          <span class="status-label" :class="item.status">{{ titleCase(item.status) }}</span>
-
-          <template v-if="item.status === 'pending' && !editing">
-            <AppButton variant="secondary" :icon="Pencil" @click="startEdit">Edit</AppButton>
-            <AppButton variant="secondary" :icon="XCircle" class="reject-btn" @click="openAction('reject')">Reject</AppButton>
-            <AppButton :icon="CheckCircle2" @click="openAction('approve')">Approve</AppButton>
-          </template>
-
-          <template v-if="editing">
-            <AppButton variant="secondary" :icon="X" :disabled="saving" @click="cancelEdit">Cancel</AppButton>
-            <AppButton :icon="Save" :disabled="saving" @click="saveEdit">{{ saving ? 'Saving...' : 'Save Changes' }}</AppButton>
-          </template>
-
-          <AppButton v-if="item.status === 'approved'" :icon="CircleCheckBig" :disabled="isFutureEffective" @click="openAction('apply')">
-            Apply Adjustment
-          </AppButton>
+      <!-- SUMMARY -->
+      <section class="summary-card">
+        <div>
+          <span class="eyebrow">Salary Adjustment #{{ item.id }}</span>
+          <h2>{{ item.employee_name }}</h2>
+          <p>
+            {{ item.emp_id ?? `Employee #${item.employee_id}` }} · {{ item.salary_type || 'No salary type' }} ·
+            Effective {{ dateLabel(item.effective_date) }}
+          </p>
         </div>
-      </PageHeader>
+        <div class="summary-status">
+          <span class="status-pill" :class="item.status">{{ titleCase(item.status) }}</span>
+          <small v-if="item.status === 'approved'">
+            {{ isFutureEffective ? `Can be applied on ${dateLabel(item.effective_date)}` : 'Ready to apply' }}
+          </small>
+          <small v-else-if="item.status === 'pending'">Waiting for approval</small>
+          <small v-else-if="item.status === 'applied'">Applied {{ dateLabel(item.applied_at) }}</small>
+        </div>
+      </section>
 
-      <p v-if="item.status === 'approved' && isFutureEffective" class="notice">
-        Approved. It can be applied on {{ dateLabel(item.effective_date) }}, the effective date.
-      </p>
+      <!-- STATS -->
+      <section class="stats-grid">
+        <DriverStatCard
+          label="New Basic Salary"
+          :value="money(item.new_basic_salary)"
+          :description="`Was ${money(item.previous_basic_salary)} · ${signedMoney(basicDiff)}`"
+          accent="blue"
+          :icon="WalletCards"
+        />
+        <DriverStatCard
+          label="New Allowance"
+          :value="money(item.new_allowance ?? 0)"
+          :description="`Was ${money(item.previous_allowance ?? 0)}`"
+          accent="green"
+          :icon="Coins"
+        />
+        <DriverStatCard
+          label="Additional Allowances"
+          :value="money(sum(newExtras))"
+          :description="extrasUnchanged ? 'Unchanged' : `${newExtras.length} item${newExtras.length === 1 ? '' : 's'}`"
+          accent="purple"
+          :icon="Gift"
+        />
+        <DriverStatCard
+          label="Effective Date"
+          :value="dateLabel(item.effective_date)"
+          :description="`Total ${signedMoney(totalRow.after - totalRow.before)}`"
+          accent="orange"
+          :icon="CalendarDays"
+        />
+      </section>
 
-      <div class="content-grid">
-        <!-- LEFT: SALARY -->
+      <div class="detail-grid">
+        <!-- LEFT -->
         <div class="column">
-          <!-- VIEW -->
-          <section v-if="!editing" class="card">
-            <header class="card-header">
-              <h2>Salary Change</h2>
-              <p>Previous values were taken from the salary setup when the adjustment was filed.</p>
-            </header>
-
-            <div class="compare">
-              <div class="compare-row">
-                <span class="label">Basic salary</span>
-                <span class="before">{{ money(item.previous_basic_salary) }}</span>
-                <ArrowRight :size="14" class="arrow" />
-                <strong>{{ money(item.new_basic_salary) }}</strong>
-                <span class="diff" :class="{ up: basicDiff > 0, down: basicDiff < 0 }">{{ signedMoney(basicDiff) }}</span>
+          <template v-if="!editing">
+            <section class="panel">
+              <header class="panel-header">
+                <div>
+                  <h3>Salary Change</h3>
+                  <p>Previous basic salary and allowance were taken when the adjustment was filed.</p>
+                </div>
+              </header>
+              <div class="table-wrap">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th scope="col">Item</th>
+                      <th scope="col">Current</th>
+                      <th scope="col">New</th>
+                      <th scope="col">Difference</th>
+                      <th scope="col"><span class="sr-only">Remove</span></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="row in rows" :key="row.label" :class="{ 'total-row': 'total' in row }">
+                      <th scope="row">{{ row.label }}</th>
+                      <td>{{ money(row.before) }}</td>
+                      <td><strong>{{ money(row.after) }}</strong></td>
+                      <td>
+                        <span class="diff" :class="{ up: row.after > row.before, down: row.after < row.before }">
+                          {{ signedMoney(row.after - row.before) }}
+                        </span>
+                      </td>
+                      <td class="remove-cell">
+                        <button
+                          v-if="canEdit && row.label === 'Allowance' && row.after > 0"
+                          type="button"
+                          class="trash-btn"
+                          aria-label="Remove allowance"
+                          title="Remove allowance"
+                          @click="askRemove({ kind: 'base', name: 'Allowance', amount: row.after })"
+                        >
+                          <Trash2 :size="15" />
+                        </button>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
               </div>
-              <div class="compare-row">
-                <span class="label">Allowance</span>
-                <span class="before">{{ money(item.previous_allowance) }}</span>
-                <ArrowRight :size="14" class="arrow" />
-                <strong>{{ money(item.new_allowance) }}</strong>
-                <span class="diff" :class="{ up: allowanceDiff > 0, down: allowanceDiff < 0 }">{{ signedMoney(allowanceDiff) }}</span>
+            </section>
+
+            <section class="panel">
+              <header class="panel-header">
+                <div>
+                  <h3>Additional Allowances</h3>
+                  <p v-if="extrasUnchanged">This adjustment keeps the employee's current additional allowances.</p>
+                  <p v-else-if="item.clears_allowances">This adjustment ends all additional allowances.</p>
+                  <p v-else>The employee's additional allowances after this adjustment is applied.</p>
+                </div>
+              </header>
+              <div v-if="extraLines.length" class="table-wrap">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th scope="col">Allowance</th>
+                      <th scope="col">Current</th>
+                      <th scope="col">New</th>
+                      <th scope="col">Change</th>
+                      <th scope="col"><span class="sr-only">Remove</span></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="line in extraLines" :key="line.name">
+                      <th scope="row">{{ line.name }}</th>
+                      <td>{{ line.current === null ? '—' : money(line.current) }}</td>
+                      <td><strong>{{ line.next === null ? '—' : money(line.next) }}</strong></td>
+                      <td><span class="tag" :class="changeTag(line).tone">{{ changeTag(line).label }}</span></td>
+                      <td class="remove-cell">
+                        <button
+                          v-if="canEdit && line.next !== null"
+                          type="button"
+                          class="trash-btn"
+                          :aria-label="`Remove ${line.name}`"
+                          :title="`Remove ${line.name}`"
+                          @click="askRemove({ kind: 'extra', name: line.name, amount: line.next })"
+                        >
+                          <Trash2 :size="15" />
+                        </button>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
               </div>
-            </div>
-
-            <div class="extras">
-              <h3>Additional Allowances</h3>
-              <ul v-if="item.allowances.length" class="extra-list">
-                <li v-for="a in item.allowances" :key="a.id ?? a.allowance_name">
-                  <span>{{ a.allowance_name }}</span>
-                  <strong>{{ money(a.amount) }}</strong>
-                </li>
-                <li class="extra-total">
-                  <span>Total additional allowances</span>
-                  <strong>{{ money(item.allowances_total) }}</strong>
-                </li>
-              </ul>
-              <p v-else class="muted">None. Existing additional allowances stay as they are.</p>
-            </div>
-
-            <div class="total-pay">
-              <span>New basic + allowances</span>
-              <strong>{{ money(newTotalPay) }}</strong>
-            </div>
-          </section>
+              <p v-else class="empty">No additional allowances.</p>
+            </section>
+          </template>
 
           <!-- EDIT -->
-          <section v-else class="card">
-            <header class="card-header">
-              <h2>Edit Salary Adjustment</h2>
-              <p>Only pending adjustments can be edited. Previous values are refreshed from the current salary setup when you save.</p>
+          <section v-else class="panel">
+            <header class="panel-header">
+              <div>
+                <h3>Edit Salary Adjustment</h3>
+                <p>Change the salary, allowances or effective date. Remove a row to end that allowance.</p>
+              </div>
             </header>
 
             <div class="form-body">
+              <p v-if="item.status === 'approved'" class="notice">
+                This adjustment is already approved. Saving changes sends it back to <strong>Pending</strong> for a new approval.
+              </p>
               <p v-if="formError" class="form-error" role="alert">{{ formError }}</p>
 
               <div class="form-grid">
@@ -406,13 +641,13 @@ const isFutureEffective = computed(() => !!item.value && item.value.effective_da
                 <div class="field">
                   <label for="ed-basic">New Basic Salary (PHP) <span class="required">*</span></label>
                   <input id="ed-basic" v-model="form.new_basic_salary" inputmode="decimal" :disabled="saving">
-                  <small class="hint">Current: {{ money(item.previous_basic_salary) }}</small>
+                  <small>Current: {{ money(item.previous_basic_salary) }}</small>
                   <small v-if="fieldError('new_basic_salary')" class="error-text">{{ fieldError('new_basic_salary') }}</small>
                 </div>
                 <div class="field">
                   <label for="ed-allowance">New Allowance (PHP)</label>
                   <input id="ed-allowance" v-model="form.new_allowance" inputmode="decimal" placeholder="Leave blank for none" :disabled="saving">
-                  <small class="hint">Current: {{ money(item.previous_allowance) }}</small>
+                  <small>Current: {{ money(item.previous_allowance) }}</small>
                   <small v-if="fieldError('new_allowance')" class="error-text">{{ fieldError('new_allowance') }}</small>
                 </div>
               </div>
@@ -421,11 +656,11 @@ const isFutureEffective = computed(() => !!item.value && item.value.effective_da
                 <div class="extras-head">
                   <div>
                     <span class="extras-title">Additional Allowances</span>
-                    <small>e.g. Rice, Transportation. Leave empty to keep the employee's current ones.</small>
+                    <small>e.g. Rice, Transportation. Remove a row to end that allowance.</small>
                   </div>
-                  <button type="button" class="ghost-btn" :disabled="saving || form.allowances.length >= 20" @click="addExtra">
-                    <Plus :size="14" /> Add Allowance
-                  </button>
+                  <AppButton variant="secondary" size="sm" :icon="Plus" :disabled="saving || form.allowances.length >= 20" @click="addExtra">
+                    Add Allowance
+                  </AppButton>
                 </div>
 
                 <ul v-if="form.allowances.length" class="extra-rows">
@@ -437,7 +672,9 @@ const isFutureEffective = computed(() => !!item.value && item.value.effective_da
                     </button>
                   </li>
                 </ul>
-                <p v-else class="muted">No additional allowances.</p>
+                <p v-else class="empty compact">
+                  No additional allowances. Saving like this ends all of the employee's additional allowances when applied.
+                </p>
 
                 <div v-if="form.allowances.length" class="extras-sum">
                   <span>Total additional allowances</span>
@@ -455,21 +692,32 @@ const isFutureEffective = computed(() => !!item.value && item.value.effective_da
           </section>
         </div>
 
-        <!-- RIGHT: DETAILS + HISTORY -->
+        <!-- RIGHT -->
         <aside class="column">
-          <section class="card">
-            <header class="card-header"><h2>Details</h2></header>
-            <dl class="details">
+          <section class="panel">
+            <header class="panel-header">
+              <div>
+                <h3>Adjustment Details</h3>
+                <p>Who, what and when.</p>
+              </div>
+            </header>
+            <dl class="detail-list">
               <div><dt>Employee</dt><dd>{{ item.employee_name }}</dd></div>
-              <div><dt>Salary type</dt><dd>{{ item.salary_type || '—' }}</dd></div>
-              <div><dt>Adjustment</dt><dd><span class="type-label" :class="item.adjustment_type">{{ titleCase(item.adjustment_type) }}</span></dd></div>
-              <div><dt>Effective date</dt><dd>{{ dateLabel(item.effective_date) }}</dd></div>
-              <div class="block"><dt>Reason</dt><dd>{{ item.reason || 'Not provided' }}</dd></div>
+              <div><dt>Employee No.</dt><dd>{{ item.emp_id ?? '—' }}</dd></div>
+              <div><dt>Salary Type</dt><dd>{{ item.salary_type || '—' }}</dd></div>
+              <div><dt>Adjustment</dt><dd><span class="tag" :class="{ up: item.adjustment_type === 'increase', down: item.adjustment_type === 'decrease' }">{{ titleCase(item.adjustment_type) }}</span></dd></div>
+              <div><dt>Effective Date</dt><dd>{{ dateLabel(item.effective_date) }}</dd></div>
+              <div class="stacked"><dt>Reason</dt><dd>{{ item.reason || 'Not provided' }}</dd></div>
             </dl>
           </section>
 
-          <section class="card">
-            <header class="card-header"><h2>History</h2></header>
+          <section class="panel">
+            <header class="panel-header">
+              <div>
+                <h3>Approval History</h3>
+                <p>From filing to salary update.</p>
+              </div>
+            </header>
             <ol class="timeline">
               <li class="done">
                 <strong>Filed</strong>
@@ -496,6 +744,18 @@ const isFutureEffective = computed(() => !!item.value && item.value.effective_da
     </template>
 
     <AppConfirmModal
+      v-if="removeTarget"
+      :title="`Remove ${removeTarget.name}?`"
+      :message="removeMessage"
+      confirm-label="Remove allowance"
+      danger
+      :busy="removing"
+      :error="removeError"
+      @close="removeTarget = null"
+      @confirm="confirmRemove"
+    />
+
+    <AppConfirmModal
       v-if="confirmAction"
       :title="ACTIONS[confirmAction].title"
       :message="ACTIONS[confirmAction].message"
@@ -510,152 +770,502 @@ const isFutureEffective = computed(() => !!item.value && item.value.effective_da
 </template>
 
 <style scoped>
-.detail-page { width: 100%; max-width: 1400px; margin: 0 auto; }
-
-.back-link {
-  display: inline-flex; align-items: center; gap: 6px; margin-bottom: 10px; padding: 0;
-  border: 0; background: transparent; color: var(--primary); font-family: inherit; font-size: 12px; font-weight: 600; cursor: pointer;
+.adjustment-page {
+  width: 100%;
+  max-width: 1660px;
+  margin: 0 auto;
 }
-
-.back-link:focus-visible, .ghost-btn:focus-visible, .icon-btn:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
-
-.header-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-.reject-btn { color: #fb7185; }
 
 .state-card {
-  display: flex; min-height: 240px; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
-  border: 1px solid var(--border); border-radius: 12px; background: var(--bg-card); color: var(--text-muted); font-size: 13px;
+  display: flex;
+  min-height: 220px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 18px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-card);
+  color: var(--text-muted);
+  font-size: 13px;
 }
 
-.state-card.error { color: #fb7185; }
-.state-card strong { color: var(--text-primary); font-size: 15px; }
-
-.notice { margin: 0 0 14px; padding: 10px 12px; border-radius: 9px; background: rgba(59,130,246,.12); color: #93c5fd; font-size: 12px; }
-
-.content-grid { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(280px, 1fr); gap: 16px; align-items: start; }
-.column { display: grid; gap: 16px; }
-
-.card { overflow: hidden; border: 1px solid var(--border); border-radius: 12px; background: var(--bg-card); }
-.card-header { padding: 16px 18px 12px; border-bottom: 1px solid var(--border); }
-.card-header h2 { margin: 0; color: var(--text-primary); font-size: 15px; }
-.card-header p { margin: 4px 0 0; color: var(--text-muted); font-size: 12px; line-height: 1.5; }
-
-/* ===== View ===== */
-.compare { display: grid; gap: 8px; padding: 16px 18px; }
-
-.compare-row {
-  display: grid; grid-template-columns: 110px auto 16px auto 1fr; align-items: center; gap: 10px;
-  padding: 12px; border: 1px solid var(--border); border-radius: 9px; background: var(--bg-card-soft); font-size: 13px;
+.state-card strong {
+  color: var(--text-primary);
+  font-size: 15px;
 }
 
-.compare-row .label { color: var(--text-muted); font-size: 12px; }
-.compare-row .before { color: var(--text-secondary); }
-.compare-row .arrow { color: var(--text-muted); }
-.compare-row strong { color: var(--text-primary); }
-.diff { justify-self: end; color: var(--text-muted); font-weight: 600; white-space: nowrap; }
-.diff.up { color: #34d399; }
-.diff.down { color: #fb7185; }
+.state-icon { color: #fb7185; }
 
-.extras { padding: 0 18px 16px; }
-.extras h3 { margin: 4px 0 8px; color: var(--text-primary); font-size: 13px; }
-.extra-list { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+/* ===== Summary ===== */
 
-.extra-list li {
-  display: flex; justify-content: space-between; gap: 10px; padding: 9px 12px;
-  border: 1px solid var(--border); border-radius: 8px; background: var(--bg-card-soft); font-size: 12px; color: var(--text-secondary);
+.summary-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 18px;
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: linear-gradient(180deg, rgba(59, 130, 246, 0.1), var(--bg-card));
 }
 
-.extra-list strong { color: var(--text-primary); }
-.extra-list .extra-total { background: transparent; border-style: dashed; }
-.muted { margin: 0; color: var(--text-muted); font-size: 12px; }
-
-.total-pay {
-  display: flex; justify-content: space-between; padding: 14px 18px; border-top: 1px solid var(--border);
-  color: var(--text-secondary); font-size: 13px;
+.eyebrow {
+  color: var(--text-secondary);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
 }
 
-.total-pay strong { color: var(--text-primary); font-size: 16px; }
+.summary-card h2 {
+  margin: 4px 0;
+  font-size: 22px;
+}
 
-/* ===== Edit ===== */
-.form-body { display: flex; flex-direction: column; gap: 16px; padding: 16px 18px 18px; }
-.form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
-.field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
-.field label { color: var(--text-primary); font-size: 11px; font-weight: 600; }
-.required, .error-text { color: #fb7185; }
+.summary-card p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
 
-.field input, .field select, .field textarea, .extra-rows input {
-  width: 100%; min-height: 40px; padding: 9px 12px; border: 1px solid var(--border); border-radius: 8px;
-  background: var(--bg-card-soft); color: var(--text-primary); font-family: inherit; font-size: 12px; outline: none;
+.summary-status {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  text-align: right;
+}
+
+.summary-status small {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+  margin: 14px 0;
+}
+
+/* ===== Panels ===== */
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(300px, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.column {
+  display: grid;
+  gap: 14px;
+}
+
+.panel {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-card);
+}
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 60px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.panel-header h3 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.panel-header p {
+  margin: 3px 0 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.table-wrap { overflow-x: auto; }
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.data-table th,
+.data-table td {
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--border-soft);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.data-table thead th {
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.data-table tbody th {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.data-table td { color: var(--text-secondary); }
+.data-table td strong { color: var(--text-primary); }
+.data-table tbody tr:last-child th,
+.data-table tbody tr:last-child td { border-bottom: 0; }
+
+.total-row th,
+.total-row td {
+  background: var(--bg-card-soft);
+  font-weight: 700;
+}
+
+.diff {
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.diff.up { color: var(--green); }
+.diff.down { color: var(--red); }
+
+.remove-cell { width: 48px; text-align: right !important; }
+
+.trash-btn {
+  display: inline-grid; width: 32px; height: 32px; place-items: center; border: 1px solid var(--border); border-radius: 8px;
+  background: transparent; color: var(--text-muted); cursor: pointer;
+}
+
+.trash-btn:hover { border-color: var(--red); color: var(--red); }
+.trash-btn:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+.tag {
+  display: inline-block;
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.14);
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.tag.up { background: rgba(34, 197, 94, 0.12); color: #4ade80; }
+.tag.down { background: rgba(239, 68, 68, 0.12); color: #f87171; }
+
+.empty {
+  margin: 0;
+  padding: 18px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.empty.compact { padding: 0; font-size: 12px; }
+
+.detail-list {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 18px;
+}
+
+.detail-list div {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.detail-list div:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.detail-list div.stacked {
+  flex-direction: column;
+  gap: 6px;
+}
+
+.detail-list dt {
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.detail-list dd {
+  margin: 0;
+  font-size: 13px;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.detail-list div.stacked dd {
+  text-align: left;
+  line-height: 1.5;
+}
+
+/* ===== Timeline ===== */
+
+.timeline {
+  margin: 0;
+  padding: 18px;
+  list-style: none;
+}
+
+.timeline li {
+  position: relative;
+  margin-left: 6px;
+  padding: 0 0 18px 22px;
+  border-left: 2px solid var(--border);
+}
+
+.timeline li:last-child {
+  padding-bottom: 0;
+  border-left-color: transparent;
+}
+
+.timeline li::before {
+  position: absolute;
+  top: 2px;
+  left: -7px;
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--border);
+  border-radius: 50%;
+  background: var(--bg-card);
+  content: '';
+}
+
+.timeline li.done::before { border-color: var(--green); background: var(--green); }
+.timeline li.rejected::before { border-color: var(--red); background: var(--red); }
+
+.timeline strong {
+  display: block;
+  font-size: 13px;
+}
+
+.timeline span {
+  display: block;
+  margin-top: 3px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+/* ===== Status ===== */
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  background: rgba(148, 163, 184, 0.14);
+  color: var(--text-secondary);
+}
+
+.status-pill.pending { background: rgba(245, 158, 11, 0.13); color: #fbbf24; }
+.status-pill.approved { background: rgba(59, 130, 246, 0.14); color: #60a5fa; }
+.status-pill.applied { background: rgba(34, 197, 94, 0.12); color: #4ade80; }
+.status-pill.rejected { background: rgba(239, 68, 68, 0.12); color: #f87171; }
+
+/* ===== Edit form ===== */
+
+.form-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 18px;
+}
+
+.notice {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 9px;
+  background: var(--orange-soft);
+  color: var(--orange);
+  font-size: 12px;
+}
+
+.form-error {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 9px;
+  background: rgba(239, 68, 68, 0.08);
+  color: #f87171;
+  font-size: 12px;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.field {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.field label {
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.required,
+.error-text { color: #f87171; }
+
+.field input,
+.field select,
+.field textarea,
+.extra-rows input {
+  width: 100%;
+  min-height: 40px;
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--bg-card-soft);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 13px;
+  outline: none;
 }
 
 .field input[type='date'] { color-scheme: dark; }
 .field textarea { resize: vertical; }
-.field input:focus, .field select:focus, .field textarea:focus, .extra-rows input:focus { border-color: var(--primary); }
-.field small, .extras-head small { color: var(--text-muted); font-size: 11px; }
-.field small.error-text, small.error-text { color: #fb7185; font-size: 11px; }
 
-.form-error {
-  margin: 0; padding: 10px; border: 1px solid rgba(244,63,94,.3); border-radius: 8px;
-  background: rgba(244,63,94,.08); color: #fb7185; font-size: 12px;
+.field input:focus,
+.field select:focus,
+.field textarea:focus,
+.extra-rows input:focus { border-color: var(--primary); }
+
+.field small {
+  color: var(--text-muted);
+  font-size: 11px;
 }
 
-.extras-editor { display: flex; flex-direction: column; gap: 10px; padding: 14px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg-card-soft); }
-.extras-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
-.extras-title { display: block; color: var(--text-primary); font-size: 11px; font-weight: 600; }
-.extras-head small { display: block; margin-top: 3px; }
-
-.ghost-btn {
-  display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 12px; border: 1px solid var(--border); border-radius: 8px;
-  background: transparent; color: var(--text-primary); font-family: inherit; font-size: 12px; font-weight: 600; white-space: nowrap; cursor: pointer;
+.field small.error-text,
+small.error-text {
+  color: #f87171;
+  font-size: 11px;
 }
 
-.extra-rows { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
-.extra-rows li { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) 36px; gap: 8px; }
+.extras-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-card-soft);
+}
+
+.extras-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.extras-title {
+  display: block;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.extras-head small {
+  display: block;
+  margin-top: 3px;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.extra-rows {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.extra-rows li {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) 40px;
+  gap: 8px;
+}
+
 .extra-rows input { background: var(--bg-card); }
 
 .icon-btn {
-  display: grid; place-items: center; width: 36px; height: 40px; border: 1px solid var(--border); border-radius: 8px;
-  background: transparent; color: var(--text-muted); cursor: pointer;
+  display: grid;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
 }
 
-.icon-btn:hover { color: #fb7185; border-color: #fb7185; }
-.extras-sum { display: flex; justify-content: space-between; padding-top: 10px; border-top: 1px solid var(--border); font-size: 12px; color: var(--text-muted); }
+.icon-btn:hover {
+  border-color: var(--red);
+  color: var(--red);
+}
+
+.icon-btn:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.extras-sum {
+  display: flex;
+  justify-content: space-between;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
 .extras-sum strong { color: var(--text-primary); }
 
-/* ===== Side ===== */
-.details { display: grid; gap: 0; margin: 0; padding: 6px 18px 12px; }
-.details div { display: flex; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 12px; }
-.details div:last-child { border-bottom: 0; }
-.details div.block { flex-direction: column; gap: 6px; }
-.details dt { color: var(--text-muted); }
-.details dd { margin: 0; color: var(--text-primary); font-weight: 600; text-align: right; overflow-wrap: anywhere; }
-.details div.block dd { text-align: left; font-weight: 500; line-height: 1.5; }
-
-.timeline { display: grid; gap: 0; margin: 0; padding: 14px 18px 16px; list-style: none; }
-.timeline li { position: relative; padding: 0 0 16px 22px; border-left: 2px solid var(--border); margin-left: 6px; }
-.timeline li:last-child { padding-bottom: 0; border-left-color: transparent; }
-.timeline li::before { position: absolute; top: 2px; left: -7px; width: 12px; height: 12px; border: 2px solid var(--border); border-radius: 50%; background: var(--bg-card); content: ''; }
-.timeline li.done::before { border-color: #34d399; background: #34d399; }
-.timeline li.rejected::before { border-color: #fb7185; background: #fb7185; }
-.timeline strong { display: block; color: var(--text-primary); font-size: 12px; }
-.timeline span { display: block; margin-top: 3px; color: var(--text-muted); font-size: 11px; }
-
-.status-label, .type-label {
-  display: inline-block; padding: 5px 10px; border-radius: 999px; font-size: 11px; font-weight: 600; white-space: nowrap;
-  background: rgba(59,130,246,.12); color: #93c5fd;
+@media (max-width: 1100px) {
+  .stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .detail-grid { grid-template-columns: 1fr; }
 }
 
-.status-label.pending { background: rgba(245,158,11,.13); color: #fbbf24; }
-.status-label.approved { background: rgba(59,130,246,.12); color: #60a5fa; }
-.status-label.applied, .type-label.increase { background: rgba(16,185,129,.12); color: #34d399; }
-.status-label.rejected, .type-label.decrease { background: rgba(244,63,94,.12); color: #fb7185; }
-
-@media (max-width: 1000px) { .content-grid { grid-template-columns: 1fr; } }
-
 @media (max-width: 640px) {
+  .stats-grid,
   .form-grid { grid-template-columns: 1fr; }
-  .compare-row { grid-template-columns: 1fr auto; }
-  .compare-row .arrow, .compare-row .before { display: none; }
-  .diff { grid-column: 1 / -1; justify-self: start; }
+
+  .summary-card {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .summary-status {
+    align-items: flex-start;
+    text-align: left;
+  }
 }
 </style>
