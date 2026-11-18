@@ -24,12 +24,18 @@ export const useLifecycleConfiguration = () => {
         employmentTypeId: v.employment_type_id, employmentTypeName: v.employment_type?.name || 'All Types',
         userId: v.user_id, creatorName: v.user?.name || '—', status: v.status,
         stagesCount: v.stages_count, createdAt: v.created_at, updatedAt: v.updated_at,
+        regularizationStartMonth: v.regularization_stage?.months_after_hire ?? null,
+        regularizationEndMonth: v.regularization_stage?.end_month_after_hire ?? null,
       }))
       stages.value = s.data.map((v: any) => ({
         id: v.id, lifecyclePolicyId: v.lifecycle_policy_id, policyName: v.lifecycle_policy?.name || '—',
         stageName: v.stage_name, stageCode: v.stage_code, monthsAfterHire: v.months_after_hire,
+        endMonthAfterHire: v.end_month_after_hire ?? null,
         sortOrder: v.sort_order, status: v.status, milestonesCount: v.milestones_count,
         requiresAttachment: v.requires_attachment ?? true,
+        managedRegularizationPolicy: policies.value.some(policy =>
+          policy.id === v.lifecycle_policy_id && policy.regularizationStartMonth !== null),
+        isManagedRegularization: v.is_managed_regularization === true,
       }))
     } catch (err: any) {
       errorMessage.value = err?.data?.message || 'Unable to load lifecycle configuration.'
@@ -50,12 +56,15 @@ export const useLifecycleConfiguration = () => {
   }
   const savePolicy = (p: Partial<LifecyclePolicy>) => request(`/admin/lifecycle/policies${p.id ? `/${p.id}` : ''}`, p.id ? 'PUT' : 'POST', {
     name: p.name, description: p.description, status: p.status,
-    employment_type_id: employmentTypes.value.find(t => t.name === p.employmentTypeName)?.id ?? null,
+    employment_type_id: p.regularizationStartMonth != null
+      ? p.employmentTypeId
+      : employmentTypes.value.find(t => t.name === p.employmentTypeName)?.id ?? null,
   })
   const saveStage = (s: Partial<LifecycleStage>) => request(`/admin/lifecycle/stages${s.id ? `/${s.id}` : ''}`, s.id ? 'PUT' : 'POST', {
-    lifecycle_policy_id: Number(s.lifecyclePolicyId), stage_name: s.stageName, stage_code: s.stageCode,
+    lifecycle_policy_id: Number(s.lifecyclePolicyId), stage_name: s.stageName,
     months_after_hire: Number(s.monthsAfterHire), sort_order: Number(s.sortOrder), status: s.status,
     requires_attachment: s.requiresAttachment ?? true,
+    end_month_after_hire: typeof s.endMonthAfterHire === 'number' ? s.endMonthAfterHire : null,
   })
   const togglePolicyStatus = (id: number) => {
     const p = policies.value.find(item => item.id === id)

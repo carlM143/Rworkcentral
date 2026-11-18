@@ -1,94 +1,215 @@
 <script setup lang="ts">
-import { ArrowLeft, UserRound, CalendarDays, History } from 'lucide-vue-next'
+import { ArrowLeft, CalendarDays, Download, History, RotateCcw } from 'lucide-vue-next'
+import BaseDataTable from '~/components/shared-table/BaseDataTable.vue'
+import type { EmployeeMilestone } from '~/types/lifecycleErd'
+
 definePageMeta({ layout: 'admin' })
 interface Employee {
   employeeId: number; employeeNumber: string; employeeName: string; department: string; position: string; employmentType: string; dateHired: string
+  lastLifecycleActivityAt?: string | null
 }
 interface HistoryEvent {
-  id: string; category: string; title: string; date: string | null; description: string; actor: string | null; status: string; attachmentName?: string | null
+  id: string; category: string; title: string; date: string | null; description: string | null; actor: string | null; status: string
+  dateLabel?: string; dueDate?: string | null; attachmentName?: string | null; evaluationDocumentId?: number | null
 }
 const { $api } = useNuxtApp()
+const toast = useToast()
 const route = useRoute()
 const employees = ref<Employee[]>([])
+const directoryLoaded = ref(false)
 const loading = ref(false)
 const error = ref('')
 const search = ref('')
 const department = ref('')
+const employmentType = ref('')
 const currentPage = ref(1)
 const employee = ref<Employee | null>(null)
 const events = ref<HistoryEvent[]>([])
+const pendingMilestones = ref<EmployeeMilestone[]>([])
+const downloadingProof = ref<number | null>(null)
 const historyLoading = ref(false)
 const historyError = ref('')
 const selectedId = computed(() => typeof route.query.employee === 'string' ? route.query.employee : '')
 const departments = computed(() => [...new Set(employees.value.map(e => e.department))].sort())
+const employmentTypes = computed(() => [...new Set(employees.value.map(e => e.employmentType))].sort())
+const employeeNumberLabel = (number: string) => /^EMP-/i.test(number) ? number : `EMP-${number}`
 const filtered = computed(() => employees.value.filter(e => (!department.value || e.department === department.value) &&
-  [e.employeeName, e.employeeNumber, e.department, e.employmentType].join(' ').toLowerCase().includes(search.value.trim().toLowerCase())))
+  (!employmentType.value || e.employmentType === employmentType.value) &&
+  [e.employeeName, e.employeeNumber, employeeNumberLabel(e.employeeNumber), e.department, e.position, e.employmentType]
+    .join(' ').toLowerCase().includes(search.value.trim().toLowerCase())))
 const totalPages = computed(() => Math.max(1, Math.ceil(filtered.value.length / 10)))
 const page = computed(() => filtered.value.slice((currentPage.value - 1) * 10, currentPage.value * 10))
-watch([search, department], () => { currentPage.value = 1 })
+watch([search, department, employmentType], () => { currentPage.value = 1 })
 watch(totalPages, total => { currentPage.value = Math.min(currentPage.value, total) })
 const load = async () => {
   loading.value = true; error.value = ''
-  try { employees.value = (await $api<{ data: Employee[] }>('/admin/lifecycle/employees')).data }
+  try {
+    employees.value = (await $api<{ data: Employee[] }>('/admin/lifecycle/employees', { query: { lifecycle_activity: 1 } })).data
+    directoryLoaded.value = true
+  }
   catch (err: any) { error.value = err?.data?.message || 'Unable to load employees.' }
   finally { loading.value = false }
 }
 let requestId = 0
 const loadHistory = async () => {
   const request = ++requestId
-  employee.value = null; events.value = []; historyError.value = ''
+  employee.value = null; events.value = []; pendingMilestones.value = []; historyError.value = ''
   if (!selectedId.value) { historyLoading.value = false; return }
   historyLoading.value = true
   try {
-    const response = await $api<{ data: { employee: Employee; events: HistoryEvent[] } }>(`/admin/lifecycle/employees/${encodeURIComponent(selectedId.value)}/history`)
-    if (request === requestId) { employee.value = response.data.employee; events.value = response.data.events }
+    const response = await $api<{ data: { employee: Employee; events: HistoryEvent[]; pendingMilestones?: EmployeeMilestone[] } }>(`/admin/lifecycle/employees/${encodeURIComponent(selectedId.value)}/history`)
+    if (request === requestId) {
+      employee.value = response.data.employee
+      events.value = response.data.events
+      pendingMilestones.value = response.data.pendingMilestones ?? []
+    }
   } catch (err: any) { if (request === requestId) historyError.value = err?.status === 404 ? 'Employee not found.' : err?.data?.message || 'Unable to load employee history.' }
   finally { if (request === requestId) historyLoading.value = false }
 }
-watch(selectedId, loadHistory)
-onMounted(() => { load(); loadHistory() })
+const loadView = () => {
+  void loadHistory()
+  if (!selectedId.value && !directoryLoaded.value && !loading.value) void load()
+}
+watch(selectedId, loadView)
+onMounted(loadView)
 const dateLabel = (date: string | null) => {
   if (!date) return 'Date unavailable'
   const value = new Date(date.length === 10 ? `${date}T00:00:00` : date.replace(' ', 'T'))
   return Number.isNaN(value.getTime()) ? date : value.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
 }
+
+const targetLabel = (milestone: EmployeeMilestone) => milestone.reviewWindowStart && milestone.reviewWindowEnd
+  ? `${dateLabel(milestone.reviewWindowStart)} – ${dateLabel(milestone.reviewWindowEnd)}`
+  : dateLabel(milestone.dueDate)
+
+const downloadProof = async (event: HistoryEvent) => {
+  if (!employee.value || !event.evaluationDocumentId || downloadingProof.value !== null) return
+  downloadingProof.value = event.evaluationDocumentId
+  try {
+    const blob = await $api<Blob>(`/admin/employees/${employee.value.employeeId}/lifecycle-evaluations/${event.evaluationDocumentId}`, { responseType: 'blob' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = event.attachmentName || 'evaluation'
+    link.click()
+    URL.revokeObjectURL(url)
+  } catch {
+    toast.error('Unable to download proof', 'Please try again.')
+  } finally {
+    downloadingProof.value = null
+  }
+}
 </script>
 
 <template>
   <section class="employee-history-page">
-    <PageHeader title="Employee Lifecycle History" description="Select an employee to view employment progression, milestone evaluations and offboarding history." />
+    <PageHeader
+      title="Employee Lifecycle History"
+      :description="selectedId ? 'Review this employee’s pending milestones and recorded lifecycle events.' : 'Find an employee to view their milestones, employment changes, and offboarding records.'"
+    />
     <template v-if="!selectedId">
-      <div class="filters"><AppInput v-model="search" searchable clearable placeholder="Search employee, ID or employment type…" /><AppSelect v-model="department" :options="departments" placeholder="All departments" /><AppButton variant="secondary" @click="search = ''; department = ''">Reset</AppButton></div>
-      <p v-if="loading" role="status">Loading employees…</p>
-      <p v-else-if="error" role="alert">{{ error }} <AppButton variant="secondary" @click="load">Retry</AppButton></p>
-      <div v-else class="table-card">
-        <div class="table-heading"><h2>Employees</h2><span>{{ filtered.length }} employees</span></div>
-        <div class="table-scroll"><table><thead><tr><th>Employee</th><th>Department / Position</th><th>Current Employment Type</th><th>Date Hired</th><th>History</th></tr></thead><tbody>
-          <tr v-for="e in page" :key="e.employeeId">
-            <td><NuxtLink :to="{ query: { employee: e.employeeId } }" class="employee-link">{{ e.employeeName }}</NuxtLink><small>{{ e.employeeNumber }}</small></td>
-            <td>{{ e.department }}<small>{{ e.position }}</small></td><td><span class="type-badge">{{ e.employmentType }}</span></td><td>{{ dateLabel(e.dateHired) }}</td>
-            <td><NuxtLink :to="{ query: { employee: e.employeeId } }" class="view-link"><History :size="15" /> View History</NuxtLink></td>
+      <p v-if="error" role="alert">{{ error }} <AppButton variant="secondary" @click="load">Retry</AppButton></p>
+      <BaseDataTable v-else title="Employees" description="Most recent recorded lifecycle changes first." :has-rows="page.length > 0" :loading="loading" compact min-width="680px" empty-title="No employees found">
+        <template #heading-actions><span class="record-count">{{ filtered.length }} {{ filtered.length === 1 ? 'employee' : 'employees' }}</span></template>
+        <template #toolbar>
+          <div class="filters">
+            <AppInput v-model="search" searchable clearable aria-label="Search employees" placeholder="Search employee, ID, or position…" />
+            <AppSelect v-model="department" :options="departments" aria-label="Filter by department" placeholder="All departments" />
+            <AppSelect v-model="employmentType" :options="employmentTypes" aria-label="Filter by employment type" placeholder="All employment types" />
+            <AppButton variant="secondary" :icon="RotateCcw" @click="search = ''; department = ''; employmentType = ''">Reset</AppButton>
+          </div>
+        </template>
+        <template #headers>
+          <th>Employee</th><th>Department / Position</th><th>Employment Type</th><th>Hire Date</th><th class="align-right">History</th>
+        </template>
+        <template #rows>
+          <tr v-for="person in page" :key="person.employeeId">
+            <td>
+              <NuxtLink :to="{ query: { employee: person.employeeId } }" class="employee-link">{{ person.employeeName }}</NuxtLink>
+              <small class="cell-meta">{{ employeeNumberLabel(person.employeeNumber) }}</small>
+            </td>
+            <td>{{ person.department }}<small class="cell-meta">{{ person.position }}</small></td>
+            <td><span class="badge" :class="{ 'badge-pending': person.employmentType === 'Probationary' }">{{ person.employmentType }}</span></td>
+            <td>{{ dateLabel(person.dateHired) }}</td>
+            <td class="align-right">
+              <NuxtLink :to="{ query: { employee: person.employeeId } }" class="view-link" :aria-label="`View history for ${person.employeeName}`">
+                <History :size="15" aria-hidden="true" /> View History
+              </NuxtLink>
+            </td>
           </tr>
-          <tr v-if="!page.length"><td colspan="5" class="empty">No employees found.</td></tr>
-        </tbody></table></div>
-        <footer><span>{{ filtered.length }} employees</span><AppPagination v-model="currentPage" :total-pages="totalPages" /></footer>
-      </div>
+        </template>
+        <template v-if="totalPages > 1" #bottom>
+          <div class="pagination"><AppPagination v-model="currentPage" :total-pages="totalPages" /></div>
+        </template>
+      </BaseDataTable>
     </template>
     <template v-else>
-      <NuxtLink :to="{ query: {} }" class="back-link"><ArrowLeft :size="16" /> Back to Employees</NuxtLink>
+      <NuxtLink :to="{ query: {} }" class="back-link"><ArrowLeft :size="16" aria-hidden="true" /> Back to Employees</NuxtLink>
       <p v-if="historyLoading" role="status">Loading employee history…</p>
       <p v-else-if="historyError" role="alert">{{ historyError }} <AppButton variant="secondary" @click="loadHistory">Retry</AppButton></p>
       <template v-else-if="employee">
-        <div class="employee-summary"><div class="avatar"><UserRound :size="26" /></div><div><h2>{{ employee.employeeName }}</h2><p>{{ employee.employeeNumber }} · {{ employee.department }} · {{ employee.position }}</p><span class="type-badge">Current: {{ employee.employmentType }}</span></div></div>
-        <section class="timeline-card" aria-label="Employee lifecycle timeline">
-          <h2>Lifecycle Timeline</h2><p class="muted">Oldest to newest · Based on recorded employment changes and saved lifecycle records.</p>
-          <p v-if="!events.length" class="empty">No lifecycle history recorded for this employee yet.</p>
-          <ol v-else class="timeline"><li v-for="event in events" :key="event.id"><span class="timeline-dot" /><article>
-            <div class="event-meta"><span>{{ event.category }}</span><time :datetime="event.date || undefined"><CalendarDays :size="13" />{{ dateLabel(event.date) }}</time></div>
-            <h3>{{ event.title }}</h3><p class="description">{{ event.description }}</p>
-            <p v-if="event.attachmentName" class="muted">Attachment: {{ event.attachmentName }}</p>
-            <small v-if="event.actor">Recorded by {{ event.actor }}</small><span class="event-status">{{ event.status }}</span>
-          </article></li></ol>
+        <section class="history-card employee-summary" aria-labelledby="history-employee-name">
+          <div class="section-heading">
+            <h2 id="history-employee-name">{{ employee.employeeName }}</h2>
+            <span class="badge" :class="{ 'badge-pending': employee.employmentType === 'Probationary' }">Current: {{ employee.employmentType }}</span>
+          </div>
+          <dl class="summary-details">
+            <div><dt>Employee ID</dt><dd>{{ employeeNumberLabel(employee.employeeNumber) }}</dd></div>
+            <div><dt>Department</dt><dd>{{ employee.department }}</dd></div>
+            <div><dt>Position</dt><dd>{{ employee.position }}</dd></div>
+            <div><dt>Hire Date</dt><dd>{{ dateLabel(employee.dateHired) }}</dd></div>
+          </dl>
+        </section>
+
+        <section class="history-card" aria-labelledby="pending-milestones-title">
+          <div class="section-heading"><h2 id="pending-milestones-title">Pending Milestones</h2><span class="record-count">{{ pendingMilestones.length }} pending</span></div>
+          <p v-if="!pendingMilestones.length" class="muted empty">No pending milestones for this employee.</p>
+          <ul v-else class="pending-list">
+            <li v-for="milestone in pendingMilestones" :key="milestone.id">
+              <div>
+                <h3>{{ milestone.stageName }}</h3>
+                <p class="muted">{{ milestone.policyName }}</p>
+                <p v-if="milestone.remarks" class="description">{{ milestone.remarks }}</p>
+              </div>
+              <div class="pending-target">
+                <span class="muted">{{ milestone.reviewWindowStart && milestone.reviewWindowEnd ? 'Review window' : 'Target date' }}</span>
+                <strong>{{ targetLabel(milestone) }}</strong>
+              </div>
+            </li>
+          </ul>
+        </section>
+
+        <section class="history-card" aria-labelledby="lifecycle-timeline-title">
+          <div class="section-heading"><h2 id="lifecycle-timeline-title">Lifecycle Timeline</h2><span class="record-count">Oldest first</span></div>
+          <p v-if="!events.length" class="muted empty">No lifecycle history recorded for this employee yet.</p>
+          <ol v-else class="timeline">
+            <li v-for="event in events" :key="event.id">
+              <article class="event-card">
+                <div class="event-meta">
+                  <span>{{ event.category }}</span>
+                  <time v-if="event.date" :datetime="event.date">
+                    <CalendarDays :size="13" aria-hidden="true" />
+                    {{ event.dateLabel ? `${event.dateLabel}: ` : '' }}{{ dateLabel(event.date) }}
+                  </time>
+                </div>
+                <div class="event-heading">
+                  <h3>{{ event.title }}</h3>
+                  <span v-if="event.status && event.category !== 'Employment' && event.category !== 'Employment Type Change'"
+                    class="badge" :class="{ 'badge-completed': event.status === 'Completed' }">{{ event.status }}</span>
+                </div>
+                <p v-if="event.description" class="description">{{ event.description }}</p>
+                <div v-if="event.actor || event.dueDate || event.attachmentName" class="event-details">
+                  <span v-if="event.actor" class="muted">Recorded by {{ event.actor }}</span>
+                  <span v-if="event.dueDate" class="muted">Target date: {{ dateLabel(event.dueDate) }}</span>
+                  <button v-if="event.attachmentName && event.evaluationDocumentId" class="proof-link" type="button"
+                    :disabled="downloadingProof !== null" :aria-label="`Download proof: ${event.attachmentName}`" @click="downloadProof(event)">
+                    <Download :size="14" aria-hidden="true" /> {{ event.attachmentName }}
+                  </button>
+                  <span v-else-if="event.attachmentName" class="muted">Proof: {{ event.attachmentName }}</span>
+                </div>
+              </article>
+            </li>
+          </ol>
         </section>
       </template>
     </template>
@@ -96,13 +217,49 @@ const dateLabel = (date: string | null) => {
 </template>
 
 <style scoped>
-.employee-history-page { max-width: 1680px; margin: 0 auto; }.filters { display: grid; grid-template-columns: 1fr 240px auto; gap: 10px; margin-bottom: 18px; }
-.table-card, .employee-summary, .timeline-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow); }
-.table-heading, footer { display: flex; align-items: center; justify-content: space-between; padding: 16px; gap: 12px; font-size: 12px; color: var(--text-muted); } h2 { font-size: 17px; margin: 0; color: var(--text-primary); }
-.table-scroll { overflow-x: auto; } table { width: 100%; border-collapse: collapse; text-align: left; font-size: 12px; } th, td { padding: 16px; border-bottom: 1px solid var(--border); } th { color: var(--text-muted); font-size: 11px; } td { color: var(--text-primary); }
-small { display: block; margin-top: 5px; color: var(--text-muted); font-size: 11px; }.employee-link { font-weight: 650; color: var(--primary); text-decoration: none; }.employee-link:hover { text-decoration: underline; }.view-link, .back-link { display: inline-flex; align-items: center; gap: 6px; color: var(--primary); text-decoration: none; font-size: 12px; }.back-link { margin-bottom: 18px; }
-.type-badge, .event-status { display: inline-block; border-radius: 6px; background: var(--bg-card-soft); color: var(--primary); padding: 5px 9px; font-size: 11px; }.employee-summary { display: flex; align-items: center; gap: 16px; padding: 24px; margin-bottom: 20px; }.employee-summary p { color: var(--text-muted); font-size: 12px; }.avatar { padding: 16px; border-radius: 50%; color: var(--primary); background: var(--bg-card-soft); }
-.timeline-card { padding: 24px; }.muted { color: var(--text-muted); font-size: 12px; }.timeline { list-style: none; padding: 0 0 0 14px; margin: 28px 0 0; }.timeline li { position: relative; border-left: 2px solid var(--border); padding: 0 0 24px 28px; }.timeline li:last-child { border-color: transparent; padding-bottom: 0; }.timeline-dot { position: absolute; left: -7px; top: 6px; width: 12px; height: 12px; border-radius: 50%; background: var(--primary); }
-article { border: 1px solid var(--border); border-radius: 10px; padding: 18px; }.event-meta { display: flex; justify-content: space-between; gap: 12px; color: var(--text-muted); font-size: 11px; }time { display: inline-flex; align-items: center; gap: 5px; }h3 { font-size: 15px; margin: 12px 0; color: var(--text-primary); }.description { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; line-height: 1.7; color: var(--text-primary); }.event-status { margin-top: 12px; }.empty { padding: 30px; text-align: center; color: var(--text-muted); font-size: 13px; }
-@media (max-width: 650px) { .filters { grid-template-columns: 1fr; }.timeline-card, .employee-summary { padding: 16px; }.event-meta { flex-direction: column; }.timeline li { padding-left: 18px; }.employee-summary { align-items: flex-start; } }
+.employee-history-page { max-width: 1680px; margin: 0 auto; }
+.filters { display: grid; grid-template-columns: minmax(0, 1fr) minmax(140px, 220px) minmax(140px, 220px) auto; gap: 10px; }
+.align-right { text-align: right; }
+.pagination { display: flex; justify-content: flex-end; width: 100%; }
+.record-count, .muted, .cell-meta, dt { color: var(--text-muted); font-size: 12px; }
+.cell-meta { display: block; margin-top: 3px; }
+.employee-link { font-weight: 650; color: var(--text-primary); text-decoration: none; }
+.view-link, .back-link, .proof-link { display: inline-flex; align-items: center; gap: 6px; color: var(--primary); text-decoration: none; font-size: 12px; }
+.employee-link:hover, .view-link:hover, .back-link:hover, .proof-link:hover { text-decoration: underline; }
+.back-link { margin-bottom: 14px; }
+.proof-link { padding: 0; border: 0; background: none; font-family: inherit; cursor: pointer; overflow-wrap: anywhere; }
+.proof-link svg, time svg { flex-shrink: 0; }
+.proof-link:disabled { cursor: wait; }
+.badge { display: inline-block; border-radius: 999px; background: var(--primary-soft); color: var(--primary); padding: 4px 9px; font-size: 11px; font-weight: 600; }
+.badge-pending { background: var(--orange-soft); color: var(--orange); }
+.badge-completed { background: var(--green-soft); color: var(--green); }
+.history-card { margin-bottom: 14px; padding: 18px; border: 1px solid var(--border); border-radius: 12px; background: var(--bg-card); }
+.section-heading, .event-heading, .event-meta { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 6px 12px; }
+h2, h3 { margin: 0; color: var(--text-primary); }
+h2 { font-size: 16px; }
+h3 { font-size: 13px; }
+.summary-details { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin: 14px 0 0; }
+dd { margin: 4px 0 0; color: var(--text-primary); font-size: 13px; font-weight: 600; overflow-wrap: anywhere; }
+.pending-list, .timeline { list-style: none; padding: 0; margin: 12px 0 0; }
+.pending-list li { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 10px; padding: 12px 0; border-top: 1px solid var(--border-soft); }
+.pending-list li:last-child { padding-bottom: 0; }
+.pending-target { display: grid; gap: 4px; font-size: 12px; }
+.timeline { padding-left: 5px; }
+.timeline li { position: relative; padding: 0 0 12px 16px; border-left: 1px solid var(--border); }
+.timeline li::before { content: ''; position: absolute; top: 14px; left: -4px; width: 7px; height: 7px; border-radius: 50%; background: var(--primary); }
+.timeline li:last-child { border-color: transparent; padding-bottom: 0; }
+.event-card { display: grid; gap: 6px; padding: 10px 14px; border: 1px solid var(--border-soft); border-radius: 8px; }
+.event-meta { color: var(--text-muted); font-size: 11px; }
+time { display: inline-flex; align-items: center; gap: 5px; }
+.event-details { display: flex; flex-wrap: wrap; gap: 6px 16px; }
+.pending-list p, .description { margin: 4px 0 0; }
+.description { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; line-height: 1.6; color: var(--text-secondary); }
+.empty { margin: 10px 0 0; }
+@media (max-width: 800px) {
+  .filters, .summary-details { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 480px) {
+  .filters { grid-template-columns: 1fr; }
+  .history-card { padding: 14px; }
+}
 </style>
