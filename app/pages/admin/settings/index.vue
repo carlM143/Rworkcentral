@@ -26,18 +26,28 @@ const router =
 const handleOpenModule = (
   module: SettingsModule,
 ) => {
-  const pages = [
+  // Cards whose settings live inside an existing module open that module.
+  const moduleRoutes: Record<string, string> = {
+    '/admin/settings/timekeeping': '/admin/work-schedules',
+    '/admin/settings/leave-overtime': '/admin/leave-management/leave-types',
+    '/admin/settings/payroll': '/admin/payroll/payroll-group',
+  }
+
+  // Cards that have their own settings page.
+  const settingsPages = [
     '/admin/settings/users',
     '/admin/settings/company',
     '/admin/settings/qr-generation',
-    '/admin/settings/timekeeping',
-    '/admin/settings/leave-overtime',
-    '/admin/settings/payroll',
     '/admin/settings/approvals',
     '/admin/settings/system',
   ]
 
-  if (pages.includes(module.route)) {
+  if (moduleRoutes[module.route]) {
+    router.push(moduleRoutes[module.route])
+    return
+  }
+
+  if (settingsPages.includes(module.route)) {
     router.push(module.route)
     return
   }

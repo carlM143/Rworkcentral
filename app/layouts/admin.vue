@@ -168,10 +168,6 @@ const menuItems = [
         label: 'Manual Time In / Out',
         to: '/admin/manual-time-in-out',
       },
-      {
-        label: 'Field Leaves',
-        to: '/admin/filed-leaves',
-      },
     ],
   },
   {

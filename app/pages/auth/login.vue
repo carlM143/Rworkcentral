@@ -125,9 +125,7 @@ const handleLogin = async () => {
         <div class="brand">
 
           <img
-              src="/logo-white.png"
-              alt="RWorkCentral"
-              class="login-brand-image"
+              src="/logo-white.png" alt="RWorkCentral" class="login-brand-image"
             >
         </div>
 
