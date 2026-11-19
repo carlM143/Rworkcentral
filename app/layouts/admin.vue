@@ -211,21 +211,21 @@ const menuItems = [
         to: '/admin/payroll/employee-payroll',
         icon: Calculator,
       },
-      {
-        label: 'Driver Payroll',
-        to: '/admin/driver-payroll',
-        icon: Truck,
-      },
-      {
-        label: 'Payroll History',
-        to: '/admin/payroll-history',
-        icon: History,
-      },
-      {
-        label: 'Payslips',
-        to: '/admin/payroll-payslips',
-        icon: ReceiptText,
-      },
+      // {
+      //   label: 'Driver Payroll',
+      //   to: '/admin/driver-payroll',
+      //   icon: Truck,
+      // },
+      // {
+      //   label: 'Payroll History',
+      //   to: '/admin/payroll-history',
+      //   icon: History,
+      // },
+      // {
+      //   label: 'Payslips',
+      //   to: '/admin/payroll-payslips',
+      //   icon: ReceiptText,
+      // },
     ],
   },
 
@@ -397,38 +397,30 @@ const menuItems = [
     icon: ClipboardCheck,
     to: '/admin/performance/templates',
   },
-  {
+   {
     label: 'Employee Lifecycle',
     key: 'employee-lifecycle',
     icon: UserRound,
     children: [
       {
-        label: 'Onboarding',
-        to: '/admin/employee-lifecycle/onboarding',
+        label: 'Lifecycle Policies',
+        to: '/admin/employee-lifecycle/policies',
       },
       {
-        label: 'Regularization',
-        to: '/admin/employee-lifecycle/regularization',
+        label: 'Lifecycle Stages',
+        to: '/admin/employee-lifecycle/stages',
       },
       {
-        label: 'Employee Transfers',
-        to: '/admin/employee-lifecycle/transfers',
+        label: 'Employee Milestones',
+        to: '/admin/employee-lifecycle/milestones',
       },
       {
-        label: 'Promotions',
-        to: '/admin/employee-lifecycle/promotions',
-      },
-      {
-        label: 'Employment Changes',
-        to: '/admin/employee-lifecycle/changes',
-      },
-      {
-        label: 'Offboarding',
+        label: 'Employee Offboarding',
         to: '/admin/employee-lifecycle/offboarding',
       },
       {
-        label: 'Lifecycle History',
-        to: '/admin/employee-lifecycle/history',
+        label: 'Employee History',
+        to: '/admin/employee-lifecycle/employee-history',
       },
     ],
   },
