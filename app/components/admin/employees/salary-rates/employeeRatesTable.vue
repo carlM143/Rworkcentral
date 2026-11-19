@@ -85,28 +85,14 @@ const money = (value: number | string): string =>
             {{ money(rate.allowance) }}
           </span>
         </td>
-
         <td>
           <span
-            class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold"
-            :style="{
-              background: rate.status
-                ? 'var(--green-soft, rgba(16,185,129,.12))'
-                : 'var(--red-soft, rgba(239,68,68,.12))',
-              color: rate.status
-                ? 'var(--green, #10b981)'
-                : 'var(--red, #ef4444)',
-            }"
+            class="status-pill"
+            :class="rate.status ? 'status-pill--active' : 'status-pill--inactive'"
           >
-            <span
-              class="h-1.5 w-1.5 rounded-full"
-              style="background: currentColor"
-            />
             {{ rate.status ? 'Active' : 'Inactive' }}
           </span>
         </td>
-
-
       </tr>
     </template>
   </BaseDataTable>

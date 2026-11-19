@@ -276,13 +276,13 @@ const exportCsv = async () => {
       </div>
 
       <label class="date-box">
-        <span class="date-label">From</span>
-        <input v-model="dateFrom" type="date" aria-label="Date from">
+        <span class="date-label">Trip date from</span>
+        <input v-model="dateFrom" type="date" :max="dateTo || undefined" aria-label="Trip date from">
       </label>
 
       <label class="date-box">
         <span class="date-label">To</span>
-        <input v-model="dateTo" type="date" aria-label="Date to">
+        <input v-model="dateTo" type="date" :min="dateFrom || undefined" aria-label="Trip date to">
       </label>
 
       <div class="select-wrap">
@@ -317,13 +317,14 @@ const exportCsv = async () => {
       description="One ticket per trip: driver, vehicle, passengers, time out and in, and odometer."
       :has-rows="tickets.length > 0"
       :loading="loading"
-      min-width="1320px"
+      min-width="1480px"
       empty-title="No trip tickets found"
       empty-description="Try adjusting your filters, or create a new trip ticket."
     >
       <template #headers>
         <th>Ticket No.</th>
         <th>Requested By</th>
+        <th>Approved By</th>
         <th>Driver</th>
         <th>Vehicle</th>
         <th>Destination</th>
@@ -344,7 +345,13 @@ const exportCsv = async () => {
           <td>
             <span class="cell-title">{{ t.requested_by?.name ?? '—' }}</span>
             <small class="cell-sub">{{ t.requesting_department?.name ?? '—' }}</small>
-            <small v-if="t.approved_by" class="cell-sub">Approved: {{ t.approved_by.name }}</small>
+          </td>
+          <td>
+            <template v-if="t.approved_by">
+              <span class="cell-title">{{ t.approved_by.name }}</span>
+              <small class="cell-sub">{{ t.approved_by.position }}</small>
+            </template>
+            <span v-else class="cell-sub">—</span>
           </td>
                     <td>
             <template v-if="t.driver">

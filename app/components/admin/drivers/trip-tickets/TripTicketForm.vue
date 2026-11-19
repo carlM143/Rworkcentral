@@ -367,7 +367,7 @@ const dateText = (v: string) =>
           <div class="form-grid">
             <div class="field wide">
               <label id="tt-mode-label">Type of transport <em>*</em></label>
-              <div class="mode-group" role="radiogroup" aria-labelledby="tt-mode-label">
+                            <div class="mode-group" role="radiogroup" aria-labelledby="tt-mode-label">
                 <label
                   v-for="m in TRIP_VEHICLE_MODES"
                   :key="m.value"
@@ -375,7 +375,8 @@ const dateText = (v: string) =>
                   :class="{ active: form.vehicle_mode === m.value }"
                 >
                   <input v-model="form.vehicle_mode" type="radio" name="vehicle_mode" :value="m.value">
-                  {{ m.label }}
+                  <span class="mode-dot" aria-hidden="true" />
+                  <span class="mode-text">{{ m.label }}</span>
                 </label>
               </div>
             </div>
@@ -652,6 +653,82 @@ const dateText = (v: string) =>
 .field textarea:focus-visible {
   border-color: var(--primary);
   outline: none;
+}
+
+/* ===== Type of transport (radio pills) ===== */
+
+.mode-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.mode-option {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 14px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg-card-soft);
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  cursor: pointer;
+  user-select: none;
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+
+.mode-option:hover {
+  border-color: var(--text-muted);
+  color: var(--text-primary);
+}
+
+/* Native radio stays for keyboard and screen readers, but is hidden. */
+.mode-option input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.mode-dot {
+  position: relative;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  border: 2px solid var(--text-muted);
+  border-radius: 50%;
+  transition: border-color 0.15s ease;
+}
+
+.mode-option.active {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+  color: var(--text-primary);
+}
+
+.mode-option.active .mode-dot {
+  border-color: var(--primary);
+}
+
+.mode-option.active .mode-dot::after {
+  content: '';
+  position: absolute;
+  inset: 3px;
+  border-radius: 50%;
+  background: var(--primary);
+}
+
+.mode-option:focus-within {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
 }
 
 .hint {
