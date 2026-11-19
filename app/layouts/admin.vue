@@ -208,7 +208,7 @@ const menuItems = [
       },
       {
         label: 'Employee Payroll',
-        to: '/admin/employee-payroll',
+        to: '/admin/payroll/employee-payroll',
         icon: Calculator,
       },
       {
