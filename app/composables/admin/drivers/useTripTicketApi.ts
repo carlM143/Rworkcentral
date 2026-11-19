@@ -1,9 +1,14 @@
-/**
- * Trip Tickets API.
- * Endpoints: routes/api/admin/carl/newAdminRoute.php → TripTicketController
- */
-
 export type TripTicketStatus = 'scheduled' | 'ongoing' | 'completed' | 'cancelled'
+export type TripVehicleMode = 'company' | 'bus' | 'motorcycle' | 'taxi' | 'jeepney' | 'others'
+
+export const TRIP_VEHICLE_MODES: { value: TripVehicleMode, label: string }[] = [
+  { value: 'company', label: 'Company Vehicle' },
+  { value: 'bus', label: 'Bus' },
+  { value: 'motorcycle', label: 'Motorcycle' },
+  { value: 'taxi', label: 'Taxi' },
+  { value: 'jeepney', label: 'Jeepney' },
+  { value: 'others', label: 'Others' },
+]
 
 export interface TripVehicle {
   id: number
@@ -26,8 +31,12 @@ export interface TripTicketRecord {
   status: TripTicketStatus
   requesting_department: { id: number, name: string } | null
   requested_by: { id: number, name: string, position: string } | null
-  driver: { id: number, name: string, drivers_code: string }
-  vehicle: TripVehicle
+  approved_by: { id: number, name: string, position: string } | null
+  vehicle_mode: TripVehicleMode
+  vehicle_other: string | null
+  vehicle_label: string // plate no. for company vehicles, otherwise "Bus", "Taxi", ...
+  driver: { id: number, name: string, drivers_code: string } | null
+  vehicle: TripVehicle | null
   last_odometer: number | null // highest reading recorded for the vehicle
   destination: string
   purpose: string
@@ -76,12 +85,24 @@ export interface TripRequesterOption {
   is_head: boolean
 }
 
+export interface TripApproverOption {
+  id: number
+  emp_id: string
+  name: string
+  position: string
+  department: string | null
+  is_head: boolean
+}
+
 export interface StoreTripTicketPayload {
   requesting_department_id: number | null
   requested_by: number | null
+  approved_by: number | null
   trip_date: string
   scheduled_departure: string
   expected_return: string
+  vehicle_mode: TripVehicleMode
+  vehicle_other: string
   driver_id: number | null
   vehicle_id: number | null
   destination: string
@@ -130,6 +151,16 @@ export const useTripTicketApi = () => {
   const headers = (): Record<string, string> =>
     token.value ? { Authorization: `Bearer ${token.value}` } : {}
 
+  const cleanBody = (payload: StoreTripTicketPayload) => ({
+    ...payload,
+    destination: payload.destination.trim(),
+    purpose: payload.purpose.trim(),
+    vehicle_other: payload.vehicle_mode === 'others' ? payload.vehicle_other.trim() : null,
+    driver_id: payload.vehicle_mode === 'company' ? payload.driver_id : null,
+    vehicle_id: payload.vehicle_mode === 'company' ? payload.vehicle_id : null,
+    remarks: payload.remarks?.trim() || null,
+  })
+
   // GET /admin/trip-tickets (paginated; empty filters are left out)
   const list = (params: TripTicketListParams = {}) => {
     const query = Object.fromEntries(
@@ -164,6 +195,13 @@ export const useTripTicketApi = () => {
       headers: headers(),
     })
 
+  // GET /admin/trip-tickets/approvers
+  const approvers = () =>
+    $api<ApiResponse<TripApproverOption[]>>('/admin/trip-tickets/approvers', {
+      method: 'GET',
+      headers: headers(),
+    })
+
   // GET /admin/trip-tickets/options?date=&start=&end=&department_id=
   // excludeTicketId: when editing, the ticket's own booking does not block itself.
   const formOptions = async (
@@ -195,12 +233,7 @@ export const useTripTicketApi = () => {
   const store = (payload: StoreTripTicketPayload) =>
     $api<ApiResponse<TripTicketRecord>>('/admin/trip-tickets', {
       method: 'POST',
-      body: {
-        ...payload,
-        destination: payload.destination.trim(),
-        purpose: payload.purpose.trim(),
-        remarks: payload.remarks?.trim() || null,
-      },
+      body: cleanBody(payload),
       headers: headers(),
     })
 
@@ -208,16 +241,11 @@ export const useTripTicketApi = () => {
   const update = (id: number, payload: StoreTripTicketPayload) =>
     $api<ApiResponse<TripTicketRecord>>(`/admin/trip-tickets/${id}`, {
       method: 'PUT',
-      body: {
-        ...payload,
-        destination: payload.destination.trim(),
-        purpose: payload.purpose.trim(),
-        remarks: payload.remarks?.trim() || null,
-      },
+      body: cleanBody(payload),
       headers: headers(),
     })
 
-  // PATCH /admin/trip-tickets/{id}/depart
+  // PATCH /admin/trip-tickets/{id}/depart (odometer only for company vehicles)
   const depart = (id: number, payload: { departed_at: string, odometer_out: number | null }) =>
     $api<ApiResponse<TripTicketRecord>>(`/admin/trip-tickets/${id}/depart`, {
       method: 'PATCH',
@@ -241,5 +269,5 @@ export const useTripTicketApi = () => {
       headers: headers(),
     })
 
-  return { list, show, departments, requesters, formOptions, store, update, depart, returnTrip, cancel }
+  return { list, show, departments, requesters, approvers, formOptions, store, update, depart, returnTrip, cancel }
 }

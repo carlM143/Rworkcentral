@@ -216,10 +216,11 @@ const exportCsv = async () => {
       page++
     } while (page <= lastPage)
 
-    const rows = [
-      ['Ticket No.', 'Trip Date', 'Requesting Department', 'Requested By', 'Driver', 'Driver Code', 'Plate', 'Vehicle', 'Destination', 'Purpose', 'Passengers', 'Planned Departure', 'Actual Departure', 'Expected Return', 'Actual Return', 'Odometer Out', 'Odometer In', 'Distance (km)', 'Status'],
+        const rows = [
+      ['Ticket No.', 'Trip Date', 'Requesting Department', 'Requested By', 'Approved By', 'Transport', 'Driver', 'Driver Code', 'Plate / Type', 'Vehicle', 'Destination', 'Purpose', 'Passengers', 'Planned Departure', 'Actual Departure', 'Expected Return', 'Actual Return', 'Odometer Out', 'Odometer In', 'Distance (km)', 'Status'],
       ...all.map(t => [
-        t.ticket_no, t.trip_date, t.requesting_department?.name, t.requested_by?.name, t.driver.name, t.driver.drivers_code, t.vehicle.plate_no, t.vehicle.description,
+        t.ticket_no, t.trip_date, t.requesting_department?.name, t.requested_by?.name, t.approved_by?.name,
+        t.vehicle_mode, t.driver?.name, t.driver?.drivers_code, t.vehicle_label, t.vehicle?.description,
         t.destination, t.purpose, t.passengers.map(p => p.name).join('; '),
         t.scheduled_departure, t.departed_at, t.expected_return, t.returned_at,
         t.odometer_out, t.odometer_in, t.distance_km, STATUS_LABELS[t.status],
@@ -343,14 +344,18 @@ const exportCsv = async () => {
           <td>
             <span class="cell-title">{{ t.requested_by?.name ?? '—' }}</span>
             <small class="cell-sub">{{ t.requesting_department?.name ?? '—' }}</small>
+            <small v-if="t.approved_by" class="cell-sub">Approved: {{ t.approved_by.name }}</small>
+          </td>
+                    <td>
+            <template v-if="t.driver">
+              <strong class="cell-title">{{ t.driver.name }}</strong>
+              <small class="cell-sub">{{ t.driver.drivers_code }}</small>
+            </template>
+            <span v-else class="cell-sub">No driver</span>
           </td>
           <td>
-            <strong class="cell-title">{{ t.driver.name }}</strong>
-            <small class="cell-sub">{{ t.driver.drivers_code }}</small>
-          </td>
-          <td>
-            <span class="cell-title">{{ t.vehicle.plate_no }}</span>
-            <small class="cell-sub">{{ t.vehicle.description }}</small>
+            <span class="cell-title">{{ t.vehicle_label }}</span>
+            <small class="cell-sub">{{ t.vehicle?.description ?? (t.vehicle_mode === 'company' ? '—' : 'Outside transport') }}</small>
           </td>
           <td class="destination">
             <strong class="cell-title">{{ t.destination }}</strong>
@@ -369,10 +374,13 @@ const exportCsv = async () => {
             <small class="cell-sub">Exp. {{ driverTimeText(t.expected_return) }}</small>
           </td>
           <td>
-            <span class="cell-title">
-              {{ t.odometer_out?.toLocaleString() ?? '—' }} → {{ t.odometer_in?.toLocaleString() ?? '—' }}
-            </span>
-            <small class="cell-sub">{{ t.distance_km !== null ? `${t.distance_km.toLocaleString()} km` : '—' }}</small>
+            <template v-if="t.vehicle_mode === 'company'">
+              <span class="cell-title">
+                {{ t.odometer_out?.toLocaleString() ?? '—' }} → {{ t.odometer_in?.toLocaleString() ?? '—' }}
+              </span>
+              <small class="cell-sub">{{ t.distance_km !== null ? `${t.distance_km.toLocaleString()} km` : '—' }}</small>
+            </template>
+            <span v-else class="cell-sub">N/A</span>
           </td>
           <td>
             <span class="status-pill" :class="`trip-${t.status}`">{{ STATUS_LABELS[t.status] }}</span>

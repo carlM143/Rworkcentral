@@ -285,7 +285,7 @@ const openTicket = (ticketNo: string) => {
             <div><dt>Driver Code</dt><dd>{{ driver.drivers_code }}</dd></div>
             <div><dt>Department</dt><dd>{{ driver.employee.department || '—' }}</dd></div>
             <div><dt>Position</dt><dd>{{ driver.employee.position || '—' }}</dd></div>
-            <div><dt>License No.</dt><dd>{{ driver.licence_no }}</dd></div>
+            <!-- <div><dt>License No.</dt><dd>{{ driver.licence_no }}</dd></div> -->
             <div>
               <dt>License Expiry</dt>
               <dd :class="`license-${license.tone}`">{{ dateText(driver.expire_date) }}</dd>

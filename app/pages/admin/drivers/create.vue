@@ -183,10 +183,10 @@ const saveDriver = async () => {
           </div>
 
           <!-- LICENSE NO -->
-          <div class="field">
+          <!-- <div class="field">
             <label for="driver-license">License No. <em>*</em></label>
             <input id="driver-license" v-model="form.licence_no" type="text" placeholder="N03-2025-12345">
-          </div>
+          </div> -->
 
           <!-- EXPIRY -->
           <div class="field">
