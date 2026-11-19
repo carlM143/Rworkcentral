@@ -43,6 +43,7 @@ const loadError = ref('')
 
 const departmentId = ref<number | ''>('')
 const locationId = ref<number | ''>('')
+const employmentTypeId = ref<number | ''>('')
 const search = ref('')
 const show = ref<'all' | 'priority' | 'others'>('all')
 
@@ -53,6 +54,7 @@ const show = ref<'all' | 'priority' | 'others'>('all')
 const selected = reactive(new Set<number>())
 const amounts = reactive<Record<number, string>>({})
 let initialised = false
+// Employees already pre-selected once, so unchecking them sticks.
 const preselected = new Set<number>()
 
 const loadEmployees = async () => {
@@ -60,6 +62,7 @@ const loadEmployees = async () => {
     const response = await api.employees(id, {
       department_id: departmentId.value,
       location_id: locationId.value,
+      employment_type_id: employmentTypeId.value,
       search: search.value.trim(),
     })
     result.value = response
@@ -72,7 +75,8 @@ const loadEmployees = async () => {
       amounts[e.employee_id] = noIncrease ? '' : e.suggested_salary.toFixed(2)
     }
 
-    // First load: pre-select everyone below the new minimum.
+    // Pre-select everyone below the new minimum the first time they can be
+    // included (on page load, or right after their old adjustment is deleted).
     for (const e of response.data) {
       const available = e.priority && !e.blocked_reason && e.current_salary !== null
       if (available && !preselected.has(e.employee_id)) {
@@ -104,7 +108,7 @@ watch(search, () => {
   clearTimeout(timer)
   timer = setTimeout(loadEmployees, 350)
 })
-watch([departmentId, locationId], loadEmployees)
+watch([departmentId, locationId, employmentTypeId], loadEmployees)
 
 const selectable = (e: WageEmployee) => !e.blocked_reason && e.current_salary !== null
 
@@ -121,7 +125,7 @@ const groups = computed(() => [
   {
     key: 'required',
     title: 'Below minimum — required',
-    hint: 'Must be raised to at least the new minimum from the effective date.',
+    hint: 'Must be raised to at least the new minimum from the effective date, including probationary and contractual employees.',
     rows: rows.value.filter(e => e.priority && selectable(e)),
   },
   {
@@ -201,6 +205,14 @@ const belowStillLow = computed(() =>
 const monthlyTotal = computed(() =>
   chosen.value.reduce((sum, e) => sum + Math.max(0, monthlyOf(e, increaseOf(e) ?? 0)), 0),
 )
+
+// Employment type badge colour (probationary stands out for the optional group).
+const typeTone = (name: string) => {
+  const n = name.toLowerCase()
+  if (n.includes('probation')) return 'probationary'
+  if (n.includes('regular') || n.includes('permanent')) return 'regular'
+  return 'other'
+}
 
 const statusLabel = (e: WageEmployee) => ({
   below: `Below by ${peso(e.shortfall_daily)}/day`,
@@ -354,6 +366,13 @@ const submit = async () => {
             </select>
             <ChevronDown :size="14" class="select-icon" />
           </div>
+          <div class="select-wrap">
+            <select v-model="employmentTypeId" aria-label="Employment type">
+              <option value="">All Employment Types</option>
+              <option v-for="t in result?.employment_types ?? []" :key="t.id" :value="t.id">{{ t.name }}</option>
+            </select>
+            <ChevronDown :size="14" class="select-icon" />
+          </div>
           <div class="segmented" role="group" aria-label="Show">
             <button type="button" :class="{ active: show === 'all' }" :aria-pressed="show === 'all'" @click="show = 'all'">All</button>
             <button type="button" :class="{ active: show === 'priority' }" :aria-pressed="show === 'priority'" @click="show = 'priority'">
@@ -433,6 +452,7 @@ const submit = async () => {
                   <td>
                     <strong>{{ e.name }}</strong>
                     <small>{{ e.emp_id }}<template v-if="e.position"> · {{ e.position }}</template></small>
+                    <span v-if="e.employment_type" class="type-badge" :class="typeTone(e.employment_type)">{{ e.employment_type }}</span>
                     <small v-if="e.blocked_reason" class="blocked-reason">{{ e.blocked_reason }}</small>
                     <span v-if="e.blocking" class="row-actions">
                       <NuxtLink
@@ -598,6 +618,9 @@ tr.blocked td:nth-child(2) strong, tr.blocked td:nth-child(2) small:not(.blocked
 .row-link:focus-visible, .row-delete:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 tr.invalid td { background: color-mix(in srgb, var(--red-soft) 35%, transparent); }
 .required-note { color: var(--red) !important; }
+.type-badge { display: inline-block; margin-top: 5px; padding: 2px 8px; border-radius: 999px; font-size: 10px; font-weight: 700; background: var(--bg-card-soft); color: var(--text-secondary); }
+.type-badge.regular { background: var(--green-soft); color: var(--green); }
+.type-badge.probationary { background: var(--orange-soft); color: var(--orange); }
 .row-error { color: var(--red) !important; }
 .amount.error { border-color: var(--red); }
 .blocked-reason { color: var(--orange) !important; }

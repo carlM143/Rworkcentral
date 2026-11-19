@@ -1,8 +1,3 @@
-/**
- * Regional minimum wage orders and rates (no tranches: one effective date
- * per order), and applying an order to employees.
- * Endpoints: WageOrderController, WageOrderEmployeeController, RegionalRateController.
- */
 
 export type WageOrderStatus = 'draft' | 'scheduled' | 'active' | 'superseded' | 'cancelled'
 
@@ -67,6 +62,8 @@ export interface WageEmployee {
   department_id: number | null
   department: string | null
   position: string | null
+  employment_type_id: number | null
+  employment_type: string | null
   location_id: number
   location: string
   classification: string
@@ -102,6 +99,7 @@ export interface WageEmployeesResponse {
   data: WageEmployee[]
   stats: { employees: number, below_minimum: number, already_included: number, blocked: number }
   departments: { id: number, name: string }[]
+  employment_types: { id: number, name: string }[]
   locations: { id: number, name: string }[]
 }
 
@@ -237,7 +235,7 @@ export const useWageOrders = () => {
 
   const deleteDocument = (id: number) => $api<ApiResponse<WageOrderDetail>>(`/admin/wage-orders/${id}/document`, { method: 'DELETE' })
 
-  const employees = (id: number, params: { department_id?: number | '', location_id?: number | '', search?: string } = {}) =>
+  const employees = (id: number, params: { department_id?: number | '', location_id?: number | '', employment_type_id?: number | '', search?: string } = {}) =>
     $api<WageEmployeesResponse>(`/admin/wage-orders/${id}/employees`, {
       method: 'GET',
       query: Object.fromEntries(Object.entries(params).filter(([, v]) => v !== '' && v !== undefined && v !== null)),
