@@ -54,9 +54,27 @@ const editLoading = ref(false)
 const editSaving = ref(false)
 const editError = ref('')
 
+const showEmployeePicker = ref(false)
+const employeeSearch = ref('')
+
+const pendingEmployees = computed(() => {
+  const term = employeeSearch.value.trim().toLowerCase()
+
+  return filteredUsers.value.filter(user =>
+    user.canSetupAccount
+    && user.employeeId
+    && (!term || user.name.toLowerCase().includes(term))
+  )
+})
+
 const openAddUser = () => {
-  selectedUser.value = null
-  userModalMode.value = 'add'
+  employeeSearch.value = ''
+  showEmployeePicker.value = true
+}
+
+const pickEmployee = async (user: SystemUser) => {
+  showEmployeePicker.value = false
+  await openEditUser(user)
 }
 
 const openViewUser = (user: SystemUser) => {
@@ -324,6 +342,45 @@ const handleBack = () => {
          </div>
          </div>
         </div>
+            <div
+      v-if="showEmployeePicker"
+      class="picker-overlay"
+      @click.self="showEmployeePicker = false"
+    >
+      <section class="picker-modal" role="dialog" aria-modal="true">
+        <header>
+          <h3>Select Employee</h3>
+          <p>Choose an employee who does not have a system account yet.</p>
+        </header>
+
+        <AppInput
+          v-model="employeeSearch"
+          searchable
+          clearable
+          placeholder="Search employee..."
+        />
+
+        <ul v-if="pendingEmployees.length">
+          <li v-for="emp in pendingEmployees" :key="emp.id">
+            <button type="button" @click="pickEmployee(emp)">
+              <strong>{{ emp.name }}</strong>
+              <span>{{ emp.email }}</span>
+            </button>
+          </li>
+        </ul>
+        <p v-else class="picker-empty">
+          All employees already have accounts.
+        </p>
+
+        <button
+          type="button"
+          class="picker-close"
+          @click="showEmployeePicker = false"
+        >
+          Cancel
+        </button>
+      </section>
+    </div>
     <UserFormModal
       :open="userModalMode === 'add' || userModalMode === 'edit' || userModalMode === 'setup'"
       :mode="userModalMode === 'setup' ? 'setup' : userModalMode === 'edit' ? 'edit' : 'add'"
@@ -515,5 +572,67 @@ const handleBack = () => {
 
     align-items: flex-start;
   }
+}
+
+.picker-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgb(0 0 0 / 55%);
+}
+
+.picker-modal {
+  width: min(460px, 92vw);
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-card);
+  color: var(--text-primary);
+}
+
+.picker-modal h3 { margin: 0; font-size: 14px; }
+.picker-modal p { margin: 2px 0 0; font-size: 11px; color: var(--text-muted); }
+
+.picker-modal ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow-y: auto;
+}
+
+.picker-modal li button {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  gap: 2px;
+  padding: 9px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.picker-modal li button:hover { background: var(--bg-hover, rgb(255 255 255 / 6%)); }
+.picker-modal li span { font-size: 10px; color: var(--text-muted); }
+.picker-empty { text-align: center; padding: 12px 0; }
+
+.picker-close {
+  align-self: flex-end;
+  padding: 7px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font-size: 11px;
+  cursor: pointer;
 }
 </style>

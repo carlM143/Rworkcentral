@@ -5,7 +5,7 @@ import {
   EyeOff,
   LockKeyhole,
   Mail,
- ShieldCheck,
+  ShieldCheck,
 } from 'lucide-vue-next'
 
 definePageMeta({
@@ -112,27 +112,31 @@ const handleLogin = async () => {
 
 <template>
   <div class="login-page">
-
-
+    <!-- =====================================================
+         BRAND PANEL
+    ====================================================== -->
     <section class="brand-panel">
-
       <div class="brand-overlay" />
 
       <div class="brand-content">
-
-        <!-- LOGO -->
-
+        <!-- LOGO + PORTAL LABEL (same layout as the employee login) -->
         <div class="brand">
-
           <img
-              src="/logo-white.png" alt="RWorkCentral" class="login-brand-image"
-            >
+            src="/logo-white.png"
+            alt="RWorkCentral"
+            class="login-brand-image"
+            width="170"
+            height="48"
+          >
+
+          <span class="portal-pill">
+            <span class="portal-dot" aria-hidden="true" />
+            Administrator Portal — Admin
+          </span>
         </div>
 
         <!-- CONTENT -->
-
         <div class="brand-message">
-
           <span class="eyebrow">
             Human Resource Information System
           </span>
@@ -149,180 +153,102 @@ const handleLogin = async () => {
             assignments, billing and workforce
             operations securely.
           </p>
-
         </div>
 
         <!-- FEATURES -->
-
         <div class="feature-list">
-
           <div class="feature-item">
-
             <div class="feature-icon">
-
-              <ShieldCheck
-                :size="18"
-              />
-
+              <ShieldCheck :size="18" />
             </div>
 
             <div>
-
-              <strong>
-                Secure Administration
-              </strong>
-
-              <span>
-                Centralized access for authorized HR administrators.
-              </span>
-
+              <strong>Secure Administration</strong>
+              <span>Centralized access for authorized HR administrators.</span>
             </div>
-
           </div>
 
           <div class="feature-item">
-
             <div class="feature-icon">
-
-              <Building2
-                :size="18"
-              />
-
+              <Building2 :size="18" />
             </div>
 
             <div>
-
-              <strong>
-                Workforce Management
-              </strong>
-
-              <span>
-                Manage employees, clients and company operations.
-              </span>
-
+              <strong>Workforce Management</strong>
+              <span>Manage employees, clients and company operations.</span>
             </div>
-
           </div>
-
         </div>
-
       </div>
 
       <div class="brand-footer">
         © 2026 RWorkCentral Inc.
       </div>
-
     </section>
 
     <!-- =====================================================
          LOGIN PANEL
     ====================================================== -->
-
     <section class="login-panel">
-
       <div class="login-wrapper">
-
-        <!-- MOBILE BRAND -->
-
-        <div class="mobile-brand">
-
-  <img src="/logo-white.png" alt="RWorkCentral" class="mobile-brand-image">
-  </div>
-
         <!-- HEADER -->
-
         <div class="login-header">
-
-          <span class="admin-label">
-            ADMINISTRATOR PORTAL — ADMIN
-          </span>
-
-          <h2>
-            Welcome back
-          </h2>
+          <h2>Welcome back</h2>
 
           <p>
             Sign in to continue to your
             RWorkCentral account.
           </p>
-
         </div>
 
         <!-- ERROR -->
-
         <div
           v-if="errorMessage"
           class="error-message"
+          role="alert"
         >
           {{ errorMessage }}
         </div>
 
         <!-- FORM -->
-
         <form
           class="login-form"
           @submit.prevent="handleLogin"
         >
-
           <!-- EMAIL -->
-
           <div class="field-group">
-
-            <label>
-              Email Address
-            </label>
+            <label for="admin-email">Email Address</label>
 
             <div class="input-control">
-
-              <Mail
-                :size="17"
-                class="field-icon"
-              />
+              <Mail :size="17" class="field-icon" />
 
               <input
+                id="admin-email"
                 v-model="email"
                 type="email"
                 autocomplete="email"
                 placeholder="admin@rworkcentral.com"
               >
-
             </div>
-
           </div>
 
           <!-- PASSWORD -->
-
           <div class="field-group">
-
             <div class="label-row">
+              <label for="admin-password">Password</label>
 
-              <label>
-                Password
-              </label>
-
-              <button
-                type="button"
-                class="forgot-button"
-              >
+              <button type="button" class="forgot-button">
                 Forgot password?
               </button>
-
             </div>
 
             <div class="input-control">
-
-              <LockKeyhole
-                :size="17"
-                class="field-icon"
-              />
+              <LockKeyhole :size="17" class="field-icon" />
 
               <input
+                id="admin-password"
                 v-model="password"
-                :type="
-                  showPassword
-                    ? 'text'
-                    : 'password'
-                "
+                :type="showPassword ? 'text' : 'password'"
                 autocomplete="current-password"
                 placeholder="Enter your password"
               >
@@ -330,98 +256,50 @@ const handleLogin = async () => {
               <button
                 type="button"
                 class="password-toggle"
-                @click="
-                  showPassword =
-                    !showPassword
-                "
+                :aria-label="showPassword ? 'Hide password' : 'Show password'"
+                @click="showPassword = !showPassword"
               >
-
-                <EyeOff
-                  v-if="showPassword"
-                  :size="17"
-                />
-
-                <Eye
-                  v-else
-                  :size="17"
-                />
-
+                <EyeOff v-if="showPassword" :size="17" />
+                <Eye v-else :size="17" />
               </button>
-
             </div>
-
           </div>
 
           <!-- REMEMBER -->
-
           <label class="remember-row">
-
-            <input
-              v-model="rememberMe"
-              type="checkbox"
-            >
-
-            <span>
-              Remember me on this device
-            </span>
-
+            <input v-model="rememberMe" type="checkbox">
+            <span>Remember me on this device</span>
           </label>
 
           <!-- BUTTON -->
-
           <button
             type="submit"
             class="login-button"
             :disabled="isSubmitting"
           >
-
-            <span
-              v-if="isSubmitting"
-              class="spinner"
-            />
-
-            {{
-              isSubmitting
-                ? 'Signing in...'
-                : 'Sign In'
-            }}
-
+            <span v-if="isSubmitting" class="spinner" />
+            {{ isSubmitting ? 'Signing in...' : 'Sign In' }}
           </button>
-
         </form>
 
         <!-- SECURITY -->
-
         <div class="security-note">
-
-          <ShieldCheck
-            :size="15"
-          />
-
+          <ShieldCheck :size="15" />
           <span>
             This portal is intended for authorized
             RWorkCentral users only.
           </span>
-
         </div>
-
       </div>
-
     </section>
-
   </div>
 </template>
 
 <style scoped>
 .login-page {
   display: grid;
-
   min-height: 100vh;
-
-  grid-template-columns:
-    minmax(0, 1.05fr)
-    minmax(0, 0.95fr);
-
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
   background: #f7f9fc;
 }
 
@@ -431,51 +309,23 @@ const handleLogin = async () => {
 
 .brand-panel {
   position: relative;
-
   display: flex;
-
   min-height: 100vh;
-
   overflow: hidden;
-
   flex-direction: column;
-
-  padding:
-    44px 56px 32px;
-
+  padding: 44px 56px 32px;
   background:
-    radial-gradient(
-      circle at 80% 20%,
-      rgba(48, 125, 255, 0.32),
-      transparent 30%
-    ),
-    radial-gradient(
-      circle at 20% 80%,
-      rgba(38, 102, 246, 0.22),
-      transparent 32%
-    ),
-    linear-gradient(
-      145deg,
-      #073c82 0%,
-      #062b65 45%,
-      #041d46 100%
-    );
-
+    radial-gradient(circle at 80% 20%, rgba(48, 125, 255, 0.32), transparent 30%),
+    radial-gradient(circle at 20% 80%, rgba(38, 102, 246, 0.22), transparent 32%),
+    linear-gradient(145deg, #073c82 0%, #062b65 45%, #041d46 100%);
   color: white;
 }
 
 .brand-overlay {
   position: absolute;
   inset: 0;
-
   pointer-events: none;
-
-  background:
-    linear-gradient(
-      120deg,
-      rgba(255, 255, 255, 0.04),
-      transparent 50%
-    );
+  background: linear-gradient(120deg, rgba(255, 255, 255, 0.04), transparent 50%);
 }
 
 .brand-content,
@@ -486,169 +336,111 @@ const handleLogin = async () => {
 
 .brand-content {
   display: flex;
-
   flex: 1;
-
   flex-direction: column;
 }
 
+/* Logo on the left, portal label on the right (same as the employee login). */
 .brand {
   display: flex;
-
   align-items: center;
-
-  gap: 13px;
+  justify-content: space-between;
+  gap: 16px;
 }
 
-.brand-logo {
-  display: flex;
-
-  width: 46px;
-  height: 46px;
-
-  align-items: center;
-  justify-content: center;
-
-  border-radius: 13px;
-
-  background:
-    linear-gradient(
-      135deg,
-      #4e92ff,
-      #1d6df7
-    );
-
-  box-shadow:
-    0 12px 30px
-    rgba(0, 0, 0, 0.18);
-}
-
-.brand h1 {
-  margin: 0;
-
-  font-size: 19px;
-}
-
-.brand span {
+/* Same size as the employee login logo: 170 × 48. */
+.login-brand-image {
   display: block;
+  width: 170px;
+  max-width: 100%;
+  height: 48px;
+  object-fit: contain;
+  object-position: left center;
+}
 
-  margin-top: 2px;
-
-  color: #bdd4f1;
-
+.portal-pill {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #d6e6ff;
   font-size: 11px;
   font-weight: 600;
+  white-space: nowrap;
+}
 
-  letter-spacing: 0.8px;
+.portal-dot {
+  width: 7px;
+  height: 7px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: #4ade80;
+  box-shadow: 0 0 0 3px rgba(74, 222, 128, 0.18);
 }
 
 .brand-message {
   margin-top: 85px;
   margin-bottom: auto;
-
   max-width: 570px;
 }
 
 .eyebrow {
   display: inline-flex;
-
-  padding:
-    6px 9px;
-
-  border:
-    1px solid
-    rgba(255, 255, 255, 0.12);
-
+  padding: 6px 9px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 6px;
-
-  background:
-    rgba(255, 255, 255, 0.06);
-
+  background: rgba(255, 255, 255, 0.06);
   color: #acd0ff;
-
   font-size: 9px;
   font-weight: 700;
-
   letter-spacing: 1px;
 }
 
 .brand-message h2 {
-  margin:
-    20px 0 16px;
-
-  font-size:
-    clamp(
-      32px,
-      3.2vw,
-      48px
-    );
-
+  margin: 20px 0 16px;
+  font-size: clamp(32px, 3.2vw, 48px);
   line-height: 1.14;
-
   letter-spacing: -1.5px;
 }
 
 .brand-message p {
   max-width: 500px;
-
   margin: 0;
-
   color: #b8cce6;
-
   font-size: 13px;
-
   line-height: 1.8;
 }
 
 .feature-list {
   display: grid;
-
-  grid-template-columns:
-    repeat(
-      2,
-      minmax(0, 1fr)
-    );
-
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
-
   margin-top: 38px;
 }
 
 .feature-item {
   display: flex;
-
   align-items: flex-start;
-
   gap: 10px;
-
   padding: 14px;
-
-  border:
-    1px solid
-    rgba(255, 255, 255, 0.1);
-
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 10px;
-
-  background:
-    rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.05);
 }
 
 .feature-icon {
   display: flex;
-
   width: 32px;
   height: 32px;
-
   flex-shrink: 0;
-
   align-items: center;
   justify-content: center;
-
   border-radius: 8px;
-
-  background:
-    rgba(62, 137, 255, 0.16);
-
+  background: rgba(62, 137, 255, 0.16);
   color: #77afff;
 }
 
@@ -663,17 +455,13 @@ const handleLogin = async () => {
 
 .feature-item span {
   margin-top: 4px;
-
   color: #9cb8d8;
-
   font-size: 8px;
-
   line-height: 1.5;
 }
 
 .brand-footer {
   color: #7396be;
-
   font-size: 9px;
 }
 
@@ -683,73 +471,39 @@ const handleLogin = async () => {
 
 .login-panel {
   display: flex;
-
   min-height: 100vh;
-
   align-items: center;
   justify-content: center;
-
   padding: 45px;
-
-  background:
-    #f7f9fc;
+  background: #f7f9fc;
 }
 
 .login-wrapper {
   width: 100%;
-
   max-width: 410px;
 }
 
-.mobile-brand {
-  display: none;
-}
-
-.admin-label {
-  color: #246bfd;
-
-  font-size: 9px;
-  font-weight: 700;
-
-  letter-spacing: 1.3px;
-}
-
 .login-header h2 {
-  margin:
-    9px 0 5px;
-
+  margin: 0 0 5px;
   color: #172033;
-
   font-size: 28px;
-
   letter-spacing: -0.6px;
 }
 
 .login-header p {
   margin: 0;
-
   color: #7d8899;
-
   font-size: 11px;
-
   line-height: 1.65;
 }
 
 .error-message {
   margin-top: 18px;
-
-  padding:
-    10px 12px;
-
-  border:
-    1px solid #ffd4d4;
-
+  padding: 10px 12px;
+  border: 1px solid #ffd4d4;
   border-radius: 8px;
-
   background: #fff1f1;
-
   color: #dc2626;
-
   font-size: 10px;
 }
 
@@ -763,86 +517,62 @@ const handleLogin = async () => {
 
 .field-group label {
   display: block;
-
   margin-bottom: 7px;
-
   color: #344054;
-
   font-size: 10px;
   font-weight: 600;
 }
 
 .label-row {
   display: flex;
-
   align-items: center;
   justify-content: space-between;
 }
 
+.label-row label {
+  margin-bottom: 7px;
+}
+
 .forgot-button {
   padding: 0;
-
   border: 0;
-
   background: transparent;
-
   color: #246bfd;
-
   font-size: 9px;
   font-weight: 600;
+  cursor: pointer;
 }
 
 .input-control {
   position: relative;
-
   display: flex;
-
   height: 47px;
-
   align-items: center;
-
-  border:
-    1px solid #dfe5ee;
-
+  border: 1px solid #dfe5ee;
   border-radius: 9px;
-
   background: white;
-
-  transition:
-    border-color 0.18s ease,
-    box-shadow 0.18s ease;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
 }
 
 .input-control:focus-within {
   border-color: #75a2ff;
-
-  box-shadow:
-    0 0 0 3px
-    rgba(36, 107, 253, 0.08);
+  box-shadow: 0 0 0 3px rgba(36, 107, 253, 0.08);
 }
 
 .field-icon {
   margin-left: 13px;
-
   flex-shrink: 0;
-
   color: #98a2b3;
 }
 
 .input-control input {
   width: 100%;
   height: 100%;
-
-  padding:
-    0 12px;
-
+  padding: 0 12px;
   border: 0;
   outline: 0;
-
   background: transparent;
-
   color: #172033;
-
   font-size: 11px;
 }
 
@@ -852,132 +582,91 @@ const handleLogin = async () => {
 
 .password-toggle {
   display: flex;
-
   width: 43px;
   height: 100%;
-
   flex-shrink: 0;
-
   align-items: center;
   justify-content: center;
-
   border: 0;
-
   background: transparent;
-
   color: #98a2b3;
+  cursor: pointer;
+}
+
+.password-toggle:focus-visible,
+.forgot-button:focus-visible,
+.login-button:focus-visible {
+  outline: 2px solid #246bfd;
+  outline-offset: 2px;
 }
 
 .remember-row {
   display: inline-flex;
-
   align-items: center;
-
   gap: 7px;
-
   color: #667085;
-
   font-size: 9px;
-
   cursor: pointer;
 }
 
 .remember-row input {
   width: 14px;
   height: 14px;
-
   accent-color: #246bfd;
 }
 
 .login-button {
   display: flex;
-
   width: 100%;
   height: 47px;
-
   align-items: center;
   justify-content: center;
-
   gap: 8px;
-
   margin-top: 20px;
-
   border: 0;
-
   border-radius: 9px;
-
-  background:
-    linear-gradient(
-      90deg,
-      #246bfd,
-      #317bff
-    );
-
+  background: linear-gradient(90deg, #246bfd, #317bff);
   color: white;
-
   font-size: 11px;
   font-weight: 650;
-
-  box-shadow:
-    0 8px 18px
-    rgba(36, 107, 253, 0.22);
-
+  box-shadow: 0 8px 18px rgba(36, 107, 253, 0.22);
   cursor: pointer;
 }
 
 .login-button:disabled {
   opacity: 0.7;
-
   cursor: wait;
 }
 
 .spinner {
   width: 14px;
   height: 14px;
-
-  border:
-    2px solid
-    rgba(255, 255, 255, 0.35);
-
+  border: 2px solid rgba(255, 255, 255, 0.35);
   border-top-color: white;
-
   border-radius: 50%;
-
-  animation:
-    spin 0.7s linear infinite;
+  animation: spin 0.7s linear infinite;
 }
 
 .security-note {
   display: flex;
-
   align-items: flex-start;
-
   gap: 7px;
-
   margin-top: 22px;
-
   padding-top: 18px;
-
-  border-top:
-    1px solid #e9edf3;
-
+  border-top: 1px solid #e9edf3;
   color: #98a2b3;
-
   font-size: 8px;
-
   line-height: 1.6;
 }
 
 .security-note svg {
   flex-shrink: 0;
-
   color: #667085;
 }
 
 @keyframes spin {
   to {
-    transform:
-      rotate(360deg);
+    transform: rotate(360deg);
   }
 }
 
@@ -1004,18 +693,14 @@ const handleLogin = async () => {
     box-shadow: 0 12px 32px rgba(6, 43, 101, 0.22);
   }
 
-  .brand {
-    display: flex;
-    align-items: center;
-    gap: 14px;
-  }
-
   .login-brand-image {
     width: 145px;
     height: 40px;
-    max-width: 100%;
-    object-fit: contain;
-    object-position: left center;
+  }
+
+  .portal-pill {
+    padding: 6px 11px;
+    font-size: 10px;
   }
 
   .brand-message {
@@ -1066,13 +751,9 @@ const handleLogin = async () => {
     box-shadow: 0 12px 40px rgba(15, 33, 64, 0.08);
   }
 
-  .mobile-brand {
-    display: none;
-  }
-
   .login-header h2 {
+    margin: 0 0 4px;
     font-size: 25px;
-    margin: 6px 0 4px;
   }
 
   .login-header p {
@@ -1095,12 +776,20 @@ const handleLogin = async () => {
   }
 
   .forgot-button {
-    font-size: 11.5px;
     min-height: 36px;
+    font-size: 11.5px;
   }
 
   .remember-row {
     font-size: 11.5px;
+  }
+}
+
+@media (max-width: 480px) {
+  /* Keep the logo and the label on one row on small phones. */
+  .portal-pill {
+    padding: 5px 9px;
+    font-size: 9px;
   }
 }
 
@@ -1112,7 +801,7 @@ const handleLogin = async () => {
   }
 
   .login-brand-image {
-    width: 125px;
+    width: 120px;
   }
 
   .brand-message h2 {
