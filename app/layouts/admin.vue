@@ -1,37 +1,19 @@
 <script setup lang="ts">
 import {
-  LayoutDashboard,
-  Users,
-  Clock3,
-  Umbrella,
-  WalletCards,
-  HandCoins,
-  Landmark,
-  Truck,
-  CalendarDays,
-  House,
-  CalendarClock,
   Building2,
-  BarChart3,
-  Settings,
-  Search,
-  Bell,
   ChevronDown,
   ChevronRight,
+  LogOut,
   Menu,
-  X,
   Moon,
+  Search,
+  Settings,
   Sun,
   UserRound,
-  BriefcaseBusiness,
-  ClipboardCheck,
-  LogOut,
-  Calculator,
-  History,
-  ReceiptText,
-  ShieldCheck,
-  Scale,
+  X,
 } from 'lucide-vue-next'
+
+import { ADMIN_MENU, SYSTEM_MENU, type AdminMenuChild, type AdminMenuItem } from '~/utils/adminAccess'
 
 import NotificationBell from '~/components/admin/notifications/NotificationBell.vue'
 import { useCompanyApi } from '~/composables/admin/useCompanyApi'
@@ -46,7 +28,7 @@ const {
   refreshUser,
   isHydrated,
   isAuthenticated,
-  canAccessAdminTimekeeping,
+  canAny,
   clearSession,
 } = useAuth()
 
@@ -73,6 +55,7 @@ const openMenus = reactive<Record<string, boolean>>({
   'employee-lifecycle': false,
   reports: false,
   compensation: false,
+  access: false,
 })
 
 // =====================================================
@@ -113,376 +96,33 @@ const userInitials = computed(() => {
 // SIDEBAR MENU
 // =====================================================
 
-const menuItems = [
-  {
-    label: 'Dashboard',
-    icon: LayoutDashboard,
-    to: '/admin',
-  },
-  {
-    label: 'Employees',
-    key: 'employees',
-    icon: Users,
-    children: [
-
-      {
-        label: 'Employee Directory',
-        to: '/admin/employees',
-      },
-      {
-        label: 'Salary Rates',
-        to: '/admin/employees/salary-rates',
-      },
-      {
-        label: 'Salary Adjustments',
-        to: '/admin/employees/salary-adjustments',
-      },
-      {
-        label: 'Transfer Department',
-        to: '/admin/employees/transfer-department',
-      },
-      {
-        label: 'Birthdays & Anniversaries',
-        to: '/admin/employees/celebrations',
-      },
-    ],
-  },
-  {
-    label: 'Timekeeping',
-    key: 'timekeeping',
-    icon: Clock3,
-    children: [
-      {
-        label: 'Time Logs',
-        to: '/admin/time-logs',
-      },
-      {
-        label: 'Time Log Correction Requests',
-        to: '/admin/timekeeping/time-log-correction-requests',
-      },
-      {
-        label: 'Late Adjustment',
-        to: '/admin/late-adjustment',
-      },
-      {
-        label: 'Manual Time In / Out',
-        to: '/admin/manual-time-in-out',
-      },
-    ],
-  },
-  {
-    label: 'Schedules',
-    key: 'schedules',
-    icon: CalendarClock,
-    children: [
-      {
-        label: 'Work Schedules',
-        to: '/admin/work-schedules',
-      },
-      {
-        label: 'Switch Rest Day',
-        to: '/admin/switch-rest-day',
-      },
-    ],
-  },
-    
-  {
-    label: 'Payroll',
-    key: 'payroll',
-    icon: WalletCards,
-    children: [
-      {
-        label: 'Payroll Groups',
-        to: '/admin/payroll/payroll-group',
-        icon: Users,
-      },
-      {
-        label: 'Pay Periods',
-        to: '/admin/payroll/payroll-period',
-        icon: CalendarDays,
-      },
-      {
-        label: 'Payroll Readiness',
-        to: '/admin/payroll/payroll-readiness',
-        icon: ClipboardCheck,
-      },
-      {
-        label: 'Employee Payroll',
-        to: '/admin/payroll/employee-payroll',
-        icon: Calculator,
-      },
-      // {
-      //   label: 'Driver Payroll',
-      //   to: '/admin/driver-payroll',
-      //   icon: Truck,
-      // },
-      // {
-      //   label: 'Payroll History',
-      //   to: '/admin/payroll-history',
-      //   icon: History,
-      // },
-      // {
-      //   label: 'Payslips',
-      //   to: '/admin/payroll-payslips',
-      //   icon: ReceiptText,
-      // },
-    ],
-  },
-
-  {
-    label: 'Compensation',
-    key: 'compensation',
-    icon: Scale,
-    children: [
-      {
-        label: 'Wage Orders',
-        to: '/admin/settings/compensation/wage-orders',
-      },
-      {
-        label: 'Wage Adjustments',
-        to: '/admin/settings/compensation/wage-adjustments',
-      },
-      {
-        label: 'Regional Rates',
-        to: '/admin/settings/compensation/regional-rates',
-      },
-    ],
-  },
-
-  {
-    label: 'Contributions',
-    key: 'contributions',
-    icon: Landmark,
-    children: [
-      {
-        label: 'Contribution Types',
-        to: '/admin/contribution/types',
-      },
-      {
-        label: 'Contribution Rate',
-        to: '/admin/contribution/rate-schedules',
-      },
-      {
-        label: 'Bracket Management',
-        to: '/admin/contribution/bracket-management',
-      },
-      {
-        label: 'Contribution History',
-        to: '/admin/contribution/contribution-history',
-      },
-      {
-        label: 'Contribution Settings',
-        to: '/admin/contribution/deduction-settings',
-      },
-    ],
-  },
-  {
-    label: 'Loans',
-    key: 'loans',
-    icon: HandCoins,
-    children: [
-      { label: 'Loan Types', to: '/admin/loans/types' },
-      { label: 'Employee Loans', to: '/admin/loans/employee-loans' },
-      { label: 'Loan Transactions', to: '/admin/loans/transactions' },
-    ],
-  },
-  
-   {
-    label: 'All Drivers',
-    key: 'drivers',
-    icon: Truck,
-    children: [
-      {
-        label: 'Drivers Directory',
-        to: '/admin/drivers',
-      },
-      {
-        label: 'Trip Tickets',
-        to: '/admin/trip-tickets',
-      },
-      {
-        label: 'Vehicles',
-        to: '/admin/vehicles',
-      },
-    ],
-  },
-  {
-    label: 'Leave Management',
-    key: 'leave',
-    icon: Umbrella,
-    children: [
-      {
-        label: 'Leave Balances',
-        to: '/admin/leave-management/leave-balances',
-      },
-      {
-        label: 'Leave Types',
-        to: '/admin/leave-management/leave-types',
-      },
-      {
-        label: 'Leave Policies',
-        to: '/admin/leave-management/leave-policies',
-      },
-    ],
-  },
-  {
-    label: 'Holiday Management',
-    key: 'work-calendar',
-    icon: CalendarDays,
-    children: [
-      { label: 'Holiday', to: '/admin/holiday-management/holiday' },
-      { label: 'Holiday Coverage', to: '/admin/holiday-management/holiday-coverage' },
-      { label: 'Holiday Pay', to: '/admin/holiday-management/holiday-pay' },
-    ],
-  },
-  {
-    label: 'Departments',
-    key: 'departments',
-    icon: BriefcaseBusiness,
-    children: [
-      {
-        label: 'Departments',
-        to: '/admin/departments',
-      },
-      {
-        label: 'Positions',
-        to: '/admin/positions',
-      },
-      {
-        label: 'Employment Types',
-        to: '/admin/employment-types',
-      },
-    ],
-  },
-  {
-    label: 'Approval Center',
-    key: 'approvals',
-    icon: ClipboardCheck,
-    children: [
-      {
-        label: 'Leave Approvals',
-        to: '/admin/approvals/leaves',
-      },
-      {
-        label: 'Overtime Approvals',
-        to: '/admin/approvals/overtime',
-      },
-      {
-        label: 'Undertime Approvals',
-        to: '/admin/approvals/undertime',
-      },
-      {
-        label: 'official business autorization',
-        to: '/admin/approvals/oba-request',
-      },
-
-    ],
-  },
-
-  // =====================================================
-  // WFH (SEPARATE FRONTEND-ONLY MODULE)
-  // =====================================================
-  {
-    label: 'Work From Home',
-    key: 'wfh',
-    icon: House,
-    children: [
-      {
-        label: 'WFH Requests',
-        to: '/admin/wfh/requests',
-      },
-      {
-        label: 'WFH Document Review',
-        to: '/admin/wfh/documents',
-      },
-    ],
-  },
-  {
-    label: 'Evaluation Templates',
-    icon: ClipboardCheck,
-    to: '/admin/performance/templates',
-  },
-   {
-    label: 'Employee Lifecycle',
-    key: 'employee-lifecycle',
-    icon: UserRound,
-    children: [
-      {
-        label: 'Lifecycle Policies',
-        to: '/admin/employee-lifecycle/policies',
-      },
-      {
-        label: 'Lifecycle Stages',
-        to: '/admin/employee-lifecycle/stages',
-      },
-      {
-        label: 'Employee Milestones',
-        to: '/admin/employee-lifecycle/milestones',
-      },
-      {
-        label: 'Employee Offboarding',
-        to: '/admin/employee-lifecycle/offboarding',
-      },
-      {
-        label: 'Employee History',
-        to: '/admin/employee-lifecycle/employee-history',
-      },
-    ],
-  },
-  {
-    label: 'Reports & Analytics',
-    key: 'reports',
-    icon: BarChart3,
-    children: [
-      {
-        label: 'Reports Center',
-        to: '/admin/reports/center',
-      },
-      {
-        label: 'Attendance Reports',
-        to: '/admin/reports/attendance',
-      },
-      {
-        label: 'Payroll Reports',
-        to: '/admin/reports/payroll',
-      },
-      {
-        label: '13th Month Pay',
-        to: '/admin/13th-month-pay',
-      },
-      {
-        label: 'SSS Report',
-        to: '/admin/reports/sss',
-      },
-      {
-        label: 'Pag-IBIG Report',
-        to: '/admin/reports/pagibig',
-      },
-      {
-        label: 'PhilHealth Report',
-        to: '/admin/reports/philhealth',
-      },
-      {
-        label: 'Wage Compliance',
-        to: '/admin/reports/wage-compliance',
-      },
-    ],
-  },
-]
+// Menu and the privilege of each page live in utils/adminAccess.ts,
+// shared with the route guard (middleware/auth.global.ts).
+const menuItems = ADMIN_MENU
 
 // =====================================================
 // DYNAMIC PERMISSION-BASED SIDEBAR
 // =====================================================
 
-const visibleMenuItems = computed(() => {
-  return menuItems.filter((item) => {
-    if (item.key === 'timekeeping') {
-      return canAccessAdminTimekeeping.value
-    }
+// Only what the user's role allows (Users & Access › Roles & Permissions).
+// Groups with no allowed page are hidden.
+const allowedItems = (items: AdminMenuItem[]) =>
+  items
+    .map((item) => {
+      if (!item.children) {
+        return item.access && !canAny(item.access.module, item.access.names) ? null : item
+      }
 
-    return true
-  })
-})
+      const children = item.children.filter((child: AdminMenuChild) =>
+        canAny(child.access.module, child.access.names),
+      )
+
+      return children.length ? { ...item, children } : null
+    })
+    .filter((item): item is NonNullable<typeof item> => item !== null)
+
+const visibleMenuItems = computed(() => allowedItems(menuItems))
+const visibleSystemItems = computed(() => allowedItems(SYSTEM_MENU))
 
 // =====================================================
 // NAVIGATION
@@ -531,7 +171,7 @@ const hasActiveChild = (
 
 const expandActiveMenu = () => {
 
-  visibleMenuItems.value.forEach((item) => {
+  ;[...visibleMenuItems.value, ...visibleSystemItems.value].forEach((item) => {
     if (
       item.key &&
       item.children &&
@@ -669,7 +309,7 @@ onMounted(async () => {
 watch(
   [
     () => route.path,
-    canAccessAdminTimekeeping,
+    visibleMenuItems,
   ],
   () => {
     sidebarOpen.value = false
@@ -816,25 +456,92 @@ onBeforeUnmount(() => {
           </template>
         </nav>
 
-        <!-- SYSTEM -->
-        <p class="menu-section-title system-label">
-          System
-        </p>
+        <!-- SYSTEM: Users & Access, Settings -->
+        <template v-if="visibleSystemItems.length">
+          <p class="menu-section-title system-label">
+            System
+          </p>
 
-        <NuxtLink
-          to="/admin/settings"
-          class="menu-link"
-          :class="{
-            active: isRouteActive('/admin/settings'),
-          }"
-          @click="sidebarOpen = false"
-        >
-          <Settings
-            :size="19"
-            :stroke-width="1.9"
-          />
-          <span>Settings</span>
-        </NuxtLink>
+        <nav class="sidebar-menu" aria-label="System">
+          <template
+            v-for="item in visibleSystemItems"
+            :key="item.label"
+          >
+            <!-- SIMPLE MENU -->
+            <NuxtLink
+              v-if="!item.children"
+              :to="item.to"
+              class="menu-link"
+              :class="{
+                active: isRouteActive(item.to),
+              }"
+              @click="sidebarOpen = false"
+            >
+              <component
+                :is="item.icon"
+                :size="19"
+                :stroke-width="1.9"
+              />
+
+              <span>{{ item.label }}</span>
+            </NuxtLink>
+
+            <!-- MENU WITH CHILDREN -->
+            <div
+              v-else
+              class="menu-group"
+            >
+              <button
+                type="button"
+                class="menu-link menu-button"
+                :class="{
+                  active: hasActiveChild(item.children),
+                }"
+                @click="toggleMenu(item.key)"
+              >
+                <component
+                  :is="item.icon"
+                  :size="19"
+                  :stroke-width="1.9"
+                />
+
+                <span>{{ item.label }}</span>
+
+                <component
+                  :is="
+                    openMenus[item.key ?? '']
+                      ? ChevronDown
+                      : ChevronRight
+                  "
+                  class="menu-arrow"
+                  :size="17"
+                />
+              </button>
+
+              <Transition name="submenu">
+                <div
+                  v-show="openMenus[item.key ?? '']"
+                  class="submenu"
+                >
+                  <NuxtLink
+                    v-for="child in item.children"
+                    :key="child.label"
+                    :to="child.to"
+                    class="submenu-link"
+                    :class="{
+                      active: activeChildPath(item.children) === child.to,
+                    }"
+                    @click="sidebarOpen = false"
+                  >
+                    <span class="submenu-dot" />
+                    {{ child.label }}
+                  </NuxtLink>
+                </div>
+              </Transition>
+            </div>
+          </template>
+        </nav>
+        </template>
 
       </div>
 

@@ -7,10 +7,26 @@ import type {
   SettingsModule,
 } from '~/types/settings'
 
+import { computed } from 'vue'
+import { accessForPath } from '~/utils/adminAccess'
+
 const {
   modules,
   stats,
 } = useSettingsOverview()
+
+const { canAny } = useAuth()
+
+// Configuration cards only. Users & Access has its own sidebar menu
+// (System › Users & Access). Cards the user's role cannot open are hidden.
+const configModules = computed(() =>
+  modules.value
+    .filter(module => module.route !== '/admin/settings/users')
+    .filter((module) => {
+      const access = accessForPath(module.route)
+      return !access || canAny(access.module, access.names)
+    }),
+)
 
 const {
   info,
@@ -35,7 +51,6 @@ const handleOpenModule = (
 
   // Cards that have their own settings page.
   const settingsPages = [
-    '/admin/settings/users',
     '/admin/settings/company',
     '/admin/settings/qr-generation',
     '/admin/settings/approvals',
@@ -65,7 +80,7 @@ const handleOpenModule = (
     <!-- HEADER -->
     <PageHeader
       title="Settings"
-      description="Manage company configuration, system users, access control and HRIS preferences."
+      description="Manage company configuration and HRIS preferences. Users and roles are in System › Users & Access."
     >
       <AppButton
         :icon="Settings2"
@@ -87,7 +102,7 @@ const handleOpenModule = (
 
     <!-- CONFIGURATION AREAS -->
     <SettingsConfigurationGrid
-      :modules="modules"
+      :modules="configModules"
       @open="handleOpenModule"
     />
 
