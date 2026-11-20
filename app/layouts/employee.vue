@@ -21,6 +21,7 @@ import {
   Building2,
   House,
   ScanLine,
+  Briefcase
 } from 'lucide-vue-next'
 
 const route = useRoute()
@@ -53,10 +54,19 @@ const isTimeLogCorrectionRoute = computed(() =>
   route.path.startsWith('/employee/timelog-correction-request/')
 )
 const isWfhRoute = computed(() => route.path === '/employee/wfh-requests')
+const isObaRoute = computed(() => route.path === '/employee/oba-requests')
+
 const requestsActive = computed(() =>
-  route.path === '/employee/requests' || isTimeLogCorrectionRoute.value || isWfhRoute.value
+  route.path === '/employee/requests' ||
+  isTimeLogCorrectionRoute.value ||
+  isWfhRoute.value ||
+  isObaRoute.value
 )
+
 const requestsOpen = ref(requestsActive.value)
+
+
+
 
 const requestLinks = [
   { label: 'Leave', category: 'leave', icon: CalendarDays, to: { path: '/employee/requests', query: { category: 'leave' } } },
@@ -64,11 +74,13 @@ const requestLinks = [
   { label: 'Overtime', category: 'overtime', icon: TimerReset, to: { path: '/employee/requests', query: { category: 'overtime' } } },
   { label: 'Time Log Correction', category: 'timelog-correction', icon: FileClock, to: '/employee/timelog-correction-request' },
   { label: 'Work From Home', category: 'wfh', icon: House, to: '/employee/wfh-requests' },
+  { label: 'Official Business Authorization', category: 'oba', icon: Briefcase, to: '/employee/oba-requests' },
 ]
 
 const selectedRequestCategory = computed(() => {
   if (isTimeLogCorrectionRoute.value) return 'timelog-correction'
   if (isWfhRoute.value) return 'wfh'
+  if (isObaRoute.value) return 'oba'
   const category = String(route.query.category || '')
   return ['undertime', 'overtime'].includes(category) ? category : 'leave'
 })

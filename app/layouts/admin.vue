@@ -371,6 +371,11 @@ const menuItems = [
         label: 'Undertime Approvals',
         to: '/admin/approvals/undertime',
       },
+      {
+        label: 'official business autorization',
+        to: '/admin/approvals/oba-request',
+      },
+
     ],
   },
 
