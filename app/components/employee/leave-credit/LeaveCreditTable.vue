@@ -121,6 +121,35 @@ const formatCredits = (value: number) =>
       </table>
     </div>
 
+    <div class="mobile-leave-list">
+      <article
+        v-for="leave in rows"
+        :key="`${leave.leave_type_id}-${leave.leave_policy_id ?? 'none'}-${leave.pay}`"
+        class="mobile-leave-card"
+      >
+        <div class="mobile-card-header">
+          <div class="leave-name">
+            <span class="leave-icon"><CalendarDays :size="16" /></span>
+            <div>
+              <strong>{{ leave.leave_type }}</strong>
+              <small>{{ leave.leave_code }}</small>
+            </div>
+          </div>
+          <span class="status-badge" :class="statusClass(leave.status)">
+            <span class="status-dot" />
+            {{ statusLabel(leave.status) }}
+          </span>
+        </div>
+        <div class="mobile-card-details">
+          <span>Employment Type</span><strong>{{ leave.employment_type }}</strong>
+          <span>Available Credits</span><strong>{{ formatCredits(leave.available_credits) }}</strong>
+          <span>Pay</span><span><span class="pay-badge" :class="leave.pay.toLowerCase()">{{ leave.pay }}</span></span>
+          <span>Minimum Service</span><strong>{{ leave.min_service_months }} {{ leave.min_service_months === 1 ? 'month' : 'months' }}</strong>
+        </div>
+      </article>
+      <p v-if="!rows.length" class="mobile-empty">No active leave types are configured.</p>
+    </div>
+
     <div class="table-footer">
       Showing <strong>{{ rows.length }}</strong>
       leave {{ rows.length === 1 ? 'entry' : 'entries' }}
@@ -287,9 +316,21 @@ tbody tr:hover {
   color: var(--text-primary);
 }
 
+.mobile-leave-list {
+  display: none;
+}
+
 @media (max-width: 850px) {
-  table {
-    min-width: 720px;
-  }
+  .table-scroll { display: none; }
+  .mobile-leave-list { display: grid; gap: 10px; padding: 0 14px 14px; }
+  .mobile-leave-card { display: flex; flex-direction: column; gap: 12px; min-width: 0; padding: 13px; border: 1px solid var(--border); border-radius: 9px; background: var(--bg-card-soft); font-size: 12px; }
+  .mobile-card-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+  .mobile-card-header .leave-name { min-width: 0; }
+  .mobile-card-header .leave-name strong { white-space: normal; overflow-wrap: anywhere; }
+  .mobile-card-header .status-badge { flex-shrink: 0; }
+  .mobile-card-details { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px; color: var(--text-secondary); font-size: 11px; }
+  .mobile-card-details > :nth-child(even) { text-align: right; }
+  .mobile-card-details strong { color: var(--text-primary); }
+  .mobile-empty { margin: 0; padding: 18px 0; color: var(--text-muted); font-size: 12px; text-align: center; }
 }
 </style>

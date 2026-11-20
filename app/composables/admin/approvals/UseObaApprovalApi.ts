@@ -8,7 +8,7 @@ import type {
 const BASE = '/admin/oba-requests'
 
 /** Returns the first validation error, API message, or the fallback. */
-export const getObaApiError = (cause: unknown, fallback: string): string => {
+export const getObaApprovalApiError = (cause: unknown, fallback: string): string => {
   const problem = cause as {
     data?: ObaApiErrorData
     response?: { _data?: ObaApiErrorData }
