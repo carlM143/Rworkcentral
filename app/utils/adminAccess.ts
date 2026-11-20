@@ -150,6 +150,8 @@ export const ADMIN_MENU: AdminMenuItem[] = [
       { label: 'Leave Approvals', to: '/admin/approvals/leaves', access: a('approvals', 'leaves.view') },
       { label: 'Overtime Approvals', to: '/admin/approvals/overtime', access: a('approvals', 'overtime.view') },
       { label: 'Undertime Approvals', to: '/admin/approvals/undertime', access: a('approvals', 'undertime.view') },
+      // Needs 'oba' under approvals in backend config/privileges.php for non-Administrator roles
+      { label: 'OBA Approvals', to: '/admin/approvals/oba-request', access: a('approvals', 'oba.view') },
     ],
   },
   {
