@@ -623,7 +623,6 @@ const governmentItems = computed(() => {
         <span class="read-only">{{ profile.requirements?.length || 0 }} on file</span>
       </header>
       <p class="note">Official records and employment requirements submitted to Human Resources.</p>
-      <p class="mobile-table-hint">Tap a document row to view submission notes and status.</p>
       <div class="table-scroll" role="region" aria-label="Employee requirements" tabindex="0">
         <table class="mobile-compact-table">
           <thead>
@@ -669,6 +668,26 @@ const governmentItems = computed(() => {
             </tr>
           </tbody>
         </table>
+      </div>
+      <div class="mobile-document-list">
+        <button
+          v-for="requirement in profile.requirements ?? []"
+          :key="requirement.id"
+          type="button"
+          class="mobile-document-card"
+          :aria-label="`Open ${requirement.name} details`"
+          @click="viewDocument(requirement)"
+        >
+          <span class="mobile-document-header">
+            <strong>{{ requirement.name }}</strong>
+            <span class="requirement-status" :class="{ submitted: requirement.status === 'Submitted', verified: requirement.status === 'Verified' }">{{ requirement.status }}</span>
+          </span>
+          <span class="mobile-document-category">{{ requirement.category || 'General' }}</span>
+          <span class="mobile-document-date">{{ requirement.submittedAt ? formatDisplayDate(requirement.submittedAt) : 'Pending' }}</span>
+          <span class="mobile-document-remark">{{ requirement.remarks || 'No notes on file.' }}</span>
+          <span class="mobile-document-footer">View details →</span>
+        </button>
+        <p v-if="!profile.requirements?.length" class="mobile-document-empty">No document records found.</p>
       </div>
     </article>
 
@@ -1186,20 +1205,34 @@ td { color: var(--text-secondary); }
 
 .password-card { border-top: 3px solid var(--primary); }
 .password-form { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.mobile-document-list { display: none; }
+
+@media(max-width: 850px) {
+  .requirements .table-scroll { display: none; }
+  .mobile-document-list { display: grid; gap: 10px; margin-top: 16px; }
+  .mobile-document-card { display: flex; flex-direction: column; gap: 7px; width: 100%; min-width: 0; padding: 13px; text-align: left; font: inherit; font-size: 12px; color: var(--text-primary); background: var(--bg-card-soft); border: 1px solid var(--border); border-radius: 9px; cursor: pointer; }
+  .mobile-document-card:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+  .mobile-document-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .mobile-document-header strong { min-width: 0; overflow-wrap: anywhere; }
+  .mobile-document-header .requirement-status { flex-shrink: 0; }
+  .mobile-document-category, .mobile-document-remark { color: var(--text-secondary); line-height: 1.5; overflow-wrap: anywhere; }
+  .mobile-document-date { font-weight: 600; }
+  .mobile-document-footer { color: var(--primary); font-size: 11px; font-weight: 600; }
+  .mobile-document-empty { margin: 0; padding: 18px 0; color: var(--text-muted); font-size: 12px; text-align: center; }
+}
 
 @media(max-width: 1000px) {
   .profile-columns { grid-template-columns: 1fr; }
   .password-form { grid-template-columns: 1fr; }
 }
 @media(max-width: 600px) {
-  .profile-header-bar .refresh-button { display: none; }
   form, .detail-grid { grid-template-columns: 1fr; }
   .employee-profile { gap: 14px; }
   .profile-header-bar { align-items: flex-start; }
   .profile-header-bar > div { min-width: 0; }
   .page-title { font-size: 21px; }
   .page-subtitle { line-height: 1.6; }
-  .refresh-button { justify-content: center; }
+  .refresh-button { min-height: 40px; justify-content: center; }
   .profile-card { padding: 16px; }
   .identity { flex-direction: column; align-items: center; text-align: center; }
   .identity-details { width: 100%; }

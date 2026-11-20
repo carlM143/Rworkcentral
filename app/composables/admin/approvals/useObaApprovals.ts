@@ -1,4 +1,4 @@
-import { getObaApiError, useObaApprovalApi } from '~/composables/admin/approvals/useObaApprovalApi'
+import { getObaApprovalApiError, useObaApprovalApi } from '~/composables/admin/approvals/UseObaApprovalApi'
 import type { ObaRequestRecord, ObaRequestStatus, ObaSummary } from '~/types/oba-request/obaRequest'
 
 const PER_PAGE = 15
@@ -44,7 +44,7 @@ export const useObaApprovals = () => {
       summary.value = res.summary ?? {}
     } catch (cause: unknown) {
       requests.value = []
-      loadError.value = getObaApiError(cause, 'Unable to load OBA requests.')
+      loadError.value = getObaApprovalApiError(cause, 'Unable to load OBA requests.')
     } finally {
       loading.value = false
     }
