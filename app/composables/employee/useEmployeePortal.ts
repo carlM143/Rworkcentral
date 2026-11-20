@@ -314,8 +314,37 @@ const mapBackendProfile = (data: any, fallbackUser?: any): EmployeeProfileData =
   }
 }
 
+/*
+ * Requests in progress, shared by every useEmployeePortal() call. The layout and
+ * the current page both call this composable; without this, each call fired its
+ * own copy of every request and the (single-threaded) dev API queued them all.
+ */
+const inflightLoads = new Map<string, Promise<unknown>>()
+
 export const useEmployeePortal = () => {
   const auth = useAuth()
+
+  // What has already been loaded for the signed-in user (reset when the user changes).
+  const loaded = useState<Record<string, boolean>>('employee-portal-loaded', () => ({}))
+  const loadedForUser = useState<string | number | null>('employee-portal-loaded-user', () => null)
+
+  /** Runs a loader once per signed-in user; concurrent callers share the same request. */
+  const loadOnce = (key: string, loader: () => Promise<unknown>): Promise<unknown> => {
+    if (!import.meta.client || !auth.isAuthenticated.value) return Promise.resolve()
+    const userKey = auth.user.value?.id ?? auth.user.value?.email ?? null
+    if (loadedForUser.value !== userKey) {
+      loaded.value = {}
+      loadedForUser.value = userKey
+    }
+    if (loaded.value[key]) return Promise.resolve()
+    const running = inflightLoads.get(key)
+    if (running) return running
+    const request = loader()
+      .then(() => { loaded.value = { ...loaded.value, [key]: true } })
+      .finally(() => inflightLoads.delete(key))
+    inflightLoads.set(key, request)
+    return request
+  }
   const { $api } = useNuxtApp()
 
   const profile = useState<EmployeeProfileData>('employee-profile', () => {
@@ -750,6 +779,16 @@ export const useEmployeePortal = () => {
     }
   }
 
+  /*
+   * Load-once helpers. Pages call the ones they need (e.g. the dashboard calls
+   * ensureRequests/ensureTimeLogs/ensureWfhToday). Use fetchX() to force a refresh.
+   */
+  const ensureProfile = () => loadOnce('profile', fetchProfile)
+  const ensureLeaveTypes = () => loadOnce('leave-types', fetchLeaveTypes)
+  const ensureRequests = () => loadOnce('requests', fetchRequests)
+  const ensureTimeLogs = () => loadOnce('time-logs', () => fetchTimeLogs())
+  const ensureWfhToday = () => loadOnce('wfh-today', () => fetchWfhToday())
+
   // Synchronize authenticated user details
   watch(() => auth.user.value, (currentUser) => {
     if (currentUser?.name && !profile.value.firstName) {
@@ -758,11 +797,8 @@ export const useEmployeePortal = () => {
     if (currentUser?.email && !profile.value.phone) {
       profile.value.email = currentUser.email
     }
-    if (auth.isAuthenticated.value) {
-      fetchProfile()
-      fetchLeaveTypes()
-      fetchRequests()
-    }
+    // Only the profile is needed everywhere (layout, header); the rest loads on the pages that use it.
+    if (auth.isAuthenticated.value) void ensureProfile()
   }, { immediate: true })
 
   const attendanceRecords = {
@@ -915,13 +951,7 @@ export const useEmployeePortal = () => {
   const storageError = ref('')
 
   onMounted(() => {
-    if (auth.isAuthenticated.value) {
-      fetchProfile()
-      fetchLeaveTypes()
-      fetchRequests()
-      fetchTimeLogs()
-      fetchWfhToday()
-    }
+    if (auth.isAuthenticated.value) void ensureProfile()
   })
 
   const displayName = computed(() => {
@@ -974,5 +1004,10 @@ export const useEmployeePortal = () => {
     fetchTimeLogs,
     timeInWfh,
     timeOutWfh,
+    ensureProfile,
+    ensureLeaveTypes,
+    ensureRequests,
+    ensureTimeLogs,
+    ensureWfhToday,
   }
 }

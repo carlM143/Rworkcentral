@@ -1,11 +1,10 @@
 <script setup lang="ts">
-import { ArrowUpRight, CalendarDays, Clock3, Umbrella, TimerReset, WalletCards, ClipboardCheck, Plus, Download, Megaphone, X, Info, House, Camera, CheckCircle2, LogIn, LogOut } from 'lucide-vue-next'
+import { ArrowUpRight, CalendarDays, Clock3, Umbrella, TimerReset, WalletCards, ClipboardCheck, Plus, Download, Megaphone, X, House, Camera, CheckCircle2, LogIn } from 'lucide-vue-next'
 import EmployeeWfhProofModal from '~/components/employee/EmployeeWfhProofModal.vue'
-import EmployeeLeaveDateCalendar from '~/components/employee/EmployeeLeaveDateCalendar.vue'
 import type { EmployeeRequest } from '~/composables/employee/useEmployeePortal'
 import { employeeLeavePolicy } from '~/utils/employeeLeavePolicy'
 import { employeeRequestCategory } from '~/utils/employeeRequestCategory'
-import { overtimeDuration, undertimeDuration, requestClock } from '~/utils/employeeRequestTime'
+import { requestClock } from '~/utils/employeeRequestTime'
 
 const props = defineProps<{ section: string }>()
 const route = useRoute()
@@ -14,19 +13,23 @@ const {
   profile,
   requests,
   punches,
-  addRequest,
-  submitRequest: submitRequestApi,
-  updateRequest,
   cancelRequest,
-  leaveTypesList,
-  isSubmittingRequest,
-  submitError,
   storageError,
   wfhToday,
   isWfhActionLoading,
   timeInWfh,
   timeOutWfh,
+  ensureRequests,
+  fetchTimeLogs,
+  fetchWfhToday,
 } = useEmployeePortal()
+
+// Dashboard data: requests load once per session; today's attendance is refreshed on every visit
+onMounted(() => {
+  void ensureRequests()
+  void fetchTimeLogs()
+  void fetchWfhToday()
+})
 
 const wfhProofModalOpen = ref(false)
 const wfhActionError = ref('')
@@ -57,8 +60,8 @@ const handleWfhTimeOutSubmit = async (payload: { images: File[]; document: File 
     wfhActionError.value = res.message
   }
 }
-const titles: Record<string, string> = { dashboard: 'Dashboard', attendance: 'Attendance', 'leave-types': 'Leave Credits', requests: 'Requests', payslips: 'Payslips', loans: 'Loans', profile: 'Profile' }
-const requestableLeaves = computed(() => employeeLeavePolicy(profile.value.employmentType).filter(leave => leave.canRequest))
+// Payslips, Loans and Profile have their own pages (pages/employee/payslips|loans|profile)
+const titles: Record<string, string> = { dashboard: 'Dashboard' }
 const leaveCredit = (name: string) => {
   const available = employeeLeavePolicy(profile.value.employmentType).find(leave => leave.name === name)?.available
   return available === null || available === undefined ? 'HR review' : `${available} days`
@@ -77,179 +80,22 @@ const visibleRequests = computed(() => requests.value.filter(request => ['Leave'
 const recentRequests = computed(() => [...visibleRequests.value].sort((a, b) => (b.requestDate || b.start).localeCompare(a.requestDate || a.start)))
 const pending = computed(() => visibleRequests.value.filter(r => r.status === 'Pending').length)
 const notice = ref(route.query.submitted === '1' ? 'Leave request submitted successfully to HR.' : '')
-const filter = ref('All')
-const requestCategories = ['Leave', 'Undertime', 'Overtime'] as const
-const activeCategory = ref<typeof requestCategories[number]>('Leave')
-watch(() => route.query.category, category => {
-  activeCategory.value = category === 'undertime' ? 'Undertime' : category === 'overtime' ? 'Overtime' : 'Leave'
-  filter.value = 'All'
-}, { immediate: true })
-const selectRequestCategory = (category: typeof requestCategories[number]) => {
-  activeCategory.value = category
-  filter.value = 'All'
-  if (props.section === 'requests') void router.replace({ path: '/employee/requests', query: { ...route.query, category: category.toLowerCase() } })
-}
-const filteredRequests = computed(() => requests.value.filter(r => employeeRequestCategory(r.type) === (props.section === 'attendance' ? 'Attendance Report' : activeCategory.value) && (filter.value === 'All' || r.status === filter.value)))
-const categoryCount = (category: string) => requests.value.filter(request => employeeRequestCategory(request.type) === category).length
-const requestDialog = ref<HTMLDialogElement | null>(null)
 const viewDialog = ref<HTMLDialogElement | null>(null)
-const attendanceDetailsOpen = ref(false)
-const selectedAttendanceDate = ref('')
-const selectedAttendance = computed(() => punches.value[selectedAttendanceDate.value])
-const selectedAttendanceShift = computed(() => {
-  const day = new Date(`${selectedAttendanceDate.value}T12:00:00`).toLocaleDateString('en-US', { weekday: 'long' })
-  return profile.value.workDays.find(shift => shift.day === day)
-})
-const viewAttendance = (date: string) => { selectedAttendanceDate.value = date; attendanceDetailsOpen.value = true }
+// Attendance (history, details, report) moved to pages/employee/attendance/index.vue
 const viewingRequestId = ref('')
 const viewedRequest = computed(() => requests.value.find(request => request.id === viewingRequestId.value))
 const viewRequest = (request: EmployeeRequest) => {
   viewingRequestId.value = request.id
   viewDialog.value?.showModal()
 }
-const form = reactive({ type: 'Vacation Leave', start: '', end: '', requestDate: '', reason: '' })
-const formCategory = computed(() => employeeRequestCategory(form.type))
-const reportedAttendanceDate = ref('')
-const editingRequestId = ref('')
-const originalRequest = computed(() => requests.value.find(request => request.id === editingRequestId.value))
-const leaveFormOptions = computed(() => {
-  if (leaveTypesList.value && leaveTypesList.value.length > 0) {
-    return leaveTypesList.value.map(lt => lt.leave_name)
-  }
-  const names = requestableLeaves.value.map(leave => leave.name)
-  if (originalRequest.value && employeeRequestCategory(originalRequest.value.type) === 'Leave' && !names.includes(originalRequest.value.type)) names.unshift(originalRequest.value.type)
-  return names
-})
 const canEditRequest = (request: EmployeeRequest) => request.status === 'Pending' && ['Leave', 'Undertime', 'Overtime'].includes(employeeRequestCategory(request.type) || '')
-const timing = reactive({ startTime: '', endTime: '', endsNextDay: false, requestedTimeOut: '' })
-const timedRequest = computed(() => form.type === 'Overtime' || form.type === 'Undertime')
-const selectedShift = computed(() => {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(form.start)) return null
-  const date = new Date(`${form.start}T12:00:00`)
-  if (Number.isNaN(date.getTime())) return null
-  const day = date.toLocaleDateString('en-US', { weekday: 'long' })
-  return profile.value.workDays.find(shift => shift.day === day) || null
-})
-const requestedMinutes = computed(() => form.type === 'Overtime'
-  ? overtimeDuration(timing.startTime, timing.endTime, timing.endsNextDay)
-  : form.type === 'Undertime' ? undertimeDuration(selectedShift.value?.start || '', selectedShift.value?.end || '', timing.requestedTimeOut, timing.endTime) : null)
-const formatDurationText = (mins: number | null) => {
-  if (mins === null || Number.isNaN(mins) || mins <= 0) return 'Enter valid times'
-  const hours = Math.floor(mins / 60)
-  const remainder = mins % 60
-  if (hours === 0) return `${mins} min${mins === 1 ? '' : 's'}`
-  if (remainder === 0) return `${hours} hr${hours === 1 ? '' : 's'} (${mins} mins)`
-  return `${hours} hr${hours === 1 ? '' : 's'} ${remainder} min${remainder === 1 ? '' : 's'} (${mins} mins)`
-}
-watch(() => form.start, () => {
-  if (form.type === 'Undertime') timing.endTime = selectedShift.value?.end || ''
-}, { flush: 'sync' })
-const formError = ref('')
-const requestImage = ref<EmployeeRequest['image']>()
-const imageLoading = ref(false)
-const requestFormKey = ref(0)
 const formatDate = (value: string) => new Date(`${value}T12:00:00`).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })
 const shortDate = (value: string) => new Date(`${value}T12:00:00`).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' })
 const formatTime = (value?: string) => value ? new Date(value).toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit' }) : '—'
 const workedHours = (hours: number | undefined) => hours === undefined ? 'Not provided' : `${hours.toFixed(1)} hrs`
 
-interface FormLeaveDate {
-  date: string
-  dayName: string
-  dayType: 'whole_day' | 'half_day'
-}
-
-const leaveDates = ref<FormLeaveDate[]>([])
-const suppressLeaveDateWatcher = ref(false)
-
-const getDayName = (dateStr: string) => {
-  if (!dateStr) return ''
-  const d = new Date(`${dateStr}T12:00:00`)
-  return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString('en-US', { weekday: 'long' })
-}
-
-const generateLeaveDates = () => {
-  if (formCategory.value !== 'Leave') return
-  if (!form.start) {
-    leaveDates.value = []
-    return
-  }
-  const startStr = form.start
-  const endStr = form.end || form.start
-  const start = new Date(`${startStr}T12:00:00`)
-  let end = new Date(`${endStr}T12:00:00`)
-  if (Number.isNaN(start.getTime())) return
-  if (Number.isNaN(end.getTime()) || end < start) {
-    end = new Date(start.getTime())
-  }
-
-  const existingMap = new Map<string, 'whole_day' | 'half_day'>()
-  leaveDates.value.forEach(item => {
-    existingMap.set(item.date, item.dayType)
-  })
-
-  const newDates: FormLeaveDate[] = []
-  const current = new Date(start.getTime())
-  let count = 0
-  while (current <= end && count < 60) {
-    const y = current.getFullYear()
-    const m = String(current.getMonth() + 1).padStart(2, '0')
-    const day = String(current.getDate()).padStart(2, '0')
-    const dateFormatted = `${y}-${m}-${day}`
-    const dayName = current.toLocaleDateString('en-US', { weekday: 'long' })
-    const dayType = existingMap.get(dateFormatted) || 'whole_day'
-
-    newDates.push({
-      date: dateFormatted,
-      dayName,
-      dayType,
-    })
-    current.setDate(current.getDate() + 1)
-    count++
-  }
-
-  leaveDates.value = newDates
-}
-
-watch([() => form.start, () => form.end, () => formCategory.value], ([newStart, newEnd, cat]) => {
-  if (suppressLeaveDateWatcher.value) return
-  if (cat === 'Leave' && newStart) {
-    generateLeaveDates()
-  }
-})
-
-const removeLeaveDate = (index: number) => {
-  if (leaveDates.value.length <= 1) return
-  leaveDates.value.splice(index, 1)
-  if (leaveDates.value.length > 0) {
-    suppressLeaveDateWatcher.value = true
-    form.start = leaveDates.value[0].date
-    form.end = leaveDates.value[leaveDates.value.length - 1].date
-    nextTick(() => {
-      suppressLeaveDateWatcher.value = false
-    })
-  }
-}
-
-const totalLeaveDays = computed(() => {
-  return leaveDates.value.reduce((acc, curr) => acc + (curr.dayType === 'half_day' ? 0.5 : 1.0), 0)
-})
-
-const leaveBreakdownText = computed(() => {
-  const wholeCount = leaveDates.value.filter(d => d.dayType === 'whole_day').length
-  const halfCount = leaveDates.value.filter(d => d.dayType === 'half_day').length
-  const parts: string[] = []
-  if (wholeCount > 0) parts.push(`${wholeCount} whole day${wholeCount > 1 ? 's' : ''}`)
-  if (halfCount > 0) parts.push(`${halfCount} half day${halfCount > 1 ? 's' : ''}`)
-  return parts.join(', ') || '0 days'
-})
+// Used by the dashboard "Days Logged" stat
 const attendance = computed(() => Object.entries(punches.value).sort(([a], [b]) => b.localeCompare(a)))
-const attendanceStatus = (date: string, status?: string) => {
-  if (status !== 'Undertime') return status || '--'
-  const approved = requests.value.some(request => request.type === 'Undertime'
-    && request.status === 'Approved' && request.start <= date && request.end >= date)
-  return approved ? 'Undertime (Approved)' : '--'
-}
 const stats = computed(() => [
   { label: 'Days Logged', value: attendance.value.filter(([, entry]) => entry.timeIn).length, description: 'Attendance records', color: 'blue', icon: Clock3 },
   { label: 'Vacation Leave', value: leaveCredit('Vacation Leave'), description: `Annual reference credits · ${now.value.getFullYear()}`, color: 'green', icon: Umbrella },
@@ -261,91 +107,24 @@ const quickActions = [
   { label: 'Request Overtime', type: 'Overtime', icon: TimerReset, color: 'orange' },
   { label: 'Request Undertime', type: 'Undertime', icon: Clock3, color: 'purple' },
 ]
-const openRequest = (type = 'Vacation Leave', useDialog = false) => {
-  if (employeeRequestCategory(type) === 'Leave' && !useDialog) {
-    void router.push('/employee/leave-requests/create')
-    return
-  }
-  if (employeeLeavePolicy(profile.value.employmentType).some(leave => leave.name === type && !leave.canRequest)) type = requestableLeaves.value[0]?.name || 'Leave Without Pay'
-  Object.assign(form, { type, start: dateKey.value, end: dateKey.value, requestDate: dateKey.value, reason: '' })
-  reportedAttendanceDate.value = ''
-  editingRequestId.value = ''
-  Object.assign(timing, { startTime: '', endTime: '', endsNextDay: false, requestedTimeOut: '' })
-  if (type === 'Undertime') timing.endTime = selectedShift.value?.end || ''
-  formError.value = ''
-  requestImage.value = undefined
-  imageLoading.value = false
-  requestFormKey.value++
-  if (employeeRequestCategory(type) === 'Leave') {
-    generateLeaveDates()
-  } else {
-    leaveDates.value = []
-  }
-  requestDialog.value?.showModal()
-}
+// Requests are filed and edited on their own pages:
+//   Leave → /employee/leave/create|edit, Overtime/Undertime → popup on their index page
+const REQUEST_PAGES: Record<string, string> = { Overtime: '/employee/overtime', Undertime: '/employee/undertime' }
 
+const openRequest = (type = 'Vacation Leave') => {
+  const page = REQUEST_PAGES[type]
+  void router.push(page ? { path: page, query: { new: '1' } } : '/employee/leave/create')
+}
 
 const editRequest = (request: EmployeeRequest) => {
   if (!canEditRequest(request)) return
-
-  // LEAVE REQUEST: Redirect directly to the new Edit page
-  if (employeeRequestCategory(request.type) === 'Leave') {
-    viewDialog.value?.close()
-    requestDialog.value?.close()
-
-    void router.push({
-      path: '/employee/leave-requests/edit',
-      query: {
-        id: String(request.id),
-      },
-    })
-
-    return
-  }
-
-  // OVERTIME / UNDERTIME: Continue using the existing modal
   viewDialog.value?.close()
-
-  openRequest(request.type, true)
-
-  editingRequestId.value = request.id
-
-  Object.assign(form, {
-    type: request.type,
-    start: request.start,
-    end: request.end,
-    requestDate: request.requestDate || request.start || dateKey.value,
-    reason: request.reason,
-  })
-
-  Object.assign(timing, {
-    startTime: request.timing?.startTime || '',
-    endTime: request.timing?.endTime ||
-      (request.type === 'Undertime'
-        ? request.timing?.scheduledTimeOut ||
-          selectedShift.value?.end || ''
-        : ''),
-    endsNextDay: request.timing?.endsNextDay || false,
-    requestedTimeOut:
-      request.timing?.requestedTimeOut ||
-      request.timing?.startTime || '',
-  })
-
-  requestImage.value = request.image
-    ? { ...request.image }
-    : undefined
+  const page = REQUEST_PAGES[employeeRequestCategory(request.type) ?? '']
+  void router.push(page
+    ? { path: page, query: { edit: String(request.rawId ?? '') } }
+    : { path: '/employee/leave/edit', query: { id: String(request.rawId ?? request.id) } })
 }
 
-
-
-const reportAttendance = (date: string) => {
-  attendanceDetailsOpen.value = false
-  openRequest('Attendance Report')
-  reportedAttendanceDate.value = date
-  form.start = date
-  form.end = date
-  form.requestDate = date
-}
 const isCancelling = ref(false)
 const cancelViewingRequest = async () => {
   if (!viewedRequest.value || viewedRequest.value.status !== 'Pending') return
@@ -361,75 +140,10 @@ const cancelViewingRequest = async () => {
   }
 }
 
-const submitRequest = async () => {
-  if (imageLoading.value || isSubmittingRequest.value) return
-  // Supporting image is optional at the moment
-  if (formCategory.value === 'Attendance Report') {
-    if (!reportedAttendanceDate.value || !punches.value[reportedAttendanceDate.value]) { formError.value = 'Choose an attendance record to report.'; return }
-    form.start = reportedAttendanceDate.value
-    form.end = reportedAttendanceDate.value
-    form.requestDate = reportedAttendanceDate.value
-  }
-  if (!formCategory.value) { formError.value = 'Please choose Leave, Undertime, or Overtime.'; return }
-  if (originalRequest.value?.type !== form.type && leaveTypesList.value?.length === 0 && employeeLeavePolicy(profile.value.employmentType).some(leave => leave.name === form.type && !leave.canRequest)) { formError.value = 'This leave type is not available under the current policy.'; return }
-  if (!form.start || (!timedRequest.value && (!form.end || form.end < form.start))) { formError.value = 'Choose valid request dates. End date must be on or after the start date.'; return }
-  if (formCategory.value === 'Leave' && leaveDates.value.length === 0) {
-    formError.value = 'Please select at least one leave date.'
-    return
-  }
-  if (timedRequest.value && requestedMinutes.value === null) {
-    formError.value = form.type === 'Overtime' ? 'Enter valid start/end times. For overnight overtime, select Ends next day. Maximum duration is 24 hours.' : 'Choose a working day and valid undertime start/end times within the scheduled shift. End time must be later than start time.'
-    return
-  }
-  if (!form.reason.trim()) { formError.value = 'Please provide a reason for your request.'; return }
-  const requestTiming: EmployeeRequest['timing'] = !timedRequest.value ? undefined : form.type === 'Overtime'
-    ? { startTime: timing.startTime, endTime: timing.endTime, endsNextDay: timing.endsNextDay, requestedMinutes: requestedMinutes.value! }
-    : { startTime: timing.requestedTimeOut, endTime: timing.endTime, scheduledTimeOut: selectedShift.value?.end, requestedTimeOut: timing.requestedTimeOut, requestedMinutes: requestedMinutes.value! }
-
-  const requestDates = formCategory.value === 'Leave'
-    ? leaveDates.value.map(d => ({
-        leave_date: d.date,
-        day_type: d.dayType,
-        day_value: d.dayType === 'half_day' ? 0.5 : 1.0,
-      }))
-    : undefined
-
-  const removeImage = Boolean(editingRequestId.value && originalRequest.value?.image && !requestImage.value)
-
-  const changes = {
-    start: formCategory.value === 'Leave' && leaveDates.value[0] ? leaveDates.value[0].date : form.start,
-    end: timedRequest.value ? form.start : (formCategory.value === 'Leave' && leaveDates.value[leaveDates.value.length - 1] ? leaveDates.value[leaveDates.value.length - 1].date : form.end),
-    requestDate: form.requestDate || form.start,
-    reason: form.reason.trim(),
-    image: requestImage.value || (removeImage ? null : undefined),
-    remove_image: removeImage,
-    timing: requestTiming,
-    dates: requestDates,
-  }
-
-  if (editingRequestId.value) {
-    const success = await updateRequest(editingRequestId.value, { ...changes, type: form.type })
-    if (!success) {
-      formError.value = submitError.value || 'This request is no longer pending or the update failed.'
-      return
-    }
-    notice.value = 'Request updated successfully.'
-  } else {
-    const res = await submitRequestApi({ ...changes, type: form.type })
-    if (!res.success) {
-      formError.value = res.message || submitError.value || 'Failed to submit request.'
-      return
-    }
-    notice.value = res.message || 'Request submitted successfully to HR.'
-  }
-
-  if (formCategory.value !== 'Attendance Report') selectRequestCategory(formCategory.value!)
-  requestDialog.value?.close()
-}
 </script>
 
 <template>
-  <section class="employee-page" :class="{ 'home-page': section === 'dashboard', 'attendance-page': section === 'attendance', 'profile-page': section === 'profile' }">
+  <section class="employee-page" :class="{ 'home-page': section === 'dashboard' }">
     <div class="employee-header">
       <div>
         <h1>{{ titles[section] }}</h1>
@@ -438,12 +152,12 @@ const submitRequest = async () => {
       </div>
       <div class="header-tools">
         <span class="date-label"><CalendarDays :size="16" />{{ now.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }) }}</span>
-        <button v-if="section === 'dashboard' || section === 'requests'" class="portal-button primary" @click="openRequest(section === 'requests' && activeCategory !== 'Leave' ? activeCategory : undefined)"><Plus :size="16" />{{ section === 'requests' ? `New ${activeCategory} Request` : 'New Request' }}</button>
+        <button v-if="section === 'dashboard'" class="portal-button primary" @click="openRequest()"><Plus :size="16" />New Request</button>
       </div>
     </div>
 
     <div class="portal-banner"><ClipboardCheck :size="17" /><span><strong>Employee Portal.</strong> Your Leave, Overtime, and Undertime requests are directly synchronized with the HR database.</span></div>
-    <details v-if="section === 'dashboard' || section === 'attendance'" class="home-storage-note"><summary>Requests status</summary><p>All requests are submitted and recorded in the database for HR approval.</p></details>
+    <details v-if="section === 'dashboard'" class="home-storage-note"><summary>Requests status</summary><p>All requests are submitted and recorded in the database for HR approval.</p></details>
     <p v-if="storageError" class="feedback error" role="alert">{{ storageError }}</p>
     <p v-if="notice" class="feedback" role="status">{{ notice }}<button aria-label="Dismiss message" @click="notice = ''"><X :size="16" /></button></p>
 
@@ -455,7 +169,7 @@ const submitRequest = async () => {
       </article>
     </div>
 
-    <div v-if="section === 'dashboard' || section === 'attendance'" class="employee-grid">
+    <div v-if="section === 'dashboard'" class="employee-grid">
       <article class="portal-card attendance-overview">
         <div class="panel-heading">
           <div>
@@ -503,7 +217,7 @@ const submitRequest = async () => {
                 <small>Scheduled Shift: {{ wfhToday.wfh?.schedule_time || 'Regular Shift' }}</small>
               </div>
             </div>
-            <NuxtLink to="/employee/wfh-requests" class="wfh-banner-link">View Request →</NuxtLink>
+            <NuxtLink to="/employee/requests/work-from-home" class="wfh-banner-link">View Request →</NuxtLink>
           </div>
 
           <p v-if="wfhActionError" class="wfh-action-error" role="alert">{{ wfhActionError }}</p>
@@ -590,20 +304,13 @@ const submitRequest = async () => {
       </article>
       <article v-if="section === 'dashboard'" class="portal-card quick-actions-card">
         <div class="panel-heading"><div><h2>Quick Actions</h2><p>Make a request in just a few clicks</p></div></div>
-        <div class="quick-actions"><button v-for="action in quickActions" :key="action.type" :aria-label="action.label" @click="openRequest(action.type)"><span class="colored-icon" :class="action.color"><component :is="action.icon" :size="19" /></span><strong><span class="full-action-label">{{ action.label }}</span><span class="mobile-action-label">{{ action.type === 'Vacation Leave' ? 'File Leave' : action.type }}</span></strong><ArrowUpRight :size="16" /></button><NuxtLink to="/employee/wfh-requests" class="home-quick-link"><span class="colored-icon blue"><House :size="19" /></span><strong>Work From Home</strong><ArrowUpRight :size="16" /></NuxtLink><NuxtLink to="/employee/calendar" class="home-quick-link"><span class="colored-icon purple"><CalendarDays :size="19" /></span><strong>Calendar</strong><ArrowUpRight :size="16" /></NuxtLink></div>
+        <div class="quick-actions"><button v-for="action in quickActions" :key="action.type" :aria-label="action.label" @click="openRequest(action.type)"><span class="colored-icon" :class="action.color"><component :is="action.icon" :size="19" /></span><strong><span class="full-action-label">{{ action.label }}</span><span class="mobile-action-label">{{ action.type === 'Vacation Leave' ? 'File Leave' : action.type }}</span></strong><ArrowUpRight :size="16" /></button><NuxtLink to="/employee/requests/work-from-home" class="home-quick-link"><span class="colored-icon blue"><House :size="19" /></span><strong>Work From Home</strong><ArrowUpRight :size="16" /></NuxtLink><NuxtLink to="/employee/calendar" class="home-quick-link"><span class="colored-icon purple"><CalendarDays :size="19" /></span><strong>Calendar</strong><ArrowUpRight :size="16" /></NuxtLink></div>
       </article>
-      <article v-else class="portal-card schedule-card"><div class="panel-heading"><div><h2>Work Schedule</h2><p>Your regular work week</p></div><CalendarDays :size="20" /></div><h3>Tuesday – Friday</h3><strong>8:00 AM – 5:00 PM</strong><p>Monday: 9:00 AM – 5:00 PM</p><p>Saturday: 8:00 AM – 12:00 PM</p><p>Sunday: Rest day</p></article>
     </div>
 
-    <article v-if="section === 'attendance'" class="portal-card lower-panel">
-      <div class="panel-heading"><div><h2>Attendance History</h2><p>Read-only attendance records · Biometric service not connected</p></div></div>
-      <p class="mobile-table-hint">Tap an attendance row for worked hours, schedule and reporting.</p>
-      <div class="table-scroll" role="region" aria-label="Attendance history" tabindex="0"><table class="mobile-compact-table attendance-table"><thead><tr><th scope="col">Date</th><th scope="col">Time In</th><th scope="col">Time Out</th><th scope="col" class="mobile-hide">Hours Worked</th><th scope="col">Status</th><th scope="col" class="mobile-hide">Actions</th></tr></thead><tbody><tr v-for="[date, entry] in attendance" :key="date" class="record-row" @click="viewAttendance(date)"><td><button type="button" class="row-open-button" :aria-label="`Open attendance details for ${formatDate(date)}`" @click.stop="viewAttendance(date)"><span class="mobile-hide">{{ formatDate(date) }}</span><span class="mobile-only">{{ shortDate(date) }}</span></button></td><td>{{ formatTime(entry.timeIn) }}</td><td>{{ formatTime(entry.timeOut) }}</td><td class="mobile-hide">{{ workedHours(entry.hoursWorked) }}</td><td>{{ attendanceStatus(date, entry.status) }}</td><td class="mobile-hide"><button type="button" class="report-button" :aria-label="`Report an attendance issue for ${formatDate(date)}`" @click.stop="reportAttendance(date)">Report</button></td></tr><tr v-if="!attendance.length"><td colspan="6" class="empty-state">No biometric attendance records are available.</td></tr></tbody></table></div>
-    </article>
-
-    <div v-if="section === 'dashboard' || section === 'requests' || section === 'attendance'" :class="section === 'dashboard' ? 'employee-grid lower-panel' : section === 'attendance' ? 'lower-panel' : ''">
+    <div v-if="section === 'dashboard'" class="employee-grid lower-panel">
       <article class="portal-card requests-panel">
-        <div class="panel-heading"><div><h2>{{ section === 'dashboard' ? 'Recent Requests' : section === 'attendance' ? 'Attendance Reports' : `${activeCategory} Requests` }}</h2><p>Track your {{ section === 'attendance' ? 'attendance reports' : 'requests' }} and their status</p></div><NuxtLink v-if="section === 'dashboard'" to="/employee/requests" class="text-link">View all <ArrowUpRight :size="14" /></NuxtLink><select v-else v-model="filter" aria-label="Filter requests by status"><option>All</option><option>Pending</option><option>Approved</option><option>Rejected</option><option>Cancelled</option></select></div>
+        <div class="panel-heading"><div><h2>Recent Requests</h2><p>Track your requests and their status</p></div><NuxtLink to="/employee/leave" class="text-link">View all <ArrowUpRight :size="14" /></NuxtLink></div>
         <p class="mobile-table-hint">Tap a request row for full dates, times, attachments and request actions.</p>
         <div v-if="section === 'dashboard'" class="home-request-list">
           <button v-for="request in recentRequests.slice(0, 3)" :key="request.id" type="button" :aria-label="`View request ${request.id}`" @click="viewRequest(request)"><span class="home-request-copy"><strong>{{ request.type }}</strong><small>{{ formatDate(request.start) }}</small></span><span class="badge" :class="request.status === 'Approved' ? 'green' : request.status === 'Pending' ? 'orange' : 'neutral'">{{ request.status }}</span><ArrowUpRight :size="15" aria-hidden="true" /></button>
@@ -611,12 +318,12 @@ const submitRequest = async () => {
         </div>
         <div class="table-scroll" role="region" aria-label="Request history" tabindex="0">
           <table class="mobile-compact-table request-table">
-            <thead><tr><th scope="col">Request</th><th scope="col">Dates / Times</th><th scope="col">Status</th><th v-if="section !== 'dashboard'" scope="col" class="mobile-hide">Action</th><th v-if="section !== 'dashboard'" scope="col" class="mobile-only">Reference</th></tr></thead>
+            <thead><tr><th scope="col">Request</th><th scope="col">Dates / Times</th><th scope="col">Status</th></tr></thead>
             <tbody>
-              <tr v-for="request in (section === 'dashboard' ? recentRequests.slice(0, 4) : filteredRequests)" :key="request.id" class="record-row" @click="viewRequest(request)">
+              <tr v-for="request in recentRequests.slice(0, 4)" :key="request.id" class="record-row" @click="viewRequest(request)">
                 <td>
                   <button type="button" class="row-open-button" :aria-label="`Open request ${request.id} details`" @click.stop="viewRequest(request)">{{ employeeRequestCategory(request.type) === 'Attendance Report' ? 'Attendance Report' : request.type }}</button>
-                  <small class="mobile-hide">{{ section !== 'dashboard' ? request.reason : request.id }}</small>
+                  <small class="mobile-hide">{{ request.id }}</small>
                 </td>
                 <td>
                   <span class="mobile-only">{{ shortDate(request.start) }}</span>
@@ -634,9 +341,7 @@ const submitRequest = async () => {
                   </span>
                 </td>
                 <td><span class="badge" :class="request.status === 'Approved' ? 'green' : request.status === 'Pending' ? 'orange' : 'neutral'">{{ request.status }}</span></td>
-                <td v-if="section !== 'dashboard'" class="mobile-hide"><button v-if="canEditRequest(request)" type="button" class="text-link" @click.stop="editRequest(request)">Edit</button><span v-else>—</span></td><td v-if="section !== 'dashboard'" class="mobile-only">{{ request.id }}</td>
               </tr>
-              <tr v-if="section !== 'dashboard' && !filteredRequests.length"><td colspan="4" class="empty-state">No {{ section === 'attendance' ? 'attendance reports' : activeCategory.toLowerCase() + ' requests' }} match this status.</td></tr>
             </tbody>
           </table>
         </div>
@@ -648,30 +353,7 @@ const submitRequest = async () => {
       </article>
     </div>
 
-    <EmployeePayslips v-if="section === 'payslips'" />
-    <EmployeeLoans v-if="section === 'loans'" />
 
-    <EmployeeProfile v-if="section === 'profile'" />
-
-    <EmployeeRecordDialog v-model="attendanceDetailsOpen" title="Attendance Details" :subtitle="selectedAttendanceDate ? formatDate(selectedAttendanceDate) : ''">
-      <dl v-if="selectedAttendance" class="record-fields">
-        <div><dt>Date</dt><dd>{{ formatDate(selectedAttendanceDate) }}</dd></div>
-        <div>
-          <dt>Status</dt>
-          <dd>
-            <span class="badge" :class="attendanceStatus(selectedAttendanceDate, selectedAttendance.status) === 'On Time' ? 'green' : attendanceStatus(selectedAttendanceDate, selectedAttendance.status).includes('Late') ? 'orange' : attendanceStatus(selectedAttendanceDate, selectedAttendance.status).includes('Undertime') ? 'purple' : 'neutral'">
-              {{ attendanceStatus(selectedAttendanceDate, selectedAttendance.status) }}
-            </span>
-          </dd>
-        </div>
-        <div><dt>Time In</dt><dd>{{ formatTime(selectedAttendance.timeIn) }}</dd></div>
-        <div><dt>Time Out</dt><dd>{{ formatTime(selectedAttendance.timeOut) }}</dd></div>
-        <div><dt>Hours Worked</dt><dd>{{ workedHours(selectedAttendance.hoursWorked) }}</dd></div>
-        <div><dt>Scheduled Shift</dt><dd>{{ selectedAttendanceShift?.start ? `${requestClock(selectedAttendanceShift.start)} – ${requestClock(selectedAttendanceShift.end)}` : 'Rest day / Not provided' }}</dd></div>
-        <div class="wide"><dt>Record Source</dt><dd>Frontend record; biometric service is not connected.</dd></div>
-      </dl>
-      <template #actions><button type="button" class="report-button" @click="reportAttendance(selectedAttendanceDate)">Report an issue</button></template>
-    </EmployeeRecordDialog>
 
     <dialog ref="viewDialog" class="portal-dialog" aria-label="Request details" @close="viewingRequestId = ''">
       <template v-if="viewedRequest">
@@ -765,137 +447,6 @@ const submitRequest = async () => {
       </template>
     </dialog>
 
-    <dialog ref="requestDialog" class="portal-dialog" aria-label="New employee request" @close="formError = ''">
-      <form @submit.prevent="submitRequest">
-        <div class="panel-heading">
-          <div><h2>{{ formCategory === 'Attendance Report' ? 'Report Attendance Issue' : `${editingRequestId ? 'Edit' : 'New'} ${formCategory} Request` }}</h2><p>Official HR Submission</p></div>
-          <button type="button" class="dialog-close" aria-label="Close request form" @click="requestDialog?.close()"><X :size="18" /></button>
-        </div>
-        <div class="form-fields">
-          <label v-if="formCategory === 'Leave'" class="full-width"><span>Leave Type</span><select v-model="form.type"><option v-for="leave in leaveFormOptions" :key="leave">{{ leave }}</option></select></label>
-          <p v-if="formCategory === 'Leave' && originalRequest && !requestableLeaves.some(leave => leave.name === originalRequest?.type)" class="full-width leave-policy-warning">The existing leave type is preserved for this pending request. Its eligibility still requires HR confirmation under the current policy.</p>
-          
-          <p v-if="formCategory === 'Attendance Report'" class="full-width locked-report-date">Attendance Date: <strong>{{ formatDate(reportedAttendanceDate) }}</strong><br>This report is linked to the attendance record you selected.</p>
-          <template v-else>
-            <template v-if="timedRequest">
-              <label class="full-width"><span>Request Date</span><input v-model="form.start" type="date" required></label>
-            </template>
-            <template v-else-if="formCategory === 'Leave'">
-              <label class="full-width"><span>Date of Request <small class="field-hint">(Filing Date)</small></span><input v-model="form.requestDate" type="date" required></label>
-              <div class="calendar-input-group full-width">
-                <label class="calendar-group-label">
-                  <span>Leave Schedule (Start & End Date)</span>
-                </label>
-                <EmployeeLeaveDateCalendar
-                  v-model:start="form.start"
-                  v-model:end="form.end"
-                />
-              </div>
-            </template>
-            <template v-else>
-              <label class="full-width"><span>Date of Request <small class="field-hint">(Filing Date)</small></span><input v-model="form.requestDate" type="date" required></label>
-              <div class="date-range-row full-width">
-                <label><span>Start Date</span><input v-model="form.start" type="date" required></label>
-                <label><span>End Date</span><input v-model="form.end" type="date" :min="form.start" required></label>
-              </div>
-            </template>
-          </template>
-
-          <!-- Per-Day Whole Day / Half Day Dropdown Selector (when Leave) -->
-          <div v-if="formCategory === 'Leave' && leaveDates.length > 0" class="leave-dates-panel full-width">
-            <div class="leave-dates-header">
-              <div class="leave-dates-title-group">
-                <div class="leave-dates-title">
-                  <CalendarDays :size="15" class="cal-icon" />
-                  <h4>Leave Schedule by Day</h4>
-                </div>
-                <p>Choose <strong>Whole Day</strong> or <strong>Half Day</strong> for each date.</p>
-              </div>
-              <div class="total-leave-summary">
-                <span class="total-badge">Total: <strong>{{ totalLeaveDays }} day{{ totalLeaveDays === 1 ? '' : 's' }}</strong></span>
-                <span class="breakdown-badge">{{ leaveBreakdownText }}</span>
-              </div>
-            </div>
-
-            <div class="leave-dates-list">
-              <div v-for="(item, idx) in leaveDates" :key="item.date" class="leave-date-card">
-                <div class="date-meta">
-                  <div class="date-meta-left">
-                    <span class="day-number">#{{ idx + 1 }}</span>
-                    <div class="date-labels">
-                      <strong class="date-text">{{ formatDate(item.date) }}</strong>
-                      <span class="weekday-pill">{{ item.dayName }}</span>
-                    </div>
-                  </div>
-                  <button
-                    v-if="leaveDates.length > 1"
-                    type="button"
-                    class="remove-day-btn mobile-remove-btn"
-                    :title="`Remove ${item.date} from leave`"
-                    :aria-label="`Remove ${item.date}`"
-                    @click="removeLeaveDate(idx)"
-                  >
-                    <X :size="15" />
-                  </button>
-                </div>
-                <div class="day-choice">
-                  <select v-model="item.dayType" class="day-type-dropdown" :aria-label="`Select duration for ${item.date}`">
-                    <option value="whole_day">Whole Day (1.0)</option>
-                    <option value="half_day">Half Day (0.5)</option>
-                  </select>
-                  <button
-                    v-if="leaveDates.length > 1"
-                    type="button"
-                    class="remove-day-btn desktop-remove-btn"
-                    :title="`Remove ${item.date} from leave`"
-                    :aria-label="`Remove ${item.date}`"
-                    @click="removeLeaveDate(idx)"
-                  >
-                    <X :size="15" />
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <template v-if="form.type === 'Overtime'">
-            <div class="form-row-2 full-width">
-              <label><span>OT Start Time</span><input v-model="timing.startTime" type="time" required></label>
-              <label><span>OT End Time</span><input v-model="timing.endTime" type="time" required></label>
-            </div>
-            <div class="full-width timing-extra-row">
-              <label class="next-day-checkbox">
-                <input v-model="timing.endsNextDay" type="checkbox">
-                <span>Ends next day</span>
-              </label>
-            </div>
-          </template>
-          <template v-if="form.type === 'Undertime'">
-            <div class="full-width shift-info-badge">
-              <Clock3 :size="13" class="shift-icon" />
-              <span>Scheduled shift: <strong>{{ requestClock(selectedShift?.start) }} – {{ requestClock(selectedShift?.end) }}</strong></span>
-            </div>
-            <div class="form-row-2 full-width">
-              <label><span>Undertime Start Time</span><input v-model="timing.requestedTimeOut" type="time" :min="selectedShift?.start || undefined" :max="selectedShift?.end || undefined" required></label>
-              <label><span>Undertime End Time</span><input v-model="timing.endTime" type="time" :min="timing.requestedTimeOut || selectedShift?.start || undefined" :max="selectedShift?.end || undefined" required></label>
-            </div>
-            <p v-if="!selectedShift?.start" class="full-width error">No working shift is assigned on this day. Select a working day or contact HR.</p>
-          </template>
-          <div v-if="timedRequest" class="full-width duration-pill">
-            <Clock3 :size="13" class="duration-icon" />
-            <span>Requested duration: <strong>{{ formatDurationText(requestedMinutes) }}</strong></span>
-          </div>
-          <label class="full-width"><span>Reason / Details</span><textarea v-model="form.reason" required maxlength="1000" rows="3" :placeholder="formCategory === 'Attendance Report' ? 'Describe what is wrong with the attendance record and the correct time or details. You can attach a supporting image below.' : 'Include the reason and any relevant times or details.'" /></label>
-          <EmployeeRequestImageUpload :key="requestFormKey" v-model="requestImage" :required="false" class="full-width" @busy="imageLoading = $event" />
-          <p v-if="formError" class="error full-width" role="alert">{{ formError }}</p>
-          <div class="dialog-actions full-width">
-            <button type="button" class="portal-button" @click="requestDialog?.close()">Cancel</button>
-            <button type="submit" class="portal-button primary" :disabled="imageLoading || isSubmittingRequest">{{ isSubmittingRequest ? 'Submitting…' : imageLoading ? 'Preparing Image…' : editingRequestId ? 'Update Request' : 'Submit Request' }}</button>
-          </div>
-        </div>
-      </form>
-    </dialog>
-
     <!-- WFH Time Out & Live Proof of Work Camera Modal -->
     <EmployeeWfhProofModal
       v-model="wfhProofModalOpen"
@@ -932,12 +483,9 @@ const submitRequest = async () => {
 
 <style scoped>
 .employee-page { max-width: 1660px; margin: 0 auto; }
-.home-storage-note, .home-attendance-note, .mobile-action-label, .home-request-list { display: none; }
-.locked-report-date { padding: 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-card-soft); font-size: 12px; line-height: 1.7; }
-.request-row-actions { display: flex; flex-wrap: wrap; gap: 14px; }.next-day { flex-direction: row; align-items: center; }.next-day input { width: auto; }
+.home-storage-note, .mobile-action-label, .home-request-list { display: none; }
 .request-details { padding: 0 20px 20px; }.request-detail-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; margin: 8px 0 24px; }.request-detail-grid dt { color: var(--text-secondary); font-size: 10px; margin-bottom: 7px; }.request-detail-grid dd { margin: 0; font-size: 12px; overflow-wrap: anywhere; }.request-reason { white-space: pre-wrap; line-height: 1.7; }.view-image-link { display: block; margin-top: 12px; }.view-image-link img { display: block; max-width: 100%; max-height: 300px; margin: 0 auto; object-fit: contain; border: 1px solid var(--border); border-radius: 8px; }.view-image-link span { display: flex; align-items: center; gap: 7px; color: var(--primary); font-size: 11px; margin-top: 10px; overflow-wrap: anywhere; }
-.request-categories { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; }.request-categories button { display: inline-flex; align-items: center; gap: 9px; padding: 11px 16px; border: 1px solid var(--border); border-radius: 8px; color: var(--text-secondary); background: var(--bg-card); font: inherit; font-size: 12px; }.request-categories button.selected { color: var(--primary); background: var(--primary-soft); border-color: var(--primary); }.request-categories button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }.request-categories span { font-size: 10px; border-radius: 12px; padding: 3px 7px; background: var(--bg-card-soft); }
-.employee-header, .header-tools, .panel-heading, .row-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.employee-header, .header-tools, .panel-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .employee-header { align-items: flex-start; margin-bottom: 22px; }
 h1 { font-size: 27px; letter-spacing: -.7px; margin: 0 0 7px; }
 h2 { margin: 0; font-size: 14px; }
@@ -988,66 +536,15 @@ p { font-size: 12px; color: var(--text-secondary); line-height: 1.7; margin: 4px
 .quick-actions button > svg, .quick-actions .home-quick-link > svg { position: absolute; top: 16px; right: 13px; color: var(--text-muted); }
 .text-link { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; color: var(--primary); padding: 0; border: 0; background: transparent; }
 .table-scroll { overflow-x: auto; }
-.report-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  height: 38px;
-  min-height: 38px;
-  padding: 8px 16px;
-  border: 1px solid #ef444430;
-  border-radius: 8px;
-  color: #fff;
-  background: linear-gradient(135deg, #ef4444, #dc2626);
-  white-space: nowrap;
-  font: inherit;
-  font-size: 12px;
-  font-weight: 600;
-  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.2);
-  cursor: pointer;
-  transition: filter .15s ease;
-}
-.report-button:hover {
-  filter: brightness(0.94);
-}
-.report-button:focus-visible {
-  outline: 2px solid var(--red);
-  outline-offset: 2px;
-}
 table { width: 100%; border-collapse: collapse; text-align: left; font-size: 11px; }
 th { background: var(--bg-card-soft); font-size: 10px; font-weight: 500; color: var(--text-secondary); padding: 12px 18px; white-space: nowrap; }
 td { padding: 15px 18px; border-top: 1px solid var(--border-soft); color: var(--text-secondary); }
 td strong { color: var(--text-primary); font-weight: 600; }
 td small { display: block; font-size: 10px; color: var(--text-muted); margin-top: 5px; max-width: 320px; overflow-wrap: anywhere; }
 .empty-state { padding: 35px 18px; text-align: center; }
-.request-attachment { display: block; max-width: 160px; margin-top: 10px; }
-.request-attachment img { display: block; max-width: 100%; max-height: 100px; object-fit: contain; border: 1px solid var(--border); border-radius: 6px; }
-.request-attachment small { display: flex; align-items: center; gap: 4px; color: var(--primary); }
 .bulletin { display: flex; gap: 12px; margin: 0 18px; padding: 16px 0; border-top: 1px solid var(--border-soft); }
 .bulletin p { font-size: 11px; margin-bottom: 10px; }
-.schedule-card { padding-bottom: 20px; }
-.schedule-card > h3, .schedule-card > p, .schedule-card > strong, .schedule-card > button { margin-left: 18px; margin-right: 18px; }
-.schedule-card > strong { display: block; margin-top: 12px; margin-bottom: 12px; font-size: 20px; }
-.schedule-card > button { margin-top: 16px; }
-.form-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; padding: 6px 20px 24px; }
 .full-width { grid-column: 1 / -1; }
-.date-range-row, .form-row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-.date-range-row > label, .form-row-2 > label { min-width: 0; }
-.timing-extra-row { display: flex; align-items: center; margin-top: -4px; }
-.next-day-checkbox { display: inline-flex; flex-direction: row !important; align-items: center; gap: 8px; cursor: pointer; user-select: none; }
-.next-day-checkbox input[type="checkbox"] { width: 16px !important; height: 16px !important; min-height: 16px !important; max-width: 16px !important; margin: 0 !important; padding: 0 !important; border-radius: 4px; accent-color: var(--primary); cursor: pointer; flex-shrink: 0; }
-.next-day-checkbox span { font-size: 11px; color: var(--text-secondary); font-weight: 500; }
-.duration-pill { display: flex; align-items: center; gap: 8px; padding: 7px 12px; border: 1px solid var(--border-soft); border-radius: 8px; background: var(--bg-card-soft); font-size: 11px; color: var(--text-secondary); line-height: 1.4; }
-.duration-pill .duration-icon { color: var(--primary); flex-shrink: 0; }
-.duration-pill strong { color: var(--text-primary); font-weight: 600; }
-.shift-info-badge { display: flex; align-items: center; gap: 8px; padding: 7px 12px; border: 1px solid var(--border-soft); border-radius: 8px; background: var(--bg-card-soft); font-size: 11px; color: var(--text-secondary); }
-.shift-info-badge .shift-icon { color: var(--purple); flex-shrink: 0; }
-.shift-info-badge strong { color: var(--text-primary); font-weight: 600; }
-.field-hint { font-size: 10px; color: var(--text-muted); font-weight: 400; margin-left: 4px; }
-.leave-policy-note { display: flex; align-items: center; gap: 8px; padding: 9px 12px; background: var(--primary-soft); border: 1px solid #1f68f225; border-radius: 8px; font-size: 11px; color: var(--text-secondary); line-height: 1.5; }
-.leave-policy-note .note-icon { color: var(--primary); flex-shrink: 0; }
-.leave-policy-note a { color: var(--primary); font-weight: 600; text-decoration: underline; text-underline-offset: 2px; }
-.leave-policy-warning { padding: 9px 12px; background: var(--orange-soft); color: var(--orange); border-radius: 8px; font-size: 11px; line-height: 1.5; }
 label { display: flex; flex-direction: column; gap: 6px; font-size: 11px; font-weight: 500; color: var(--text-secondary); }
 label > span { font-size: 11px; font-weight: 500; color: var(--text-secondary); }
 input:not([type="checkbox"]):not([type="radio"]), textarea, select { border: 1px solid var(--border); border-radius: 8px; background: var(--bg-card-soft); color: var(--text-primary); padding: 8px 11px; font: inherit; font-size: 12px; min-height: 38px; min-width: 0; max-width: 100%; box-sizing: border-box; }
@@ -1063,251 +560,16 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--p
 .portal-dialog .panel-heading p { margin: 3px 0 0; font-size: 11px; color: var(--text-muted); overflow-wrap: anywhere; }
 .portal-dialog .dialog-close { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; min-width: 34px; min-height: 34px; border: 0; border-radius: 8px; background: var(--bg-card-soft); color: var(--text-secondary); cursor: pointer; flex-shrink: 0; transition: background .15s ease, color .15s ease; }
 .portal-dialog .dialog-close:hover { background: var(--border); color: var(--text-primary); }
-.portal-dialog .form-fields { flex: 1 1 auto; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
 .portal-dialog .request-details { flex: 1 1 auto; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; padding: 14px 18px 20px; }
 .dialog-actions { display: flex; justify-content: flex-end; align-items: center; gap: 10px; padding-top: 6px; }
 .dialog-actions .portal-button { min-height: 38px; height: 38px; padding: 8px 16px; font-size: 12px; font-weight: 600; border-radius: 8px; }
 .table-scroll:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
 
 /* Calendar Input Group */
-.calendar-input-group {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.calendar-group-label {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-.calendar-group-label span {
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--text-secondary);
-}
 
 /* Leave Dates Schedule */
-.leave-dates-panel {
-  background: var(--bg-card-soft);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 14px 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-.leave-dates-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-.leave-dates-title-group {
-  min-width: 0;
-}
-.leave-dates-title {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-}
-.leave-dates-title .cal-icon {
-  color: var(--primary);
-  flex-shrink: 0;
-}
-.leave-dates-title h4 {
-  margin: 0;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-primary);
-}
-.leave-dates-title-group p {
-  margin: 2px 0 0;
-  font-size: 11px;
-  color: var(--text-secondary);
-}
-.total-leave-summary {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 4px;
-}
-.total-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  background: var(--primary-soft);
-  color: var(--primary);
-  font-size: 11px;
-  font-weight: 700;
-  padding: 4px 9px;
-  border-radius: 6px;
-  border: 1px solid #1f68f230;
-  white-space: nowrap;
-}
-.breakdown-badge {
-  font-size: 10px;
-  color: var(--text-muted);
-  white-space: nowrap;
-}
-.leave-dates-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  max-height: 240px;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  -webkit-overflow-scrolling: touch;
-  padding-right: 4px;
-}
-.leave-dates-list::-webkit-scrollbar {
-  width: 5px;
-}
-.leave-dates-list::-webkit-scrollbar-track {
-  background: transparent;
-}
-.leave-dates-list::-webkit-scrollbar-thumb {
-  background: var(--border);
-  border-radius: 4px;
-}
-.leave-date-card {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-  padding: 8px 12px;
-  background: var(--bg-card);
-  border: 1px solid var(--border-soft);
-  border-radius: 8px;
-  transition: border-color .15s ease;
-}
-.leave-date-card:hover {
-  border-color: var(--border);
-}
-.date-meta {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
-}
-.date-meta-left {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
-}
-.date-labels {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-}
-.day-number {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 22px;
-  height: 22px;
-  flex-shrink: 0;
-  border-radius: 50%;
-  background: var(--bg-card-soft);
-  color: var(--text-muted);
-  font-size: 10px;
-  font-weight: 600;
-}
-.date-text {
-  display: block;
-  font-size: 12px;
-  color: var(--text-primary);
-  font-weight: 600;
-  white-space: nowrap;
-}
-.weekday-pill {
-  display: inline-block;
-  font-size: 10px;
-  color: var(--text-secondary);
-  font-weight: 500;
-}
-.day-choice {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
-}
-.day-type-dropdown {
-  padding: 6px 10px;
-  font-size: 11px;
-  border-radius: 6px;
-  border: 1px solid var(--border);
-  background: var(--bg-card);
-  color: var(--text-primary);
-  font-weight: 500;
-  cursor: pointer;
-}
-.day-type-dropdown:focus {
-  outline: 2px solid var(--primary);
-  border-color: var(--primary);
-}
-.remove-day-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 6px;
-  border: 0;
-  background: transparent;
-  color: var(--text-muted);
-  border-radius: 4px;
-  cursor: pointer;
-  flex-shrink: 0;
-}
-.remove-day-btn:hover {
-  color: var(--red);
-  background: var(--bg-card-soft);
-}
-.mobile-remove-btn {
-  display: none;
-}
-.desktop-remove-btn {
-  display: inline-flex;
-}
 
 /* View Dialog Dates Breakdown */
-.view-leave-dates {
-  margin-top: 16px;
-  padding-top: 14px;
-  border-top: 1px solid var(--border-soft);
-}
-.view-leave-dates h3 {
-  font-size: 12px;
-  margin: 0 0 10px;
-  color: var(--text-primary);
-}
-.view-dates-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: 8px;
-  margin-bottom: 12px;
-}
-.view-date-item {
-  padding: 8px 10px;
-  background: var(--bg-card-soft);
-  border: 1px solid var(--border);
-  border-radius: 7px;
-}
-.view-date-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 10px;
-  margin-bottom: 4px;
-}
-.view-date-day {
-  color: var(--text-muted);
-  font-weight: 500;
-}
-.view-date-val {
-  font-size: 12px;
-  color: var(--text-primary);
-}
 .day-type-badge {
   display: inline-block;
   font-size: 9px;
@@ -1329,7 +591,6 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--p
 @media (max-width: 600px) {
   .employee-header .date-label,
   .employee-page > .portal-banner { display: none; }
-  .profile-page > .employee-header { display: none; }
 }
 
 @media (max-width: 850px) {
@@ -1337,13 +598,12 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--p
   .home-page .quick-actions .home-quick-link { align-items: center; justify-content: center; gap: 7px; padding: 10px 4px; border-radius: 8px; text-align: center; }
   .home-page .quick-actions .home-quick-link:last-child:nth-child(odd) { width: calc((100% - 7px) / 2); }
   .home-page .quick-actions .home-quick-link > svg { display: none; }
-  .employee-page, .employee-header > div, .panel-heading > div, .stat > div, .bulletin > div, .form-fields > *, .request-detail-grid > div { min-width: 0; }
+  .employee-page, .employee-header > div, .panel-heading > div, .stat > div, .bulletin > div, .request-detail-grid > div { min-width: 0; }
   p, label, .footnote, .stat p, .stat small, .time-display small, .punch-summary span, .panel-heading p, .request-detail-grid dt, .request-detail-grid dd { font-size: 13px; }
   .employee-header { gap: 16px; }h1 { font-size: 24px; }.header-tools { flex-wrap: wrap; }.panel-heading { flex-wrap: wrap; }.panel-heading select { flex: 1 1 140px; }.portal-dialog .panel-heading { flex-wrap: nowrap; }
   .portal-button, .text-link { font-size: 13px; }.portal-button { min-height: 44px; }.feedback button, .dialog-close { min-width: 44px; min-height: 44px; flex-shrink: 0; }
   input, textarea, select { font-size: 16px; }
   .table-scroll table:not(.mobile-compact-table) { min-width: 620px; }.table-scroll td:first-child { min-width: 150px; max-width: 240px; overflow-wrap: anywhere; }.table-scroll .mobile-compact-table td:first-child { min-width: 0; max-width: none; }
-  .request-categories { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }.request-categories button { justify-content: center; flex-wrap: wrap; gap: 5px; padding: 10px 5px; font-size: 13px; }
   .portal-dialog {
     width: min(540px, calc(100% - 24px));
     max-height: calc(100dvh - 24px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
@@ -1422,15 +682,6 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--p
     height: 34px !important;
     padding: 0;
   }
-  .portal-dialog .form-fields {
-    flex: 1 1 auto;
-    overflow-y: auto;
-    overscroll-behavior: contain;
-    -webkit-overflow-scrolling: touch;
-    grid-template-columns: 1fr;
-    gap: 11px;
-    padding: 12px 14px 16px;
-  }
   .portal-dialog .request-details {
     flex: 1 1 auto;
     overflow-y: auto;
@@ -1438,22 +689,12 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--p
     -webkit-overflow-scrolling: touch;
     padding: 12px 14px 16px;
   }
-  .portal-dialog .date-range-row,
-  .portal-dialog .form-row-2 {
-    grid-template-columns: 1fr 1fr;
-    gap: 8px;
-  }
-  .portal-dialog .date-range-row > label,
-  .portal-dialog .form-row-2 > label {
-    min-width: 0;
-  }
   .portal-dialog label,
   .portal-dialog label > span {
     font-size: 11px !important;
     gap: 4px;
   }
-  .portal-dialog p,
-  .portal-dialog .leave-dates-title-group p {
+  .portal-dialog p {
     font-size: 11px;
     line-height: 1.45;
   }
@@ -1474,29 +715,6 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--p
   .portal-dialog input[type="date"],
   .portal-dialog input[type="time"] {
     min-width: 0;
-  }
-  .portal-dialog .leave-policy-note {
-    font-size: 11px;
-    padding: 7px 10px;
-  }
-  .portal-dialog .leave-dates-panel {
-    padding: 10px;
-    gap: 8px;
-  }
-  .portal-dialog .leave-dates-title h4 {
-    font-size: 12px;
-  }
-  .portal-dialog .leave-date-card {
-    padding: 8px;
-    gap: 6px;
-  }
-  .portal-dialog .date-text {
-    font-size: 12px;
-  }
-  .portal-dialog .day-type-dropdown {
-    font-size: 12px;
-    min-height: 34px;
-    padding: 5px 8px;
   }
   .portal-dialog .dialog-actions {
     display: grid;
@@ -1537,64 +755,8 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--p
   .portal-dialog .request-reason {
     line-height: 1.45;
   }
-  .view-dates-grid {
-    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
-    gap: 8px;
-  }
-}
-@media (max-width: 520px) {
-  .leave-dates-panel {
-    padding: 12px 10px;
-    gap: 10px;
-    border-radius: 10px;
-  }
-  .leave-dates-header {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 8px;
-  }
-  .total-leave-summary {
-    flex-direction: row;
-    justify-content: space-between;
-    align-items: center;
-    width: 100%;
-    padding-top: 6px;
-    border-top: 1px dashed var(--border-soft);
-  }
-  .leave-date-card {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 8px;
-    padding: 10px 10px;
-  }
-  .date-meta {
-    justify-content: space-between;
-    width: 100%;
-  }
-  .mobile-remove-btn {
-    display: inline-flex;
-    width: 34px;
-    height: 34px;
-  }
-  .desktop-remove-btn {
-    display: none;
-  }
-  .day-choice {
-    width: 100%;
-  }
-  .day-type-dropdown {
-    width: 100%;
-    min-height: 40px;
-    font-size: 14px;
-    padding: 8px 12px;
-    border-radius: 7px;
-  }
 }
 @media (max-width: 440px) {
-  .date-range-row {
-    grid-template-columns: 1fr 1fr;
-    gap: 10px;
-  }
   .request-detail-grid {
     grid-template-columns: 1fr 1fr;
     gap: 12px 10px;
@@ -1613,17 +775,10 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--p
   .home-page > .portal-banner { display: none; }.home-storage-note { display: block; margin-bottom: 12px; padding: 0 10px; border-radius: 7px; background: var(--primary-soft); color: var(--text-secondary); }.home-storage-note summary { cursor: pointer; min-height: 44px; align-content: center; font-size: 11px; }.home-storage-note p { margin: 0 0 10px; font-size: 11px; line-height: 1.6; }
   .home-page .employee-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-bottom: 10px; }.home-page .stat { position: relative; display: block; padding: 11px 12px; border-radius: 10px; }.home-page .stat > .colored-icon { position: absolute; top: 10px; right: 10px; width: 25px; height: 25px; }.home-page .stat > .colored-icon svg { width: 14px; height: 14px; }.home-page .stat p { min-height: 28px; margin: 0; padding-right: 22px; font-size: 11px; line-height: 14px; }.home-page .stat strong { font-size: 21px; line-height: 1.2; margin-top: 4px; }.home-page .stat small { margin-top: 4px; font-size: 10px; line-height: 1.4; }
   .home-page .employee-grid { gap: 10px; }.home-page .lower-panel { margin-top: 10px; }.home-page .portal-card .panel-heading { padding: 10px 12px; align-items: center; }.home-page .portal-card .panel-heading h2 { font-size: 13px; }.home-page .portal-card .panel-heading p { display: none; }.home-page .portal-card .panel-heading .text-link { min-height: 44px; font-size: 11px; }
-  .home-page .attendance-overview .time-display { margin: 0 12px 10px; text-align: left; font-size: 25px; line-height: 1.3; }.home-page .attendance-overview .time-display small, .home-page .attendance-overview > .footnote { display: none; }.home-page .punch-summary { margin: 0 12px 10px; }.home-page .punch-summary span { font-size: 10px; margin-bottom: 4px; }.home-page .punch-summary strong { font-size: 12px; }.home-attendance-note { display: block; margin: 0; padding: 7px 12px; border-top: 1px solid var(--border-soft); color: var(--text-muted); font-size: 9px; }
+  .home-page .attendance-overview .time-display { margin: 0 12px 10px; text-align: left; font-size: 25px; line-height: 1.3; }.home-page .attendance-overview .time-display small, .home-page .attendance-overview > .footnote { display: none; }.home-page .punch-summary { margin: 0 12px 10px; }.home-page .punch-summary span { font-size: 10px; margin-bottom: 4px; }.home-page .punch-summary strong { font-size: 12px; }
   .home-page .quick-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; padding: 0 10px 10px; }.home-page .quick-actions button { align-items: center; justify-content: center; gap: 7px; padding: 10px 4px; border-radius: 8px; text-align: center; }.home-page .quick-actions .colored-icon { width: 29px; height: 29px; }.home-page .quick-actions .colored-icon svg { width: 16px; height: 16px; }.home-page .quick-actions strong { font-size: 10px; line-height: 1.4; }.home-page .quick-actions button > svg, .home-page .full-action-label { display: none; }.home-page .mobile-action-label { display: inline; }
   .home-page .requests-panel > .table-scroll, .home-page .requests-panel > .mobile-table-hint { display: none; }.home-request-list { display: block; }.home-request-list > button { display: flex; align-items: center; gap: 9px; width: 100%; padding: 10px 12px; border: 0; border-top: 1px solid var(--border-soft); background: transparent; color: var(--text-primary); text-align: left; font-family: inherit; }.home-request-copy { flex: 1; min-width: 0; }.home-request-copy strong { display: block; font-size: 12px; font-weight: 500; }.home-request-copy small { display: block; margin-top: 3px; color: var(--text-secondary); font-size: 10px; }.home-request-list .badge { font-size: 9px; }.home-request-list > button > svg { flex-shrink: 0; color: var(--text-muted); }.home-request-list > button:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
   .home-page .home-bulletin { display: none; }
-}
-@media (max-width: 850px) {
-  .attendance-page .employee-header { align-items: center; flex-wrap: nowrap; gap: 10px; margin-bottom: 12px; }.attendance-page .employee-header h1 { margin: 0; font-size: 20px; }.attendance-page .page-description { display: none; }.attendance-page .header-tools { width: auto; flex-shrink: 0; }.attendance-page .date-label { min-height: 0; padding: 0; border: 0; background: transparent; font-size: 10px; gap: 4px; }.attendance-page .date-label svg { width: 13px; }.attendance-page > .portal-banner { display: none; }
-  .attendance-page .employee-grid { gap: 10px; }.attendance-page .lower-panel { margin-top: 10px; }.attendance-page .portal-card .panel-heading { padding: 10px 12px; align-items: center; }.attendance-page .portal-card .panel-heading h2 { font-size: 13px; }.attendance-page .portal-card .panel-heading p { display: none; }
-  .attendance-page .attendance-overview .time-display { margin: 0 12px 10px; text-align: left; font-size: 25px; line-height: 1.3; }.attendance-page .attendance-overview .time-display small, .attendance-page .attendance-overview > .footnote { display: none; }.attendance-page .punch-summary { margin: 0 12px 10px; }.attendance-page .punch-summary span { margin-bottom: 4px; font-size: 10px; }.attendance-page .punch-summary strong { font-size: 12px; }
-  .attendance-page .schedule-card { padding-bottom: 10px; }.attendance-page .schedule-card .panel-heading { padding-bottom: 6px; }.attendance-page .schedule-card > h3, .attendance-page .schedule-card > strong, .attendance-page .schedule-card > p { margin-left: 12px; margin-right: 12px; }.attendance-page .schedule-card > h3 { display: inline; font-size: 11px; font-weight: 500; }.attendance-page .schedule-card > strong { display: inline; margin-left: 0; font-size: 12px; }.attendance-page .schedule-card > p { margin-top: 4px; font-size: 11px; line-height: 1.5; }
-  .attendance-page .portal-card .mobile-table-hint { padding: 7px 12px; font-size: 11px; }.attendance-page .table-scroll td { padding: 10px 12px; }.attendance-page .table-scroll th { padding: 10px 12px; }.attendance-page .table-scroll td small { font-size: 11px; }.attendance-page .table-scroll table { font-size: 12px; }.attendance-page .requests-panel .panel-heading select { width: auto; flex: 0 1 140px; padding: 7px 10px; font-size: 16px; }
 }
 
 
@@ -1751,23 +906,6 @@ input:focus, textarea:focus, select:focus { outline: none; border-color: var(--p
 .wfh-btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
-}
-
-.wfh-locked .wfh-locked-actions {
-  flex-direction: row;
-  gap: 10px;
-}
-
-.wfh-locked .wfh-btn:disabled {
-  opacity: 0.4;
-  box-shadow: none;
-  filter: grayscale(0.6);
-}
-
-.wfh-locked .wfh-punch-hint {
-  display: block;
-  margin-top: 8px;
-  text-align: center;
 }
 
 .wfh-btn-timein {

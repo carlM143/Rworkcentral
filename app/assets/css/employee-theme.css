@@ -1,5 +1,11 @@
+/*
+ * body:has(.employee-shell) — popups that use <Teleport to="body"> (ConfirmationModal,
+ * the overtime/undertime forms, WFH proof, profile photo, …) render outside .employee-shell,
+ * so they also need the theme variables there or their backgrounds turn transparent.
+ */
 .employee-shell,
-.employee-auth-shell {
+.employee-auth-shell,
+body:has(.employee-shell) {
   font-family: 'Poppins', sans-serif;
   --bg-main: #f5f7fb;
   --bg-card: #ffffff;
@@ -26,7 +32,8 @@
 }
 
 html.dark .employee-shell,
-html.dark .employee-auth-shell {
+html.dark .employee-auth-shell,
+html.dark body:has(.employee-shell) {
   --bg-main: #0d1421;
   --bg-card: #141d2c;
   --bg-card-soft: #192334;

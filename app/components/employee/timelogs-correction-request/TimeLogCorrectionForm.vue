@@ -13,7 +13,7 @@ const route = useRoute()
 const router = useRouter()
 const api = useTimeLogCorrectionApi()
 
-const base = '/employee/timelog-correction-request'
+const base = '/employee/requests/timelog-correction-request'
 const requestId = computed(() => String(route.query.id ?? ''))
 const editing = computed(() => props.mode === 'edit')
 const existing = ref<TimeLogCorrectionRecord | null>(null)
@@ -29,8 +29,12 @@ const localToday = () => {
   return [now.getFullYear(), String(now.getMonth() + 1).padStart(2, '0'), String(now.getDate()).padStart(2, '0')].join('-')
 }
 
+// ?date=YYYY-MM-DD preselects the attendance date (Attendance page "Report" button)
+const queryDate = String(route.query.date ?? '')
+const initialDate = /^\d{4}-\d{2}-\d{2}$/.test(queryDate) && queryDate <= localToday() ? queryDate : localToday()
+
 const form = reactive({
-  date: localToday(),
+  date: initialDate,
   issueType: 'time_in' as TimeLogCorrectionType,
   recordedIn: '',
   recordedOut: '',

@@ -50,14 +50,24 @@ const moreActive = computed(() =>
 
 const isDark = ref(false)
 const isTimeLogCorrectionRoute = computed(() =>
-  route.path === '/employee/timelog-correction-request' ||
-  route.path.startsWith('/employee/timelog-correction-request/')
+  route.path === '/employee/requests/timelog-correction-request' ||
+  route.path.startsWith('/employee/requests/timelog-correction-request/')
 )
-const isWfhRoute = computed(() => route.path === '/employee/wfh-requests')
-const isObaRoute = computed(() => route.path === '/employee/oba-requests')
+const WFH_ROUTE = '/employee/requests/work-from-home'
+const isWfhRoute = computed(() => route.path === WFH_ROUTE || route.path.startsWith(`${WFH_ROUTE}/`))
+const isObaRoute = computed(() => isUnder('/employee/requests/oba-requests'))
+
+// Leave (with create/edit/show), Overtime and Undertime have their own pages
+const isUnder = (base: string) => route.path === base || route.path.startsWith(`${base}/`)
+const isLeaveRoute = computed(() => isUnder('/employee/leave'))
+const isOvertimeRoute = computed(() => isUnder('/employee/overtime'))
+const isUndertimeRoute = computed(() => isUnder('/employee/undertime'))
 
 const requestsActive = computed(() =>
   route.path === '/employee/requests' ||
+  isLeaveRoute.value ||
+  isOvertimeRoute.value ||
+  isUndertimeRoute.value ||
   isTimeLogCorrectionRoute.value ||
   isWfhRoute.value ||
   isObaRoute.value
@@ -69,18 +79,22 @@ const requestsOpen = ref(requestsActive.value)
 
 
 const requestLinks = [
-  { label: 'Leave', category: 'leave', icon: CalendarDays, to: { path: '/employee/requests', query: { category: 'leave' } } },
-  { label: 'Undertime', category: 'undertime', icon: Clock3, to: { path: '/employee/requests', query: { category: 'undertime' } } },
-  { label: 'Overtime', category: 'overtime', icon: TimerReset, to: { path: '/employee/requests', query: { category: 'overtime' } } },
-  { label: 'Time Log Correction', category: 'timelog-correction', icon: FileClock, to: '/employee/timelog-correction-request' },
-  { label: 'Work From Home', category: 'wfh', icon: House, to: '/employee/wfh-requests' },
-  { label: 'Official Business Authorization', category: 'oba', icon: Briefcase, to: '/employee/oba-requests' },
+  { label: 'Leave', category: 'leave', icon: CalendarDays, to: '/employee/leave' },
+  { label: 'Undertime', category: 'undertime', icon: Clock3, to: '/employee/undertime' },
+  { label: 'Overtime', category: 'overtime', icon: TimerReset, to: '/employee/overtime' },
+  { label: 'Time Log Correction', category: 'timelog-correction', icon: FileClock, to: '/employee/requests/timelog-correction-request' },
+  { label: 'Work From Home', category: 'wfh', icon: House, to: WFH_ROUTE },
+  { label: 'Official Business Authorization', category: 'oba', icon: Briefcase, to: '/employee/requests/oba-requests' },
 ]
 
 const selectedRequestCategory = computed(() => {
   if (isTimeLogCorrectionRoute.value) return 'timelog-correction'
   if (isWfhRoute.value) return 'wfh'
   if (isObaRoute.value) return 'oba'
+  if (isOvertimeRoute.value) return 'overtime'
+  if (isUndertimeRoute.value) return 'undertime'
+  if (isLeaveRoute.value) return 'leave'
+  // Old /employee/requests?category=… URLs (redirected by [section].vue)
   const category = String(route.query.category || '')
   return ['undertime', 'overtime'].includes(category) ? category : 'leave'
 })
