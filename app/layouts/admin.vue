@@ -268,7 +268,7 @@ const menuItems = [
       },
       {
         label: 'Contribution History',
-        to: '/admin/contribution/rate-brackets',
+        to: '/admin/contribution/contribution-history',
       },
       {
         label: 'Contribution Settings',
@@ -1657,13 +1657,13 @@ a {
 
 .company-dropdown-header strong {
   color: var(--text-primary);
-  font-size: 10px;
+  font-size: 13px;
 }
 
 .company-dropdown-header span {
   margin-top: 2px;
   color: var(--text-muted);
-  font-size: 8px;
+  font-size: 10px;
 }
 
 .dropdown-divider {
@@ -1708,14 +1708,14 @@ a {
 
 .dropdown-item strong {
   color: var(--text-primary);
-  font-size: 9px;
+  font-size: 12px;
   font-weight: 600;
 }
 
 .dropdown-item span {
   margin-top: 2px;
   color: var(--text-muted);
-  font-size: 7px;
+  font-size: 9px;
 }
 
 .current-badge {

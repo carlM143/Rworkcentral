@@ -41,8 +41,16 @@ const duration = computed(() => {
         <strong>{{ record.requested_by?.name ?? '—' }}</strong>
         <small v-if="record.requested_by">{{ record.requested_by.position }}</small>
       </div>
-      <div><small>Driver</small><strong>{{ record.driver.name }} · {{ record.driver.drivers_code }}</strong></div>
-      <div><small>Vehicle</small><strong>{{ record.vehicle.plate_no }} · {{ record.vehicle.description }}</strong></div>
+      <div>
+        <small>Approved By</small>
+        <strong>{{ record.approved_by?.name ?? '—' }}</strong>
+        <small v-if="record.approved_by">{{ record.approved_by.position }}</small>
+      </div>
+      <div><small>Transport</small><strong>{{ record.vehicle_mode === 'company' ? 'Company Vehicle' : record.vehicle_label }}</strong></div>
+      <template v-if="record.vehicle_mode === 'company'">
+        <div><small>Driver</small><strong>{{ record.driver ? `${record.driver.name} · ${record.driver.drivers_code}` : '—' }}</strong></div>
+        <div><small>Vehicle</small><strong>{{ record.vehicle ? `${record.vehicle.plate_no} · ${record.vehicle.description}` : '—' }}</strong></div>
+      </template>
       <div><small>Passengers</small><strong>{{ record.passengers.length }} pax</strong></div>
       <div>
         <small>Departure</small>
@@ -54,7 +62,7 @@ const duration = computed(() => {
         <strong>{{ record.returned_at ? driverTimeText(record.returned_at) : '—' }}</strong>
         <small>Expected {{ driverTimeText(record.expected_return) }}</small>
       </div>
-      <div>
+      <div v-if="record.vehicle_mode === 'company'">
         <small>Odometer</small>
         <strong>
           {{ record.odometer_out?.toLocaleString() ?? '—' }} → {{ record.odometer_in?.toLocaleString() ?? '—' }}

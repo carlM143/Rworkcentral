@@ -100,11 +100,48 @@ const formatTime = (value: string | null): string => {
   return `${String(twelveHour).padStart(2, '0')}:${match[2]} ${meridiem}`
 }
 
+interface HourGroup {
+  days: string
+  hours: string
+}
+
+// Consecutive working days with the same hours become one line,
+// e.g. "Mon–Fri · 08:00 AM – 05:00 PM". Keeps each row short.
+const groupHours = (days: DisplayDay[]): HourGroup[] => {
+  const groups: { from: string, to: string, hours: string }[] = []
+
+  for (const day of days) {
+    if (!day.working) continue
+    const hours = day.timeIn && day.timeOut
+      ? `${formatTime(day.timeIn)} – ${formatTime(day.timeOut)}`
+      : 'Time not configured'
+
+    const last = groups[groups.length - 1]
+    const previousIndex = days.findIndex(d => d.label === last?.to)
+    const isNext = last && days[previousIndex + 1]?.key === day.key
+
+    if (last && isNext && last.hours === hours) last.to = day.label
+    else groups.push({ from: day.label, to: day.label, hours })
+  }
+
+  return groups.map(g => ({
+    days: g.from === g.to ? g.from : `${g.from}–${g.to}`,
+    hours: g.hours,
+  }))
+}
+
 const displaySchedules = computed(() =>
-  props.schedules.map(schedule => ({
-    schedule,
-    days: getDisplayDays(schedule),
-  })),
+  props.schedules.map((schedule) => {
+    const days = getDisplayDays(schedule)
+
+    return {
+      schedule,
+      days,
+      hourGroups: days ? groupHours(days) : [],
+      restDays: days ? days.filter(d => !d.working).map(d => d.label) : [],
+      workingCount: days ? days.filter(d => d.working).length : 0,
+    }
+  }),
 )
 </script>
 
@@ -138,34 +175,31 @@ const displaySchedules = computed(() =>
         <td class="type-cell">{{ row.schedule.type }}</td>
 
         <td>
-          <div v-if="row.days" class="day-stack">
-            <div
+          <div v-if="row.days" class="day-chips" :aria-label="`${row.workingCount} working days`">
+            <span
               v-for="day in row.days"
               :key="day.key"
-              class="day-item"
+              class="day-chip"
               :class="day.working ? 'is-working' : 'is-rest'"
+              :title="day.working ? `${day.label}: working day` : `${day.label}: rest day`"
             >
-              <span class="day-dot" aria-hidden="true" />
-              {{ day.label }}
-            </div>
+              {{ day.label.charAt(0) }}
+            </span>
           </div>
           <span v-else class="missing-days">Not loaded</span>
         </td>
 
         <td>
-          <div v-if="row.days" class="hour-stack">
-            <div
-              v-for="day in row.days"
-              :key="day.key"
-              class="hour-item"
-              :class="{ 'is-rest': !day.working }"
-            >
-              <template v-if="!day.working">Rest Day</template>
-              <template v-else-if="day.timeIn && day.timeOut">
-                {{ formatTime(day.timeIn) }} – {{ formatTime(day.timeOut) }}
-              </template>
-              <template v-else>Time not configured</template>
+          <div v-if="row.days" class="hour-list">
+            <div v-for="group in row.hourGroups" :key="group.days" class="hour-line">
+              <span class="hour-days">{{ group.days }}</span>
+              <span class="hour-time">{{ group.hours }}</span>
             </div>
+            <div v-if="row.restDays.length" class="hour-line is-rest">
+              <span class="hour-days">Rest</span>
+              <span class="hour-time">{{ row.restDays.join(', ') }}</span>
+            </div>
+            <div v-if="!row.hourGroups.length" class="hour-line is-rest">No working days</div>
           </div>
           <span v-else class="missing-days">Schedule days unavailable</span>
         </td>
@@ -195,66 +229,62 @@ const displaySchedules = computed(() =>
    WORK SCHEDULE DAYS
    ========================================= */
 
-/* Align days and working hours */
-.day-stack,
-.hour-stack {
-  display: grid;
-  grid-template-rows: repeat(7, 25px);
+/* Days: one compact row of chips (M T W T F S S) */
+.day-chips {
+  display: flex;
   gap: 4px;
 }
 
-/* Day labels and working hours */
-.day-item,
-.hour-item {
-  display: inline-flex;
-  align-items: center;
-  min-height: 25px;
+.day-chip {
+  display: inline-grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+}
 
+.day-chip.is-working {
+  background: var(--green-soft, rgba(34, 197, 94, 0.12));
+  color: var(--green, #22c55e);
+}
+
+.day-chip.is-rest {
+  border: 1px dashed var(--border);
+  color: var(--text-muted);
+}
+
+/* Working hours: grouped lines instead of one line per day */
+.hour-list {
+  display: grid;
+  gap: 4px;
+}
+
+.hour-line {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  color: var(--text-secondary);
   font-size: var(--table-row-font, 13px);
-  font-weight: 400;
   line-height: 1.4;
   white-space: nowrap;
 }
 
-/* =========================================
-   DAY BULLETS
-   ========================================= */
-
-.day-item {
-  gap: 8px;
+.hour-days {
+  min-width: 64px;
+  color: var(--text-primary);
+  font-weight: 600;
 }
 
-.day-dot {
-  display: inline-block;
-  width: 6px;
-  height: 6px;
-  min-width: 6px;
-  flex-shrink: 0;
-
-  border-radius: 50%;
-  background-color: #22c55e;
-}
-
-/* Working days */
-.day-item.is-working {
-  color: var(--text-secondary);
-}
-
-/* Rest days */
-.day-item.is-rest,
-.hour-item.is-rest {
-  color: var(--text-muted);
-}
-
-.day-item.is-rest .day-dot {
-  background-color: var(--text-muted);
-  opacity: 0.6;
-}
-
-/* Working hours */
-.hour-item {
-  color: var(--text-secondary);
+.hour-time {
   font-variant-numeric: tabular-nums;
+}
+
+.hour-line.is-rest,
+.hour-line.is-rest .hour-days {
+  color: var(--text-muted);
+  font-weight: 500;
 }
 
 /* =========================================
@@ -298,14 +328,9 @@ const displaySchedules = computed(() =>
    ========================================= */
 
 @media (max-width: 650px) {
-  .day-stack,
-  .hour-stack {
-    grid-template-rows: repeat(7, 25px);
-    gap: 3px;
+  .day-chip {
+    width: 22px;
+    height: 22px;
   }
 }
 </style>
-
-
-
-

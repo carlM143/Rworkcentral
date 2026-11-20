@@ -21,12 +21,15 @@ const api = useTripTicketApi()
 const saving = ref(false)
 const error = ref('')
 
+// Odometer is only tracked for company vehicles.
+const isCompany = props.record.vehicle_mode === 'company'
+
 // Highest odometer recorded for this vehicle (from the backend)
 const lastReading = props.record.last_odometer
 
 const time = ref(tripNowHHmm())
 const odometer = ref<number | null>(
-  props.action === 'depart' ? lastReading : props.record.odometer_out,
+  !isCompany ? null : props.action === 'depart' ? lastReading : props.record.odometer_out,
 )
 const reason = ref('')
 
@@ -37,10 +40,12 @@ const title = computed(() => ({
 })[props.action])
 
 const subtitle = computed(() =>
-  `${props.record.driver.name} · ${props.record.vehicle.plate_no} · ${props.record.destination}`)
+  [props.record.driver?.name, props.record.vehicle_label, props.record.destination]
+    .filter(Boolean)
+    .join(' · '))
 
 const distance = computed(() =>
-  props.action === 'return' && odometer.value !== null && props.record.odometer_out !== null
+  isCompany && props.action === 'return' && odometer.value !== null && props.record.odometer_out !== null
     ? odometer.value - props.record.odometer_out
     : null)
 
@@ -56,10 +61,11 @@ const submit = async () => {
   saving.value = true
   error.value = ''
   try {
+    const odo = isCompany ? odometer.value : null
     const response = props.action === 'depart'
-      ? await api.depart(props.record.id, { departed_at: time.value, odometer_out: odometer.value })
+      ? await api.depart(props.record.id, { departed_at: time.value, odometer_out: odo })
       : props.action === 'return'
-        ? await api.returnTrip(props.record.id, { returned_at: time.value, odometer_in: odometer.value })
+        ? await api.returnTrip(props.record.id, { returned_at: time.value, odometer_in: odo })
         : await api.cancel(props.record.id, reason.value)
     emit('saved', response.data, response.message)
   } catch (err) {
@@ -83,13 +89,13 @@ const submit = async () => {
       <div class="review-note">
         <template v-if="action === 'depart'">
           Planned departure: <strong>{{ driverTimeText(record.scheduled_departure) }}</strong>.
-          <template v-if="lastReading !== null">
-            Last recorded odometer for {{ record.vehicle.plate_no }}: <strong>{{ lastReading.toLocaleString() }} km</strong>.
+          <template v-if="isCompany && lastReading !== null">
+            Last recorded odometer for {{ record.vehicle_label }}: <strong>{{ lastReading.toLocaleString() }} km</strong>.
           </template>
         </template>
         <template v-else>
-          Departed at <strong>{{ driverTimeText(record.departed_at!) }}</strong> with
-          odometer <strong>{{ record.odometer_out?.toLocaleString() }} km</strong>.
+          Departed at <strong>{{ driverTimeText(record.departed_at!) }}</strong>
+          <template v-if="isCompany"> with odometer <strong>{{ record.odometer_out?.toLocaleString() }} km</strong></template>.
           Expected back by {{ driverTimeText(record.expected_return) }}.
         </template>
       </div>
@@ -99,7 +105,7 @@ const submit = async () => {
           <label for="tt-time">{{ action === 'depart' ? 'Actual departure time' : 'Actual return time' }}</label>
           <input id="tt-time" v-model="time" type="time">
         </div>
-        <div>
+        <div v-if="isCompany">
           <label for="tt-odo">{{ action === 'depart' ? 'Odometer out (km)' : 'Odometer in (km)' }}</label>
           <input id="tt-odo" v-model.number="odometer" type="number" min="0" step="1" inputmode="numeric">
         </div>
@@ -117,7 +123,7 @@ const submit = async () => {
       <div class="review-note">
         Cancel the trip to <strong>{{ record.destination }}</strong> on {{ record.trip_date }}
         ({{ driverTimeText(record.scheduled_departure) }}–{{ driverTimeText(record.expected_return) }}).
-        The driver and vehicle become free for that time again.
+        <template v-if="isCompany">The driver and vehicle become free for that time again.</template>
       </div>
       <label for="tt-reason">Reason (required)</label>
       <textarea id="tt-reason" v-model="reason" rows="3" placeholder="Why is this trip cancelled?" />

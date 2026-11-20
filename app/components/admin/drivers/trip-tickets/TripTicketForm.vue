@@ -3,11 +3,14 @@ import { computed, reactive, ref, watch } from 'vue'
 import { ArrowLeft, CheckCircle2, Circle, Info, Plus, Search } from 'lucide-vue-next'
 import { driverErrorMessage, driverTimeText, driverTodayLocal } from '~/composables/admin/drivers/useDriverApi'
 import {
+  TRIP_VEHICLE_MODES,
   useTripTicketApi,
+  type TripApproverOption,
   type TripDepartmentOption,
   type TripDriverOption,
   type TripPassengerOption,
   type TripRequesterOption,
+  type TripVehicleMode,
   type TripVehicleOption,
 } from '~/composables/admin/drivers/useTripTicketApi'
 
@@ -34,9 +37,12 @@ const prefillDriverId = Number(route.query.driver) || null
 const form = reactive({
   requesting_department_id: null as number | null,
   requested_by: null as number | null,
+  approved_by: null as number | null,
   trip_date: today,
   scheduled_departure: '08:00',
   expected_return: '12:00',
+  vehicle_mode: 'company' as TripVehicleMode,
+  vehicle_other: '',
   driver_id: null as number | null,
   vehicle_id: null as number | null,
   destination: '',
@@ -47,6 +53,7 @@ const form = reactive({
 
 const departments = ref<TripDepartmentOption[]>([])
 const requesters = ref<TripRequesterOption[]>([])
+const approvers = ref<TripApproverOption[]>([])
 const drivers = ref<TripDriverOption[]>([])
 const vehicles = ref<TripVehicleOption[]>([])
 const passengers = ref<TripPassengerOption[]>([])
@@ -58,13 +65,31 @@ const passengerSearch = ref('')
 let prefillApplied = false
 
 const timeValid = computed(() => form.expected_return > form.scheduled_departure)
+const isCompany = computed(() => form.vehicle_mode === 'company')
+const modeLabel = computed(() => {
+  if (form.vehicle_mode === 'others') return form.vehicle_other.trim() || 'Others'
+  return TRIP_VEHICLE_MODES.find(m => m.value === form.vehicle_mode)?.label ?? ''
+})
+
+// Public / outside transport has no company driver or vehicle.
+watch(() => form.vehicle_mode, (mode) => {
+  if (mode !== 'company') {
+    form.driver_id = null
+    form.vehicle_id = null
+  }
+  if (mode !== 'others') form.vehicle_other = ''
+})
 
 // =====================================================
-// REQUESTING DEPARTMENT + REQUESTER
+// REQUESTING DEPARTMENT + REQUESTER + APPROVER
 // =====================================================
 
 api.departments().then((response) => {
   departments.value = response.data
+})
+
+api.approvers().then((response) => {
+  approvers.value = response.data
 })
 
 let pendingRequester: number | null = null
@@ -90,6 +115,7 @@ watch(() => form.requesting_department_id, async (departmentId) => {
 const hasHead = computed(() => requesters.value.some(r => r.is_head))
 const selectedDepartment = computed(() => departments.value.find(d => d.id === form.requesting_department_id) ?? null)
 const selectedRequester = computed(() => requesters.value.find(r => r.id === form.requested_by) ?? null)
+const selectedApprover = computed(() => approvers.value.find(a => a.id === form.approved_by) ?? null)
 
 // =====================================================
 // DRIVERS / VEHICLES / PASSENGERS FOR THE TIME WINDOW
@@ -149,7 +175,7 @@ const filteredPassengers = computed(() => {
 const selectedPassengers = computed(() => passengers.value.filter(p => form.passenger_ids.includes(p.id)))
 
 const overCapacity = computed(() =>
-  !!selectedVehicle.value && form.passenger_ids.length > selectedVehicle.value.capacity)
+  isCompany.value && !!selectedVehicle.value && form.passenger_ids.length > selectedVehicle.value.capacity)
 
 const togglePassenger = (passenger: TripPassengerOption) => {
   if (!passenger.available) return
@@ -176,11 +202,14 @@ const loadTicket = async () => {
     pendingRequester = t.requested_by?.id ?? null
     Object.assign(form, {
       requesting_department_id: t.requesting_department?.id ?? null,
+      approved_by: t.approved_by?.id ?? null,
       trip_date: t.trip_date,
       scheduled_departure: t.scheduled_departure,
       expected_return: t.expected_return,
-      driver_id: t.driver.id,
-      vehicle_id: t.vehicle.id,
+      vehicle_mode: t.vehicle_mode,
+      vehicle_other: t.vehicle_other ?? '',
+      driver_id: t.driver?.id ?? null,
+      vehicle_id: t.vehicle?.id ?? null,
       destination: t.destination,
       purpose: t.purpose,
       passenger_ids: t.passengers.map(p => p.id),
@@ -201,9 +230,17 @@ loadTicket()
 
 const checklist = computed(() => [
   { label: 'Requesting department and requester', done: !!form.requesting_department_id && !!form.requested_by },
+  { label: 'Approved by', done: !!form.approved_by },
   { label: 'Trip date and time', done: !!form.trip_date && timeValid.value },
-  { label: 'Available driver selected', done: !!form.driver_id },
-  { label: 'Vehicle selected', done: !!form.vehicle_id },
+  ...(isCompany.value
+    ? [
+        { label: 'Available driver selected', done: !!form.driver_id },
+        { label: 'Vehicle selected', done: !!form.vehicle_id },
+      ]
+    : [
+        { label: 'Type of transport', done: form.vehicle_mode !== 'others' || !!form.vehicle_other.trim() },
+        { label: 'At least one passenger', done: form.passenger_ids.length > 0 },
+      ]),
   { label: 'Destination and purpose', done: !!form.destination.trim() && !!form.purpose.trim() },
   { label: 'Passengers within vehicle capacity', done: !overCapacity.value },
 ])
@@ -241,8 +278,8 @@ const dateText = (v: string) =>
     <PageHeader
       :title="isEdit ? `Edit ${ticketNo || 'Trip Ticket'}` : 'Create Trip Ticket'"
       :description="isEdit
-        ? 'Change the request, schedule, driver, vehicle or passengers before the trip departs.'
-        : 'Record who requested the trip, then assign an available driver, vehicle and passengers.'"
+        ? 'Change the request, schedule, transport or passengers before the trip departs.'
+        : 'Record who requested and approved the trip, then choose the transport and passengers.'"
     >
       <AppButton variant="secondary" :icon="ArrowLeft" @click="router.push('/admin/trip-tickets')">
         Back
@@ -262,7 +299,7 @@ const dateText = (v: string) =>
         <section class="panel">
           <header class="panel-header">
             <h2>Request</h2>
-            <span>Who is asking for the trip</span>
+            <span>Who is asking for and approving the trip</span>
           </header>
           <div class="form-grid">
             <div class="field">
@@ -285,6 +322,15 @@ const dateText = (v: string) =>
               <small v-if="form.requesting_department_id && !loadingRequesters && !hasHead" class="hint">
                 No department head found. Positions with "Head", "Manager" or "Supervisor" in the title are treated as head.
               </small>
+            </div>
+            <div class="field wide">
+              <label for="tt-approver">Approved by <em>*</em></label>
+              <select id="tt-approver" v-model="form.approved_by">
+                <option :value="null" disabled>Select who approved this ticket</option>
+                <option v-for="a in approvers" :key="a.id" :value="a.id">
+                  {{ a.name }} · {{ a.position }}{{ a.department ? ` · ${a.department}` : '' }}
+                </option>
+              </select>
             </div>
           </div>
         </section>
@@ -312,40 +358,64 @@ const dateText = (v: string) =>
           </div>
         </section>
 
-        <!-- ASSIGNMENT -->
+        <!-- TRANSPORT -->
         <section class="panel">
           <header class="panel-header">
-            <h2>Driver &amp; Vehicle</h2>
-            <span>Only free ones in the selected time can be chosen</span>
+            <h2>Transport</h2>
+            <span>{{ isCompany ? 'Only free ones in the selected time can be chosen' : 'No company driver or vehicle needed' }}</span>
           </header>
           <div class="form-grid">
-            <div class="field">
-              <label for="tt-driver">Driver <em>*</em></label>
-              <select id="tt-driver" v-model="form.driver_id" :disabled="loadingOptions || !timeValid">
-                <option :value="null" disabled>
-                  {{ loadingOptions ? 'Checking availability...' : `Select driver (${availableDriverCount} available)` }}
-                </option>
-                <optgroup v-if="sameDepartmentDrivers.length" :label="`${selectedDepartment?.name ?? ''} drivers`">
-                  <option v-for="d in sameDepartmentDrivers" :key="d.id" :value="d.id" :disabled="!d.available">
-                    {{ d.name }} · {{ d.drivers_code }}{{ d.available ? '' : ` — ${d.reason}` }}
-                  </option>
-                </optgroup>
-                <optgroup :label="sameDepartmentDrivers.length ? 'Other departments' : 'All drivers'">
-                  <option v-for="d in otherDrivers" :key="d.id" :value="d.id" :disabled="!d.available">
-                    {{ d.name }} · {{ d.drivers_code }}{{ d.department ? ` · ${d.department}` : '' }}{{ d.available ? '' : ` — ${d.reason}` }}
-                  </option>
-                </optgroup>
-              </select>
+            <div class="field wide">
+              <label id="tt-mode-label">Type of transport <em>*</em></label>
+                            <div class="mode-group" role="radiogroup" aria-labelledby="tt-mode-label">
+                <label
+                  v-for="m in TRIP_VEHICLE_MODES"
+                  :key="m.value"
+                  class="mode-option"
+                  :class="{ active: form.vehicle_mode === m.value }"
+                >
+                  <input v-model="form.vehicle_mode" type="radio" name="vehicle_mode" :value="m.value">
+                  <span class="mode-dot" aria-hidden="true" />
+                  <span class="mode-text">{{ m.label }}</span>
+                </label>
+              </div>
             </div>
-            <div class="field">
-              <label for="tt-vehicle">Vehicle (plate) <em>*</em></label>
-              <select id="tt-vehicle" v-model="form.vehicle_id" :disabled="loadingOptions || !timeValid">
-                <option :value="null" disabled>Select vehicle</option>
-                <option v-for="v in vehicles" :key="v.id" :value="v.id" :disabled="!v.available">
-                  {{ v.plate_no }} · {{ v.description }} ({{ v.capacity }} pax){{ v.available ? '' : ` — ${v.reason}` }}
-                </option>
-              </select>
+
+            <div v-if="form.vehicle_mode === 'others'" class="field wide">
+              <label for="tt-other">Specify transport <em>*</em></label>
+              <input id="tt-other" v-model="form.vehicle_other" type="text" maxlength="100" placeholder="e.g. Tricycle, Grab, Ferry">
             </div>
+
+            <template v-if="isCompany">
+              <div class="field">
+                <label for="tt-driver">Driver <em>*</em></label>
+                <select id="tt-driver" v-model="form.driver_id" :disabled="loadingOptions || !timeValid">
+                  <option :value="null" disabled>
+                    {{ loadingOptions ? 'Checking availability...' : `Select driver (${availableDriverCount} available)` }}
+                  </option>
+                  <optgroup v-if="sameDepartmentDrivers.length" :label="`${selectedDepartment?.name ?? ''} drivers`">
+                    <option v-for="d in sameDepartmentDrivers" :key="d.id" :value="d.id" :disabled="!d.available">
+                      {{ d.name }} · {{ d.drivers_code }}{{ d.available ? '' : ` — ${d.reason}` }}
+                    </option>
+                  </optgroup>
+                  <optgroup :label="sameDepartmentDrivers.length ? 'Other departments' : 'All drivers'">
+                    <option v-for="d in otherDrivers" :key="d.id" :value="d.id" :disabled="!d.available">
+                      {{ d.name }} · {{ d.drivers_code }}{{ d.department ? ` · ${d.department}` : '' }}{{ d.available ? '' : ` — ${d.reason}` }}
+                    </option>
+                  </optgroup>
+                </select>
+              </div>
+              <div class="field">
+                <label for="tt-vehicle">Vehicle (plate) <em>*</em></label>
+                <select id="tt-vehicle" v-model="form.vehicle_id" :disabled="loadingOptions || !timeValid">
+                  <option :value="null" disabled>Select vehicle</option>
+                  <option v-for="v in vehicles" :key="v.id" :value="v.id" :disabled="!v.available">
+                    {{ v.plate_no }} · {{ v.description }} ({{ v.capacity }} pax){{ v.available ? '' : ` — ${v.reason}` }}
+                  </option>
+                </select>
+              </div>
+            </template>
+
             <div class="field wide">
               <label for="tt-destination">Destination <em>*</em></label>
               <input id="tt-destination" v-model="form.destination" type="text" placeholder="e.g. Toril Client Site">
@@ -362,7 +432,7 @@ const dateText = (v: string) =>
           <header class="panel-header">
             <h2>Passengers</h2>
             <span class="count" :class="{ over: overCapacity }">
-              {{ form.passenger_ids.length }}<template v-if="selectedVehicle"> / {{ selectedVehicle.capacity }}</template> selected
+              {{ form.passenger_ids.length }}<template v-if="isCompany && selectedVehicle"> / {{ selectedVehicle.capacity }}</template> selected
             </span>
           </header>
           <div class="passenger-wrap">
@@ -423,14 +493,18 @@ const dateText = (v: string) =>
 
         <dl class="summary">
           <div><dt>Requested by</dt><dd>{{ selectedRequester ? `${selectedRequester.name}` : '—' }}<small v-if="selectedRequester">{{ selectedRequester.position }} · {{ selectedDepartment?.name }}</small></dd></div>
+          <div><dt>Approved by</dt><dd>{{ selectedApprover?.name ?? '—' }}<small v-if="selectedApprover">{{ selectedApprover.position }}</small></dd></div>
           <div><dt>Schedule</dt><dd>{{ dateText(form.trip_date) }}<small v-if="timeValid">{{ driverTimeText(form.scheduled_departure) }} – {{ driverTimeText(form.expected_return) }}</small></dd></div>
-          <div><dt>Driver</dt><dd>{{ selectedDriver?.name ?? '—' }}<small v-if="selectedDriver">{{ selectedDriver.drivers_code }}<template v-if="selectedDriver.department"> · {{ selectedDriver.department }}</template></small></dd></div>
-          <div><dt>Vehicle</dt><dd>{{ selectedVehicle?.plate_no ?? '—' }}<small v-if="selectedVehicle">{{ selectedVehicle.description }} · {{ selectedVehicle.capacity }} pax</small></dd></div>
+          <div><dt>Transport</dt><dd>{{ modeLabel }}</dd></div>
+          <template v-if="isCompany">
+            <div><dt>Driver</dt><dd>{{ selectedDriver?.name ?? '—' }}<small v-if="selectedDriver">{{ selectedDriver.drivers_code }}<template v-if="selectedDriver.department"> · {{ selectedDriver.department }}</template></small></dd></div>
+            <div><dt>Vehicle</dt><dd>{{ selectedVehicle?.plate_no ?? '—' }}<small v-if="selectedVehicle">{{ selectedVehicle.description }} · {{ selectedVehicle.capacity }} pax</small></dd></div>
+          </template>
           <div><dt>Destination</dt><dd>{{ form.destination || '—' }}<small v-if="form.purpose">{{ form.purpose }}</small></dd></div>
           <div>
             <dt>Passengers</dt>
             <dd>
-              {{ selectedPassengers.length ? `${selectedPassengers.length} pax` : 'Driver only' }}
+              {{ selectedPassengers.length ? `${selectedPassengers.length} pax` : isCompany ? 'Driver only' : '—' }}
               <small v-if="selectedPassengers.length">{{ selectedPassengers.map(p => p.name).join(', ') }}</small>
             </dd>
           </div>
@@ -449,7 +523,9 @@ const dateText = (v: string) =>
 
         <p class="info-note">
           <Info :size="15" />
-          {{ isEdit ? 'Changes are allowed until the trip departs.' : 'The ticket is saved as Scheduled.' }} Record the actual departure and return with odometer readings from the Trip Tickets list.
+          {{ isEdit ? 'Changes are allowed until the trip departs.' : 'The ticket is saved as Scheduled.' }}
+          <template v-if="isCompany"> Record the actual departure and return with odometer readings from the Trip Tickets list.</template>
+          <template v-else> Record the actual departure and return times from the Trip Tickets list. No odometer is needed for this transport.</template>
         </p>
       </aside>
     </div>
@@ -577,6 +653,82 @@ const dateText = (v: string) =>
 .field textarea:focus-visible {
   border-color: var(--primary);
   outline: none;
+}
+
+/* ===== Type of transport (radio pills) ===== */
+
+.mode-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.mode-option {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 14px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg-card-soft);
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  cursor: pointer;
+  user-select: none;
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+
+.mode-option:hover {
+  border-color: var(--text-muted);
+  color: var(--text-primary);
+}
+
+/* Native radio stays for keyboard and screen readers, but is hidden. */
+.mode-option input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.mode-dot {
+  position: relative;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  border: 2px solid var(--text-muted);
+  border-radius: 50%;
+  transition: border-color 0.15s ease;
+}
+
+.mode-option.active {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+  color: var(--text-primary);
+}
+
+.mode-option.active .mode-dot {
+  border-color: var(--primary);
+}
+
+.mode-option.active .mode-dot::after {
+  content: '';
+  position: absolute;
+  inset: 3px;
+  border-radius: 50%;
+  background: var(--primary);
+}
+
+.mode-option:focus-within {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
 }
 
 .hint {

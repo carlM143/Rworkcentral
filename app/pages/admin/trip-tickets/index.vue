@@ -216,10 +216,11 @@ const exportCsv = async () => {
       page++
     } while (page <= lastPage)
 
-    const rows = [
-      ['Ticket No.', 'Trip Date', 'Requesting Department', 'Requested By', 'Driver', 'Driver Code', 'Plate', 'Vehicle', 'Destination', 'Purpose', 'Passengers', 'Planned Departure', 'Actual Departure', 'Expected Return', 'Actual Return', 'Odometer Out', 'Odometer In', 'Distance (km)', 'Status'],
+        const rows = [
+      ['Ticket No.', 'Trip Date', 'Requesting Department', 'Requested By', 'Approved By', 'Transport', 'Driver', 'Driver Code', 'Plate / Type', 'Vehicle', 'Destination', 'Purpose', 'Passengers', 'Planned Departure', 'Actual Departure', 'Expected Return', 'Actual Return', 'Odometer Out', 'Odometer In', 'Distance (km)', 'Status'],
       ...all.map(t => [
-        t.ticket_no, t.trip_date, t.requesting_department?.name, t.requested_by?.name, t.driver.name, t.driver.drivers_code, t.vehicle.plate_no, t.vehicle.description,
+        t.ticket_no, t.trip_date, t.requesting_department?.name, t.requested_by?.name, t.approved_by?.name,
+        t.vehicle_mode, t.driver?.name, t.driver?.drivers_code, t.vehicle_label, t.vehicle?.description,
         t.destination, t.purpose, t.passengers.map(p => p.name).join('; '),
         t.scheduled_departure, t.departed_at, t.expected_return, t.returned_at,
         t.odometer_out, t.odometer_in, t.distance_km, STATUS_LABELS[t.status],
@@ -275,13 +276,13 @@ const exportCsv = async () => {
       </div>
 
       <label class="date-box">
-        <span class="date-label">From</span>
-        <input v-model="dateFrom" type="date" aria-label="Date from">
+        <span class="date-label">Trip date from</span>
+        <input v-model="dateFrom" type="date" :max="dateTo || undefined" aria-label="Trip date from">
       </label>
 
       <label class="date-box">
         <span class="date-label">To</span>
-        <input v-model="dateTo" type="date" aria-label="Date to">
+        <input v-model="dateTo" type="date" :min="dateFrom || undefined" aria-label="Trip date to">
       </label>
 
       <div class="select-wrap">
@@ -316,13 +317,14 @@ const exportCsv = async () => {
       description="One ticket per trip: driver, vehicle, passengers, time out and in, and odometer."
       :has-rows="tickets.length > 0"
       :loading="loading"
-      min-width="1320px"
+      min-width="1480px"
       empty-title="No trip tickets found"
       empty-description="Try adjusting your filters, or create a new trip ticket."
     >
       <template #headers>
         <th>Ticket No.</th>
         <th>Requested By</th>
+        <th>Approved By</th>
         <th>Driver</th>
         <th>Vehicle</th>
         <th>Destination</th>
@@ -345,12 +347,22 @@ const exportCsv = async () => {
             <small class="cell-sub">{{ t.requesting_department?.name ?? '—' }}</small>
           </td>
           <td>
-            <strong class="cell-title">{{ t.driver.name }}</strong>
-            <small class="cell-sub">{{ t.driver.drivers_code }}</small>
+            <template v-if="t.approved_by">
+              <span class="cell-title">{{ t.approved_by.name }}</span>
+              <small class="cell-sub">{{ t.approved_by.position }}</small>
+            </template>
+            <span v-else class="cell-sub">—</span>
+          </td>
+                    <td>
+            <template v-if="t.driver">
+              <strong class="cell-title">{{ t.driver.name }}</strong>
+              <small class="cell-sub">{{ t.driver.drivers_code }}</small>
+            </template>
+            <span v-else class="cell-sub">No driver</span>
           </td>
           <td>
-            <span class="cell-title">{{ t.vehicle.plate_no }}</span>
-            <small class="cell-sub">{{ t.vehicle.description }}</small>
+            <span class="cell-title">{{ t.vehicle_label }}</span>
+            <small class="cell-sub">{{ t.vehicle?.description ?? (t.vehicle_mode === 'company' ? '—' : 'Outside transport') }}</small>
           </td>
           <td class="destination">
             <strong class="cell-title">{{ t.destination }}</strong>
@@ -369,10 +381,13 @@ const exportCsv = async () => {
             <small class="cell-sub">Exp. {{ driverTimeText(t.expected_return) }}</small>
           </td>
           <td>
-            <span class="cell-title">
-              {{ t.odometer_out?.toLocaleString() ?? '—' }} → {{ t.odometer_in?.toLocaleString() ?? '—' }}
-            </span>
-            <small class="cell-sub">{{ t.distance_km !== null ? `${t.distance_km.toLocaleString()} km` : '—' }}</small>
+            <template v-if="t.vehicle_mode === 'company'">
+              <span class="cell-title">
+                {{ t.odometer_out?.toLocaleString() ?? '—' }} → {{ t.odometer_in?.toLocaleString() ?? '—' }}
+              </span>
+              <small class="cell-sub">{{ t.distance_km !== null ? `${t.distance_km.toLocaleString()} km` : '—' }}</small>
+            </template>
+            <span v-else class="cell-sub">N/A</span>
           </td>
           <td>
             <span class="status-pill" :class="`trip-${t.status}`">{{ STATUS_LABELS[t.status] }}</span>
