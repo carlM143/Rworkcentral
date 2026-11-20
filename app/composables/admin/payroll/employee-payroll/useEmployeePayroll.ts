@@ -1,6 +1,8 @@
 import type {
   EmployeePayrollFilters,
   EmployeePayrollResponse,
+  SendPayslipsPayload,
+  SendPayslipsResult,
 } from '~/types/payroll/employee-payroll/employeePayroll'
 
 interface ApiResponse<T> {
@@ -29,8 +31,26 @@ export const useEmployeePayroll = () => {
     }
   }
 
+  const sending = ref(false)
+
+  // Returns the whole response: success is false (HTTP 200) when nothing was sent.
+  const sendPayslips = async (payload: SendPayslipsPayload) => {
+    sending.value = true
+
+    try {
+      return await $api<ApiResponse<SendPayslipsResult>>('/admin/employee-payrolls/send-payslips', {
+        method: 'POST',
+        body: payload,
+      })
+    } finally {
+      sending.value = false
+    }
+  }
+
   return {
     loading,
+    sending,
     fetchEmployeePayrolls,
+    sendPayslips,
   }
 }

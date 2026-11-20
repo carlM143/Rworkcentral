@@ -15,11 +15,16 @@ import {
 import PayrollReadinessFilter from '~/components/admin/payroll/payroll-readiness/PayrollReadinessFilter.vue'
 import PayrollReadinessStats from '~/components/admin/payroll/payroll-readiness/PayrollReadinessStats.vue'
 import PayrollReadinessTable from '~/components/admin/payroll/payroll-readiness/PayrollReadinessTable.vue'
+import PayrollResultsTable from '~/components/admin/payroll/payroll-generation/PayrollResultsTable.vue'
 import type {
   PeriodStatus,
   ReadinessStatus,
 } from '~/types/payroll/payroll-readiness/payrollReadiness'
-import type { PayrollGenerationResult } from '~/types/payroll/payroll-generation/payrollGeneration'
+import type {
+  PayrollGenerationResult,
+  PayrollIncompleteLog,
+  PayrollRecord,
+} from '~/types/payroll/payroll-generation/payrollGeneration'
 
 import ConfirmationModal from '~/components/ui/ConfirmationModal.vue'
 
@@ -35,8 +40,9 @@ const generationApi = usePayrollGeneration()
 const { readiness, loading, updatingStatus } = readinessApi
 const { periods } = periodApi
 const { groups } = groupApi
-const { generating, finalizing } = generationApi
+const { generating, finalizing, loadingPayrolls } = generationApi
 
+const payrolls = ref<PayrollRecord[]>([])
 const showChecks = ref(false)
 
 const generationResult = ref<PayrollGenerationResult | null>(null)
@@ -76,6 +82,12 @@ const periodStatus = computed(() => (period.value?.status ?? '').toLowerCase())
 const isProcessed = computed(() => ['processing', 'closed'].includes(periodStatus.value))
 const showReadiness = computed(() => !isProcessed.value || showChecks.value)
 
+const visiblePayrolls = computed(() =>
+  groupId.value
+    ? payrolls.value.filter(p => p.payroll_group_id === groupId.value)
+    : payrolls.value,
+)
+
 const periodBlockers = computed(() =>
   readiness.value?.period_issues.filter(i => i.severity === 'blocker') ?? [],
 )
@@ -109,9 +121,21 @@ const load = async () => {
 
   try {
     await readinessApi.fetchReadiness(periodId.value, groupId.value)
+    await loadPayrolls()
   } catch (err) {
     errorMessage.value = readinessApi.getErrorMessage(err)
   }
+}
+
+// Payroll records exist only once the period is generated (processing) or finalized (closed).
+const loadPayrolls = async () => {
+  if (!periodId.value || !isProcessed.value) {
+    payrolls.value = []
+    return
+  }
+
+  const data = await generationApi.fetchPayrolls(periodId.value)
+  payrolls.value = data.payrolls
 }
 
 const syncQuery = () => {
@@ -149,6 +173,14 @@ const changePeriodStatus = async (status: PeriodStatus) => {
 
 const formatMoney = (value: number | string | null | undefined) =>
   new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(Number(value ?? 0))
+
+const generationWarnings = computed(() => generationResult.value?.warnings ?? [])
+
+// "Nov 3 (no time out), Nov 5 (no time in)"
+const incompleteDays = (logs: PayrollIncompleteLog[]) =>
+  logs
+    .map(log => `${formatDate(log.work_date)} (no ${log.missing === 'time_in' ? 'time in' : 'time out'})`)
+    .join(', ')
 
 const canGenerate = computed(() =>
   !!readiness.value?.can_generate && ['open', 'processing'].includes(periodStatus.value),
@@ -409,7 +441,7 @@ onMounted(async () => {
       </div>
 
       <div
-        v-if="generationResult?.skipped.length"
+        v-if="generationResult && (generationResult.skipped.length || generationWarnings.length)"
         class="result-card"
       >
         <div class="result-head">
@@ -424,7 +456,10 @@ onMounted(async () => {
           </button>
         </div>
 
-        <ul class="skipped">
+        <ul
+          v-if="generationResult.skipped.length"
+          class="skipped"
+        >
           <li
             v-for="line in generationResult.skipped"
             :key="line.employee_id"
@@ -432,9 +467,31 @@ onMounted(async () => {
             <strong>{{ line.name }}</strong> — {{ line.reason }}
           </li>
         </ul>
+
+        <!-- Generated, but with days missing a time in / time out -->
+        <template v-if="generationWarnings.length">
+          <p class="warn-title">
+            <AlertTriangle :size="14" />
+            Incomplete time logs — review, then regenerate
+          </p>
+          <ul class="skipped">
+            <li
+              v-for="warning in generationWarnings"
+              :key="warning.payroll_id"
+            >
+              <strong>{{ warning.name }}</strong> — {{ warning.message }}
+              <small class="warn-days">{{ incompleteDays(warning.logs) }}</small>
+            </li>
+          </ul>
+        </template>
       </div>
 
       <template v-if="isProcessed">
+        <PayrollResultsTable
+          :payrolls="visiblePayrolls"
+          :loading="loadingPayrolls"
+        />
+
         <div class="checks-toggle">
           <AppButton
             variant="secondary"
@@ -796,6 +853,27 @@ onMounted(async () => {
 
 .skipped strong {
   color: var(--text-primary);
+}
+
+.skipped li + li {
+  margin-top: 6px;
+}
+
+.warn-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 12px 0 0;
+  color: #fb923c;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.warn-days {
+  display: block;
+  margin-top: 2px;
+  color: var(--text-muted);
+  font-size: 11px;
 }
 
 .checks-toggle {

@@ -1,5 +1,19 @@
 export type Money = string | number
 
+/**
+ * A day with only one punch (time in without time out, or the reverse).
+ * Nothing is deducted: monthly-rate employees are paid the full day,
+ * daily/hourly employees are not paid for it. HR must review these.
+ */
+export interface PayrollIncompleteLog {
+  time_log_id: number
+  work_date: string | null
+  time_in: string | null
+  time_out: string | null
+  missing: 'time_in' | 'time_out'
+  payroll_effect: string
+}
+
 export interface GeneratedPayrollLine {
   payroll_id: number
   employee_id: number
@@ -7,6 +21,7 @@ export interface GeneratedPayrollLine {
   gross_pay: number
   total_deductions: number
   net_pay: number
+  incomplete_logs?: PayrollIncompleteLog[]
 }
 
 export interface SkippedPayrollLine {
@@ -15,9 +30,21 @@ export interface SkippedPayrollLine {
   reason: string
 }
 
+/** Payroll was generated, but the employee has days that need review. */
+export interface PayrollGenerationWarning {
+  payroll_id: number
+  employee_id: number
+  name: string
+  code: 'incomplete_time_logs' | string
+  rate_type: string
+  message: string
+  logs: PayrollIncompleteLog[]
+}
+
 export interface PayrollGenerationResult {
   generated: GeneratedPayrollLine[]
   skipped: SkippedPayrollLine[]
+  warnings?: PayrollGenerationWarning[]
 }
 
 export interface PayrollLoanLine {
@@ -63,6 +90,27 @@ export interface PayrollHolidayDay {
   rest_day: boolean
   paid: boolean
   reason: string
+}
+
+/**
+ * Salary in effect for part of the cut-off. One segment when nothing changed;
+ * more when a salary adjustment took effect inside the cut-off.
+ */
+export interface PayrollSalarySegment {
+  from: string
+  to: string
+  days: number
+  basic: number
+  allowance: number
+  salary_adjustment_id: number | null
+}
+
+/** Additional allowance (employee_allowance), split per cut-off like the main allowance. */
+export interface PayrollAdditionalAllowance {
+  allowance_name: string
+  monthly_amount: number
+  /** Amount for this cut-off (already included in allowance_pay). */
+  amount: number
 }
 
 export interface PayrollContributionLine {
@@ -115,6 +163,10 @@ export interface PayrollRecord {
     loans: PayrollLoanLine[]
     holidays?: PayrollHolidayLine[]
     holiday_days?: PayrollHolidayDay[]
+    /** Missing on payrolls generated before salary adjustments were supported. */
+    salary_segments?: PayrollSalarySegment[]
+    additional_allowances?: PayrollAdditionalAllowance[]
+    incomplete_logs?: PayrollIncompleteLog[]
   } | null
   employee?: {
     id: number

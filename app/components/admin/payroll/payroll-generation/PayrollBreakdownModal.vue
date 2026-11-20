@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { X } from 'lucide-vue-next'
+import { AlertTriangle, X } from 'lucide-vue-next'
 import type { Money, PayrollRecord } from '~/types/payroll/payroll-generation/payrollGeneration'
 
 const props = defineProps<{
@@ -41,13 +41,29 @@ const name = computed(() => {
   return p.employee ? `${p.employee.firstname} ${p.employee.lastname}` : `Employee #${p.employee_id}`
 })
 
+// More than one salary segment = the salary changed inside the cut-off,
+// so a single "rate × time" note would be wrong; show no note then.
+const salaryChanged = computed(() => (props.payroll?.breakdown?.salary_segments?.length ?? 0) > 1)
+
 const basicPayNote = computed(() => {
   const p = props.payroll
-  if (!p) return ''
+  if (!p || salaryChanged.value) return ''
   if (p.breakdown?.rate_type === 'daily') return `${p.days_worked} day(s) × ${money(p.daily_rate)}`
   if (p.breakdown?.rate_type === 'hourly') return `${minutes(p.worked_minutes)} worked`
   return `${money(p.basic_salary)} monthly ÷ cutoff`
 })
+
+// allowance_pay = main allowance (prorated if the salary changed) + additional allowances
+const additionalAllowances = computed(() => props.payroll?.breakdown?.additional_allowances ?? [])
+const additionalAllowanceTotal = computed(() =>
+  additionalAllowances.value.reduce((sum, line) => sum + num(line.amount), 0),
+)
+const mainAllowancePay = computed(() =>
+  Math.max(0, num(props.payroll?.allowance_pay) - additionalAllowanceTotal.value),
+)
+
+// Days with a time in but no time out (or the reverse)
+const incompleteLogs = computed(() => props.payroll?.breakdown?.incomplete_logs ?? [])
 
 // Holiday pay lines (added to gross pay)
 const holidayLines = computed(() => props.payroll?.breakdown?.holidays ?? [])
@@ -111,20 +127,46 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
           </div>
         </div>
 
+        <!-- Days with only one punch: nothing deducted, HR should review -->
+        <div
+          v-if="incompleteLogs.length"
+          class="incomplete"
+          role="note"
+        >
+          <AlertTriangle :size="16" />
+          <div>
+            <strong>{{ incompleteLogs.length }} incomplete time log(s)</strong>
+            <span>
+              {{ incompleteLogs.map(log => `${log.work_date ? shortDate(log.work_date) : '—'} (no ${log.missing === 'time_in' ? 'time in' : 'time out'})`).join(', ') }}
+            </span>
+            <small>
+              {{ incompleteLogs[0]?.payroll_effect }}
+              <template v-if="payroll.status === 'draft'">Correct the time logs or file unpaid leave, then regenerate.</template>
+            </small>
+          </div>
+        </div>
+
         <div class="body">
           <!-- EARNINGS -->
           <section>
             <h4>Earnings</h4>
             <dl>
               <div>
-                <dt>Basic pay <small>{{ basicPayNote }}</small></dt>
+                <dt>Basic pay <small v-if="basicPayNote">{{ basicPayNote }}</small></dt>
                 <dd>{{ money(payroll.basic_pay) }}</dd>
               </div>
 
-
-              <div v-if="num(payroll.allowance_pay)">
+              <div v-if="mainAllowancePay">
                 <dt>Allowance</dt>
-                <dd>{{ money(payroll.allowance_pay) }}</dd>
+                <dd>{{ money(mainAllowancePay) }}</dd>
+              </div>
+
+              <div
+                v-for="line in additionalAllowances"
+                :key="line.allowance_name"
+              >
+                <dt>{{ line.allowance_name }}</dt>
+                <dd>{{ money(line.amount) }}</dd>
               </div>
 
               <div v-if="num(payroll.holiday_pay)">
@@ -289,6 +331,11 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 .head p{margin:6px 0 0;color:var(--text-muted);font-size:13px}
 .head-actions{display:flex;align-items:center;gap:12px}
 .close{display:flex;width:34px;height:34px;align-items:center;justify-content:center;border:1px solid var(--border);border-radius:8px;background:transparent;color:var(--text-secondary);cursor:pointer}
+.incomplete{display:flex;align-items:flex-start;gap:10px;margin:14px 24px 0;padding:11px 14px;border-radius:8px;background:rgb(251 146 60 / 10%);color:#fb923c}
+.incomplete strong,.incomplete span,.incomplete small{display:block}
+.incomplete strong{font-size:13px}
+.incomplete span{margin-top:3px;color:var(--text-secondary);font-size:12px}
+.incomplete small{margin-top:3px;color:var(--text-muted);font-size:11px}
 .body{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0;overflow-y:auto}
 section{padding:20px 24px}
 section + section{border-left:1px solid var(--border-soft)}

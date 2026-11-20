@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Eye } from 'lucide-vue-next'
+import { AlertTriangle, Eye } from 'lucide-vue-next'
 import PayrollBreakdownModal from '~/components/admin/payroll/payroll-generation/PayrollBreakdownModal.vue'
 import type { Money, PayrollRecord } from '~/types/payroll/payroll-generation/payrollGeneration'
 
@@ -19,6 +19,8 @@ const money = (value: Money | null | undefined) =>
 
 const name = (p: PayrollRecord) =>
   p.employee ? `${p.employee.lastname}, ${p.employee.firstname}` : `Employee #${p.employee_id}`
+
+const incompleteCount = (p: PayrollRecord) => p.breakdown?.incomplete_logs?.length ?? 0
 
 // Late, undertime, unpaid leave and unpaid holidays — all reduce gross pay
 const timeDeductions = (p: PayrollRecord) =>
@@ -66,6 +68,14 @@ const timeDeductions = (p: PayrollRecord) =>
             <span>
               {{ p.employee?.emp_id }} · {{ p.salary_type?.type_name ?? '—' }}
               <template v-if="p.payroll_group"> · {{ p.payroll_group.group_name }}</template>
+            </span>
+            <span
+              v-if="incompleteCount(p)"
+              class="incomplete"
+              title="Days with a time in but no time out (or the reverse). Open the row for details."
+            >
+              <AlertTriangle :size="11" />
+              {{ incompleteCount(p) }} incomplete time log(s)
             </span>
           </div>
         </td>
@@ -117,6 +127,7 @@ const timeDeductions = (p: PayrollRecord) =>
 .stack span { display: block; }
 .stack strong { color: var(--text-primary); font-size: 12px; }
 .stack span { margin-top: 3px; color: var(--text-muted); font-size: 10px; }
+.stack .incomplete { display: inline-flex; align-items: center; gap: 4px; color: #fb923c; font-weight: 600; }
 
 .pill { display: inline-flex; padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; }
 .pill--draft { background: rgb(251 146 60 / 12%); color: #fb923c; }

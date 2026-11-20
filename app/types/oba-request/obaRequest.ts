@@ -33,6 +33,10 @@ export interface ObaRequestRecord {
   time_to: string
   date_request: string
   status: ObaRequestStatus
+  /** Set by HR when rejecting. */
+  rejection_reason?: string | null
+  /** HR user who approved/rejected (loaded after approve/reject). */
+  approver?: { id: number, name: string } | null
   created_at?: string
   updated_at?: string
   /** Added by the admin ObaRequestcontroller. */

@@ -1,114 +1,133 @@
+<!-- Admin OBA requests table (shared BaseDataTable + TableActionMenu). -->
 <script setup lang="ts">
-import { Briefcase, Eye, Users } from 'lucide-vue-next'
-import type { ObaRequestRecord } from '~/types/oba-request/obaRequest'
+import { CheckCircle2, Eye, XCircle } from 'lucide-vue-next'
+import BaseDataTable from '~/components/shared-table/BaseDataTable.vue'
+import TableActionMenu from '~/components/shared-table/TableActionMenu.vue'
+import type { ObaRequestRecord, ObaRequestStatus } from '~/types/oba-request/obaRequest'
 
-const statusLabels: Record<string, string> = {
+defineProps<{ requests: ObaRequestRecord[], loading?: boolean }>()
+
+const emit = defineEmits<{
+  review: [request: ObaRequestRecord]
+  approve: [request: ObaRequestRecord]
+  reject: [request: ObaRequestRecord]
+}>()
+
+const statusLabels: Record<ObaRequestStatus, string> = {
   pending: 'Pending',
   dept_head_approved: 'Dept. Head Approved',
   approved: 'Approved',
   rejected: 'Rejected',
   cancelled: 'Cancelled',
 }
-const statusLabel = (value: string) => statusLabels[value] ?? value
-const statusClass = (value: string) =>
-  value === 'approved' ? 'green'
-    : value === 'pending' ? 'orange'
-      : value === 'dept_head_approved' ? 'blue'
-        : value === 'rejected' ? 'red' : 'neutral'
+
+const statusLabel = (value: string) => statusLabels[value as ObaRequestStatus] ?? value
+
 const formatDate = (value: string) =>
   new Date(value).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 const formatTime = (value: string) =>
   new Date(value).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
-const timeRange = (from: string, to: string) => `${formatTime(from)} – ${formatTime(to)}`
+
+const employeeNames = (record: ObaRequestRecord) =>
+  (record.oba_employees ?? []).map(employee => employee.employee_name)
+
 const employeeSummary = (record: ObaRequestRecord) => {
-  const names = (record.oba_employees ?? []).map(employee => employee.employee_name)
+  const names = employeeNames(record)
   if (!names.length) return '—'
   return names.length > 2 ? `${names.slice(0, 2).join(', ')} +${names.length - 2} more` : names.join(', ')
 }
 
-defineProps<{ requests: ObaRequestRecord[]; loading?: boolean }>()
-defineEmits<{ review: [request: ObaRequestRecord] }>()
+// Mirrors the backend rules:
+//   approve: only after the department head approved
+//   reject:  while pending or after the department head approved
+const menuItems = (record: ObaRequestRecord) => [
+  { key: 'view', label: 'View Details', icon: Eye },
+  ...(record.status === 'dept_head_approved'
+    ? [{ key: 'approve', label: 'Approve', icon: CheckCircle2 }]
+    : []),
+  ...(record.status === 'pending' || record.status === 'dept_head_approved'
+    ? [{ key: 'reject', label: 'Reject', icon: XCircle, danger: true, dividerBefore: true }]
+    : []),
+]
+
+const onAction = (record: ObaRequestRecord, key: string) => {
+  if (key === 'approve') emit('approve', record)
+  else if (key === 'reject') emit('reject', record)
+  else emit('review', record)
+}
 </script>
 
 <template>
-  <article class="oba-table-card">
-    <div class="table-heading">
-      <h3>OBA Requests</h3>
-      <p>Official business requests filed by employees.</p>
-    </div>
+  <BaseDataTable
+    title="OBA Requests"
+    description="Official business requests filed by employees. HR approves after the department head."
+    :has-rows="requests.length > 0"
+    :loading="loading && !requests.length"
+    min-width="1000px"
+    empty-title="No OBA requests found"
+    empty-description="Try adjusting your search or filters."
+  >
+    <template #headers>
+      <th>Filed By</th>
+      <th>Destination</th>
+      <th>Employees</th>
+      <th>Date</th>
+      <th>Time</th>
+      <th>Status</th>
+      <th class="text-right"><span class="sr-only">Actions</span></th>
+    </template>
 
-    <div class="table-scroll">
-      <table class="oba-table">
-        <thead>
-          <tr>
-            <th>Filed By</th>
-            <th>Destination</th>
-            <th>Employees</th>
-            <th>Date</th>
-            <th>Time</th>
-            <th>Status</th>
-            <th />
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="request in requests" :key="request.id" @click="$emit('review', request)">
-            <td>
-              <div class="employee-cell">
-
-                <div>
-                  <strong>{{ request.filer_name || '—' }}</strong>
-                  <span>{{ request.department_name || 'No department' }} · #{{ request.id }}</span>
-                </div>
-              </div>
-            </td>
-            <td>
-              <strong class="destination"> {{ request.destination }}</strong>
-            </td>
-            <td>{{ employeeSummary(request) }}</td>
-            <td>{{ formatDate(request.date_request) }}</td>
-            <td>{{ timeRange(request.time_from, request.time_to) }}</td>
-            <td><span class="badge" :class="statusClass(request.status)">{{ statusLabel(request.status) }}</span></td>
-            <td class="action-column">
-              <button type="button" class="view-button" aria-label="Review request" @click.stop="$emit('review', request)"><Eye :size="15" /></button>
-            </td>
-          </tr>
-          <tr v-if="!requests.length" class="empty-row">
-            <td colspan="7">{{ loading ? 'Loading OBA requests...' : 'No OBA requests found.' }}</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-  </article>
+    <template #rows>
+      <tr
+        v-for="request in requests"
+        :key="request.id"
+        class="clickable-row"
+        @click="emit('review', request)"
+      >
+        <td>
+          <strong class="cell-title">{{ request.filer_name || '—' }}</strong>
+        </td>
+        <td>
+          <strong class="cell-title">{{ request.destination }}</strong>
+        </td>
+        <td>
+          <span class="cell-title">{{ employeeSummary(request) }}</span>
+          <small class="cell-sub">{{ employeeNames(request).length }} employee(s)</small>
+        </td>
+        <td>{{ formatDate(request.date_request) }}</td>
+        <td>{{ formatTime(request.time_from) }} – {{ formatTime(request.time_to) }}</td>
+        <td>
+          <span class="status-pill" :class="`oba-${request.status}`">{{ statusLabel(request.status) }}</span>
+        </td>
+        <td class="text-right" @click.stop>
+          <TableActionMenu
+            :items="menuItems(request)"
+            :label="`Actions for OBA request #${request.id}`"
+            @select="key => onAction(request, key)"
+          />
+        </td>
+      </tr>
+    </template>
+  </BaseDataTable>
 </template>
 
 <style scoped>
-.oba-table-card { overflow: hidden; border: 1px solid var(--border); border-radius: 11px; background: var(--bg-card); box-shadow: var(--shadow); }
-.table-heading { padding: 13px 15px; border-bottom: 1px solid var(--border-soft); }
-.table-heading h3 { margin: 0; color: var(--text-primary); font-size: 12px; }
-.table-heading p { margin: 3px 0 0; color: var(--text-muted); font-size: 9px; }
-.table-scroll { overflow-x: auto; }
-.oba-table { width: 100%; min-width: 1000px; border-collapse: collapse; }
-.oba-table th { padding: 10px 12px; border-bottom: 1px solid var(--border); background: var(--bg-card-soft); color: var(--text-secondary); font-size: 9px; font-weight: 650; text-align: left; text-transform: uppercase; }
-.oba-table td { padding: 11px 12px; border-bottom: 1px solid var(--border-soft); color: var(--text-secondary); font-size: 10px; vertical-align: top; }
-.oba-table tbody tr:last-child td { border-bottom: 0; }
-.oba-table tbody tr:not(.empty-row) { cursor: pointer; }
-.oba-table tbody tr:hover { background: var(--bg-card-soft); }
-.empty-row td { padding: 32px; text-align: center; }
-.employee-cell { display: flex; align-items: center; gap: 8px; }
-.employee-icon { display: flex; width: 32px; height: 32px; flex-shrink: 0; align-items: center; justify-content: center; border-radius: 8px; background: var(--primary-soft); color: var(--primary); }
-.employee-cell strong, .employee-cell span { display: block; }
-.employee-cell strong { color: var(--text-primary); font-size: 10px; }
-.employee-cell span { margin-top: 2px; color: var(--text-muted); font-size: 8px; }
-.destination { display: inline-flex; align-items: center; gap: 5px; color: var(--text-primary); font-size: 10px; }
-.destination svg { color: var(--primary); flex-shrink: 0; }
-.reason { display: block; max-width: 220px; margin-top: 3px; overflow: hidden; color: var(--text-muted); font-size: 8px; text-overflow: ellipsis; white-space: nowrap; }
-.badge { display: inline-block; padding: 4px 8px; border-radius: 5px; font-size: 9px; font-weight: 600; white-space: nowrap; }
-.green { background: var(--green-soft); color: var(--green); }
-.orange { background: var(--orange-soft); color: var(--orange); }
-.blue { background: var(--primary-soft); color: var(--primary); }
-.red { background: var(--red-soft); color: var(--red); }
-.neutral { background: var(--bg-card-soft); color: var(--text-secondary); }
-.action-column { width: 45px; text-align: right; }
-.view-button { display: inline-flex; width: 30px; height: 30px; align-items: center; justify-content: center; border: 1px solid var(--border); border-radius: 7px; background: transparent; color: var(--text-secondary); }
-.view-button:hover { background: var(--primary-soft); color: var(--primary); }
+.clickable-row { cursor: pointer; }
+.cell-title { display: block; }
+.cell-sub { display: block; margin-top: 3px; color: var(--text-muted); font-size: 11px; }
+
+.oba-pending { background: var(--orange-soft, rgba(245, 158, 11, 0.12)); color: var(--orange, #fbbf24); }
+.oba-dept_head_approved { background: var(--primary-soft, rgba(59, 130, 246, 0.12)); color: var(--primary, #60a5fa); }
+.oba-approved { background: var(--green-soft, rgba(34, 197, 94, 0.12)); color: var(--green, #4ade80); }
+.oba-rejected { background: var(--red-soft, rgba(239, 68, 68, 0.12)); color: var(--red, #f87171); }
+.oba-cancelled { background: rgba(148, 163, 184, 0.12); color: #a8b3c4; }
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
 </style>

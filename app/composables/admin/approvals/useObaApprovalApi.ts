@@ -33,5 +33,13 @@ export const useObaApprovalApi = () => {
   const show = (id: number | string) =>
     $api<ObaRequestDetailResponse>(`${BASE}/${id}`, { method: 'GET' })
 
-  return { list, show }
+  // Final HR approval. Backend only allows status "dept_head_approved".
+  const approve = (id: number | string) =>
+    $api<ObaRequestDetailResponse>(`${BASE}/${id}/approve`, { method: 'PATCH' })
+
+  // Backend allows "pending" or "dept_head_approved"; reason is required.
+  const reject = (id: number | string, reason: string) =>
+    $api<ObaRequestDetailResponse>(`${BASE}/${id}/reject`, { method: 'PATCH', body: { reason } })
+
+  return { list, show, approve, reject }
 }

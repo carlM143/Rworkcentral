@@ -73,9 +73,44 @@ export const useObaApprovals = () => {
     dateTo.value = ''
   }
 
+  /* ---------------- HR actions ---------------- */
+
+  const actingId = ref<number | null>(null)
+  const actionError = ref('')
+
+  // Runs approve/reject, then reloads the list so the row and stat cards
+  // reflect the new status. Returns the updated record, or null on failure.
+  const runAction = async (
+    id: number,
+    call: () => Promise<{ success: boolean, message?: string, data: ObaRequestRecord }>,
+    fallback: string,
+  ) => {
+    if (actingId.value) return null
+    actingId.value = id
+    actionError.value = ''
+    try {
+      const res = await call()
+      if (!res.success) throw new Error(res.message || fallback)
+      void loadRequests()
+      return res
+    } catch (cause: unknown) {
+      actionError.value = getObaApiError(cause, fallback)
+      return null
+    } finally {
+      actingId.value = null
+    }
+  }
+
+  const approveRequest = (id: number) =>
+    runAction(id, () => api.approve(id), 'Unable to approve this OBA request.')
+
+  const rejectRequest = (id: number, reason: string) =>
+    runAction(id, () => api.reject(id, reason.trim()), 'Unable to reject this OBA request.')
+
   return {
     requests, summary, search, statusFilter, dateFrom, dateTo,
     currentPage, totalPages, total, showingFrom, showingTo,
     loading, loadError, loadRequests, resetFilters,
+    actingId, actionError, approveRequest, rejectRequest,
   }
 }

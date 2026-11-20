@@ -43,7 +43,7 @@ export const employeePayslipPdf = (
   const money = (amount: number) => `PHP ${new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(amount)}`
   const rightText = (value: string, right: number, top: number, size = 9, bold = false) => text(value, right - measure(value, size), top, size, bold)
   const totals = payslipTotals(slip)
-  text('RWorkCentral Inc.', margin, 18, 16, true)
+  text(slip.companyName, margin, 18, 16, true)
   rightText('EMPLOYEE PAYSLIP', width - margin, 23, 11, true)
 
   let top = 52
@@ -62,7 +62,7 @@ export const employeePayslipPdf = (
   const metadata = [
     { label: 'PAY PERIOD', value: slip.period, extra: '', color: '1 1 1' },
     { label: 'PAYROLL SCOPE', value: slip.payrollScope, extra: '', color: '0.93 0.95 1' },
-    { label: 'BATCH / REFERENCE', value: slip.batch, extra: `Released: ${slip.releasedAt}`, color: '1 1 1' },
+    { label: 'PAYSLIP NO.', value: slip.batch, extra: `Released: ${slip.releasedAt}`, color: '1 1 1' },
   ]
   let x = margin
   metadata.forEach((field, index) => {
@@ -76,8 +76,8 @@ export const employeePayslipPdf = (
   top += 48
 
   const metrics = [
-    { label: 'WORKED', value: `${slip.daysWorked} Days`, color: '1 1 1' },
-    { label: 'DAILY RATE', value: money(slip.dailyRate), color: '1 1 1' },
+    { label: 'DAYS PAID', value: `${slip.daysWorked} Days`, color: '1 1 1' },
+    { label: slip.rateLabel.toUpperCase(), value: money(slip.rate), color: '1 1 1' },
     { label: 'GROSS EARNINGS', value: money(totals.gross), color: '1 1 1' },
     { label: 'TOTAL DEDUCTIONS', value: money(totals.totalDeductions), color: '1 0.96 0.92' },
     { label: 'NET PAY', value: money(totals.net), color: '0.91 0.99 0.95' },
@@ -122,7 +122,7 @@ export const employeePayslipPdf = (
   box(margin, top, contentWidth, remarksHeight, '1 0.98 0.91')
   text('REMARKS', margin + 8, top + 9, 7, true)
   remarks.forEach((line, index) => text(line, margin + 75, top + 8 + index * 11, 8))
-  text('Benefits are employee contributions included in deductions. Figures are frontend references, not verified payroll or statutory calculations.', margin, height - 37, 7)
+  text('Benefits are your share of government contributions and are included in Total Deductions. "Less" lines are already taken out of gross earnings.', margin, height - 37, 7)
   rightText('Page 1 of 1', width - margin, height - 22, 7)
 
   const stream = commands.join('\n') + '\n'
