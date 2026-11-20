@@ -229,6 +229,11 @@ const handleBack = () => {
       title="Users & Access"
       description="Manage system users, account roles, access status and security permissions."
     >
+        <nav class="page-tabs" aria-label="Users and access">
+      <span class="page-tab active" aria-current="page">System Users</span>
+      <NuxtLink to="/admin/settings/roles" class="page-tab">Roles & Permissions</NuxtLink>
+    </nav>
+
 
      <AppButton
         :icon="UserPlus"
@@ -635,4 +640,8 @@ const handleBack = () => {
   font-size: 11px;
   cursor: pointer;
 }
+.page-tabs { display: flex; gap: 6px; margin: 14px 0; border-bottom: 1px solid var(--border); }
+.page-tab { padding: 10px 14px; border-bottom: 2px solid transparent; color: var(--text-secondary); font-size: 13px; font-weight: 600; }
+.page-tab.active { border-color: var(--primary); color: var(--text-primary); }
+
 </style>

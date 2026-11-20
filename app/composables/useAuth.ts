@@ -123,7 +123,26 @@ export const useAuth = () => {
     normalizeRole(user.value),
   )
 
+  // Administrator always has every privilege (locked role).
+  const isAdministrator = computed(() =>
+    roleName.value === 'administrator' || roleName.value === 'admin',
+  )
+
+  const hasPortalPrivilege = (name: 'admin' | 'employee') =>
+    Array.isArray(user.value?.privileges) &&
+    user.value.privileges.some(p => p.module === 'portal' && p.name === name)
+
+  // Portal comes from the role's privileges (Roles & Permissions), so new
+  // roles work too. Falls back to the role name for older sessions.
   const portal = computed<Portal | null>(() => {
+    if (isAdministrator.value || hasPortalPrivilege('admin')) {
+      return 'admin'
+    }
+
+    if (hasPortalPrivilege('employee')) {
+      return 'employee'
+    }
+
     if (ADMIN_ROLES.has(roleName.value)) {
       return 'admin'
     }
@@ -152,12 +171,19 @@ export const useAuth = () => {
     privilege: string,
   ): boolean => {
     if (!authenticated.value) return false
+    if (isAdministrator.value) return true
 
     return privileges.value.some(item =>
       item.module === module &&
       item.name === privilege,
     )
   }
+
+  /** True when the user has any of the privileges of the module. */
+  const canAny = (
+    module: string,
+    names: string[],
+  ): boolean => names.some(name => can(module, name))
 
   const canAccessAdminTimekeeping = computed(() => {
     return portal.value === 'admin' &&
@@ -296,6 +322,8 @@ export const useAuth = () => {
     portal,
     homePath,
     canAccessAdminTimekeeping,
+    canAny,
+    isAdministrator,
     can,
     refreshUser,
     hydrate,
