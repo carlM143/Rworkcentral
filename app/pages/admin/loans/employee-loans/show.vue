@@ -1,13 +1,15 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
-import { ArrowLeft, CalendarDays, CircleDollarSign, FileText, RefreshCw, UserRound, WalletCards } from 'lucide-vue-next'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { ArrowLeft, CalendarDays, CalendarRange, CircleDollarSign, FileText, RefreshCw, Save, UserRound, WalletCards } from 'lucide-vue-next'
 
+import EmployeeLoanDeductionSchedule from '~/components/admin/loans/employee-loans/EmployeeLoanDeductionSchedule.vue'
 import type { EmployeeLoan, LoanMoney } from '~/types/loans/employee-loans/employeeLoan'
 
 definePageMeta({ layout: 'admin' })
 
 const route = useRoute()
-const { getEmployeeLoan } = useEmployeeLoans()
+const { getEmployeeLoan, updateDeductionSchedule } = useEmployeeLoans()
+const { success, error: showError } = useToast()
 const loan = ref<EmployeeLoan | null>(null)
 const loading = ref(true)
 const loadError = ref('')
@@ -60,6 +62,47 @@ const formatDate = (value: string | null) => {
   return Number.isNaN(date.getTime()) ? '—' : date.toLocaleDateString('en-US', {
     month: 'short', day: 'numeric', year: 'numeric',
   })
+}
+
+/* =========================================================
+   DEDUCTION SCHEDULE (PATCH …/deduction-schedule)
+   Can change any time; only payrolls generated from now on use it.
+========================================================= */
+
+const schedule = reactive({ first: 100, second: 0 })
+const savingSchedule = ref(false)
+
+const resetSchedule = () => {
+  schedule.first = Number(loan.value?.first_cutoff_percent ?? 100)
+  schedule.second = Number(loan.value?.second_cutoff_percent ?? 0)
+}
+
+watch(loan, resetSchedule, { immediate: true })
+
+const scheduleChanged = computed(() =>
+  !!loan.value && (
+    Number(loan.value.first_cutoff_percent ?? 100) !== Number(schedule.first)
+    || Number(loan.value.second_cutoff_percent ?? 0) !== Number(schedule.second)
+  ),
+)
+
+const scheduleValid = computed(() => Math.abs(Number(schedule.first) + Number(schedule.second) - 100) < 0.01)
+
+const saveSchedule = async () => {
+  if (!loan.value || !scheduleChanged.value || !scheduleValid.value || savingSchedule.value) return
+  savingSchedule.value = true
+  try {
+    const result = await updateDeductionSchedule(loan.value.id, {
+      first_cutoff_percent: Number(schedule.first),
+      second_cutoff_percent: Number(schedule.second),
+    })
+    loan.value = result.loan
+    success('Deduction Schedule Updated', result.message)
+  } catch (error: unknown) {
+    showError('Unable to Update Schedule', errorMessage(error))
+  } finally {
+    savingSchedule.value = false
+  }
 }
 
 onMounted(() => void loadLoan())
@@ -140,7 +183,42 @@ onMounted(() => void loadLoan())
           <div><span>Principal Amount</span><strong>{{ formatMoney(loan.principal_amount) }}</strong></div>
           <div><span>Total Payable</span><strong>{{ formatMoney(loan.total_payable_amount) }}</strong></div>
           <div><span>Opening Balance</span><strong>{{ formatMoney(loan.opening_balance) }}</strong></div>
-          <div><span>Deduction Amount</span><strong>{{ formatMoney(loan.deduction_amount) }}</strong></div>
+          <div><span>Monthly Deduction</span><strong>{{ formatMoney(loan.deduction_amount) }}</strong></div>
+          <div v-if="loan.total_paid !== undefined"><span>Total Paid</span><strong>{{ formatMoney(loan.total_paid) }}</strong></div>
+          <div v-if="loan.current_balance !== undefined"><span>Current Balance</span><strong>{{ formatMoney(loan.current_balance) }}</strong></div>
+        </div>
+      </article>
+
+      <article class="detail-card full-width">
+        <header>
+          <span class="section-icon"><CalendarRange :size="18" /></span>
+          <div>
+            <h3>Deduction Schedule</h3>
+            <p>
+              Currently <strong>{{ loan.deduction_schedule || '1st cutoff only' }}</strong>
+              · 1st cutoff {{ formatMoney(loan.first_cutoff_amount ?? 0) }}
+              · 2nd cutoff {{ formatMoney(loan.second_cutoff_amount ?? 0) }}
+            </p>
+          </div>
+        </header>
+        <div class="schedule-body">
+          <EmployeeLoanDeductionSchedule
+            v-model:first="schedule.first"
+            v-model:second="schedule.second"
+            :monthly-amount="loan.deduction_amount"
+            :disabled="savingSchedule"
+          />
+          <p class="schedule-note">
+            Changes apply to payrolls generated from now on. Finalized payrolls are not changed.
+          </p>
+          <div class="schedule-actions">
+            <AppButton variant="secondary" :disabled="!scheduleChanged || savingSchedule" @click="resetSchedule">
+              Reset
+            </AppButton>
+            <AppButton :icon="Save" :disabled="!scheduleChanged || !scheduleValid || savingSchedule" @click="saveSchedule">
+              {{ savingSchedule ? 'Saving…' : 'Save Schedule' }}
+            </AppButton>
+          </div>
         </div>
       </article>
 
@@ -208,10 +286,14 @@ onMounted(() => void loadLoan())
 .detail-card dl > div:last-child { border-bottom: 0; }
 .detail-card dt { color: var(--text-muted); font-size: 12px; }
 .detail-card dd { margin: 0; color: var(--text-primary); font-size: 13px; font-weight: 600; text-align: right; }
-.amount-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; padding: 17px; }
+.amount-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; padding: 17px; }
 .amount-grid > div { padding: 14px; border: 1px solid var(--border-soft); border-radius: 9px; background: var(--bg-card-soft); }
 .amount-grid span { display: block; color: var(--text-muted); font-size: 11px; }
 .amount-grid strong { display: block; margin-top: 6px; color: var(--text-primary); font-size: 15px; font-variant-numeric: tabular-nums; }
+.detail-card header p strong { color: var(--text-primary); }
+.schedule-body { display: flex; flex-direction: column; gap: 12px; padding: 17px; }
+.schedule-note { margin: 0; color: var(--text-muted); font-size: 11px; }
+.schedule-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px; }
 .remarks { min-height: 96px; margin: 0; padding: 17px; color: var(--text-primary); font-size: 13px; line-height: 1.7; white-space: pre-wrap; }
 @media (max-width: 900px) { .amount-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 650px) {

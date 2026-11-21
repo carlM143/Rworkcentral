@@ -1,6 +1,6 @@
 <!-- Employee payslip history (shared EmployeeRequestTable). -->
 <script setup lang="ts">
-import { Download, LoaderCircle, WalletCards } from 'lucide-vue-next'
+import { Download, LoaderCircle } from 'lucide-vue-next'
 import EmployeeRequestTable from '~/components/shared-table/employee-table/EmployeeRequestTable.vue'
 import type { EmployeePayslipListItem } from '~/types/employee/payslip/employeePayslip'
 import { payslipDate, payslipPeriodLabel } from '~/utils/employeePayslip'
@@ -47,11 +47,10 @@ const payslipOf = (row: Record<string, unknown>) => row.payslip as EmployeePaysl
     @row-click="row => emit('view', payslipOf(row))"
   >
     <template #cell-period="{ row }">
+      <!-- Date range only: the period name repeats the same dates -->
       <button type="button" class="row-open-button" @click.stop="emit('view', payslipOf(row))">
-        <WalletCards :size="16" />
         <strong>{{ payslipPeriodLabel(payslipOf(row).period) }}</strong>
       </button>
-      <small v-if="payslipOf(row).period.period_name">{{ payslipOf(row).period.period_name }}</small>
     </template>
     <template #cell-payslip_no="{ row }">{{ payslipOf(row).payslip_no }}</template>
     <template #cell-pay_date="{ row }">{{ payslipDate(payslipOf(row).period.payment_date) }}</template>
@@ -81,7 +80,7 @@ const payslipOf = (row: Record<string, unknown>) => row.payslip as EmployeePaysl
 <style scoped>
 /* Slot content renders in this component's scope, so these styles apply inside the shared table. */
 .row-open-button { display: inline-flex; align-items: center; gap: 7px; padding: 0; border: 0; background: transparent; color: var(--text-primary); font: inherit; font-size: 11px; cursor: pointer; }
-.row-open-button svg { flex-shrink: 0; color: var(--primary); }
+.row-open-button strong { line-height: 1.4; }
 .net { color: var(--primary) !important; font-variant-numeric: tabular-nums; }
 .status { display: inline-flex; align-items: center; gap: 5px; padding: 5px 8px; border-radius: 5px; background: var(--green-soft); color: var(--green); font-size: 10px; font-weight: 600; }
 .download-button { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border: 1px solid var(--border); border-radius: 7px; background: var(--primary-soft); color: var(--primary); font: inherit; font-size: 11px; font-weight: 600; cursor: pointer; }

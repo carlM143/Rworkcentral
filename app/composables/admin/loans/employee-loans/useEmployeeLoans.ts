@@ -4,8 +4,10 @@ import { computed, ref } from 'vue'
 
 import type {
   EmployeeLoan,
+  EmployeeLoanDeductionSchedulePayload,
   EmployeeLoanResponse,
   EmployeeLoanPayload,
+  EmployeeLoansResponse,
 } from '~/types/loans/employee-loans/employeeLoan'
 export const useEmployeeLoans = () => {
   const { $api } = useNuxtApp()
@@ -157,6 +159,34 @@ export const useEmployeeLoans = () => {
     return response.data
   }
 
+  /**
+   * PATCH /admin/employee-loans/{id}/deduction-schedule
+   * Which cutoff of the month the loan is deducted in (first + second must total 100).
+   * Allowed after deductions started: only payrolls generated from now on use it.
+   * Returns the updated loan and the backend message ("changed from … to …").
+   */
+  const updateDeductionSchedule = async (
+    id: number,
+    payload: EmployeeLoanDeductionSchedulePayload,
+  ): Promise<{ loan: EmployeeLoan, message: string }> => {
+    const response = await $api<EmployeeLoanResponse>(
+      `/admin/employee-loans/${id}/deduction-schedule`,
+      {
+        method: 'PATCH',
+        body: payload,
+      },
+    )
+
+    if (response.success === false || !response.data) {
+      throw new Error(response.message || 'Unable to update the deduction schedule.')
+    }
+
+    // Keep the list in sync if it is loaded
+    employeeLoans.value = employeeLoans.value.map(item => item.id === id ? response.data : item)
+
+    return { loan: response.data, message: response.message }
+  }
+
 
   // STATISTICS
   const stats = computed(() => ({
@@ -192,6 +222,7 @@ export const useEmployeeLoans = () => {
     getEmployeeLoan,
     createEmployeeLoan,
     updateEmployeeLoan,
+    updateDeductionSchedule,
     stats,
     getEmployeeLoans,
     resetFilters,

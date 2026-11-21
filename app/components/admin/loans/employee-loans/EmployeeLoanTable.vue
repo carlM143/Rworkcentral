@@ -55,7 +55,7 @@ const formatDate = (value: string | null) => {
       <th>Loan Type</th>
       <th>Principal</th>
       <th>Total Payable</th>
-      <th>Deduction Amount</th>
+      <th>Monthly Deduction</th>
       <th>Deduction Starts</th>
       <th>Status</th>
       <th class="action-column">Actions</th>
@@ -104,6 +104,7 @@ const formatDate = (value: string | null) => {
 
         <td class="money-cell">
           {{ formatMoney(loan.deduction_amount) }}
+          <small class="schedule-label">{{ loan.deduction_schedule || '1st cutoff only' }}</small>
         </td>
 
         <td class="date-cell">
@@ -178,4 +179,5 @@ const formatDate = (value: string | null) => {
   text-align: right !important;
   white-space: nowrap;
 }
+.schedule-label { display: block; margin-top: 3px; color: var(--text-muted); font-size: 11px; font-weight: 400; white-space: nowrap; }
 </style>

@@ -64,6 +64,9 @@ const initialForm = computed<EmployeeLoanPayload | undefined>(() => {
     principal_amount: Number(loan.value.principal_amount),
     total_payable_amount: Number(loan.value.total_payable_amount),
     deduction_amount: Number(loan.value.deduction_amount),
+    // Older loans (before the deduction schedule) default to the 1st cutoff
+    first_cutoff_percent: Number(loan.value.first_cutoff_percent ?? 100),
+    second_cutoff_percent: Number(loan.value.second_cutoff_percent ?? 0),
 
     loan_date: loan.value.loan_date ?? '',
     deduction_start_date: loan.value.deduction_start_date ?? '',

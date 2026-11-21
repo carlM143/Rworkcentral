@@ -45,7 +45,7 @@ const closeMore = () => {
 
 const moreActive = computed(() =>
   ['/employee/profile', '/employee/leave-credit', '/employee/loans', '/employee/calendar', '/employee/payslips']
-    .includes(route.path)
+    .some(base => route.path === base || route.path.startsWith(`${base}/`))
 )
 
 const isDark = ref(false)
@@ -342,7 +342,7 @@ watch(() => route.fullPath, () => {
             <span>Leave Credits</span>
           </NuxtLink>
 
-        <NuxtLink to="/employee/loans" :aria-current="route.path === '/employee/loans' ? 'page' : undefined" @click="closeMore">
+        <NuxtLink to="/employee/loans" :aria-current="route.path.startsWith('/employee/loans') ? 'page' : undefined" @click="closeMore">
           <Landmark :size="20" />
           <span>Loans</span>
         </NuxtLink>

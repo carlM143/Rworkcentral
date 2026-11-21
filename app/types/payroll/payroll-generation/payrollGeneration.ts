@@ -54,7 +54,13 @@ export interface PayrollLoanLine {
   amount: number
   balance_before: number
   balance_after: number
+  /** True when less than the scheduled amount was deducted (low balance or pay). */
   partial: boolean
+  /** Cutoff of the month (1 or 2) and the loan's percent for it (monthly groups: 100). */
+  cutoff_number?: number
+  cutoff_percent?: number
+  /** Monthly deduction × cutoff percent (before capping at the balance). */
+  scheduled_amount?: number
 }
 
 export type HolidayPayScenario =

@@ -66,13 +66,17 @@ const emit = defineEmits<{
 
 const { $api } = useNuxtApp()
 
-const form = reactive<EmployeeLoanPayload>({
+// Cutoff percents are always set in the form (optional only in the API payload)
+const form = reactive<EmployeeLoanPayload & { first_cutoff_percent: number, second_cutoff_percent: number }>({
   employee_id: 0,
   loan_type_id: 0,
   loan_reference_no: '',
   principal_amount: 0,
   total_payable_amount: 0,
   deduction_amount: 0,
+  // Default: whole monthly deduction on the 1st cutoff (same as the backend)
+  first_cutoff_percent: 100,
+  second_cutoff_percent: 0,
   loan_date: '',
   deduction_start_date: '',
   remarks: null,
@@ -173,6 +177,11 @@ const formatMoney = (value: number) =>
     currency: 'PHP',
   }).format(Number(value) || 0)
 
+// 1st + 2nd cutoff percent must total 100 (backend rule)
+const scheduleTotalsHundred = computed(() =>
+  Math.abs(Number(form.first_cutoff_percent ?? 100) + Number(form.second_cutoff_percent ?? 0) - 100) < 0.01,
+)
+
 const valid = computed(() => {
   const principal = Number(form.principal_amount)
   const payable = Number(form.total_payable_amount)
@@ -186,6 +195,7 @@ const valid = computed(() => {
     payable >= principal &&
     deduction > 0 &&
     deduction <= payable &&
+    scheduleTotalsHundred.value &&
     Boolean(form.loan_date) &&
     Boolean(form.deduction_start_date) &&
     form.deduction_start_date >= form.loan_date
@@ -202,6 +212,8 @@ const submit = () => {
     principal_amount: Number(form.principal_amount),
     total_payable_amount: Number(form.total_payable_amount),
     deduction_amount: Number(form.deduction_amount),
+    first_cutoff_percent: Number(form.first_cutoff_percent ?? 100),
+    second_cutoff_percent: Number(form.second_cutoff_percent ?? 0),
     loan_date: form.loan_date,
     deduction_start_date: form.deduction_start_date,
     remarks: form.remarks?.trim() || null,
@@ -371,7 +383,7 @@ onUnmounted(() => {
 
         <!-- DEDUCTION -->
         <div class="form-group">
-          <label for="loan-deduction">Deduction Amount <span>*</span></label>
+          <label for="loan-deduction">Monthly Deduction Amount <span>*</span></label>
           <input
             id="loan-deduction"
             v-model.number="form.deduction_amount"
@@ -420,6 +432,16 @@ onUnmounted(() => {
             <option :value="true">Active</option>
             <option :value="false">Inactive</option>
           </select>
+        </div>
+
+        <!-- DEDUCTION SCHEDULE (which cutoff of the month) -->
+        <div class="form-group full-width">
+          <EmployeeLoanDeductionSchedule
+            v-model:first="form.first_cutoff_percent"
+            v-model:second="form.second_cutoff_percent"
+            :monthly-amount="form.deduction_amount"
+            :disabled="busy"
+          />
         </div>
 
         <!-- REMARKS -->

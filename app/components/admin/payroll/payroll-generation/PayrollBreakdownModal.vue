@@ -286,6 +286,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
                   <small>
                     {{ loan.reference ?? 'No reference' }} ·
                     balance {{ money(loan.balance_before) }} → {{ money(loan.balance_after) }}
+                    <template v-if="loan.cutoff_percent !== undefined && loan.cutoff_percent < 100"> · {{ loan.cutoff_percent }}% of monthly (cutoff {{ loan.cutoff_number }})</template>
                     <template v-if="loan.partial"> · partial deduction</template>
                   </small>
                 </dt>
