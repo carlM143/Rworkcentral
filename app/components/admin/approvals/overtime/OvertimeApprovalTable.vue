@@ -2,6 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { Clock, Eye, MoreHorizontal, RotateCcw, Timer } from 'lucide-vue-next'
 import BaseDataTable from '~/components/shared-table/BaseDataTable.vue'
+import SupervisorStage from '~/components/admin/approvals/SupervisorStage.vue'
 import type { OvertimeApproval } from '~/types/overtimeApproval'
 
 const props = defineProps<{
@@ -81,10 +82,10 @@ const formatTime = (value?: string) => {
     title="Overtime Approval Requests"
     description="Review requested overtime hours, schedules and approval status."
     :has-rows="requests.length > 0"
-    min-width="1150px"
+    min-width="1320px"
   >
     <template #headers>
-      <th>OT No.</th><th>Employee</th><th>Position</th><th>Department</th><th>OT Schedule</th><th>Hours</th><th>Reason</th><th>Status</th><th class="actions-header">Actions</th>
+      <th>OT No.</th><th>Employee</th><th>Position</th><th>Department</th><th>OT Schedule</th><th>Hours</th><th>Reason</th><th>Supervisor</th><th>Status</th><th class="actions-header">Actions</th>
     </template>
     <template #rows>
       <tr v-for="item in requests" :key="item.id">
@@ -95,6 +96,7 @@ const formatTime = (value?: string) => {
         <td><div class="schedule-cell"><strong>{{ formatDate(item.overtimeDate) }}</strong><span><Clock :size="13" />{{ formatTime(item.startTime) }} – {{ formatTime(item.endTime) }}</span></div></td>
         <td><span class="hours-badge"><Timer :size="13" />{{ item.approvedHours ?? item.requestedHours }} hrs</span></td>
         <td><p class="reason" :title="item.reason || ''">{{ item.reason || '—' }}</p></td>
+        <td><SupervisorStage type="overtime" :id="item.id" :status="item.supervisorStatus" :head-id="item.supervisorId" :request-status="item.status" /></td>
         <td><span class="status-badge" :class="item.status.toLowerCase().replace(/\s+/g, '-')"><span class="status-dot" />{{ item.status }}</span></td>
         <td class="actions-cell"><button type="button" class="table-action-button" :disabled="approvingId !== null && approvingId !== undefined" :aria-label="`Actions for ${item.requestNumber}`" :aria-expanded="openMenuId === item.id" aria-haspopup="menu" @click="toggleMenu(item, $event)"><MoreHorizontal :size="17" /></button></td>
       </tr>

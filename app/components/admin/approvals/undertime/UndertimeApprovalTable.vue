@@ -2,6 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { Clock, Eye, MoreHorizontal, RotateCcw, TimerReset } from 'lucide-vue-next'
 import BaseDataTable from '~/components/shared-table/BaseDataTable.vue'
+import SupervisorStage from '~/components/admin/approvals/SupervisorStage.vue'
 import type { UndertimeRequest } from '~/types/undertimeRequest'
 
 const props = defineProps<{
@@ -127,7 +128,7 @@ const formatTime = (value?: string) => {
     title="Undertime Requests"
     description="Review employee undertime schedules, reasons and approval status."
     :has-rows="requests.length > 0"
-    min-width="1100px"
+    min-width="1260px"
   >
     <template #headers>
       <th>Request No.</th>
@@ -137,6 +138,7 @@ const formatTime = (value?: string) => {
       <th>Undertime Schedule</th>
       <th>Minutes</th>
       <th>Reason</th>
+      <th>Supervisor</th>
       <th>Status</th>
       <th class="actions-header">Actions</th>
     </template>
@@ -156,6 +158,9 @@ const formatTime = (value?: string) => {
           <span class="minutes-badge"><TimerReset :size="13" />{{ item.requestedMinutes }} mins</span>
         </td>
         <td><p class="reason" :title="item.reason">{{ item.reason || '—' }}</p></td>
+        <td>
+          <SupervisorStage type="undertime" :id="item.id" :status="item.supervisorStatus" :head-id="item.supervisorId" :request-status="item.status" />
+        </td>
         <td>
           <span class="status-badge" :class="item.status.toLowerCase()">
             <span class="status-dot" />{{ item.status }}

@@ -2,6 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { ClipboardList, Eye, MoreHorizontal, RotateCcw } from 'lucide-vue-next'
 import BaseDataTable from '~/components/shared-table/BaseDataTable.vue'
+import SupervisorStage from '~/components/admin/approvals/SupervisorStage.vue'
 import type { LeaveApproval } from '~/types/leaveApproval'
 
 const props = withDefaults(defineProps<{
@@ -132,7 +133,7 @@ const formatRequestedPay = (value: string | null | undefined) => {
     title="Leave Requests"
     description="Review employee leave requests and their requested payment treatment."
     :has-rows="requests.length > 0"
-    min-width="1100px"
+    min-width="1260px"
   >
     <template #headers>
       <th>Request No.</th>
@@ -141,6 +142,7 @@ const formatRequestedPay = (value: string | null | undefined) => {
       <th>Leave Type</th>
       <th>Request Date</th>
       <th>Requested Pay</th>
+      <th>Supervisor</th>
       <th>Status</th>
       <th class="actions-header">Actions</th>
     </template>
@@ -156,6 +158,15 @@ const formatRequestedPay = (value: string | null | undefined) => {
           <span class="pay-badge" :class="item.requested_pay_type">
             {{ formatRequestedPay(item.requested_pay_type) }}
           </span>
+        </td>
+        <td>
+          <SupervisorStage
+            type="leave"
+            :id="item.id"
+            :status="item.dept_head_status"
+            :head-id="item.dept_head_id"
+            :request-status="item.status"
+          />
         </td>
         <td>
           <span class="status-badge" :class="item.status">

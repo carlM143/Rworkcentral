@@ -11,6 +11,9 @@ export type OvertimeApprovalStatus =
   | 'Cancelled'
 
 export interface OvertimeApproval {
+  /** Supervisor (first-level) approval: pending | approved | rejected | overridden | skipped */
+  supervisorStatus?: string | null
+  supervisorId?: number | null
   id: number
 
   requestNumber: string
@@ -47,6 +50,8 @@ export interface OvertimeApproval {
 }
 
 export interface OvertimeApprovalApiRecord {
+  dept_head_status?: string | null
+  dept_head_id?: number | null
   id: number
   employee_id: number
   request_no: string

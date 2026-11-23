@@ -1,6 +1,9 @@
 export type UndertimeRequestStatus = 'Pending' | 'Approved' | 'Rejected' | 'Cancelled'
 
 export interface UndertimeRequest {
+  /** Supervisor (first-level) approval: pending | approved | rejected | overridden | skipped */
+  supervisorStatus?: string | null
+  supervisorId?: number | null
   id: number
   requestNumber: string
   employeeId: number
@@ -20,6 +23,8 @@ export interface UndertimeRequest {
 }
 
 export interface UndertimeApprovalApiRecord {
+  dept_head_status?: string | null
+  dept_head_id?: number | null
   id: number
   employee_id: number
   request_no: string

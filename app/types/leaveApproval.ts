@@ -37,6 +37,9 @@ export interface LeaveApproval {
   approver_name?: string | null
   approved_at: string | null
   created_at?: string | null
+  /** Supervisor (first-level) approval: pending | approved | rejected | overridden | skipped */
+  dept_head_status?: string | null
+  dept_head_id?: number | null
 }
 
 export interface LeaveApprovalStats {
