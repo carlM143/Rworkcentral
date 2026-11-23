@@ -142,15 +142,16 @@ export const ADMIN_MENU: AdminMenuItem[] = [
       { label: 'Departments', to: '/admin/departments', access: a('departments', 'departments.view') },
       { label: 'Positions', to: '/admin/positions', access: a('departments', 'positions.view') },
       { label: 'Employment Types', to: '/admin/employment-types', access: a('departments', 'employment_types.view') },
+      { label: 'Department Heads', to: '/admin/departments/heads', access: a('departments', 'departments.edit') },
     ],
   },
   {
     label: 'Approval Center', key: 'approvals', icon: ClipboardCheck,
     children: [
+      { label: 'For My Approval', to: '/admin/approvals/for-my-approval', access: a('approvals', 'first_level.view') },
       { label: 'Leave Approvals', to: '/admin/approvals/leaves', access: a('approvals', 'leaves.view') },
       { label: 'Overtime Approvals', to: '/admin/approvals/overtime', access: a('approvals', 'overtime.view') },
       { label: 'Undertime Approvals', to: '/admin/approvals/undertime', access: a('approvals', 'undertime.view') },
-      // Needs 'oba' under approvals in backend config/privileges.php for non-Administrator roles
       { label: 'OBA Approvals', to: '/admin/approvals/oba-request', access: a('approvals', 'oba.view') },
     ],
   },
@@ -224,9 +225,18 @@ const ALL_PAGES: { to: string, access: Access }[] = [
 ]
 
 /**
- * The privilege a path needs (closest page by path), or null when any admin
- * user may open it. "/admin" only matches the dashboard itself.
+ * First page (menu order) the user can open: the landing page for roles
+ * without the Dashboard, e.g. a Supervisor lands on "For My Approval".
  */
+export const firstAllowedPath = (canAny: (module: string, names: string[]) => boolean): string | null => {
+  for (const item of [...ADMIN_MENU, ...SYSTEM_MENU]) {
+    if (item.to && item.access && canAny(item.access.module, item.access.names)) return item.to
+    const child = item.children?.find(c => canAny(c.access.module, c.access.names))
+    if (child) return child.to
+  }
+  return null
+}
+
 export const accessForPath = (path: string): Access | null => {
   const clean = path.replace(/\/+$/, '') || '/'
   if (OPEN_PAGES.some(p => clean === p || clean.startsWith(`${p}/`))) return null
