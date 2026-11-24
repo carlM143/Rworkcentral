@@ -158,6 +158,45 @@ const moduleCount = (m: CatalogModule) => {
   return { on: ids.filter(id => checked.has(id)).length, total: ids.length }
 }
 
+// Portal Access privilege ids: checking a module also checks the portal that
+// shows it, so what is checked is always visible to the role's users.
+const portalId = (name: 'admin' | 'employee') =>
+  catalog.value?.modules.find(m => m.key === 'portal')?.features.find(f => f.key === name)?.actions.view ?? null
+
+const ensurePortal = (m: CatalogModule | null) => {
+  const name = m?.portal
+  if (!name) return
+  const id = portalId(name)
+  if (id) checked.add(id)
+}
+
+const portalFor = (m: CatalogModule) => (m.key === 'portal' ? 'access' : m.portal ?? 'admin')
+
+const sectionTitle = (index: number) => {
+  const list = catalog.value?.modules ?? []
+  const current = portalFor(list[index]!)
+  if (index > 0 && portalFor(list[index - 1]!) === current) return ''
+  return { access: 'Access', employee: 'Employee Portal', admin: 'Admin Portal' }[current]
+}
+
+// Modules checked for a portal the role cannot sign in to (e.g. older data).
+const portalWarnings = computed(() => {
+  if (!catalog.value || !role.value || role.value.locked) return [] as string[]
+  const out: string[] = []
+  for (const name of ['admin', 'employee'] as const) {
+    const id = portalId(name)
+    if (!id || checked.has(id)) continue
+    const used = catalog.value.modules.some(m => m.portal === name && moduleIds(m).some(pid => checked.has(pid)))
+    if (used) out.push(name)
+  }
+  return out
+})
+
+const fixPortals = () => portalWarnings.value.forEach((name) => {
+  const id = portalId(name)
+  if (id) checked.add(id)
+})
+
 const toggle = (id: number | null | undefined) => {
   if (!editable.value || !id) return
   if (checked.has(id)) checked.delete(id)
@@ -171,6 +210,7 @@ const toggleAction = (featureActions: Partial<Record<PermissionAction, number | 
   const turningOn = !checked.has(id)
   toggle(id)
   if (turningOn && action !== 'view' && featureActions.view) checked.add(featureActions.view)
+  if (turningOn) ensurePortal(module.value)
   if (!turningOn && action === 'view') {
     Object.values(featureActions).forEach(other => other && checked.delete(other))
   }
@@ -179,6 +219,7 @@ const toggleAction = (featureActions: Partial<Record<PermissionAction, number | 
 const setModule = (on: boolean) => {
   if (!editable.value || !module.value) return
   moduleIds(module.value).forEach(id => (on ? checked.add(id) : checked.delete(id)))
+  if (on) ensurePortal(module.value)
 }
 
 const dirty = computed(() => {
@@ -395,29 +436,37 @@ const roleIcon = (r: RoleSummary) => {
 
             <p v-if="role.locked" class="locked-note"><Lock :size="14" /> The Administrator role always has every permission and cannot be changed.</p>
             <p v-else-if="!canEdit" class="locked-note"><Lock :size="14" /> You can view this role but not change it.</p>
+            <p v-if="portalWarnings.length && editable" class="portal-warn" role="alert">
+              Some {{ portalWarnings.map(p => p === 'admin' ? 'admin' : 'employee').join(' and ') }} portal modules are checked,
+              but users of this role cannot sign in to that portal, so they would not see them.
+              <button type="button" class="link-btn" @click="fixPortals">Give {{ portalWarnings.length > 1 ? 'portal access' : `${portalWarnings[0] === 'admin' ? 'Admin' : 'Employee'} Portal access` }}</button>
+            </p>
 
             <!-- PERMISSIONS -->
             <div v-if="tab === 'permissions'" class="perm-body">
               <nav class="module-nav" aria-label="Modules">
-                <button
-                  v-for="m in catalog?.modules ?? []"
-                  :key="m.key"
-                  type="button"
-                  class="module-item"
-                  :class="{ active: m.key === activeModule }"
-                  @click="activeModule = m.key"
-                >
-                  <component :is="MODULE_ICONS[m.icon ?? ''] ?? Settings" :size="16" />
-                  <span>{{ m.label }}</span>
-                  <small :class="{ some: moduleCount(m).on > 0 }">{{ moduleCount(m).on }}/{{ moduleCount(m).total }}</small>
-                </button>
+                <template v-for="(m, i) in catalog?.modules ?? []" :key="m.key">
+                  <p v-if="sectionTitle(i)" class="module-section">{{ sectionTitle(i) }}</p>
+                  <button
+                    type="button"
+                    class="module-item"
+                    :class="{ active: m.key === activeModule }"
+                    @click="activeModule = m.key"
+                  >
+                    <component :is="MODULE_ICONS[m.icon ?? ''] ?? Settings" :size="16" />
+                    <span>{{ m.label }}</span>
+                    <small :class="{ some: moduleCount(m).on > 0 }">{{ moduleCount(m).on }}/{{ moduleCount(m).total }}</small>
+                  </button>
+                </template>
               </nav>
 
               <div v-if="module" class="matrix">
                 <div class="matrix-head">
                   <div>
                     <h3>{{ module.label }} Permissions</h3>
-                    <p>Set what this role can do in {{ module.label }}.</p>
+                    <p v-if="module.portal === 'employee'">Self-service pages in the employee portal. Checking any also gives Employee Portal access.</p>
+                    <p v-else-if="module.portal === 'admin'">Pages in the admin portal. Checking any also gives Admin Portal access.</p>
+                    <p v-else>Which portals users of this role can sign in to.</p>
                   </div>
                   <div v-if="editable" class="bulk">
                     <button type="button" class="link-btn" @click="setModule(true)">Allow all</button>
@@ -569,6 +618,9 @@ const roleIcon = (r: RoleSummary) => {
 
 .perm-body { display: grid; grid-template-columns: 230px minmax(0, 1fr); min-height: 460px; }
 .module-nav { display: flex; max-height: 620px; flex-direction: column; gap: 2px; padding: 10px; border-right: 1px solid var(--border-soft); overflow-y: auto; }
+.module-section { margin: 10px 10px 4px; color: var(--text-muted); font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+.module-section:first-child { margin-top: 2px; }
+.portal-warn { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0; padding: 10px 18px; background: var(--orange-soft); color: var(--orange); font-size: 12px; }
 .module-item { display: flex; align-items: center; gap: 10px; padding: 10px; border: 0; border-radius: 8px; background: transparent; color: var(--text-secondary); font-family: inherit; font-size: 13px; text-align: left; cursor: pointer; }
 .module-item span { flex: 1; }
 .module-item small { color: var(--text-muted); font-size: 10px; }

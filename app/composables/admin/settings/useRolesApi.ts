@@ -1,3 +1,14 @@
+/**
+ * Settings › Users & Access › Roles & Permissions.
+ *   GET    /admin/roles
+ *   GET    /admin/roles/catalog
+ *   POST   /admin/roles
+ *   GET    /admin/roles/{id}
+ *   PUT    /admin/roles/{id}
+ *   PUT    /admin/roles/{id}/privileges
+ *   DELETE /admin/roles/{id}
+ */
+
 export type PermissionAction = 'view' | 'create' | 'edit' | 'delete' | 'approve' | 'export'
 
 export interface RoleSummary {
@@ -25,6 +36,8 @@ export interface CatalogModule {
   key: string
   label: string
   icon: string | null
+  /** Portal that shows this module (null = Portal Access itself). */
+  portal?: 'admin' | 'employee' | null
   features: CatalogFeature[]
 }
 

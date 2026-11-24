@@ -1,8 +1,10 @@
 <!-- employee layout -->
 <script setup lang="ts">
 import '~/assets/css/employee-theme.css'
+import { EMPLOYEE_MODULE, employeeFeatureForPath } from '~/utils/employeeAccess'
 import {
   LayoutDashboard,
+  ArrowLeftRight,
   Clock3,
   TimerReset,
   FileClock,
@@ -78,7 +80,7 @@ const requestsOpen = ref(requestsActive.value)
 
 
 
-const requestLinks = [
+const allRequestLinks = [
   { label: 'Leave', category: 'leave', icon: CalendarDays, to: '/employee/leave' },
   { label: 'Undertime', category: 'undertime', icon: Clock3, to: '/employee/undertime' },
   { label: 'Overtime', category: 'overtime', icon: TimerReset, to: '/employee/overtime' },
@@ -86,6 +88,14 @@ const requestLinks = [
   { label: 'Work From Home', category: 'wfh', icon: House, to: WFH_ROUTE },
   { label: 'Official Business Authorization', category: 'oba', icon: Briefcase, to: '/employee/requests/oba-requests' },
 ]
+
+// Only what the user's role allows (Roles & Permissions › Employee Portal).
+const allowed = (to: string) => {
+  const feature = employeeFeatureForPath(to)
+  return !feature || auth.can(EMPLOYEE_MODULE, `${feature}.view`)
+}
+
+const requestLinks = computed(() => allRequestLinks.filter(link => allowed(link.to)))
 
 const selectedRequestCategory = computed(() => {
   if (isTimeLogCorrectionRoute.value) return 'timelog-correction'
@@ -100,7 +110,7 @@ const selectedRequestCategory = computed(() => {
 })
 const { profile, displayName, initials } = useEmployeePortal()
 
-const menuItems = [
+const allMenuItems = [
   { label: 'Dashboard', icon: LayoutDashboard, to: '/employee' },
   { label: 'Attendance', icon: Clock3, to: '/employee/attendance' },
   { label: 'Scan QR', icon: ScanLine, to: '/employee/attendance-qr-code' },
@@ -111,12 +121,24 @@ const menuItems = [
   { label: 'Loans', icon: Landmark, to: '/employee/loans' },
 ]
 
-const bottomItems = [
+const allBottomItems = [
   { label: 'Home', icon: House, to: '/employee' },
   { label: 'Attendance', icon: Clock3, to: '/employee/attendance' },
   { label: 'Scan QR', icon: ScanLine, to: '/employee/attendance-qr-code' },
   { label: 'Requests', icon: ClipboardCheck, to: '/employee/requests' },
 ]
+
+const showItem = (to: string) => (to === '/employee/requests' ? requestLinks.value.length > 0 : allowed(to))
+const menuItems = computed(() => allMenuItems.filter(item => showItem(item.to)))
+const bottomItems = computed(() => allBottomItems.filter(item => showItem(item.to)))
+
+// Users allowed in both portals (e.g. Supervisor) can switch without signing out.
+const canSwitchToAdmin = computed(() => auth.canUsePortal('admin'))
+const switchToAdmin = async () => {
+  closeMore()
+  auth.setActivePortal('admin')
+  await navigateTo('/admin')
+}
 
 const applyTheme = () => {
   document.documentElement.classList.toggle('dark', isDark.value)
@@ -220,6 +242,11 @@ watch(() => route.fullPath, () => {
           </template>
         </nav>
       </div>
+
+      <button v-if="canSwitchToAdmin" type="button" class="menu-link switch-portal" @click="switchToAdmin">
+        <ArrowLeftRight :size="19" />
+        <span>Switch to Admin Portal</span>
+      </button>
 
       <button class="menu-link sign-out" @click="signOut">
         <LogOut :size="19" />
@@ -325,15 +352,18 @@ watch(() => route.fullPath, () => {
         </button>
       </div>
       <nav class="sheet-links" aria-label="More employee pages">
-        <NuxtLink to="/employee/payslips" :aria-current="route.path === '/employee/payslips' ? 'page' : undefined" @click="closeMore">
+        <NuxtLink
+          v-if="allowed('/employee/payslips')" to="/employee/payslips" :aria-current="route.path === '/employee/payslips' ? 'page' : undefined" @click="closeMore">
           <WalletCards :size="20" />
           <span>Payslips</span>
         </NuxtLink>
-        <NuxtLink to="/employee/calendar" :aria-current="route.path === '/employee/calendar' ? 'page' : undefined" @click="closeMore">
+        <NuxtLink
+          v-if="allowed('/employee/calendar')" to="/employee/calendar" :aria-current="route.path === '/employee/calendar' ? 'page' : undefined" @click="closeMore">
           <CalendarDays :size="20" />
           <span>Calendar</span>
         </NuxtLink>
         <NuxtLink
+          v-if="allowed('/employee/leave-credit')"
             to="/employee/leave-credit"
             :aria-current="route.path === '/employee/leave-credit' ? 'page' : undefined"
             @click="closeMore"
@@ -342,7 +372,8 @@ watch(() => route.fullPath, () => {
             <span>Leave Credits</span>
           </NuxtLink>
 
-        <NuxtLink to="/employee/loans" :aria-current="route.path.startsWith('/employee/loans') ? 'page' : undefined" @click="closeMore">
+        <NuxtLink
+          v-if="allowed('/employee/loans')" to="/employee/loans" :aria-current="route.path.startsWith('/employee/loans') ? 'page' : undefined" @click="closeMore">
           <Landmark :size="20" />
           <span>Loans</span>
         </NuxtLink>
@@ -351,6 +382,10 @@ watch(() => route.fullPath, () => {
           <span>Profile</span>
         </NuxtLink>
       </nav>
+      <button v-if="canSwitchToAdmin" type="button" class="sheet-switch" @click="switchToAdmin">
+        <ArrowLeftRight :size="20" />
+        <span>Switch to Admin Portal</span>
+      </button>
       <button type="button" class="sheet-sign-out" @click="signOut">
         <LogOut :size="20" />
         <span>Sign Out</span>
@@ -378,6 +413,8 @@ watch(() => route.fullPath, () => {
 .menu-link:hover { background: rgba(255, 255, 255, .07); color: white; }
 .menu-link.active { background: linear-gradient(90deg, #1e6df3, #327cff); color: white; box-shadow: 0 5px 14px rgba(12, 86, 212, .25); }
 .sign-out { width: calc(100% - 24px); margin: 0 12px; flex-shrink: 0; }
+.switch-portal { width: calc(100% - 24px); margin: 0 12px 4px; flex-shrink: 0; border: 1px dashed rgba(255, 255, 255, 0.25); }
+.sheet-switch { display: flex; width: 100%; align-items: center; gap: 13px; min-height: 48px; margin-top: 18px; padding: 10px 13px; border: 1px solid var(--border); border-radius: 10px; background: var(--primary-soft, #edf4ff); color: var(--primary, #246bfd); font-family: inherit; font-size: 13px; text-align: left; cursor: pointer; box-sizing: border-box; }
 .sidebar-user { display: flex; align-items: center; gap: 10px; margin: 12px; padding: 12px; border: 1px solid rgba(255, 255, 255, .12); border-radius: 11px; background: rgba(255, 255, 255, .045); }
 .user-avatar { display: flex; width: 37px; height: 37px; flex-shrink: 0; align-items: center; justify-content: center; border-radius: 50%; background: linear-gradient(135deg, #ddeaff, #b8d1ff); color: #164b9b; font-size: 12px; font-weight: 700; }
 .user-avatar-img { width: 37px; height: 37px; aspect-ratio: 1 / 1; border-radius: 50%; object-fit: cover; flex-shrink: 0; border: 1.5px solid rgba(255, 255, 255, .35); }
@@ -410,6 +447,7 @@ watch(() => route.fullPath, () => {
 .sheet-links a svg { color: var(--primary); }
 .sheet-links a:hover, .sheet-links a[aria-current='page'] { color: var(--primary); background: var(--primary-soft); }
 .sheet-section-title { margin: 20px 13px 8px; color: var(--text-secondary); font-size: 10px; letter-spacing: 1px; text-transform: uppercase; }
+.sheet-switch + .sheet-sign-out { margin-top: 8px; }
 .sheet-sign-out { width: 100%; margin-top: 18px; border: 1px solid var(--border); background: var(--red-soft); color: var(--red); text-align: left; cursor: pointer; }
 .sheet-links a:focus-visible, .sheet-sign-out:focus-visible, .bottom-link:focus-visible { outline: 2px solid var(--primary); outline-offset: -3px; }
 :global(html:has(.mobile-more-sheet[open])) { overflow: hidden; }

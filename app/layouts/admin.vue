@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import {
+  ArrowLeftRight,
   Building2,
   ChevronDown,
   ChevronRight,
@@ -29,6 +30,9 @@ const {
   isHydrated,
   isAuthenticated,
   canAny,
+  canUsePortal,
+  setActivePortal,
+  isAdministrator,
   clearSession,
 } = useAuth()
 
@@ -240,6 +244,16 @@ const loadCompanyName = async () => {
   } catch {
     // Keep the fallback name.
   }
+}
+
+// Users allowed in both portals (e.g. Supervisor) can switch without signing
+// out. Administrators have no employee record, so they are not offered this.
+const canSwitchToEmployee = computed(() => !isAdministrator.value && canUsePortal('employee'))
+
+const switchToEmployee = async () => {
+  closeCompanyMenu()
+  setActivePortal('employee')
+  await router.push('/employee')
 }
 
 const handleAdminLogout = async () => {
@@ -689,6 +703,20 @@ onBeforeUnmount(() => {
                   <div>
                     <strong>Company Settings</strong>
                     <span>Company profile and locations</span>
+                  </div>
+                </button>
+
+                <button
+                  v-if="canSwitchToEmployee"
+                  type="button"
+                  class="dropdown-item"
+                  @click="switchToEmployee"
+                >
+                  <ArrowLeftRight :size="16" />
+
+                  <div>
+                    <strong>Switch to Employee Portal</strong>
+                    <span>File your own requests</span>
                   </div>
                 </button>
 
