@@ -82,13 +82,14 @@ const handleLogin = async () => {
       remember: rememberMe.value,
     })
 
-    if (auth.portal.value !== 'admin' || !auth.homePath.value) {
+    if (!auth.canUsePortal('admin')) {
       auth.clearSession()
       errorMessage.value = 'This portal is for authorized administrators only.'
       return
     }
 
-    await router.push(auth.homePath.value)
+    auth.setActivePortal('admin')
+    await router.push('/admin')
   } catch (error: unknown) {
     const apiError = error as {
       data?: {

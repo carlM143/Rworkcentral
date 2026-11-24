@@ -156,7 +156,7 @@ const statusClass = (status: string) => {
 .employee-details strong {
   display: block;
   color: var(--text-primary);
-  font-size: 10px;
+  font-size: 13px;
   font-weight: 700;
 }
 

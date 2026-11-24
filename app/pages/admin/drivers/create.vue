@@ -182,11 +182,11 @@ const saveDriver = async () => {
             <small class="hint">Suggested automatically. You can change it.</small>
           </div>
 
-          <!-- LICENSE NO -->
-          <!-- <div class="field">
+          <!-- LICENSE NO (required by the backend and the Save button) -->
+          <div class="field">
             <label for="driver-license">License No. <em>*</em></label>
-            <input id="driver-license" v-model="form.licence_no" type="text" placeholder="N03-2025-12345">
-          </div> -->
+            <input id="driver-license" v-model="form.licence_no" type="text" placeholder="N03-2025-12345" autocomplete="off">
+          </div>
 
           <!-- EXPIRY -->
           <div class="field">

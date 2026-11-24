@@ -1,4 +1,3 @@
-
 export interface AuthRole {
   id?: number
   name?: string
@@ -77,6 +76,11 @@ export const useAuth = () => {
     () => false,
   )
 
+  // Portal chosen at sign-in, for users allowed in both portals
+  // (e.g. a Supervisor approves in the admin portal and files own requests
+  // in the employee portal).
+  const activePortal = useState<Portal | null>('auth-active-portal', () => null)
+
   const hydrated = useState(
     'auth-hydrated',
     () => false,
@@ -132,9 +136,40 @@ export const useAuth = () => {
     Array.isArray(user.value?.privileges) &&
     user.value.privileges.some(p => p.module === 'portal' && p.name === name)
 
+  /** Can this user sign in to the portal? (Roles & Permissions › Portal Access) */
+  const canUsePortal = (name: Portal): boolean => {
+    if (name === 'admin') {
+      return isAdministrator.value || hasPortalPrivilege('admin') ||
+        (!hasAnyPortalPrivilege() && ADMIN_ROLES.has(roleName.value))
+    }
+    return hasPortalPrivilege('employee') ||
+      (!hasAnyPortalPrivilege() && EMPLOYEE_ROLES.has(roleName.value))
+  }
+
+  const hasAnyPortalPrivilege = () =>
+    Array.isArray(user.value?.privileges) && user.value.privileges.some(p => p.module === 'portal')
+
+  /** Remember which portal the user signed in to (cleared on sign out). */
+  const setActivePortal = (name: Portal | null) => {
+    activePortal.value = name
+    if (!import.meta.client) return
+    if (name) localStorage.setItem('rworkcentral-portal', name)
+    else localStorage.removeItem('rworkcentral-portal')
+  }
+
   // Portal comes from the role's privileges (Roles & Permissions), so new
   // roles work too. Falls back to the role name for older sessions.
   const portal = computed<Portal | null>(() => {
+    if (import.meta.client && activePortal.value === null) {
+      const saved = localStorage.getItem('rworkcentral-portal')
+      if (saved === 'admin' || saved === 'employee') activePortal.value = saved
+    }
+
+    // The portal the user signed in to, when the role allows it.
+    if (activePortal.value && canUsePortal(activePortal.value)) {
+      return activePortal.value
+    }
+
     if (isAdministrator.value || hasPortalPrivilege('admin')) {
       return 'admin'
     }
@@ -304,8 +339,10 @@ export const useAuth = () => {
         storage.removeItem('rworkcentral-token')
         storage.removeItem('rworkcentral-user')
       }
+      localStorage.removeItem('rworkcentral-portal')
     }
 
+    activePortal.value = null
     token.value = null
     user.value = null
     authenticated.value = false
@@ -321,6 +358,8 @@ export const useAuth = () => {
     roleName,
     portal,
     homePath,
+    canUsePortal,
+    setActivePortal,
     canAccessAdminTimekeeping,
     canAny,
     isAdministrator,

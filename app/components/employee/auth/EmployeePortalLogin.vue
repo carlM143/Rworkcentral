@@ -87,13 +87,16 @@ const handleLogin = async () => {
       remember: rememberMe.value,
     })
 
-    if (auth.portal.value !== 'employee' || !auth.homePath.value) {
+    // Users allowed in both portals (e.g. Supervisor) sign in to the
+    // employee portal here; the admin portal is at /auth/login.
+    if (!auth.canUsePortal('employee')) {
       auth.clearSession()
-      errorMessage.value = 'This login is for employees only. Administrators should sign in via /admin.'
+      errorMessage.value = 'This login is for employees only. Administrators should sign in via /auth/login.'
       return
     }
 
-    await router.push(auth.homePath.value)
+    auth.setActivePortal('employee')
+    await router.push('/employee')
   } catch (error: unknown) {
     const apiError = error as {
       data?: {
