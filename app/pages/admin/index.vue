@@ -391,11 +391,11 @@ const upcomingEvents = computed(() => {
           <CalendarDays :size="17" />
         </button>
 
-        <button class="quick-action">
+        <!-- <button class="quick-action">
           <span class="plus">+</span>
           Quick Action
           <ChevronDown :size="16" />
-        </button>
+        </button> -->
       </div>
     </div>
 

@@ -19,13 +19,6 @@ import {
   WalletCards,
 } from 'lucide-vue-next'
 
-/**
- * Admin sidebar and the privilege each page needs.
- * Used by layouts/admin.vue (what to show) and middleware/admin.ts (what
- * can be opened). A page is allowed when the user has ANY of the listed
- * privileges of that module. Privileges come from config/privileges.php.
- */
-
 export interface Access {
   module: string
   names: string[]
@@ -224,10 +217,6 @@ const ALL_PAGES: { to: string, access: Access }[] = [
   ...EXTRA_PAGES,
 ]
 
-/**
- * First page (menu order) the user can open: the landing page for roles
- * without the Dashboard, e.g. a Supervisor lands on "For My Approval".
- */
 export const firstAllowedPath = (canAny: (module: string, names: string[]) => boolean): string | null => {
   for (const item of [...ADMIN_MENU, ...SYSTEM_MENU]) {
     if (item.to && item.access && canAny(item.access.module, item.access.names)) return item.to
