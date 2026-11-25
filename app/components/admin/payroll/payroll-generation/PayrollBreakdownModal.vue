@@ -53,6 +53,31 @@ const basicPayNote = computed(() => {
   return `${money(p.basic_salary)} monthly ÷ cutoff`
 })
 
+// When the salary changed inside the cut-off: one line per salary segment,
+// e.g. "Nov 16–24 · 2 day(s) × ₱650.00 = ₱1,300.00".
+const segmentLines = computed(() => {
+  const p = props.payroll
+  const segments = p?.breakdown?.salary_segments ?? []
+  if (!p || segments.length < 2) return []
+
+  const rateType = p.breakdown?.rate_type
+  return segments.map((s) => {
+    const range = s.from === s.to ? shortDate(s.from) : `${shortDate(s.from)}–${shortDate(s.to)}`
+    const detail = rateType === 'daily'
+      ? `${s.days_worked ?? '?'} day(s) × ${money(s.basic)}`
+      : rateType === 'hourly'
+        ? `${minutes(s.worked_minutes ?? 0)} × ${money(s.basic)}/hr`
+        : `${s.days} of the cut-off days at ${money(s.basic)} monthly`
+    return {
+      key: `${s.from}-${s.to}`,
+      range,
+      detail,
+      source: s.source ?? null,
+      pay: s.basic_pay ?? null,
+    }
+  })
+})
+
 // allowance_pay = main allowance (prorated if the salary changed) + additional allowances
 const additionalAllowances = computed(() => props.payroll?.breakdown?.additional_allowances ?? [])
 const additionalAllowanceTotal = computed(() =>
@@ -152,8 +177,20 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
             <h4>Earnings</h4>
             <dl>
               <div>
-                <dt>Basic pay <small v-if="basicPayNote">{{ basicPayNote }}</small></dt>
+                <dt>
+                  Basic pay
+                  <small v-if="basicPayNote">{{ basicPayNote }}</small>
+                  <small v-else-if="segmentLines.length">Salary changed in this cut-off</small>
+                </dt>
                 <dd>{{ money(payroll.basic_pay) }}</dd>
+              </div>
+
+              <div v-for="line in segmentLines" :key="line.key" class="segment">
+                <dt>
+                  {{ line.range }} · {{ line.detail }}
+                  <small v-if="line.source">{{ line.source }}</small>
+                </dt>
+                <dd>{{ line.pay === null ? '—' : money(line.pay) }}</dd>
               </div>
 
               <div v-if="mainAllowancePay">
@@ -345,6 +382,9 @@ dl{display:grid;gap:12px;margin:0}
 dl div{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;font-size:14px}
 dt{color:var(--text-secondary)}
 dt small{display:block;margin-top:2px;color:var(--text-muted);font-size:12px}
+.segment{padding-left:12px;border-left:2px solid var(--border)}
+.segment dt{font-size:12px}
+.segment dd{color:var(--text-secondary);font-weight:500}
 dd{margin:0;color:var(--text-primary);font-weight:600;white-space:nowrap}
 dl .total{padding-top:12px;border-top:1px solid var(--border-soft);font-size:15px;font-weight:700}
 .spaced{margin-top:18px}

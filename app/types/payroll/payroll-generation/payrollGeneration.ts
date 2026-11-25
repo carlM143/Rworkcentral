@@ -1,10 +1,4 @@
 export type Money = string | number
-
-/**
- * A day with only one punch (time in without time out, or the reverse).
- * Nothing is deducted: monthly-rate employees are paid the full day,
- * daily/hourly employees are not paid for it. HR must review these.
- */
 export interface PayrollIncompleteLog {
   time_log_id: number
   work_date: string | null
@@ -109,6 +103,12 @@ export interface PayrollSalarySegment {
   basic: number
   allowance: number
   salary_adjustment_id: number | null
+  /** Added by payroll generation (payrolls generated before this have none). */
+  days_worked?: number
+  worked_minutes?: number
+  basic_pay?: number
+  /** e.g. "Wage order RB XI-35" or "Salary adjustment #12" */
+  source?: string | null
 }
 
 /** Additional allowance (employee_allowance), split per cut-off like the main allowance. */

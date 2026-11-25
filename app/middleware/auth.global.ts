@@ -35,13 +35,23 @@ export default defineNuxtRouteMiddleware((to) => {
   // URL is typed directly. The API checks privileges as well.
   // =====================================================
   if (auth.isAuthenticated.value && to.path.startsWith('/admin')) {
-    if (auth.portal.value !== 'admin') {
+    // Opened from Admin Tools in the employee portal: show the admin page
+    // inside the employee portal (employee sidebar stays).
+    const insideEmployeePortal = auth.portal.value === 'employee' && auth.canUsePortal('admin')
+
+    if (auth.portal.value !== 'admin' && !insideEmployeePortal) {
       return navigateTo(auth.homePath.value ?? '/auth/login')
+    }
+
+    if (insideEmployeePortal) {
+      setPageLayout('employee')
     }
 
     const access = accessForPath(to.path)
 
     if (access && !auth.canAny(access.module, access.names)) {
+      // Roles without the Dashboard land on their first allowed page
+      // (e.g. Supervisor → Approval Center › For My Approval).
       if (to.path === '/admin') {
         const landing = firstAllowedPath(auth.canAny)
         if (landing && landing !== '/admin') return navigateTo(landing)

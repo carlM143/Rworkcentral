@@ -267,6 +267,14 @@ watch(
 watch(employeeSearch, () => {
   loadEmployees()
 })
+
+// Success messages show as a toast, like the other modules.
+const { success: toastSuccess } = useToast()
+watch(message, (value) => {
+  if (!value) return
+  toastSuccess('Payroll group updated', value)
+  message.value = ''
+}, { immediate: true })
 </script>
 
 <template>
@@ -314,12 +322,6 @@ watch(employeeSearch, () => {
             {{ error }}
           </div>
 
-          <div
-            v-if="message"
-            class="alert success"
-          >
-            {{ message }}
-          </div>
 
           <template v-if="selectedTab === 'assign'">
             <div class="summary">

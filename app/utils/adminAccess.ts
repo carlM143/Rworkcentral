@@ -81,9 +81,9 @@ export const ADMIN_MENU: AdminMenuItem[] = [
   },
   {
     label: 'Compensation', key: 'compensation', icon: Scale,
-    children: [
-      { label: 'Wage Orders', to: '/admin/settings/compensation/wage-orders', access: a('compensation', 'wage_orders.view') },
+        children: [
       { label: 'Wage Adjustments', to: '/admin/settings/compensation/wage-adjustments', access: a('compensation', 'wage_adjustments.view') },
+      { label: 'Wage Order History', to: '/admin/settings/compensation/wage-orders', access: a('compensation', 'wage_orders.view') },
       { label: 'Regional Rates', to: '/admin/settings/compensation/regional-rates', access: a('compensation', 'regional_rates.view') },
     ],
   },

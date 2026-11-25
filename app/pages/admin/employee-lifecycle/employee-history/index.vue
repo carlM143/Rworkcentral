@@ -138,14 +138,26 @@ const downloadProof = async (event: HistoryEvent) => {
             </td>
           </tr>
         </template>
-        <template v-if="totalPages > 1" #bottom>
-          <div class="pagination"><AppPagination v-model="currentPage" :total-pages="totalPages" /></div>
-        </template>
       </BaseDataTable>
+
+      <!-- PAGINATION (below the table, like other modules) -->
+      <div v-if="!error" class="lc-table-footer">
+        <p>
+          Showing
+          <strong>{{ filtered.length ? (currentPage - 1) * 10 + 1 : 0 }}–{{ Math.min(currentPage * 10, filtered.length) }}</strong>
+          of
+          <strong>{{ filtered.length }}</strong>
+          employees
+        </p>
+        <AppPagination v-model="currentPage" :total-pages="totalPages" />
+      </div>
     </template>
     <template v-else>
       <NuxtLink :to="{ query: {} }" class="back-link"><ArrowLeft :size="16" aria-hidden="true" /> Back to Employees</NuxtLink>
-      <p v-if="historyLoading" role="status">Loading employee history…</p>
+      <div v-if="historyLoading" class="lc-loading" role="status" aria-live="polite">
+        <span class="lc-spinner" aria-hidden="true" />
+        <strong>Loading employee history...</strong>
+      </div>
       <p v-else-if="historyError" role="alert">{{ historyError }} <AppButton variant="secondary" @click="loadHistory">Retry</AppButton></p>
       <template v-else-if="employee">
         <section class="history-card employee-summary" aria-labelledby="history-employee-name">
@@ -220,7 +232,10 @@ const downloadProof = async (event: HistoryEvent) => {
 .employee-history-page { max-width: 1680px; margin: 0 auto; }
 .filters { display: grid; grid-template-columns: minmax(0, 1fr) minmax(140px, 220px) minmax(140px, 220px) auto; gap: 10px; }
 .align-right { text-align: right; }
-.pagination { display: flex; justify-content: flex-end; width: 100%; }
+.lc-table-footer { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 13px 3px 0; }
+.lc-table-footer p { margin: 0; color: var(--text-muted); font-size: 12px; }
+.lc-table-footer strong { color: var(--text-primary); font-weight: 650; }
+@media (max-width: 650px) { .lc-table-footer { align-items: flex-start; flex-direction: column; } }
 .record-count, .muted, .cell-meta, dt { color: var(--text-muted); font-size: 12px; }
 .cell-meta { display: block; margin-top: 3px; }
 .employee-link { font-weight: 650; color: var(--text-primary); text-decoration: none; }
@@ -262,4 +277,9 @@ time { display: inline-flex; align-items: center; gap: 5px; }
   .filters { grid-template-columns: 1fr; }
   .history-card { padding: 14px; }
 }
+
+.lc-loading { display: flex; min-height: 220px; flex-direction: column; align-items: center; justify-content: center; gap: 10px; border: 1px solid var(--border); border-radius: 12px; background: var(--bg-card); color: var(--text-secondary); font-size: 13px; }
+.lc-spinner { width: 22px; height: 22px; border: 2px solid var(--border); border-top-color: var(--primary); border-radius: 50%; animation: lc-spin 0.7s linear infinite; }
+@keyframes lc-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .lc-spinner { animation: none; } }
 </style>

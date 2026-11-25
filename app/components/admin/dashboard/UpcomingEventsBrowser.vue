@@ -321,12 +321,12 @@ const exportCsv = async () => {
 .tab {
   display: inline-flex; align-items: center; gap: 7px; height: 36px; padding: 0 12px;
   border: 1px solid var(--border); border-radius: 999px; background: var(--bg-card);
-  color: var(--text-secondary); font-family: inherit; font-size: 12px; font-weight: 600; cursor: pointer;
+  color: var(--text-secondary); font-family: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
 }
 
 .tab:hover { color: var(--text-primary); }
 .tab.active { border-color: var(--primary); background: var(--primary-soft); color: var(--text-primary); }
-.tab-count { min-width: 22px; padding: 2px 7px; border-radius: 999px; background: var(--bg-card-soft); color: var(--text-primary); font-size: 11px; text-align: center; }
+.tab-count { min-width: 22px; padding: 2px 7px; border-radius: 999px; background: var(--bg-card-soft); color: var(--text-primary); font-size: 13px; text-align: center; }
 
 .tone-green { color: var(--green); }
 .tone-orange { color: var(--orange); }
@@ -344,7 +344,7 @@ const exportCsv = async () => {
 
 .select-wrap select, .month-input {
   width: 100%; height: 40px; padding: 0 34px 0 12px; border: 1px solid var(--border); border-radius: 9px;
-  background: var(--bg-card-soft); color: var(--text-primary); font-family: inherit; font-size: 12px; appearance: none;
+  background: var(--bg-card-soft); color: var(--text-primary); font-family: inherit; font-size: 13px; appearance: none;
 }
 
 .month-input { width: auto; padding: 0 12px; color-scheme: dark; }
@@ -355,26 +355,26 @@ const exportCsv = async () => {
   border: 1px solid var(--border); border-radius: 9px; background: var(--bg-card-soft); color: var(--text-muted);
 }
 
-.search-box input { width: 100%; border: 0; background: transparent; color: var(--text-primary); font-family: inherit; font-size: 12px; outline: none; }
+.search-box input { width: 100%; border: 0; background: transparent; color: var(--text-primary); font-family: inherit; font-size: 13px; outline: none; }
 
 .reset-btn {
   height: 40px; padding: 0 14px; border: 1px solid var(--border); border-radius: 9px; background: transparent;
-  color: var(--text-primary); font-family: inherit; font-size: 12px; font-weight: 600; cursor: pointer;
+  color: var(--text-primary); font-family: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
 }
 
 .search-box:focus-within, .select-wrap select:focus-visible, .month-input:focus-visible { border-color: var(--primary); outline: none; }
 .tab:focus-visible, .reset-btn:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 
-.load-error { margin: 0 0 14px; padding: 10px 12px; border-radius: 9px; background: var(--red-soft); color: var(--red); font-size: 13px; }
+.load-error { margin: 0 0 14px; padding: 10px 12px; border-radius: 9px; background: var(--red-soft); color: var(--red); font-size: 15px; }
 .load-error button { margin-left: 10px; border: 0; background: transparent; color: var(--primary); font-family: inherit; cursor: pointer; }
 
 /* ===== List ===== */
 .list-card { overflow: hidden; border: 1px solid var(--border); border-radius: 12px; background: var(--bg-card); }
 .list-header { padding: 16px 18px; border-bottom: 1px solid var(--border-soft); }
 .list-header h2 { margin: 0; font-size: 16px; }
-.list-header p { margin: 3px 0 0; color: var(--text-secondary); font-size: 12px; }
+.list-header p { margin: 3px 0 0; color: var(--text-secondary); font-size: 13px; }
 
-.list-state { display: flex; min-height: 200px; flex-direction: column; align-items: center; justify-content: center; gap: 6px; color: var(--text-muted); font-size: 13px; }
+.list-state { display: flex; min-height: 200px; flex-direction: column; align-items: center; justify-content: center; gap: 6px; color: var(--text-muted); font-size: 15px; }
 .list-state strong { color: var(--text-primary); font-size: 15px; }
 
 .dimmed { opacity: 0.6; }
@@ -385,10 +385,10 @@ const exportCsv = async () => {
 
 .day-heading {
   display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0; padding: 10px 18px;
-  background: var(--bg-card-soft); color: var(--text-primary); font-size: 12px; font-weight: 700;
+  background: var(--bg-card-soft); color: var(--text-primary); font-size: 13px; font-weight: 700;
 }
 
-.relative { color: var(--text-muted); font-size: 11px; font-weight: 600; }
+.relative { color: var(--text-muted); font-size: 13px; font-weight: 600; }
 .relative.today { color: var(--primary); }
 
 .event-list { margin: 0; padding: 0; list-style: none; }
@@ -399,11 +399,11 @@ const exportCsv = async () => {
 .event-icon { display: flex; width: 36px; height: 36px; flex-shrink: 0; align-items: center; justify-content: center; border-radius: 50%; }
 
 .event-main { min-width: 0; flex: 1; }
-.event-main strong { display: block; font-size: 13px; }
-.event-main span { display: block; margin-top: 3px; color: var(--text-muted); font-size: 12px; }
+.event-main strong { display: block; font-size: 15px; }
+.event-main span { display: block; margin-top: 3px; color: var(--text-muted); font-size: 13px; }
 
-.event-meta { display: flex; align-items: center; gap: 12px; color: var(--text-secondary); font-size: 12px; white-space: nowrap; }
-.type-tag { padding: 4px 9px; border-radius: 999px; font-size: 11px; font-weight: 600; }
+.event-meta { display: flex; align-items: center; gap: 12px; color: var(--text-secondary); font-size: 13px; white-space: nowrap; }
+.type-tag { padding: 4px 9px; border-radius: 999px; font-size: 13px; font-weight: 600; }
 
 .bg-green { background: var(--green-soft); color: var(--green); }
 .bg-orange { background: var(--orange-soft); color: var(--orange); }

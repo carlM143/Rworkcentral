@@ -265,6 +265,19 @@ const governmentItems = computed(() => {
     { label: 'Pag-IBIG (HDMF) Number', value: profile.value.pagibigNumber, key: 'govt-pagibig' },
   ]
 })
+
+// Success messages show as a toast, like the other modules.
+const { success: toastSuccess } = useToast()
+watch(contactSavedMessage, (value) => {
+  if (!value) return
+  toastSuccess('Contact details saved', value)
+  contactSavedMessage.value = ''
+})
+watch(passwordSuccessMessage, (value) => {
+  if (!value) return
+  toastSuccess('Password changed', value)
+  passwordSuccessMessage.value = ''
+})
 </script>
 
 <template>
@@ -411,10 +424,6 @@ const governmentItems = computed(() => {
         </button>
       </header>
 
-      <p v-if="contactSavedMessage" class="status-banner success" role="status">
-        <CheckCircle2 :size="16" />
-        <span>{{ contactSavedMessage }}</span>
-      </p>
 
       <p v-if="contactError" class="status-banner error" role="alert">
         <AlertCircle :size="16" />
@@ -716,10 +725,6 @@ const governmentItems = computed(() => {
         Update your employee account password. Passwords must be at least 8 characters long and match confirmation.
       </p>
 
-      <p v-if="passwordSuccessMessage" class="status-banner success" role="status">
-        <CheckCircle2 :size="16" />
-        <span>{{ passwordSuccessMessage }}</span>
-      </p>
 
       <p v-if="clientPasswordError || passwordError" class="status-banner error" role="alert">
         <AlertCircle :size="16" />

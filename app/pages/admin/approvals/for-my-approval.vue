@@ -103,6 +103,14 @@ const headStatusLabel: Record<string, string> = {
   pending: 'Waiting for you',
   skipped: '—',
 }
+
+// Success messages show as a toast, like the other modules.
+const { success: toastSuccess } = useToast()
+watch(notice, (value) => {
+  if (!value) return
+  toastSuccess(/reject/i.test(value) ? 'Request rejected' : 'Request approved', value)
+  notice.value = ''
+}, { immediate: true })
 </script>
 
 <template>
@@ -118,7 +126,6 @@ const headStatusLabel: Record<string, string> = {
       <button type="button" class="ghost" :disabled="loading" @click="load"><RefreshCw :size="15" /> Refresh</button>
     </header>
 
-    <p v-if="notice" class="notice" role="status">{{ notice }} <button type="button" aria-label="Dismiss" @click="notice = ''"><X :size="14" /></button></p>
 
     <template v-if="true">
       <nav class="tabs" aria-label="Status">

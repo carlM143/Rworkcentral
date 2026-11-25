@@ -1,16 +1,3 @@
-/**
- * Drivers API (drivers_info).
- * Endpoints: routes/api/admin.php → DriverController
- *
- * Availability rules (computed by the backend):
- *   0. Deactivated by HR                  -> inactive
- *   1. License expired on that date      -> license_expired
- *   2. Approved leave on that date        -> on_leave
- *   3. Rest day in the work schedule      -> rest_day
- *   4. Departed and not back yet          -> on_trip
- *   5. Otherwise                          -> available
- */
-
 export type DriverAvailabilityStatus =
   | 'available'
   | 'on_trip'
@@ -30,7 +17,8 @@ export interface DriverBusyBlock {
 export interface DriverRecord {
   id: number
   drivers_code: string
-  licence_no: string
+  /** No longer collected; older records may still have one. */
+  licence_no?: string | null
   expire_date: string
   image_path: string | null
   status: 'active' | 'inactive'
@@ -59,7 +47,6 @@ export interface DriverEmployeeOption {
 
 export interface UpdateDriverPayload {
   drivers_code: string
-  licence_no: string
   expire_date: string
   image?: File | null
   remove_image?: boolean
@@ -68,7 +55,6 @@ export interface UpdateDriverPayload {
 export interface StoreDriverPayload {
   employee_id: number
   drivers_code: string
-  licence_no: string
   expire_date: string
   image?: File | null
 }
@@ -144,7 +130,6 @@ export const useDriverApi = () => {
     const form = new FormData()
     form.append('employee_id', String(payload.employee_id))
     if (payload.drivers_code.trim()) form.append('drivers_code', payload.drivers_code.trim())
-    form.append('licence_no', payload.licence_no.trim())
     form.append('expire_date', payload.expire_date)
     if (payload.image) form.append('image', payload.image)
 
@@ -166,7 +151,6 @@ export const useDriverApi = () => {
   const update = (id: number, payload: UpdateDriverPayload) => {
     const form = new FormData()
     form.append('drivers_code', payload.drivers_code.trim())
-    form.append('licence_no', payload.licence_no.trim())
     form.append('expire_date', payload.expire_date)
     if (payload.image) form.append('image', payload.image)
     if (payload.remove_image) form.append('remove_image', '1')

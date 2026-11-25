@@ -27,6 +27,10 @@ import {
   type VehicleStatus,
 } from '~/composables/admin/drivers/useVehicleApi'
 
+// Success messages show as a toast, like the other modules.
+const { success: toastSuccess } = useToast()
+
+
 definePageMeta({
   layout: 'admin',
 })
@@ -171,8 +175,9 @@ const runConfirm = async () => {
   confirmBusy.value = true
   confirmError.value = ''
   try {
-    const response = await confirm.value.run()
-    flash.value = response.message
+    const title = confirm.value.title
+    await confirm.value.run()
+    toastSuccess('Vehicle status updated', title)
     confirm.value = null
     await load()
   } catch (err) {
@@ -182,9 +187,13 @@ const runConfirm = async () => {
   }
 }
 
-const onSaved = async (_vehicle: VehicleRecord, message: string) => {
+const onSaved = async (vehicle: VehicleRecord, message: string) => {
   formOpen.value = false
-  flash.value = message
+  const added = /added|created/i.test(message)
+  toastSuccess(
+    added ? 'Vehicle added' : 'Vehicle updated',
+    added ? `${vehicle.plate_no} can now be assigned to trip tickets.` : `Changes to ${vehicle.plate_no} were saved.`,
+  )
   await load()
 }
 </script>
@@ -207,10 +216,6 @@ const onSaved = async (_vehicle: VehicleRecord, message: string) => {
       <DriverStatCard label="Under Maintenance" :value="stats.maintenance" :description="`${stats.inactive} inactive`" accent="purple" :icon="Wrench" />
     </section>
 
-    <p v-if="flash" class="flash" role="status">
-      <CheckCircle2 :size="15" /> {{ flash }}
-      <button type="button" class="flash-close" aria-label="Dismiss" @click="flash = ''">×</button>
-    </p>
     <p v-if="loadError" class="load-error" role="alert">{{ loadError }}</p>
 
     <div class="filters-row">

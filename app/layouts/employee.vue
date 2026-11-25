@@ -2,6 +2,7 @@
 <script setup lang="ts">
 import '~/assets/css/employee-theme.css'
 import { EMPLOYEE_MODULE, employeeFeatureForPath } from '~/utils/employeeAccess'
+import { ADMIN_MENU } from '~/utils/adminAccess'
 import {
   LayoutDashboard,
   ArrowLeftRight,
@@ -134,11 +135,47 @@ const bottomItems = computed(() => allBottomItems.filter(item => showItem(item.t
 
 // Users allowed in both portals (e.g. Supervisor) can switch without signing out.
 const canSwitchToAdmin = computed(() => auth.canUsePortal('admin'))
-const switchToAdmin = async () => {
+
+// Admin submenus checked for this role (Roles & Permissions), listed in the
+// employee portal too. Opening one moves to the admin portal for that page.
+const adminTools = computed(() => {
+  if (!canSwitchToAdmin.value) return []
+  return ADMIN_MENU
+    .map((item) => {
+      const links = item.children?.length
+        ? item.children.filter(child => auth.canAny(child.access.module, child.access.names))
+        : item.to && auth.canAny(item.access.module, item.access.names)
+          ? [{ label: item.label, to: item.to }]
+          : []
+      return { label: item.label, icon: item.icon, links }
+    })
+    .filter(group => group.links.length > 0)
+})
+
+// Load the latest privileges on every visit, so changes saved in
+// Roles & Permissions show here without signing out (same as the admin portal).
+onMounted(() => {
+  void auth.refreshUser()
+})
+
+// Admin tool groups start closed, like the admin portal's sidebar.
+const openTools = reactive(new Set<string>())
+const toggleTool = (label: string) => (openTools.has(label) ? openTools.delete(label) : openTools.add(label))
+
+// Admin pages open inside the employee portal (this layout stays).
+const openAdminTool = async (to: string) => {
   closeMore()
-  auth.setActivePortal('admin')
-  await navigateTo('/admin')
+  await navigateTo(to)
 }
+
+const isToolActive = (to: string) => route.path === to || (to !== '/admin' && route.path.startsWith(`${to}/`))
+
+// Keep the group of the open admin page expanded.
+watch(() => route.path, () => {
+  adminTools.value
+    .filter(group => group.links.some(link => isToolActive(link.to)))
+    .forEach(group => openTools.add(group.label))
+}, { immediate: true })
 
 const applyTheme = () => {
   document.documentElement.classList.toggle('dark', isDark.value)
@@ -241,12 +278,42 @@ watch(() => route.fullPath, () => {
             </NuxtLink>
           </template>
         </nav>
+
+        <!-- ADMIN TOOLS: admin submenus checked for this role -->
+        <template v-if="adminTools.length">
+          <p class="menu-section-title">Admin Tools</p>
+          <nav class="sidebar-menu" aria-label="Admin tools">
+            <div v-for="group in adminTools" :key="group.label" class="request-menu">
+              <button
+                type="button"
+                class="menu-link"
+                :aria-expanded="openTools.has(group.label)"
+                :aria-controls="`admin-tool-${group.label}`"
+                @click="toggleTool(group.label)"
+              >
+                <component :is="group.icon" :size="19" :stroke-width="1.9" />
+                <span>{{ group.label }}</span>
+                <ChevronDown :size="16" class="submenu-chevron" :class="{ expanded: openTools.has(group.label) }" />
+              </button>
+              <div v-show="openTools.has(group.label)" :id="`admin-tool-${group.label}`" class="request-submenu">
+                <button
+                  v-for="link in group.links"
+                  :key="link.to"
+                  type="button"
+                  class="menu-link submenu-link"
+                  :class="{ active: isToolActive(link.to) }"
+                  :aria-current="isToolActive(link.to) ? 'page' : undefined"
+                  @click="openAdminTool(link.to)"
+                >
+                  <span>{{ link.label }}</span>
+                </button>
+              </div>
+            </div>
+          </nav>
+        </template>
       </div>
 
-      <button v-if="canSwitchToAdmin" type="button" class="menu-link switch-portal" @click="switchToAdmin">
-        <ArrowLeftRight :size="19" />
-        <span>Switch to Admin Portal</span>
-      </button>
+
 
       <button class="menu-link sign-out" @click="signOut">
         <LogOut :size="19" />
@@ -382,10 +449,22 @@ watch(() => route.fullPath, () => {
           <span>Profile</span>
         </NuxtLink>
       </nav>
-      <button v-if="canSwitchToAdmin" type="button" class="sheet-switch" @click="switchToAdmin">
-        <ArrowLeftRight :size="20" />
-        <span>Switch to Admin Portal</span>
-      </button>
+      <section v-if="adminTools.length" class="sheet-admin-tools" aria-label="Admin tools">
+        <p class="admin-tools-title">Admin Tools</p>
+        <template v-for="group in adminTools" :key="group.label">
+          <button
+            v-for="link in group.links"
+            :key="link.to"
+            type="button"
+            class="sheet-admin-link"
+            @click="openAdminTool(link.to)"
+          >
+            <component :is="group.icon" :size="18" />
+            <span>{{ link.label }}<small>{{ group.label }}</small></span>
+          </button>
+        </template>
+      </section>
+
       <button type="button" class="sheet-sign-out" @click="signOut">
         <LogOut :size="20" />
         <span>Sign Out</span>
@@ -401,6 +480,12 @@ watch(() => route.fullPath, () => {
 .brand a { display: flex; align-items: center; flex: 1; }
 .brand img { width: 150px; max-width: 100%; height: 46px; object-fit: contain; object-position: left center; }
 .sidebar-content { flex: 1; overflow-y: auto; padding: 14px 12px 20px; }
+/* Thin scrollbar, same as the admin sidebar */
+.sidebar-content { scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, 0.18) transparent; }
+.sidebar-content::-webkit-scrollbar { width: 5px; }
+.sidebar-content::-webkit-scrollbar-track { background: transparent; }
+.sidebar-content::-webkit-scrollbar-thumb { border-radius: 999px; background: rgba(255, 255, 255, 0.18); }
+.sidebar-content::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.3); }
 .menu-section-title { margin: 10px 10px 8px; color: #8eacd0; font-size: 10px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; }
 .sidebar-menu { display: flex; flex-direction: column; gap: 3px; }
 .submenu-chevron { margin-left: auto; transition: transform .18s ease; }
@@ -413,7 +498,7 @@ watch(() => route.fullPath, () => {
 .menu-link:hover { background: rgba(255, 255, 255, .07); color: white; }
 .menu-link.active { background: linear-gradient(90deg, #1e6df3, #327cff); color: white; box-shadow: 0 5px 14px rgba(12, 86, 212, .25); }
 .sign-out { width: calc(100% - 24px); margin: 0 12px; flex-shrink: 0; }
-.switch-portal { width: calc(100% - 24px); margin: 0 12px 4px; flex-shrink: 0; border: 1px dashed rgba(255, 255, 255, 0.25); }
+.switch-portal { width: calc(100% - 24px); margin: 8px 12px 0; flex-shrink: 0; }
 .sheet-switch { display: flex; width: 100%; align-items: center; gap: 13px; min-height: 48px; margin-top: 18px; padding: 10px 13px; border: 1px solid var(--border); border-radius: 10px; background: var(--primary-soft, #edf4ff); color: var(--primary, #246bfd); font-family: inherit; font-size: 13px; text-align: left; cursor: pointer; box-sizing: border-box; }
 .sidebar-user { display: flex; align-items: center; gap: 10px; margin: 12px; padding: 12px; border: 1px solid rgba(255, 255, 255, .12); border-radius: 11px; background: rgba(255, 255, 255, .045); }
 .user-avatar { display: flex; width: 37px; height: 37px; flex-shrink: 0; align-items: center; justify-content: center; border-radius: 50%; background: linear-gradient(135deg, #ddeaff, #b8d1ff); color: #164b9b; font-size: 12px; font-weight: 700; }
@@ -448,6 +533,11 @@ watch(() => route.fullPath, () => {
 .sheet-links a:hover, .sheet-links a[aria-current='page'] { color: var(--primary); background: var(--primary-soft); }
 .sheet-section-title { margin: 20px 13px 8px; color: var(--text-secondary); font-size: 10px; letter-spacing: 1px; text-transform: uppercase; }
 .sheet-switch + .sheet-sign-out { margin-top: 8px; }
+.admin-tools-title { margin: 0 0 6px; padding: 0 10px; color: rgba(255, 255, 255, 0.55); font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+.sheet-admin-tools { margin-top: 18px; }
+.sheet-admin-tools .admin-tools-title { padding: 0; color: var(--text-muted); }
+.sheet-admin-link { display: flex; width: 100%; align-items: center; gap: 13px; min-height: 46px; margin-top: 6px; padding: 8px 13px; border: 1px solid var(--border); border-radius: 10px; background: transparent; color: var(--text-primary); font-family: inherit; font-size: 13px; text-align: left; cursor: pointer; box-sizing: border-box; }
+.sheet-admin-link small { display: block; color: var(--text-muted); font-size: 11px; }
 .sheet-sign-out { width: 100%; margin-top: 18px; border: 1px solid var(--border); background: var(--red-soft); color: var(--red); text-align: left; cursor: pointer; }
 .sheet-links a:focus-visible, .sheet-sign-out:focus-visible, .bottom-link:focus-visible { outline: 2px solid var(--primary); outline-offset: -3px; }
 :global(html:has(.mobile-more-sheet[open])) { overflow: hidden; }

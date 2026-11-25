@@ -30,6 +30,10 @@ import {
   type TripTicketStatus,
 } from '~/composables/admin/drivers/useTripTicketApi'
 
+// Success messages show as a toast, like the other modules.
+const { success: toastSuccess } = useToast()
+
+
 definePageMeta({
   layout: 'admin',
 })
@@ -105,8 +109,12 @@ onMounted(async () => {
   // Coming back from the Create / Edit page
   const created = route.query.created
   const updated = route.query.updated
-  if (typeof created === 'string') flash.value = `Trip ticket ${created} created.`
-  if (typeof updated === 'string') flash.value = `Trip ticket ${updated} updated.`
+  if (typeof created === 'string') toastSuccess('Trip ticket created', `${created} is ready. Record the departure when the vehicle leaves.`)
+  if (typeof updated === 'string') toastSuccess('Trip ticket updated', `Changes to ${updated} were saved.`)
+  if (typeof created === 'string' || typeof updated === 'string') {
+    // Remove ?created / ?updated so a refresh does not show the toast again.
+    void navigateTo({ query: {} }, { replace: true })
+  }
 
   await load()
 
@@ -176,8 +184,9 @@ const onAction = (t: TripTicketRecord, key: string) => {
 }
 
 const onSaved = async (_record: TripTicketRecord, message: string) => {
+  const titles = { depart: 'Departure recorded', return: 'Return recorded', cancel: 'Trip ticket cancelled' } as const
+  toastSuccess(titles[actionType.value as keyof typeof titles] ?? 'Trip ticket updated', message)
   actionRecord.value = null
-  flash.value = message
   await load()
 }
 
@@ -264,10 +273,6 @@ const exportCsv = async () => {
 
     <p v-if="loadError" class="load-error" role="alert">{{ loadError }}</p>
 
-    <p v-if="flash" class="flash" role="status">
-      <CheckCircle2 :size="15" /> {{ flash }}
-      <button type="button" class="flash-close" aria-label="Dismiss" @click="flash = ''">×</button>
-    </p>
 
     <div class="filters-row">
       <div class="search-box">

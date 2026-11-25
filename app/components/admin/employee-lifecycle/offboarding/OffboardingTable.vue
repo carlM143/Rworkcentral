@@ -35,9 +35,10 @@ interface OffboardingRecord {
   remarks?: string
 }
 
-defineProps<{
+withDefaults(defineProps<{
   records: OffboardingRecord[]
-}>()
+  loading?: boolean
+}>(), { loading: false })
 
 const emit = defineEmits<{
   view: [item: OffboardingRecord]
@@ -151,7 +152,13 @@ onUnmounted(() => {
       </p>
     </div>
 
-    <div v-if="records.length" class="ob-table-scroll">
+    <!-- LOADING (same as other modules' tables) -->
+    <div v-if="loading" class="ob-loading" role="status" aria-live="polite">
+      <span class="ob-spinner" aria-hidden="true" />
+      <strong>Loading records...</strong>
+    </div>
+
+    <div v-else-if="records.length" class="ob-table-scroll">
       <table>
         <thead>
           <tr>
@@ -591,4 +598,9 @@ tbody tr:hover {
 .ob-action-menu button:hover svg {
   color: var(--primary);
 }
+
+.ob-loading { display: flex; min-height: 220px; flex-direction: column; align-items: center; justify-content: center; gap: 10px; color: var(--text-secondary); font-size: 13px; }
+.ob-spinner { width: 22px; height: 22px; border: 2px solid var(--border); border-top-color: var(--primary); border-radius: 50%; animation: ob-spin 0.7s linear infinite; }
+@keyframes ob-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .ob-spinner { animation: none; } }
 </style>

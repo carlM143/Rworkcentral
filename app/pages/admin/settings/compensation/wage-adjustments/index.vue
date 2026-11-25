@@ -1,8 +1,18 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
-import { Ban, CheckCircle2, ChevronDown, CircleCheckBig, Clock3, Landmark, Search, XCircle } from 'lucide-vue-next'
-import DriverStatCard from '~/components/admin/drivers/DriverStatCard.vue'
-import AppConfirmModal from '~/components/shared/AppConfirmModal.vue'
+import {
+  Ban,
+  CheckCircle2,
+  ChevronDown,
+  Clock3,
+  Landmark,
+  MapPin,
+  Plus,
+  Search,
+  Trash2,
+  Wallet,
+} from 'lucide-vue-next'
+import NewMinimumWageWizard from '~/components/admin/compensation/NewMinimumWageWizard.vue'
 import {
   peso,
   useWageOrders,
@@ -11,265 +21,297 @@ import {
   type WageAdjustment,
   type WageAdjustmentStatus,
   type WageAdjustmentsResponse,
+  type WageOrderSummary,
 } from '~/composables/admin/compensation/useWageOrders'
 
 /**
- * Compensation › Wage Adjustments: salary increases created from wage
- * orders. Kept apart from Employees › Salary Adjustments (manual changes).
- * Approve → Apply here; payroll uses the new salary after it is applied.
+ * Compensation › Wage Adjustments, one group per wage order (region).
+ * Each group can be approved, rejected or applied at once; open a group to
+ * act on one employee. "+ New Minimum Wage" records a new regional minimum
+ * and creates the adjustments in one wizard.
  */
-definePageMeta({
-  layout: 'admin',
-})
+definePageMeta({ layout: 'admin' })
+useHead({ title: 'Wage Adjustments | RWorkCentral' })
 
-const route = useRoute()
 const router = useRouter()
 const api = useWageOrders()
-const { success, error: toastError } = useToast()
+const { success, error: toastError, warning } = useToast()
 
-// =====================================================
-// FILTERS
-// =====================================================
+type Tab = WageAdjustmentStatus | 'all'
+const TABS: { key: Tab, label: string }[] = [
+  { key: 'pending', label: 'Pending' },
+  { key: 'approved', label: 'Approved' },
+  { key: 'applied', label: 'Applied' },
+  { key: 'rejected', label: 'Rejected' },
+  { key: 'all', label: 'All' },
+]
 
-const wageOrderId = ref<number | ''>(route.query.wage_order_id ? Number(route.query.wage_order_id) : '')
-const status = ref<WageAdjustmentStatus | ''>('pending')
-const departmentId = ref<number | ''>('')
-const search = ref('')
-
+const filters = reactive({ status: 'pending' as Tab, region: '', department_id: '' as number | '', search: '' })
 const result = ref<WageAdjustmentsResponse | null>(null)
+const orders = ref<WageOrderSummary[]>([])
 const loading = ref(true)
-const loadError = ref('')
-const selected = reactive(new Set<number>())
-let requestId = 0
+const busy = ref<string | null>(null)
+const open = reactive(new Set<number>())
+const showWizard = ref(false)
 
 const load = async () => {
-  const id = ++requestId
   loading.value = true
-  loadError.value = ''
   try {
-    const response = await api.wageAdjustments({
-      wage_order_id: wageOrderId.value,
-      status: status.value,
-      department_id: departmentId.value,
-      search: search.value.trim(),
-    })
-    if (id !== requestId) return
-    result.value = response
-    // Keep only selections that are still in the list.
-    const ids = new Set(response.data.map(r => r.id))
-    ;[...selected].forEach(s => !ids.has(s) && selected.delete(s))
+    const [adj, ord] = await Promise.all([
+      api.wageAdjustments({
+        status: filters.status === 'all' ? '' : filters.status,
+        department_id: filters.department_id,
+        search: filters.search.trim(),
+      }),
+      orders.value.length ? Promise.resolve(null) : api.list(),
+    ])
+    result.value = adj
+    if (ord) orders.value = ord.data
   } catch (err) {
-    if (id === requestId) loadError.value = wageApiError(err, 'Unable to load wage adjustments.').message
+    toastError('Unable to load wage adjustments', wageApiError(err, 'Please try again.'))
   } finally {
-    if (id === requestId) loading.value = false
+    loading.value = false
   }
 }
 
 onMounted(load)
 
 let timer: ReturnType<typeof setTimeout> | undefined
-watch(search, () => {
+watch(() => filters.search, () => {
   clearTimeout(timer)
   timer = setTimeout(load, 350)
 })
-watch([wageOrderId, status, departmentId], () => {
-  selected.clear()
-  load()
-})
+watch(() => [filters.status, filters.department_id], load)
 
-const rows = computed(() => result.value?.data ?? [])
 const stats = computed(() => result.value?.stats ?? { pending: 0, approved: 0, applied: 0, rejected: 0 })
 
-const STATUS_TABS: { value: WageAdjustmentStatus | '', label: string }[] = [
-  { value: 'pending', label: 'Pending' },
-  { value: 'approved', label: 'Approved' },
-  { value: 'applied', label: 'Applied' },
-  { value: 'rejected', label: 'Rejected' },
-  { value: '', label: 'All' },
-]
-
 // =====================================================
-// SELECTION + BULK ACTIONS
+// GROUPS (one per wage order / region)
 // =====================================================
 
-const actionable = (r: WageAdjustment) => r.status === 'pending' || r.status === 'approved'
-
-const toggle = (r: WageAdjustment) => {
-  if (!actionable(r)) return
-  if (selected.has(r.id)) selected.delete(r.id)
-  else selected.add(r.id)
+interface Group {
+  order: WageOrderSummary | null
+  orderId: number
+  orderNo: string
+  regionCode: string
+  regionName: string
+  rows: WageAdjustment[]
+  pending: WageAdjustment[]
+  applicable: WageAdjustment[]
+  waitingDate: WageAdjustment[]
+  increase: number
 }
 
-const allSelected = computed(() => rows.value.filter(actionable).length > 0 && rows.value.filter(actionable).every(r => selected.has(r.id)))
-const toggleAll = () => (allSelected.value ? selected.clear() : rows.value.filter(actionable).forEach(r => selected.add(r.id)))
+const groups = computed<Group[]>(() => {
+  const byOrder = new Map<number, WageAdjustment[]>()
+  for (const row of result.value?.data ?? []) {
+    byOrder.set(row.wage_order_id, [...(byOrder.get(row.wage_order_id) ?? []), row])
+  }
 
-const chosen = computed(() => rows.value.filter(r => selected.has(r.id)))
-const toApprove = computed(() => chosen.value.filter(r => r.status === 'pending'))
-const toApply = computed(() => chosen.value.filter(r => r.status === 'approved' && r.can_apply_now))
+  return [...byOrder.entries()]
+    .map(([orderId, rows]) => {
+      const order = orders.value.find(o => o.id === orderId) ?? null
+      return {
+        order,
+        orderId,
+        orderNo: rows[0]!.order_no,
+        regionCode: order?.region_code ?? '',
+        regionName: order?.region_name ?? 'Region',
+        rows,
+        pending: rows.filter(r => r.status === 'pending'),
+        applicable: rows.filter(r => r.status === 'approved' && r.can_apply_now),
+        waitingDate: rows.filter(r => r.status === 'approved' && !r.can_apply_now),
+        increase: rows.reduce((sum, r) => sum + r.increase, 0),
+      }
+    })
+    .filter(g => !filters.region || g.regionCode === filters.region)
+    .sort((a, b) => (b.order?.effective_date ?? '').localeCompare(a.order?.effective_date ?? ''))
+})
 
-type Action = 'approve' | 'reject' | 'apply'
-const confirm = ref<Action | null>(null)
-const acting = ref(false)
-const actionError = ref('')
-const failed = ref<{ name: string, reason: string }[]>([])
+const regions = computed(() => {
+  const seen = new Map<string, string>()
+  orders.value.forEach(o => seen.set(o.region_code, o.region_name))
+  return [...seen.entries()].map(([code, name]) => ({ code, name }))
+})
 
-const targets = computed(() => (confirm.value === 'apply' ? toApply.value : toApprove.value))
+const toggleOpen = (id: number) => (open.has(id) ? open.delete(id) : open.add(id))
 
-const ACTIONS: Record<Action, { title: (n: number) => string, message: string, label: string, danger: boolean }> = {
-  approve: {
-    title: n => `Approve ${n} wage adjustment${n === 1 ? '' : 's'}?`,
-    message: 'Approval does not change salaries yet. Apply them on or after the effective date.',
-    label: 'Approve',
-    danger: false,
-  },
-  reject: {
-    title: n => `Reject ${n} wage adjustment${n === 1 ? '' : 's'}?`,
-    message: 'The salaries stay the same. You can include these employees again from the wage order.',
-    label: 'Reject',
-    danger: true,
-  },
-  apply: {
-    title: n => `Apply ${n} wage adjustment${n === 1 ? '' : 's'}?`,
-    message: 'The new salaries are saved to the employees’ salary rates and used in the next payroll.',
-    label: 'Apply',
-    danger: false,
-  },
-}
+// =====================================================
+// ACTIONS
+// =====================================================
 
-const run = async () => {
-  const action = confirm.value
-  if (!action) return
-  acting.value = true
-  actionError.value = ''
+const run = async (key: string, action: 'approve' | 'reject' | 'apply', rows: WageAdjustment[], confirmText?: string) => {
+  if (!rows.length) return
+  if (confirmText && !window.confirm(confirmText)) return
+  busy.value = key
   try {
-    const response = await api.bulkAdjustments(action, targets.value.map(r => r.id))
-    failed.value = response.data.failed
-    confirm.value = null
-    selected.clear()
-    if (response.data.done.length) success('Wage adjustments updated', response.message)
-    else toastError('Nothing was changed', response.message)
+    const response = await api.bulkAdjustments(action, rows.map(r => r.id))
+    const done = response.data.done.length
+    const failed = response.data.failed
+    if (done) success(`${done} adjustment(s) ${action === 'apply' ? 'applied' : `${action}d`}`, action === 'apply' ? 'Salary Rates now use the new salary.' : '')
+    if (failed.length) warning(`${failed.length} not ${action === 'apply' ? 'applied' : `${action}d`}`, failed.map(f => `${f.name}: ${f.reason}`).join(' · '))
     await load()
   } catch (err) {
-    actionError.value = wageApiError(err, 'Unable to update the wage adjustments.').message
+    toastError('Action failed', wageApiError(err, 'Please try again.'))
   } finally {
-    acting.value = false
+    busy.value = null
   }
 }
 
-const statusLabel: Record<WageAdjustmentStatus, string> = {
-  pending: 'Pending',
-  approved: 'Approved',
-  applied: 'Applied',
-  rejected: 'Rejected',
+const remove = async (row: WageAdjustment) => {
+  if (!window.confirm(`Delete the adjustment for ${row.name}? It can be created again from the wage order.`)) return
+  busy.value = `del-${row.id}`
+  try {
+    await api.deleteAdjustment(row.id)
+    success('Adjustment deleted', row.name)
+    await load()
+  } catch (err) {
+    toastError('Unable to delete', wageApiError(err, 'Please try again.'))
+  } finally {
+    busy.value = null
+  }
+}
+
+const statusLabel: Record<WageAdjustmentStatus, string> = { pending: 'Pending', approved: 'Approved', applied: 'Applied', rejected: 'Rejected' }
+
+const onWizardDone = async (message: string) => {
+  showWizard.value = false
+  success('New minimum wage saved', message)
+  orders.value = []
+  filters.status = 'pending'
+  await load()
+  const newest = groups.value[0]
+  if (newest) open.add(newest.orderId)
 }
 </script>
 
 <template>
-  <section class="adjust-page">
+  <section class="wa-page">
     <PageHeader
       title="Wage Adjustments"
-      description="Salary increases created from wage orders. Approve, then apply them so payroll uses the new salary."
+      description="Salary increases from minimum wage orders, grouped by region. Approve them, then apply them on or after the effective date so payroll uses the new salary."
     >
       <AppButton variant="secondary" :icon="Landmark" @click="router.push('/admin/settings/compensation/wage-orders')">Wage Orders</AppButton>
+      <AppButton :icon="Plus" @click="showWizard = true">New Minimum Wage</AppButton>
     </PageHeader>
 
-    <section class="stats-grid">
-      <DriverStatCard label="Pending" :value="stats.pending" description="Waiting for approval" accent="orange" :icon="Clock3" />
-      <DriverStatCard label="Approved" :value="stats.approved" description="Ready to apply" accent="blue" :icon="CheckCircle2" />
-      <DriverStatCard label="Applied" :value="stats.applied" description="Salary updated" accent="green" :icon="CircleCheckBig" />
-      <DriverStatCard label="Rejected" :value="stats.rejected" description="Salary unchanged" accent="purple" :icon="Ban" />
-    </section>
-
-    <!-- FILTERS -->
-    <div class="filters-row">
-      <div class="segmented" role="group" aria-label="Status">
-        <button
-          v-for="tab in STATUS_TABS"
-          :key="tab.value || 'all'"
-          type="button"
-          :class="{ active: status === tab.value }"
-          :aria-pressed="status === tab.value"
-          @click="status = tab.value"
-        >
-          {{ tab.label }}<span v-if="tab.value" class="count">{{ stats[tab.value] }}</span>
-        </button>
-      </div>
-      <div class="select-wrap">
-        <select v-model="wageOrderId" aria-label="Wage order">
-          <option value="">All Wage Orders</option>
-          <option v-for="w in result?.wage_orders ?? []" :key="w.id" :value="w.id">{{ w.order_no }}</option>
-        </select>
-        <ChevronDown :size="14" class="select-icon" />
-      </div>
-      <div class="select-wrap">
-        <select v-model="departmentId" aria-label="Department">
-          <option value="">All Departments</option>
-          <option v-for="d in result?.departments ?? []" :key="d.id" :value="d.id">{{ d.name }}</option>
-        </select>
-        <ChevronDown :size="14" class="select-icon" />
-      </div>
-      <div class="search-box">
-        <Search :size="15" />
-        <input v-model="search" type="text" placeholder="Search employee or wage order no..." aria-label="Search">
-      </div>
+    <!-- STATS -->
+    <div class="stats">
+      <button type="button" class="stat" :class="{ on: filters.status === 'pending' }" @click="filters.status = 'pending'">
+        <span class="icon orange"><Clock3 :size="18" /></span><span><small>Pending</small><strong>{{ stats.pending }}</strong><em>Waiting for approval</em></span>
+      </button>
+      <button type="button" class="stat" :class="{ on: filters.status === 'approved' }" @click="filters.status = 'approved'">
+        <span class="icon blue"><CheckCircle2 :size="18" /></span><span><small>Approved</small><strong>{{ stats.approved }}</strong><em>Ready to apply</em></span>
+      </button>
+      <button type="button" class="stat" :class="{ on: filters.status === 'applied' }" @click="filters.status = 'applied'">
+        <span class="icon green"><Wallet :size="18" /></span><span><small>Applied</small><strong>{{ stats.applied }}</strong><em>Salary updated</em></span>
+      </button>
+      <button type="button" class="stat" :class="{ on: filters.status === 'rejected' }" @click="filters.status = 'rejected'">
+        <span class="icon purple"><Ban :size="18" /></span><span><small>Rejected</small><strong>{{ stats.rejected }}</strong><em>Salary unchanged</em></span>
+      </button>
     </div>
 
-    <p v-if="loadError" class="load-error" role="alert">{{ loadError }} <button type="button" @click="load">Retry</button></p>
-
-    <section v-if="failed.length" class="failed">
-      <strong>Not changed:</strong>
-      <ul><li v-for="f in failed" :key="f.name + f.reason">{{ f.name }}: {{ f.reason }}</li></ul>
-      <button type="button" class="link" @click="failed = []">Dismiss</button>
-    </section>
-
-    <!-- TABLE -->
-    <section class="list-card">
-      <div v-if="loading && !result" class="list-state">Loading wage adjustments...</div>
-      <div v-else-if="!rows.length" class="list-state">
-        <strong>No wage adjustments here</strong>
-        <span>Apply a published wage order to employees to create them.</span>
+    <!-- FILTERS -->
+    <div class="filters">
+      <div class="tabs" role="tablist" aria-label="Status">
+        <button
+          v-for="t in TABS"
+          :key="t.key"
+          type="button"
+          role="tab"
+          :aria-selected="filters.status === t.key"
+          :class="{ on: filters.status === t.key }"
+          @click="filters.status = t.key"
+        >
+          {{ t.label }}<span v-if="t.key !== 'all'" class="count">{{ stats[t.key as WageAdjustmentStatus] }}</span>
+        </button>
       </div>
+      <select v-model="filters.region" aria-label="Region">
+        <option value="">All Regions</option>
+        <option v-for="r in regions" :key="r.code" :value="r.code">{{ r.name }}</option>
+      </select>
+      <select v-model="filters.department_id" aria-label="Department">
+        <option value="">All Departments</option>
+        <option v-for="d in result?.departments ?? []" :key="d.id" :value="d.id">{{ d.name }}</option>
+      </select>
+      <label class="search">
+        <Search :size="16" />
+        <input v-model="filters.search" type="search" placeholder="Search employee or wage order no..." aria-label="Search">
+      </label>
+    </div>
 
-      <div v-else class="table-wrap" :class="{ dimmed: loading }">
-        <table class="table">
+    <!-- GROUPS -->
+    <div v-if="loading && !result" class="state">Loading wage adjustments...</div>
+    <div v-else-if="!groups.length" class="state">
+      <MapPin :size="26" />
+      <strong>{{ filters.status === 'pending' ? 'No pending wage adjustments' : 'Nothing here' }}</strong>
+      <span>When a region gets a new minimum wage, click <b>New Minimum Wage</b> to adjust the salaries of its employees.</span>
+      <AppButton :icon="Plus" @click="showWizard = true">New Minimum Wage</AppButton>
+    </div>
+
+    <section v-for="g in groups" v-else :key="g.orderId" class="group" :class="{ dim: loading }">
+      <header class="group-head">
+        <button type="button" class="expand" :aria-expanded="open.has(g.orderId)" :aria-controls="`grp-${g.orderId}`" @click="toggleOpen(g.orderId)">
+          <ChevronDown :size="18" :class="{ turned: open.has(g.orderId) }" />
+        </button>
+        <span class="pin"><MapPin :size="18" /></span>
+        <div class="title" @click="toggleOpen(g.orderId)">
+          <strong>{{ g.regionName }}</strong>
+          <small>
+            {{ g.orderNo }}
+            <template v-if="g.order?.headline"> · {{ g.order.headline.previous_rate ? `${peso(g.order.headline.previous_rate)} → ` : '' }}{{ peso(g.order.headline.new_rate) }}/day</template>
+            <template v-if="g.order?.effective_date"> · effective {{ wageDate(g.order.effective_date) }}</template>
+          </small>
+        </div>
+        <div class="figures">
+          <span><b>{{ g.rows.length }}</b> employee(s)</span>
+          <span class="inc">+{{ peso(g.increase) }}</span>
+        </div>
+        <div class="group-actions">
+          <template v-if="g.pending.length">
+            <button type="button" class="btn danger-ghost" :disabled="!!busy" @click="run(`rej-${g.orderId}`, 'reject', g.pending, `Reject ${g.pending.length} pending adjustment(s) for ${g.regionName}? Salaries stay unchanged.`)">Reject all</button>
+            <button type="button" class="btn primary" :disabled="!!busy" @click="run(`app-${g.orderId}`, 'approve', g.pending)">
+              {{ busy === `app-${g.orderId}` ? 'Approving...' : `Approve all (${g.pending.length})` }}
+            </button>
+          </template>
+          <button v-if="g.applicable.length" type="button" class="btn success" :disabled="!!busy" @click="run(`apl-${g.orderId}`, 'apply', g.applicable, `Apply ${g.applicable.length} approved adjustment(s)? Salary Rates will use the new salary.`)">
+            {{ busy === `apl-${g.orderId}` ? 'Applying...' : `Apply all (${g.applicable.length})` }}
+          </button>
+          <span v-if="g.waitingDate.length && !g.applicable.length" class="hint">Apply from {{ wageDate(g.waitingDate[0]!.effective_date) }}</span>
+        </div>
+      </header>
+
+      <div v-show="open.has(g.orderId)" :id="`grp-${g.orderId}`" class="table-wrap">
+        <table class="rows">
           <thead>
             <tr>
-              <th scope="col" class="check-col">
-                <input type="checkbox" :checked="allSelected" :disabled="!rows.some(actionable)" aria-label="Select all" @change="toggleAll">
-              </th>
               <th scope="col">Employee</th>
               <th scope="col">Department</th>
-              <th scope="col">Wage Order</th>
-              <th scope="col">Previous</th>
-              <th scope="col">New Salary</th>
-              <th scope="col">Increase</th>
+              <th scope="col" class="num">Previous</th>
+              <th scope="col" class="num">New Salary</th>
+              <th scope="col" class="num">Increase</th>
               <th scope="col">Effective</th>
               <th scope="col">Status</th>
+              <th scope="col"><span class="sr-only">Actions</span></th>
             </tr>
           </thead>
           <tbody>
-            <tr v-for="r in rows" :key="r.id" :class="{ selected: selected.has(r.id) }">
-              <td class="check-col">
-                <input type="checkbox" :checked="selected.has(r.id)" :disabled="!actionable(r)" :aria-label="`Select ${r.name}`" @change="toggle(r)">
-              </td>
-              <td>
-                <strong>{{ r.name }}</strong>
-                <small>{{ r.emp_id }}<template v-if="r.position"> · {{ r.position }}</template></small>
-              </td>
+            <tr v-for="r in g.rows" :key="r.id">
+              <td><strong class="name">{{ r.name }}</strong><small>{{ r.emp_id }} · {{ r.position ?? '—' }}</small></td>
               <td>{{ r.department ?? '—' }}</td>
-              <td>
-                <button type="button" class="link" @click="router.push(`/admin/settings/compensation/wage-orders/${r.wage_order_id}`)">{{ r.order_no }}</button>
-              </td>
-              <td>{{ peso(r.previous_salary) }}<small>{{ r.salary_type }}</small></td>
-              <td><strong>{{ peso(r.new_salary) }}</strong></td>
-              <td class="good">+{{ peso(r.increase) }}</td>
-              <td>
-                {{ wageDate(r.effective_date) }}
-                <small v-if="r.status === 'approved' && !r.can_apply_now">Can apply on this date</small>
-              </td>
-              <td>
-                <span class="status" :class="r.status">{{ statusLabel[r.status] }}</span>
-                <small v-if="r.approved_by">by {{ r.approved_by }}</small>
+              <td class="num">{{ peso(r.previous_salary) }}<small>{{ r.salary_type }}</small></td>
+              <td class="num strong">{{ peso(r.new_salary) }}</td>
+              <td class="num inc">+{{ peso(r.increase) }}</td>
+              <td>{{ wageDate(r.effective_date) }}</td>
+              <td><span class="pill" :class="r.status">{{ statusLabel[r.status] }}</span></td>
+              <td class="row-actions">
+                <template v-if="r.status === 'pending'">
+                  <button type="button" class="link" :disabled="!!busy" @click="run(`a-${r.id}`, 'approve', [r])">Approve</button>
+                  <button type="button" class="link danger" :disabled="!!busy" @click="run(`r-${r.id}`, 'reject', [r], `Reject the adjustment for ${r.name}?`)">Reject</button>
+                  <button type="button" class="icon-btn" :disabled="!!busy" :aria-label="`Delete adjustment for ${r.name}`" @click="remove(r)"><Trash2 :size="14" /></button>
+                </template>
+                <button v-else-if="r.status === 'approved' && r.can_apply_now" type="button" class="link" :disabled="!!busy" @click="run(`p-${r.id}`, 'apply', [r])">Apply</button>
+                <span v-else-if="r.status === 'approved'" class="hint">from {{ wageDate(r.effective_date) }}</span>
               </td>
             </tr>
           </tbody>
@@ -277,84 +319,81 @@ const statusLabel: Record<WageAdjustmentStatus, string> = {
       </div>
     </section>
 
-    <!-- BULK BAR -->
-    <section v-if="selected.size" class="bulk-bar">
-      <span><strong>{{ selected.size }}</strong> selected</span>
-      <div class="bulk-actions">
-        <AppButton variant="secondary" :icon="XCircle" :disabled="!toApprove.length" @click="confirm = 'reject'">
-          Reject {{ toApprove.length || '' }}
-        </AppButton>
-        <AppButton variant="secondary" :icon="CheckCircle2" :disabled="!toApprove.length" @click="confirm = 'approve'">
-          Approve {{ toApprove.length || '' }}
-        </AppButton>
-        <AppButton :icon="CircleCheckBig" :disabled="!toApply.length" @click="confirm = 'apply'">
-          Apply {{ toApply.length || '' }}
-        </AppButton>
-      </div>
-    </section>
-
-    <AppConfirmModal
-      v-if="confirm"
-      :title="ACTIONS[confirm].title(targets.length)"
-      :message="ACTIONS[confirm].message"
-      :confirm-label="ACTIONS[confirm].label"
-      :danger="ACTIONS[confirm].danger"
-      :busy="acting"
-      :error="actionError"
-      @close="confirm = null"
-      @confirm="run"
-    />
+    <NewMinimumWageWizard v-if="showWizard" @close="showWizard = false" @done="onWizardDone" />
   </section>
 </template>
 
 <style scoped>
-.adjust-page { width: 100%; max-width: 1660px; margin: 0 auto; display: grid; gap: 14px; padding-bottom: 80px; }
-.stats-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
+.wa-page { display: grid; gap: 14px; width: 100%; max-width: 1500px; margin: 0 auto; }
 
-.filters-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--bg-card); }
-.segmented { display: inline-flex; flex-wrap: wrap; padding: 3px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg-card-soft); }
-.segmented button { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border: 0; border-radius: 7px; background: transparent; color: var(--text-secondary); font-family: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
-.segmented button.active { background: var(--primary-soft); color: var(--text-primary); }
-.segmented .count { padding: 1px 7px; border-radius: 999px; background: var(--bg-card); color: var(--text-primary); font-size: 10px; }
-.select-wrap { position: relative; min-width: 170px; }
-.select-wrap select { width: 100%; height: 40px; padding: 0 34px 0 12px; border: 1px solid var(--border); border-radius: 9px; background: var(--bg-card-soft); color: var(--text-primary); font-family: inherit; font-size: 12px; appearance: none; }
-.select-icon { position: absolute; top: 50%; right: 10px; transform: translateY(-50%); color: var(--text-muted); pointer-events: none; }
-.search-box { display: flex; flex: 1; min-width: 200px; height: 40px; align-items: center; gap: 8px; padding: 0 12px; border: 1px solid var(--border); border-radius: 9px; background: var(--bg-card-soft); color: var(--text-muted); }
-.search-box input { width: 100%; border: 0; background: transparent; color: var(--text-primary); font-family: inherit; font-size: 12px; outline: none; }
-.search-box:focus-within, .select-wrap select:focus-visible { border-color: var(--primary); outline: none; }
-.segmented button:focus-visible, .link:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.stat { display: flex; align-items: center; gap: 12px; padding: 16px; border: 1px solid var(--border); border-radius: 12px; background: var(--bg-card); color: inherit; font-family: inherit; text-align: left; cursor: pointer; }
+.stat.on { border-color: var(--primary); box-shadow: 0 0 0 1px var(--primary); }
+.stat > span:last-child { display: grid; gap: 2px; }
+.stat small { color: var(--text-secondary); font-size: 11px; }
+.stat strong { color: var(--text-primary); font-size: 22px; line-height: 1.1; }
+.stat em { color: var(--text-muted); font-size: 10px; font-style: normal; }
+.icon { display: grid; width: 40px; height: 40px; flex-shrink: 0; place-items: center; border-radius: 10px; }
+.icon.blue { background: var(--primary-soft); color: var(--primary); }
+.icon.green { background: var(--green-soft); color: var(--green); }
+.icon.orange { background: var(--orange-soft); color: var(--orange); }
+.icon.purple { background: var(--purple-soft); color: var(--purple); }
 
-.load-error { margin: 0; padding: 10px 12px; border-radius: 9px; background: var(--red-soft); color: var(--red); font-size: 13px; }
-.load-error button { margin-left: 8px; border: 0; background: transparent; color: var(--primary); font-family: inherit; cursor: pointer; }
+.filters { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--bg-card); }
+.tabs { display: flex; gap: 4px; padding: 4px; border-radius: 10px; background: var(--bg-card-soft); }
+.tabs button { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border: 0; border-radius: 8px; background: transparent; color: var(--text-secondary); font-family: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
+.tabs button.on { background: var(--bg-card); color: var(--text-primary); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15); }
+.count { padding: 0 6px; border-radius: 999px; background: var(--border); font-size: 10px; }
+.filters select, .search { height: 40px; border: 1px solid var(--border); border-radius: 9px; background: var(--bg-card-soft); color: var(--text-primary); font-family: inherit; font-size: 13px; }
+.filters select { padding: 0 10px; }
+.search { display: flex; min-width: 220px; flex: 1; align-items: center; gap: 8px; padding: 0 12px; color: var(--text-muted); }
+.search input { width: 100%; height: 100%; border: 0; outline: 0; background: transparent; color: var(--text-primary); font-family: inherit; font-size: 13px; }
 
-.failed { padding: 12px 14px; border: 1px solid color-mix(in srgb, var(--orange) 40%, var(--border)); border-radius: 10px; background: var(--orange-soft); color: var(--orange); font-size: 12px; }
-.failed ul { margin: 6px 0; padding-left: 18px; }
+.state { display: flex; min-height: 220px; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 24px; border: 1px solid var(--border); border-radius: 12px; background: var(--bg-card); color: var(--text-muted); font-size: 13px; text-align: center; }
+.state strong { color: var(--text-primary); font-size: 15px; }
 
-.list-card { overflow: hidden; border: 1px solid var(--border); border-radius: 12px; background: var(--bg-card); }
-.list-state { display: flex; min-height: 200px; flex-direction: column; align-items: center; justify-content: center; gap: 6px; color: var(--text-muted); font-size: 13px; }
-.list-state strong { color: var(--text-primary); font-size: 15px; }
-.dimmed { opacity: 0.6; }
+.group { overflow: hidden; border: 1px solid var(--border); border-radius: 12px; background: var(--bg-card); }
+.group.dim { opacity: 0.6; }
+.group-head { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 14px 16px; }
+.expand { display: grid; width: 32px; height: 32px; place-items: center; border: 1px solid var(--border); border-radius: 8px; background: transparent; color: var(--text-secondary); cursor: pointer; }
+.expand svg { transition: transform 0.15s ease; transform: rotate(-90deg); }
+.expand svg.turned { transform: rotate(0deg); }
+.pin { display: grid; width: 38px; height: 38px; place-items: center; border-radius: 10px; background: var(--primary-soft); color: var(--primary); }
+.title { display: grid; min-width: 220px; flex: 1; gap: 2px; cursor: pointer; }
+.title strong { color: var(--text-primary); font-size: 15px; }
+.title small { color: var(--text-secondary); font-size: 12px; }
+.figures { display: flex; gap: 16px; color: var(--text-secondary); font-size: 13px; }
+.figures b { color: var(--text-primary); }
+.inc { color: var(--green); font-weight: 700; }
+.group-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.btn { height: 36px; padding: 0 14px; border-radius: 9px; font-family: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
+.btn.primary { border: 0; background: var(--primary); color: #fff; }
+.btn.success { border: 0; background: var(--green); color: #fff; }
+.btn.danger-ghost { border: 1px solid var(--red); background: transparent; color: var(--red); }
+.btn:disabled { opacity: 0.6; cursor: not-allowed; }
+.hint { color: var(--text-muted); font-size: 11px; }
 
-.table-wrap { overflow-x: auto; }
-.table { width: 100%; min-width: 1100px; border-collapse: collapse; font-size: 13px; }
-.table th { padding: 12px; color: var(--text-secondary); font-size: 11px; font-weight: 700; text-align: left; text-transform: uppercase; letter-spacing: 0.05em; }
-.table td { padding: 12px; border-top: 1px solid var(--border-soft); color: var(--text-secondary); vertical-align: middle; }
-.table td strong { color: var(--text-primary); }
-.table td small { display: block; margin-top: 3px; color: var(--text-muted); font-size: 11px; }
-.check-col { width: 40px; text-align: center !important; }
-.check-col input { width: 16px; height: 16px; cursor: pointer; accent-color: var(--primary); }
-tr.selected { background: color-mix(in srgb, var(--primary-soft) 45%, transparent); }
-.good { color: var(--green) !important; font-weight: 600; }
-.link { padding: 0; border: 0; background: transparent; color: var(--primary); font-family: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+.table-wrap { overflow-x: auto; border-top: 1px solid var(--border-soft); }
+.rows { width: 100%; min-width: 960px; border-collapse: collapse; font-size: 12px; }
+.rows th { padding: 10px 16px; color: var(--text-secondary); font-size: 10px; font-weight: 700; letter-spacing: 0.04em; text-align: left; text-transform: uppercase; }
+.rows td { padding: 10px 16px; border-top: 1px solid var(--border-soft); color: var(--text-secondary); vertical-align: middle; }
+.rows td small { display: block; margin-top: 2px; color: var(--text-muted); font-size: 10px; }
+.name { color: var(--text-primary); }
+.num { font-variant-numeric: tabular-nums; text-align: right !important; white-space: nowrap; }
+.strong { color: var(--text-primary); font-weight: 700; }
+.pill { padding: 3px 9px; border-radius: 999px; font-size: 10px; font-weight: 700; }
+.pill.pending { background: var(--orange-soft); color: var(--orange); }
+.pill.approved { background: var(--primary-soft); color: var(--primary); }
+.pill.applied { background: var(--green-soft); color: var(--green); }
+.pill.rejected { background: var(--red-soft); color: var(--red); }
+.row-actions { display: flex; align-items: center; justify-content: flex-end; gap: 10px; }
+.link { padding: 0; border: 0; background: transparent; color: var(--primary); font-family: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
+.link.danger { color: var(--red); }
+.icon-btn { display: grid; width: 28px; height: 28px; place-items: center; border: 1px solid var(--border); border-radius: 7px; background: transparent; color: var(--text-muted); cursor: pointer; }
+.icon-btn:hover { border-color: var(--red); color: var(--red); }
+button:focus-visible, select:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
-.status { display: inline-block; padding: 4px 10px; border-radius: 999px; font-size: 11px; font-weight: 700; }
-.status.pending { background: var(--orange-soft); color: var(--orange); }
-.status.approved { background: var(--primary-soft); color: var(--primary); }
-.status.applied { background: var(--green-soft); color: var(--green); }
-.status.rejected { background: var(--red-soft); color: var(--red); }
-
-.bulk-bar { position: sticky; bottom: 12px; z-index: 5; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; border: 1px solid var(--border); border-radius: 12px; background: var(--bg-card); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25); font-size: 13px; }
-.bulk-actions { display: flex; flex-wrap: wrap; gap: 8px; }
-
-@media (max-width: 1000px) { .stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 1000px) { .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (prefers-reduced-motion: reduce) { .expand svg { transition: none; } }
 </style>

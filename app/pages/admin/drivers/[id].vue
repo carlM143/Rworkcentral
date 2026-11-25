@@ -26,6 +26,10 @@ import {
   type TripTicketStatus,
 } from '~/composables/admin/drivers/useTripTicketApi'
 
+// Success messages show as a toast, like the other modules.
+const { success: toastSuccess } = useToast()
+
+
 definePageMeta({
   layout: 'admin',
 })
@@ -103,9 +107,9 @@ watch(scheduleDate, loadSchedule)
 const editOpen = ref(false)
 const flash = ref('')
 
-const onEdited = async (_driver: DriverRecord, message: string) => {
+const onEdited = async (driver: DriverRecord, _message: string) => {
   editOpen.value = false
-  flash.value = message
+  toastSuccess('Driver updated', `Changes to ${driver.employee.name} were saved.`)
   await load()
 }
 
@@ -200,10 +204,6 @@ const openTicket = (ticketNo: string) => {
       </AppButton>
     </PageHeader>
 
-    <p v-if="flash" class="flash" role="status">
-      {{ flash }}
-      <button type="button" class="flash-close" aria-label="Dismiss" @click="flash = ''">×</button>
-    </p>
 
     <DriverEditModal
       v-if="editOpen && driver"

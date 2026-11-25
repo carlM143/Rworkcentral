@@ -164,6 +164,14 @@ const goBack = () => router.push('/employee/requests/oba-requests')
 
 onMounted(load)
 watch(requestId, load)
+
+// Success messages show as a toast, like the other modules.
+const { success: toastSuccess } = useToast()
+watch(notice, (value) => {
+  if (!value) return
+  toastSuccess(/cancel/i.test(value) ? 'OBA request cancelled' : 'OBA request updated', value)
+  notice.value = ''
+}, { immediate: true })
 </script>
 
 <template>
@@ -177,7 +185,6 @@ watch(requestId, load)
       </div>
     </header>
 
-    <p v-if="notice" class="feedback" role="status">{{ notice }}</p>
     <p v-if="errorMessage" class="form-error" role="alert">{{ errorMessage }}</p>
     <p v-if="loading" class="state">Loading...</p>
 

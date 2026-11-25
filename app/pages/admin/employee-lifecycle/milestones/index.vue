@@ -15,6 +15,7 @@ import {
   Eye,
 } from 'lucide-vue-next'
 import StatCard from '~/components/shared/StatCard.vue'
+import BaseDataTable from '~/components/shared-table/BaseDataTable.vue'
 import TableActionMenu from '~/components/shared-table/TableActionMenu.vue'
 import AppButton from '~/components/ui/AppButton.vue'
 import AppInput from '~/components/ui/AppInput.vue'
@@ -352,7 +353,6 @@ const handleExport = async () => {
 
 <template>
   <section class="lifecycle-page">
-    <p v-if="loading" role="status">Loading employee milestones…</p>
     <p v-if="errorMessage" role="alert">{{ errorMessage }} <button @click="reloadMilestones">Retry</button></p>
     <!-- PAGE HEADER -->
     <PageHeader
@@ -438,42 +438,32 @@ const handleExport = async () => {
     </div>
 
     <!-- TABLE CARD -->
-    <article class="table-card">
-      <div class="table-heading">
-        <div>
-          <h3>Employee Milestones</h3>
-          <p>The regularization review window follows the lifecycle policy. HR records the effective date manually.</p>
-        </div>
+    <BaseDataTable
+      title="Employee Milestones"
+      description="The regularization review window follows the lifecycle policy. HR records the effective date manually."
+      :has-rows="paginatedMilestones.length > 0"
+      :loading="loading"
+      min-width="1000px"
+      empty-title="No employee milestones found"
+      empty-description="Try adjusting your search criteria or filters."
+    >
+      <template #heading-actions>
         <span class="record-count">
           {{ meta.total }}
           {{ meta.total === 1 ? 'Record' : 'Records' }}
         </span>
-      </div>
+      </template>
 
-      <div class="table-scroll">
-        <table>
-          <thead>
-            <tr>
+      <template #headers>
               <th>Employee</th>
               <th>Department</th>
               <th>Milestone</th>
               <th>Target Date</th>
               <th>Status</th>
               <th class="actions-heading">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-if="paginatedMilestones.length === 0">
-              <td colspan="6">
-                <div class="empty-state">
-                  <div class="empty-icon">
-                    <FileCheck :size="24" />
-                  </div>
-                  <strong>No employee milestones found</strong>
-                  <span>Try adjusting your search criteria or filters.</span>
-                </div>
-              </td>
-            </tr>
+            </template>
+
+      <template #rows>
             <tr v-for="milestone in paginatedMilestones" :key="milestone.id">
               <!-- EMPLOYEE CELL -->
               <td class="employee-cell">
@@ -520,12 +510,11 @@ const handleExport = async () => {
                 />
               </td>
             </tr>
-          </tbody>
-        </table>
-      </div>
+          </template>
+    </BaseDataTable>
 
-      <!-- PAGINATION -->
-      <div class="table-footer">
+    <!-- PAGINATION (below the table, like other modules) -->
+    <div class="lc-table-footer">
         <p>
           Showing
           <strong>{{ showingFrom }}–{{ showingTo }}</strong>
@@ -538,7 +527,6 @@ const handleExport = async () => {
           :total-pages="totalPages"
         />
       </div>
-    </article>
 
     <dialog
       ref="detailsDialog"
@@ -1256,4 +1244,10 @@ tbody tr:hover {
   border-color: var(--primary);
 }
 
+
+/* Pagination below the table card, same as other modules */
+.lc-table-footer { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 13px 3px 0; }
+.lc-table-footer p { margin: 0; color: var(--text-muted); font-size: 12px; }
+.lc-table-footer strong { color: var(--text-primary); font-weight: 650; }
+@media (max-width: 650px) { .lc-table-footer { align-items: flex-start; flex-direction: column; } }
 </style>

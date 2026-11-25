@@ -22,6 +22,10 @@ import {
   type WfhMenuItem,
 } from '~/composables/admin/wfh/useWfhFormat'
 
+// Success messages show as a toast, like the other modules.
+const { success: toastSuccess } = useToast()
+
+
 type DocMode = 'days' | 'upload' | 'request' | 'history'
 
 const STATUS_LABELS: Record<string, string> = {
@@ -130,7 +134,7 @@ const handleCancelConfirm = async (id: number) => {
     const index = records.value.findIndex(r => r.id === id)
     if (index >= 0) records.value[index] = res.data
     status.value = 'cancelled'
-    flash.value = res?.message || 'Work From Home request was cancelled successfully.'
+    toastSuccess('WFH request cancelled', res?.message || 'The request was cancelled.')
     cancelRecord.value = null
   } catch (error: unknown) {
     cancelError.value = wfhErrorMessage(error, 'Failed to cancel WFH request.')
@@ -142,7 +146,7 @@ const handleCancelConfirm = async (id: number) => {
 const onUpdated = (record: WfhDocumentRecord, message?: string) => {
   const index = records.value.findIndex(r => r.id === record.id)
   if (index >= 0) records.value[index] = record
-  if (message) flash.value = message
+  if (message) toastSuccess('WFH request updated', message)
 }
 
 const exportCsv = () => {
@@ -179,10 +183,6 @@ const exportCsv = () => {
       />
     </div>
 
-    <p v-if="flash" class="flash" role="status">
-      <Check :size="15" /> {{ flash }}
-      <button type="button" class="flash-close" aria-label="Dismiss" @click="flash = ''"><X :size="15" /></button>
-    </p>
 
     <WfhFilters
       v-model:search="search"

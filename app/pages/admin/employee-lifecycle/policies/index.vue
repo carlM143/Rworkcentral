@@ -9,9 +9,12 @@ import {
   Layers,
   Edit2,
   Trash2,
+  Power,
   X,
 } from 'lucide-vue-next'
 import StatCard from '~/components/shared/StatCard.vue'
+import BaseDataTable from '~/components/shared-table/BaseDataTable.vue'
+import TableActionMenu from '~/components/shared-table/TableActionMenu.vue'
 import AppButton from '~/components/ui/AppButton.vue'
 import AppInput from '~/components/ui/AppInput.vue'
 import AppSelect from '~/components/ui/AppSelect.vue'
@@ -149,11 +152,23 @@ const handleExport = () => {
   link.remove()
   URL.revokeObjectURL(url)
 }
+
+// Three-dot row menu, same as other modules.
+const policyActions = (policy: LifecyclePolicy) => [
+  { key: 'edit', label: 'Edit Policy', icon: Edit2 },
+  { key: 'toggle', label: policy.status ? 'Deactivate' : 'Activate', icon: Power },
+  { key: 'delete', label: 'Delete Policy', icon: Trash2, danger: true, dividerBefore: true },
+]
+
+const handlePolicyAction = (key: string, policy: LifecyclePolicy) => {
+  if (key === 'edit') openEditModal(policy)
+  else if (key === 'toggle') void togglePolicyStatus(policy.id)
+  else if (key === 'delete') policyToDelete.value = policy
+}
 </script>
 
 <template>
   <section class="lifecycle-page">
-    <p v-if="loading" role="status">Loading lifecycle policies…</p>
     <p v-if="errorMessage" role="alert">{{ errorMessage }} <button type="button" @click="load">Retry</button></p>
     <!-- PAGE HEADER -->
     <PageHeader
@@ -234,22 +249,23 @@ const handleExport = () => {
     </div>
 
     <!-- TABLE CARD -->
-    <article class="table-card">
-      <div class="table-heading">
-        <div>
-          <h3>Lifecycle Policies</h3>
-          <p>Define lifecycle policies and assign them to employment categories.</p>
-        </div>
+    <BaseDataTable
+      title="Lifecycle Policies"
+      description="Define lifecycle policies and assign them to employment categories."
+      :has-rows="paginatedPolicies.length > 0"
+      :loading="loading"
+      min-width="1100px"
+      empty-title="No lifecycle policies found"
+      empty-description="Try adjusting your search criteria or filters."
+    >
+      <template #heading-actions>
         <span class="record-count">
           {{ filteredPolicies.length }}
           {{ filteredPolicies.length === 1 ? 'Record' : 'Records' }}
         </span>
-      </div>
+      </template>
 
-      <div class="table-scroll">
-        <table>
-          <thead>
-            <tr>
+      <template #headers>
               <th>Policy Name & Description</th>
               <th>Employment Type</th>
               <th>Stages</th>
@@ -257,20 +273,9 @@ const handleExport = () => {
               <th>Status</th>
               <th>Updated</th>
               <th class="actions-heading">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-if="paginatedPolicies.length === 0">
-              <td colspan="7">
-                <div class="empty-state">
-                  <div class="empty-icon">
-                    <FileText :size="24" />
-                  </div>
-                  <strong>No lifecycle policies found</strong>
-                  <span>Try adjusting your search criteria or filters.</span>
-                </div>
-              </td>
-            </tr>
+            </template>
+
+      <template #rows>
             <tr v-for="policy in paginatedPolicies" :key="policy.id">
               <td>
                 <div class="policy-info">
@@ -294,47 +299,27 @@ const handleExport = () => {
                 <span class="meta-text">{{ policy.creatorName }}</span>
               </td>
               <td>
-                <button
-                  type="button"
-                  class="status-badge cursor-pointer"
-                  :class="policy.status ? 'completed' : 'on-hold'"
-                  @click="togglePolicyStatus(policy.id)"
-                  title="Click to toggle status"
-                >
+                <span class="status-badge" :class="policy.status ? 'completed' : 'on-hold'">
                   <span class="status-dot" />
                   {{ policy.status ? 'Active' : 'Inactive' }}
-                </button>
+                </span>
               </td>
               <td>
                 <span class="meta-text">{{ policy.updatedAt }}</span>
               </td>
               <td class="actions-cell">
-                <div class="actions-group">
-                  <button
-                    type="button"
-                    class="action-icon-btn edit"
-                    title="Edit Policy"
-                    @click="openEditModal(policy)"
-                  >
-                    <Edit2 :size="15" />
-                  </button>
-                  <button
-                    type="button"
-                    class="action-icon-btn delete"
-                    title="Delete Policy"
-                    @click="policyToDelete = policy"
-                  >
-                    <Trash2 :size="15" />
-                  </button>
-                </div>
+                <TableActionMenu
+                  :items="policyActions(policy)"
+                  :label="`Actions for ${policy.name}`"
+                  @select="handlePolicyAction($event, policy)"
+                />
               </td>
             </tr>
-          </tbody>
-        </table>
-      </div>
+          </template>
+    </BaseDataTable>
 
-      <!-- PAGINATION -->
-      <div class="table-footer">
+    <!-- PAGINATION (below the table, like other modules) -->
+    <div class="lc-table-footer">
         <p>
           Showing
           <strong>{{ showingFrom }}–{{ showingTo }}</strong>
@@ -347,7 +332,6 @@ const handleExport = () => {
           :total-pages="totalPages"
         />
       </div>
-    </article>
 
     <!-- ADD/EDIT MODAL -->
     <Teleport to="body">
@@ -960,4 +944,10 @@ tbody tr:hover {
   border-top: 1px solid var(--border-soft);
   background: var(--bg-card-soft);
 }
+
+/* Pagination below the table card, same as other modules */
+.lc-table-footer { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 13px 3px 0; }
+.lc-table-footer p { margin: 0; color: var(--text-muted); font-size: 12px; }
+.lc-table-footer strong { color: var(--text-primary); font-weight: 650; }
+@media (max-width: 650px) { .lc-table-footer { align-items: flex-start; flex-direction: column; } }
 </style>

@@ -78,6 +78,30 @@ const handleReject = async (id: number, reason: string) => {
   success('OBA Request Rejected', res.message || 'OBA request rejected.')
 }
 
+// Supervisor (department head) step from this page; HR approves after.
+const { $api } = useNuxtApp()
+const supervisorBusy = ref(false)
+
+const actAsSupervisor = async (id: number, approve: boolean, remarks?: string) => {
+  supervisorBusy.value = true
+  actionError.value = ''
+  try {
+    const res = await $api<{ message: string }>(
+      `/admin/supervisor-approvals/oba/${id}/${approve ? 'approve' : 'reject'}`,
+      { method: 'PATCH', body: { remarks } },
+    )
+    success(approve ? 'Approved as supervisor' : 'OBA request rejected', approve ? 'HR will give the final approval.' : res.message)
+    await loadRequests()
+    selected.value = requests.value.find(r => r.id === id) ?? null
+  } catch (err) {
+    const e = err as { data?: { message?: string } }
+    actionError.value = e?.data?.message ?? 'Unable to save. Please try again.'
+    showError('Unable to save', actionError.value)
+  } finally {
+    supervisorBusy.value = false
+  }
+}
+
 onMounted(() => { void loadRequests() })
 </script>
 
@@ -143,12 +167,14 @@ onMounted(() => { void loadRequests() })
 
     <ObaRequestDetailsDialog
       :request="selected"
-      :busy="!!selected && actingId === selected.id"
+      :busy="supervisorBusy || (!!selected && actingId === selected.id)"
       :error="actionError"
       :start-with-reject="startWithReject"
       @close="closeDetails"
       @approve="handleApprove"
       @reject="handleReject"
+      @supervisor-approve="id => actAsSupervisor(id, true)"
+      @supervisor-reject="(id, reason) => actAsSupervisor(id, false, reason)"
     />
   </section>
 </template>

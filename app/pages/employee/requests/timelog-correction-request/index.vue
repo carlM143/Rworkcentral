@@ -79,6 +79,14 @@ const cancelRequest = async (id: number) => {
 }
 
 onMounted(() => void loadRequests())
+
+// Submitted / updated message shows as a toast, like the other modules.
+const { success: toastSuccess } = useToast()
+onMounted(() => {
+  if (route.query.submitted === '1') toastSuccess('Time log correction submitted', 'HR will review your request.')
+  else if (route.query.updated === '1') toastSuccess('Request updated', 'Your changes were saved.')
+  if (route.query.submitted || route.query.updated) void navigateTo({ query: {} }, { replace: true })
+})
 </script>
 
 <template>
@@ -94,7 +102,6 @@ onMounted(() => void loadRequests())
     </header>
 
     <p v-if="loadError" class="error-message" role="alert">{{ loadError }}</p>
-    <p v-if="route.query.submitted === '1' || route.query.updated === '1'" class="success-message" role="status">{{ route.query.updated === '1' ? 'Request updated successfully.' : 'Time log correction request submitted successfully.' }}</p>
 
     <TimeLogCorrectionStats :requests="requests" />
 

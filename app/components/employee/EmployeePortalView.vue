@@ -140,6 +140,19 @@ const cancelViewingRequest = async () => {
   }
 }
 
+
+// Success messages show as a toast, like the other modules.
+const { success: toastSuccess } = useToast()
+watch(notice, (value) => {
+  if (!value) return
+  toastSuccess(route.query.submitted === '1' ? 'Request submitted' : /cancel/i.test(value) ? 'Request cancelled' : 'Request updated', value)
+  notice.value = ''
+}, { immediate: true })
+
+// Remove ?submitted=1 so a refresh does not show the toast again.
+onMounted(() => {
+  if (route.query.submitted) void navigateTo({ query: {} }, { replace: true })
+})
 </script>
 
 <template>
@@ -159,7 +172,6 @@ const cancelViewingRequest = async () => {
     <div class="portal-banner"><ClipboardCheck :size="17" /><span><strong>Employee Portal.</strong> Your Leave, Overtime, and Undertime requests are directly synchronized with the HR database.</span></div>
     <details v-if="section === 'dashboard'" class="home-storage-note"><summary>Requests status</summary><p>All requests are submitted and recorded in the database for HR approval.</p></details>
     <p v-if="storageError" class="feedback error" role="alert">{{ storageError }}</p>
-    <p v-if="notice" class="feedback" role="status">{{ notice }}<button aria-label="Dismiss message" @click="notice = ''"><X :size="16" /></button></p>
 
 
     <div v-if="section === 'dashboard'" class="employee-stats">

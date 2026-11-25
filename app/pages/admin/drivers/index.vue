@@ -28,6 +28,10 @@ import {
   type DriverRecord,
 } from '~/composables/admin/drivers/useDriverApi'
 
+// Success messages show as a toast, like the other modules.
+const { success: toastSuccess } = useToast()
+
+
 definePageMeta({
   layout: 'admin',
 })
@@ -188,10 +192,14 @@ const runConfirm = async () => {
   confirmBusy.value = true
   confirmError.value = ''
   try {
-    const response = action === 'deactivate'
-      ? await api.deactivate(driver.id)
-      : await api.activate(driver.id)
-    flash.value = response.message
+    if (action === 'deactivate') await api.deactivate(driver.id)
+    else await api.activate(driver.id)
+    toastSuccess(
+      action === 'deactivate' ? 'Driver deactivated' : 'Driver activated',
+      action === 'deactivate'
+        ? `${driver.employee.name} can no longer be assigned to trip tickets.`
+        : `${driver.employee.name} can be assigned to trip tickets again.`,
+    )
     confirmDriver.value = null
     await load()
   } catch (err) {
@@ -201,9 +209,9 @@ const runConfirm = async () => {
   }
 }
 
-const onSaved = async (_driver: DriverRecord, message: string) => {
+const onSaved = async (driver: DriverRecord, _message: string) => {
   editing.value = null
-  flash.value = message
+  toastSuccess('Driver updated', `Changes to ${driver.employee.name} were saved.`)
   await load()
 }
 </script>
@@ -219,10 +227,6 @@ const onSaved = async (_driver: DriverRecord, message: string) => {
       </AppButton>
     </PageHeader>
 
-    <p v-if="flash" class="flash" role="status">
-      <CheckCircle2 :size="15" /> {{ flash }}
-      <button type="button" class="flash-close" aria-label="Dismiss" @click="flash = ''">×</button>
-    </p>
 
     <section class="stats-grid">
       <DriverStatCard

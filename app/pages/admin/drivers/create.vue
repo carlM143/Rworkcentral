@@ -47,7 +47,6 @@ onMounted(async () => {
 const form = reactive({
   employee_id: null as number | null,
   drivers_code: '',
-  licence_no: '',
   expire_date: '',
 })
 
@@ -107,13 +106,12 @@ const removeImage = () => {
 const checklist = computed(() => [
   { label: 'Employee selected', done: !!form.employee_id },
   { label: 'Driver code assigned', done: !!form.drivers_code.trim() },
-  { label: 'License number entered', done: !!form.licence_no.trim() },
   { label: 'License is valid', done: (daysToExpiry.value ?? 0) > 0 },
   { label: 'License photo uploaded (optional)', done: !!image.value },
 ])
 
 const canSave = computed(() =>
-  !!form.employee_id && !!form.drivers_code.trim() && !!form.licence_no.trim() && (daysToExpiry.value ?? 0) > 0)
+  !!form.employee_id && !!form.drivers_code.trim() && (daysToExpiry.value ?? 0) > 0)
 
 const saveDriver = async () => {
   if (!canSave.value) {
@@ -126,7 +124,6 @@ const saveDriver = async () => {
     await api.store({
       employee_id: form.employee_id!,
       drivers_code: form.drivers_code,
-      licence_no: form.licence_no,
       expire_date: form.expire_date,
       image: image.value,
     })
@@ -180,12 +177,6 @@ const saveDriver = async () => {
             <label for="driver-code">Driver Code <em>*</em></label>
             <input id="driver-code" v-model="form.drivers_code" type="text" placeholder="DRV-007">
             <small class="hint">Suggested automatically. You can change it.</small>
-          </div>
-
-          <!-- LICENSE NO (required by the backend and the Save button) -->
-          <div class="field">
-            <label for="driver-license">License No. <em>*</em></label>
-            <input id="driver-license" v-model="form.licence_no" type="text" placeholder="N03-2025-12345" autocomplete="off">
           </div>
 
           <!-- EXPIRY -->

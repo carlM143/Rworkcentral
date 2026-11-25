@@ -519,6 +519,14 @@ const exportCsv = () => {
 
   closeModal()
 }
+
+// Success messages show as a toast, like the other modules.
+const { success: toastSuccess } = useToast()
+watch(message, (value) => {
+  if (!value) return
+  toastSuccess('Transfer saved', value)
+  message.value = ''
+}, { immediate: true })
 </script>
 
 <template>
@@ -551,9 +559,6 @@ const exportCsv = () => {
       </div>
     </PageHeader>
 
-    <div v-if="message" class="feedback success">
-      <CheckCircle2 :size="16" /> {{ message }}
-    </div>
 
     <div v-if="fetchError" class="feedback error">
       <AlertTriangle :size="16" /> {{ fetchError }}

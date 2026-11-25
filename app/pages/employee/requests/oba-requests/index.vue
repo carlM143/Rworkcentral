@@ -137,6 +137,18 @@ onMounted(() => {
   void loadRequests()
   void loadApprovals()
 })
+
+// Success messages show as a toast, like the other modules.
+const { success: toastSuccess } = useToast()
+watch(notice, (value) => {
+  if (!value) return
+  toastSuccess(/cancel/i.test(value) ? 'OBA request cancelled' : 'OBA request submitted', value)
+  notice.value = ''
+}, { immediate: true })
+
+onMounted(() => {
+  if (route.query.submitted) void navigateTo({ query: {} }, { replace: true })
+})
 </script>
 
 <template>
@@ -157,7 +169,6 @@ onMounted(() => {
     </header>
 
     <p v-if="loadError" class="error-message" role="alert">{{ loadError }}</p>
-    <p v-if="notice" class="success-message" role="status">{{ notice }}</p>
 
     <div class="stats-grid">
       <div class="stat-card"><span>Total Requests</span><strong>{{ requests.length }}</strong><small>Recorded submissions</small></div>

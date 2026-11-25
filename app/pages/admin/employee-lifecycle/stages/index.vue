@@ -9,10 +9,13 @@ import {
   Clock,
   Edit2,
   Trash2,
+  Power,
   X,
   FileSpreadsheet,
 } from 'lucide-vue-next'
 import StatCard from '~/components/shared/StatCard.vue'
+import BaseDataTable from '~/components/shared-table/BaseDataTable.vue'
+import TableActionMenu from '~/components/shared-table/TableActionMenu.vue'
 import AppButton from '~/components/ui/AppButton.vue'
 import AppInput from '~/components/ui/AppInput.vue'
 import AppSelect from '~/components/ui/AppSelect.vue'
@@ -175,11 +178,26 @@ const handleExport = () => {
   link.remove()
   URL.revokeObjectURL(url)
 }
+
+// Three-dot row menu, same as other modules. The managed regularization
+// stage cannot be deleted.
+const stageActions = (stage: LifecycleStage) => [
+  { key: 'edit', label: 'Edit Stage', icon: Edit2 },
+  { key: 'toggle', label: stage.status ? 'Deactivate' : 'Activate', icon: Power },
+  ...(!stage.isManagedRegularization
+    ? [{ key: 'delete', label: 'Delete Stage', icon: Trash2, danger: true, dividerBefore: true }]
+    : []),
+]
+
+const handleStageAction = (key: string, stage: LifecycleStage) => {
+  if (key === 'edit') openEditModal(stage)
+  else if (key === 'toggle') void toggleStageStatus(stage.id)
+  else if (key === 'delete') stageToDelete.value = stage
+}
 </script>
 
 <template>
   <section class="lifecycle-page">
-    <p v-if="loading" role="status">Loading lifecycle stages…</p>
     <p v-if="errorMessage" role="alert">{{ errorMessage }} <button type="button" @click="load">Retry</button></p>
     <!-- PAGE HEADER -->
     <PageHeader
@@ -260,42 +278,32 @@ const handleExport = () => {
     </div>
 
     <!-- TABLE CARD -->
-    <article class="table-card">
-      <div class="table-heading">
-        <div>
-          <h3>Lifecycle Stages</h3>
-          <p>Set stage timing and the probationary review window in months after hire.</p>
-        </div>
+    <BaseDataTable
+      title="Lifecycle Stages"
+      description="Set stage timing and the probationary review window in months after hire."
+      :has-rows="paginatedStages.length > 0"
+      :loading="loading"
+      min-width="1000px"
+      empty-title="No lifecycle stages found"
+      empty-description="Try adjusting your search criteria or filters."
+    >
+      <template #heading-actions>
         <span class="record-count">
           {{ filteredStages.length }}
           {{ filteredStages.length === 1 ? 'Record' : 'Records' }}
         </span>
-      </div>
+      </template>
 
-      <div class="table-scroll">
-        <table>
-          <thead>
-            <tr>
+      <template #headers>
               <th>Stage Name & Code</th>
               <th>Associated Policy</th>
               <th>Window / Trigger (Months After Hire)</th>
               <th>Sequence Order</th>
               <th>Status</th>
               <th class="actions-heading">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-if="paginatedStages.length === 0">
-              <td colspan="6">
-                <div class="empty-state">
-                  <div class="empty-icon">
-                    <Layers :size="24" />
-                  </div>
-                  <strong>No lifecycle stages found</strong>
-                  <span>Try adjusting your search criteria or filters.</span>
-                </div>
-              </td>
-            </tr>
+            </template>
+
+      <template #rows>
             <template v-for="(stage, idx) in paginatedStages" :key="stage.id">
               <tr v-if="isNewPolicyGroup(stage, idx)" class="policy-group-row">
                 <td colspan="6">
@@ -323,46 +331,25 @@ const handleExport = () => {
                 <span class="order-badge">#{{ stage.sortOrder }}</span>
               </td>
               <td>
-                <button
-                  type="button"
-                  class="status-badge cursor-pointer"
-                  :class="stage.status ? 'completed' : 'on-hold'"
-                  @click="toggleStageStatus(stage.id)"
-                  title="Click to toggle status"
-                >
+                <span class="status-badge" :class="stage.status ? 'completed' : 'on-hold'">
                   <span class="status-dot" />
                   {{ stage.status ? 'Active' : 'Inactive' }}
-                </button>
+                </span>
               </td>
               <td class="actions-cell">
-                <div class="actions-group">
-                  <button
-                    type="button"
-                    class="action-icon-btn edit"
-                    title="Edit Stage"
-                    @click="openEditModal(stage)"
-                  >
-                    <Edit2 :size="15" />
-                  </button>
-                  <button
-                    v-if="!stage.isManagedRegularization"
-                    type="button"
-                    class="action-icon-btn delete"
-                    title="Delete Stage"
-                    @click="stageToDelete = stage"
-                  >
-                    <Trash2 :size="15" />
-                  </button>
-                </div>
+                <TableActionMenu
+                  :items="stageActions(stage)"
+                  :label="`Actions for ${stage.stageName}`"
+                  @select="handleStageAction($event, stage)"
+                />
               </td>
               </tr>
             </template>
-          </tbody>
-        </table>
-      </div>
+          </template>
+    </BaseDataTable>
 
-      <!-- PAGINATION -->
-      <div class="table-footer">
+    <!-- PAGINATION (below the table, like other modules) -->
+    <div class="lc-table-footer">
         <p>
           Showing
           <strong>{{ showingFrom }}–{{ showingTo }}</strong>
@@ -375,7 +362,6 @@ const handleExport = () => {
           :total-pages="totalPages"
         />
       </div>
-    </article>
 
     <!-- ADD/EDIT MODAL -->
     <Teleport to="body">
@@ -1043,4 +1029,10 @@ tbody tr:hover {
   border-top: 1px solid var(--border-soft);
   background: var(--bg-card-soft);
 }
+
+/* Pagination below the table card, same as other modules */
+.lc-table-footer { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 13px 3px 0; }
+.lc-table-footer p { margin: 0; color: var(--text-muted); font-size: 12px; }
+.lc-table-footer strong { color: var(--text-primary); font-weight: 650; }
+@media (max-width: 650px) { .lc-table-footer { align-items: flex-start; flex-direction: column; } }
 </style>

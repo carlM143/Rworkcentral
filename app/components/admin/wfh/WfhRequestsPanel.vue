@@ -24,6 +24,10 @@ import {
   type WfhMenuItem,
 } from '~/composables/admin/wfh/useWfhFormat'
 
+// Success messages show as a toast, like the other modules.
+const { success: toastSuccess } = useToast()
+
+
 const STATUS_LABELS: Record<string, string> = {
   pending: 'Pending',
   approved: 'Approved',
@@ -156,7 +160,7 @@ const handleDeleteConfirm = async (id: number) => {
   try {
     const res = await documentApi.cancel(id)
     await load()
-    flash.value = res?.message || 'WFH request cancelled successfully.'
+    toastSuccess('WFH request cancelled', res?.message || 'The request was cancelled.')
     deleteRecord.value = null
   } catch (error: unknown) {
     deleteError.value = wfhErrorMessage(error, 'Failed to cancel WFH request.')
@@ -169,7 +173,7 @@ const onSaved = (record: WfhRequestRecord, message: string) => {
   const index = records.value.findIndex(r => r.id === record.id)
   if (index >= 0) records.value[index] = record
   else records.value.unshift(record)
-  flash.value = message
+  toastSuccess('WFH request saved', message)
   detailRecord.value = null
   createOpen.value = false
 }
@@ -208,10 +212,6 @@ const exportCsv = () => {
       />
     </div>
 
-    <p v-if="flash" class="flash" role="status">
-      <Check :size="15" /> {{ flash }}
-      <button type="button" class="flash-close" aria-label="Dismiss" @click="flash = ''"><X :size="15" /></button>
-    </p>
 
     <WfhFilters
       v-model:search="search"

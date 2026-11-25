@@ -179,6 +179,11 @@ const sectionTitle = (index: number) => {
   return { access: 'Access', employee: 'Employee Portal', admin: 'Admin Portal' }[current]
 }
 
+// Timekeeping "file a request" privileges (correction.request, adjustment.request)
+// are used by the employee portal's own request pages, not the admin portal.
+const isEmployeeRequest = (module: string, feature: string, action: string) =>
+  module === 'timekeeping' && ['corrections', 'late_adjustments'].includes(feature) && action === 'create'
+
 // Modules checked for a portal the role cannot sign in to (e.g. older data).
 const portalWarnings = computed(() => {
   if (!catalog.value || !role.value || role.value.locked) return [] as string[]
@@ -186,7 +191,11 @@ const portalWarnings = computed(() => {
   for (const name of ['admin', 'employee'] as const) {
     const id = portalId(name)
     if (!id || checked.has(id)) continue
-    const used = catalog.value.modules.some(m => m.portal === name && moduleIds(m).some(pid => checked.has(pid)))
+    // "*.request" privileges (e.g. timekeeping correction.request) are used by
+    // the employee portal's own request pages, so they do not count here.
+    const used = catalog.value.modules.some(m => m.portal === name && m.features.some(f =>
+      Object.entries(f.actions).some(([action, pid]) => pid && checked.has(pid) && !isEmployeeRequest(m.key, f.key, action)),
+    ))
     if (used) out.push(name)
   }
   return out

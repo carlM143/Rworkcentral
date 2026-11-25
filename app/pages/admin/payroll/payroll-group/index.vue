@@ -208,6 +208,14 @@ const handleSave = async (
 const handleAssignmentUpdate = async () => {
   await fetchGroups()
 }
+
+// Success messages show as a toast, like the other modules.
+const { success: toastSuccess } = useToast()
+watch(successMessage, (value) => {
+  if (!value) return
+  toastSuccess('Payroll group saved', value)
+  successMessage.value = ''
+}, { immediate: true })
 </script>
 
 <template>
@@ -238,16 +246,6 @@ const handleAssignmentUpdate = async () => {
       </button>
     </div>
 
-    <div
-      v-if="successMessage"
-      class="page-alert success-alert"
-    >
-      <span>{{ successMessage }}</span>
-
-      <button @click="successMessage = ''">
-        ×
-      </button>
-    </div>
 
     <!-- STATISTICS -->
 

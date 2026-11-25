@@ -21,7 +21,6 @@ const today = driverTodayLocal()
 
 const form = reactive({
   drivers_code: props.driver.drivers_code,
-  licence_no: props.driver.licence_no,
   expire_date: props.driver.expire_date,
 })
 
@@ -65,7 +64,6 @@ onBeforeUnmount(() => {
 const submit = async () => {
   error.value = ''
   if (!form.drivers_code.trim()) { error.value = 'Enter the driver code.'; return }
-  if (!form.licence_no.trim()) { error.value = 'Enter the license number.'; return }
   if (!form.expire_date) { error.value = 'Enter the license expiry date.'; return }
 
   saving.value = true
@@ -96,10 +94,6 @@ const submit = async () => {
       <div>
         <label for="de-code">Driver code</label>
         <input id="de-code" v-model="form.drivers_code" type="text" autocomplete="off">
-      </div>
-      <div>
-        <label for="de-licence">License number</label>
-        <input id="de-licence" v-model="form.licence_no" type="text" autocomplete="off">
       </div>
       <div class="full">
         <label for="de-expiry">License expiry</label>

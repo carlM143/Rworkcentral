@@ -388,6 +388,14 @@ watch(
     loadRequest()
   }
 )
+
+// Success messages show as a toast, like the other modules.
+const { success: toastSuccess } = useToast()
+watch(successMessage, (value) => {
+  if (!value) return
+  toastSuccess(/reject/i.test(value) ? 'Correction rejected' : 'Correction reviewed', value)
+  successMessage.value = ''
+}, { immediate: true })
 </script>
 
 <template>
@@ -426,14 +434,6 @@ watch(
     </header>
 
     <!-- Success -->
-    <div
-      v-if="successMessage"
-      class="feedback success-feedback"
-      role="status"
-    >
-      <CheckCircle2 :size="17" />
-      {{ successMessage }}
-    </div>
 
     <!-- Loading -->
     <div

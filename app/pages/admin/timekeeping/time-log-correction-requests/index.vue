@@ -298,6 +298,14 @@ onMounted(fetchRecords)
 onBeforeUnmount(() => {
   if (searchTimer) clearTimeout(searchTimer)
 })
+
+// Success messages show as a toast, like the other modules.
+const { success: toastSuccess } = useToast()
+watch(message, (value) => {
+  if (!value) return
+  toastSuccess(/reject/i.test(value) ? 'Correction rejected' : 'Correction reviewed', value)
+  message.value = ''
+}, { immediate: true })
 </script>
 
 <template>
@@ -317,7 +325,6 @@ onBeforeUnmount(() => {
       @reset="resetFilters"
     />
 
-    <p v-if="message" class="review-success">{{ message }}</p>
     <p v-if="error && !action" class="review-error">{{ error }}</p>
 
     <div v-if="loading && !records.length" class="loading-state">

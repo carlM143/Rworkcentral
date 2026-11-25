@@ -81,6 +81,13 @@ const confirmCancel = async () => {
     cancelTarget.value = null
   }
 }
+
+// Submitted / updated message shows as a toast, like the other modules.
+onMounted(() => {
+  if (route.query.submitted === '1') success('Leave request submitted', 'HR and your supervisor will review it.')
+  else if (route.query.updated === '1') success('Leave request updated', 'Your changes were saved.')
+  if (route.query.submitted || route.query.updated) void navigateTo({ query: {} }, { replace: true })
+})
 </script>
 
 <template>
@@ -98,7 +105,6 @@ const confirmCancel = async () => {
     <p v-if="loadError" class="error-message" role="alert">
       {{ loadError }} <button type="button" @click="load">Retry</button>
     </p>
-    <p v-if="notice" class="success-message" role="status">{{ notice }}</p>
 
     <div class="stats-grid">
       <div v-for="stat in stats" :key="stat.label" class="stat-card">

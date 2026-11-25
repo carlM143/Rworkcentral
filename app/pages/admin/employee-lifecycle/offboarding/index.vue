@@ -67,12 +67,11 @@ const exportRecords = () => {
       <AppButton variant="secondary" :icon="Download" @click="exportRecords">Export</AppButton>
       <AppButton :icon="Plus" @click="open('create')">Start Offboarding</AppButton>
     </PageHeader>
-    <p v-if="loading" role="status">Loading offboarding records…</p>
     <p v-if="errorMessage" role="alert">{{ errorMessage }} <button @click="load">Retry</button></p>
     <OffboardingStats :stats="stats" />
     <OffboardingFilters v-model:search="search" v-model:offboarding-type="offboardingType" v-model:department="department" v-model:status="status"
       :offboarding-types="offboardingTypeOptions" :departments="departmentOptions" :statuses="statusOptions" @reset="resetFilters" />
-    <OffboardingTable :records="paginatedRecords" @view="record => open('view', record)" @edit="record => open('edit', record)" />
+    <OffboardingTable :records="paginatedRecords" :loading="loading" @view="record => open('view', record)" @edit="record => open('edit', record)" />
     <div class="table-footer"><p>Showing <strong>{{ showingFrom }}–{{ showingTo }}</strong> of {{ filteredRecords.length }} records</p><AppPagination v-model="currentPage" :total-pages="totalPages" /></div>
     <Teleport to="body">
       <div v-if="modal" class="exit-overlay" @click.self="close" @keydown.esc="close">
@@ -110,7 +109,9 @@ const exportRecords = () => {
 <style scoped>
 .offboarding-page { max-width: 1680px; margin: 0 auto; }
 .table-footer, .exit-modal header, .exit-modal footer { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
-.table-footer { margin-top: 16px; font-size: 12px; color: var(--text-muted); }
+.table-footer { padding: 13px 3px 0; font-size: 12px; color: var(--text-muted); }
+.table-footer p { margin: 0; }
+.table-footer strong { color: var(--text-primary); font-weight: 650; }
 .exit-overlay { position: fixed; inset: 0; background: #0f172a80; z-index: 1100; display: grid; place-items: center; padding: 20px; }
 .exit-modal { width: min(760px, 100%); max-height: 90vh; overflow-y: auto; background: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border); border-radius: 16px; padding: 24px; box-shadow: var(--shadow); }
 .exit-modal h2 { font-size: 20px; margin: 0; }.exit-modal h3 { font-size: 14px; margin-top: 24px; }
@@ -123,3 +124,4 @@ const exportRecords = () => {
 .exit-modal footer { justify-content: flex-end; margin-top: 24px; }.form-error { color: #dc2626; font-size: 13px; }
 @media (max-width: 600px) { .form-grid, .checklist { grid-template-columns: 1fr; }.exit-modal { padding: 16px; }.table-footer { flex-wrap: wrap; } }
 </style>
+  
