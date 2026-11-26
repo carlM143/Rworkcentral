@@ -53,6 +53,22 @@ const basicPayNote = computed(() => {
   return `${money(p.basic_salary)} monthly ÷ cutoff`
 })
 
+// BIR withholding tax: taxable pay and the bracket used (payroll generated
+// after the withholding tax update; older payroll has no detail).
+const taxNote = computed(() => {
+  const t = props.payroll?.breakdown?.tax
+  if (!t) return ''
+  if (t.minimum_wage_earner) {
+    return `Minimum wage earner · basic, overtime and holiday pay exempt · taxable ${money(t.taxable_compensation)}`
+  }
+  if (!t.table) return t.note ?? 'No tax table for this pay frequency'
+  const b = t.bracket
+  const rule = !b || (!b.rate && !b.base_tax)
+    ? 'below the taxable bracket'
+    : `${b.base_tax ? `${money(b.base_tax)} + ` : ''}${b.rate}% over ${money(b.over)}`
+  return `Taxable pay ${money(t.taxable_compensation)} · ${rule}`
+})
+
 // When the salary changed inside the cut-off: one line per salary segment,
 // e.g. "Nov 16–24 · 2 day(s) × ₱650.00 = ₱1,300.00".
 const segmentLines = computed(() => {
@@ -294,7 +310,10 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 
             <dl class="spaced">
               <div>
-                <dt>Withholding tax</dt>
+                <dt>
+                  Withholding tax
+                  <small v-if="taxNote">{{ taxNote }}</small>
+                </dt>
                 <dd class="minus">− {{ money(payroll.withholding_tax) }}</dd>
               </div>
               <div class="total">

@@ -21,7 +21,7 @@ import {
 definePageMeta({ layout: 'admin' })
 useHead({ title: 'Reports Center | RWorkCentral' })
 
-type SummaryKey = 'attendance' | 'payroll' | 'government' | 'thirteenth_month' | 'wage_compliance'
+type SummaryKey = 'attendance' | 'payroll' | 'government' | 'thirteenth_month' | 'wage_compliance' | 'withholding_tax'
 type Summary = { headline: string, detail: string, state: 'ok' | 'warn' | 'danger' | 'info' | 'empty' }
 
 interface ReportCard {
@@ -42,6 +42,7 @@ const REPORTS: ReportCard[] = [
   { title: 'SSS Report', description: 'Monthly employee, employer and EC contributions for SSS remittance.', to: '/admin/reports/sss', icon: ShieldCheck, privilege: 'government.view', summary: 'government', group: 'Government Remittances', tone: 'blue' },
   { title: 'Pag-IBIG Report', description: 'Monthly employee and employer Pag-IBIG contributions for remittance.', to: '/admin/reports/pagibig', icon: Landmark, privilege: 'government.view', summary: 'government', group: 'Government Remittances', tone: 'orange' },
   { title: 'PhilHealth Report', description: 'Monthly employee and employer PhilHealth premiums for remittance.', to: '/admin/reports/philhealth', icon: FileText, privilege: 'government.view', summary: 'government', group: 'Government Remittances', tone: 'green' },
+  { title: 'Withholding Tax Report', description: 'Tax withheld on compensation per employee for the month; basis for BIR Form 1601-C.', to: '/admin/reports/withholding-tax', icon: Landmark, privilege: 'withholding_tax.view', summary: 'withholding_tax', group: 'Government Remittances', tone: 'purple' },
   { title: 'Wage Compliance', description: 'Each employee’s daily rate against the minimum wage in force for their region.', to: '/admin/reports/wage-compliance', icon: Scale, privilege: 'wage_compliance.view', summary: 'wage_compliance', group: 'Compliance', tone: 'red' },
 ]
 

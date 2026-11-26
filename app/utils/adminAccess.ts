@@ -19,6 +19,13 @@ import {
   WalletCards,
 } from 'lucide-vue-next'
 
+/**
+ * Admin sidebar and the privilege each page needs.
+ * Used by layouts/admin.vue (what to show) and middleware/admin.ts (what
+ * can be opened). A page is allowed when the user has ANY of the listed
+ * privileges of that module. Privileges come from config/privileges.php.
+ */
+
 export interface Access {
   module: string
   names: string[]
@@ -77,11 +84,12 @@ export const ADMIN_MENU: AdminMenuItem[] = [
       { label: 'Payroll Readiness', to: '/admin/payroll/payroll-readiness', access: a('payroll', 'readiness.view') },
       { label: 'Employee Payroll', to: '/admin/payroll/employee-payroll', access: a('payroll', 'employee_payroll.view') },
       { label: 'Payroll History', to: '/admin/payroll/payroll-history', access: a('payroll', 'history.view') },
+      { label: 'Withholding Tax', to: '/admin/payroll/withholding-tax', access: a('payroll', 'withholding_tax.view') },
     ],
   },
   {
     label: 'Compensation', key: 'compensation', icon: Scale,
-        children: [
+    children: [
       { label: 'Wage Adjustments', to: '/admin/settings/compensation/wage-adjustments', access: a('compensation', 'wage_adjustments.view') },
       { label: 'Wage Order History', to: '/admin/settings/compensation/wage-orders', access: a('compensation', 'wage_orders.view') },
       { label: 'Regional Rates', to: '/admin/settings/compensation/regional-rates', access: a('compensation', 'regional_rates.view') },
@@ -141,7 +149,6 @@ export const ADMIN_MENU: AdminMenuItem[] = [
   {
     label: 'Approval Center', key: 'approvals', icon: ClipboardCheck,
     children: [
-      { label: 'For My Approval', to: '/admin/approvals/for-my-approval', access: a('approvals', 'first_level.view') },
       { label: 'Leave Approvals', to: '/admin/approvals/leaves', access: a('approvals', 'leaves.view') },
       { label: 'Overtime Approvals', to: '/admin/approvals/overtime', access: a('approvals', 'overtime.view') },
       { label: 'Undertime Approvals', to: '/admin/approvals/undertime', access: a('approvals', 'undertime.view') },
@@ -177,6 +184,7 @@ export const ADMIN_MENU: AdminMenuItem[] = [
       { label: 'Pag-IBIG Report', to: '/admin/reports/pagibig', access: a('reports', 'government.view') },
       { label: 'PhilHealth Report', to: '/admin/reports/philhealth', access: a('reports', 'government.view') },
       { label: 'Wage Compliance', to: '/admin/reports/wage-compliance', access: a('reports', 'wage_compliance.view') },
+      { label: 'Withholding Tax Report', to: '/admin/reports/withholding-tax', access: a('reports', 'withholding_tax.view') },
     ],
   },
 ]
@@ -217,6 +225,10 @@ const ALL_PAGES: { to: string, access: Access }[] = [
   ...EXTRA_PAGES,
 ]
 
+/**
+ * First page (menu order) the user can open: the landing page for roles
+ * without the Dashboard, e.g. a Supervisor lands on "For My Approval".
+ */
 export const firstAllowedPath = (canAny: (module: string, names: string[]) => boolean): string | null => {
   for (const item of [...ADMIN_MENU, ...SYSTEM_MENU]) {
     if (item.to && item.access && canAny(item.access.module, item.access.names)) return item.to
@@ -226,6 +238,10 @@ export const firstAllowedPath = (canAny: (module: string, names: string[]) => bo
   return null
 }
 
+/**
+ * The privilege a path needs (closest page by path), or null when any admin
+ * user may open it. "/admin" only matches the dashboard itself.
+ */
 export const accessForPath = (path: string): Access | null => {
   const clean = path.replace(/\/+$/, '') || '/'
   if (OPEN_PAGES.some(p => clean === p || clean.startsWith(`${p}/`))) return null

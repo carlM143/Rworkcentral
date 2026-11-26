@@ -35,17 +35,7 @@ const emit = defineEmits<{
   close: []
   approve: [id: number]
   reject: [id: number, reason: string]
-  /** Supervisor (department head) step, for users with "For My Approval". */
-  supervisorApprove: [id: number]
-  supervisorReject: [id: number, reason: string]
 }>()
-
-// A supervisor opening a pending request acts as the department head here,
-// so they do not have to go to For My Approval. HR still gives the final approval.
-const { can } = useAuth()
-const actsAsSupervisor = computed(() =>
-  props.request?.status === 'pending' && can('approvals', 'first_level.approve'),
-)
 
 const dialog = ref<HTMLDialogElement | null>(null)
 
@@ -62,7 +52,10 @@ const step = ref<Step>('view')
 const reason = ref('')
 const reasonError = ref('')
 
-const canApprove = computed(() => props.request?.status === 'dept_head_approved')
+// No supervisor step: HR approves pending requests directly.
+const canApprove = computed(() =>
+  props.request?.status === 'pending' || props.request?.status === 'dept_head_approved',
+)
 const canReject = computed(() =>
   props.request?.status === 'pending' || props.request?.status === 'dept_head_approved',
 )
@@ -81,8 +74,7 @@ const submitReject = () => {
     return
   }
   reasonError.value = ''
-  if (actsAsSupervisor.value) emit('supervisorReject', props.request.id, text)
-  else emit('reject', props.request.id, text)
+  emit('reject', props.request.id, text)
 }
 
 // New request opened: details view, or the reject form if asked for.
@@ -192,23 +184,7 @@ const onCancel = (event: Event) => {
       </div>
 
       <!-- Default footer -->
-      <div v-else-if="actsAsSupervisor" class="dialog-actions">
-        <p class="footer-note">
-          Step 1 of 2: approve as supervisor. HR gives the final approval after you.
-        </p>
-        <button type="button" class="close-button" @click="close">Close</button>
-        <button type="button" class="reject-button" @click="step = 'reject'">
-          <XCircle :size="15" /> Reject
-        </button>
-        <button type="button" class="approve-button" :disabled="busy" @click="emit('supervisorApprove', request.id)">
-          <CheckCircle2 :size="15" /> {{ busy ? 'Approving…' : 'Approve as Supervisor' }}
-        </button>
-      </div>
-
       <div v-else class="dialog-actions">
-        <p v-if="request.status === 'pending'" class="footer-note">
-          Waiting for the supervisor (department head) to approve first, in Approval Center › For My Approval.
-        </p>
         <button type="button" class="close-button" @click="close">Close</button>
         <button v-if="canReject" type="button" class="reject-button" @click="step = 'reject'">
           <XCircle :size="15" /> Reject
@@ -218,7 +194,7 @@ const onCancel = (event: Event) => {
           type="button"
           class="approve-button"
           :disabled="!canApprove"
-          :title="canApprove ? '' : 'The department head must approve first'"
+          :title="canApprove ? '' : 'Only pending requests can be approved'"
           @click="step = 'approve'"
         >
           <CheckCircle2 :size="15" /> Approve

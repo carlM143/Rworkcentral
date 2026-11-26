@@ -1,4 +1,10 @@
 export type Money = string | number
+
+/**
+ * A day with only one punch (time in without time out, or the reverse).
+ * Nothing is deducted: monthly-rate employees are paid the full day,
+ * daily/hourly employees are not paid for it. HR must review these.
+ */
 export interface PayrollIncompleteLog {
   time_log_id: number
   work_date: string | null
@@ -171,6 +177,7 @@ export interface PayrollRecord {
     holiday_days?: PayrollHolidayDay[]
     /** Missing on payrolls generated before salary adjustments were supported. */
     salary_segments?: PayrollSalarySegment[]
+    tax?: PayrollTaxDetail
     additional_allowances?: PayrollAdditionalAllowance[]
     incomplete_logs?: PayrollIncompleteLog[]
   } | null
@@ -206,4 +213,19 @@ export interface PayrollRunTotals {
 export interface PayrollRunData {
   payrolls: PayrollRecord[]
   totals: PayrollRunTotals
+}
+
+/** BIR withholding tax detail saved in the payroll breakdown. */
+export interface PayrollTaxDetail {
+  taxable_compensation: number
+  minimum_wage_earner: boolean
+  regional_minimum: number | null
+  exempt_mwe_pay: number
+  non_taxable_contributions: number
+  non_taxable_allowances: number
+  allowances: { name: string, amount: number, taxable: boolean }[]
+  table: { id: number, name: string, frequency: string } | null
+  bracket: { over: number, up_to: number | null, base_tax: number, rate: number } | null
+  withholding_tax: number
+  note: string | null
 }
