@@ -27,6 +27,15 @@ export interface LeaveRequestRecord {
   /** Request number, e.g. "LR-2026-0001" (falls back to "LR-{raw_id}"). */
   id: string
   raw_id: number
+  approval_department?: string | null
+  department_approval_status?: string
+  department_approvals?: {
+    approver_name: string
+    approver_position: string | null
+    status: string
+    acted_at: string | null
+  }[]
+  hr_approval?: { status: string, name: string | null }
   request_no: string | null
   category: 'Leave'
   /** Leave type name, e.g. "Vacation Leave". */

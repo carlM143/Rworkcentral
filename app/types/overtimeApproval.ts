@@ -11,6 +11,7 @@ export type OvertimeApprovalStatus =
   | 'Cancelled'
 
 export interface OvertimeApproval {
+  departmentApprovals?: import('./leaveApproval').LeaveApproval['department_approvals']
   /** Supervisor (first-level) approval: pending | approved | rejected | overridden | skipped */
   supervisorStatus?: string | null
   supervisorId?: number | null
@@ -50,6 +51,7 @@ export interface OvertimeApproval {
 }
 
 export interface OvertimeApprovalApiRecord {
+  department_approvals?: import('./leaveApproval').LeaveApproval['department_approvals']
   dept_head_status?: string | null
   dept_head_id?: number | null
   id: number

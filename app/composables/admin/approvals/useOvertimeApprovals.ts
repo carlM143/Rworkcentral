@@ -33,6 +33,7 @@ const mapRequest = (record: OvertimeApprovalApiRecord): OvertimeApproval => {
     id: record.id,
     requestNumber: record.request_no,
     supervisorStatus: record.dept_head_status ?? 'skipped',
+    departmentApprovals: record.department_approvals ?? [],
     supervisorId: record.dept_head_id ?? null,
     employeeId: record.employee_id,
     employeeNumber: record.employee?.emp_id ? String(record.employee.emp_id) : `EMP-${record.employee_id}`,

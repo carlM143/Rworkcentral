@@ -135,7 +135,7 @@ export const ADMIN_MENU: AdminMenuItem[] = [
       { label: 'Departments', to: '/admin/departments', access: a('departments', 'departments.view') },
       { label: 'Positions', to: '/admin/positions', access: a('departments', 'positions.view') },
       { label: 'Employment Types', to: '/admin/employment-types', access: a('departments', 'employment_types.view') },
-      { label: 'Department Heads', to: '/admin/departments/heads', access: a('departments', 'departments.edit') },
+      { label: 'Request Approvers', to: '/admin/departments/approvers', access: a('departments', 'request_approvers.view') },
     ],
   },
   {

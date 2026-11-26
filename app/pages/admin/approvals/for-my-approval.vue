@@ -166,6 +166,12 @@ watch(notice, (value) => {
             <small>{{ item.emp_id }} · {{ item.request_no }} · filed {{ dateTime(item.filed_at) }}</small>
             <p class="summary">{{ item.summary }}</p>
             <p v-if="item.reason" class="reason">“{{ item.reason }}”</p>
+            <div v-if="item.department_approvals?.length" class="approval-checklist">
+              <p v-for="(approval, index) in item.department_approvals" :key="index">
+                <strong>{{ approval.approver_name }}</strong> — {{ approval.approver_position || 'No position' }}:
+                {{ approval.status }}<template v-if="approval.acted_at"> · {{ dateTime(approval.acted_at) }}</template>
+              </p>
+            </div>
             <p v-if="tab === 'history'" class="decision" :class="item.head_status">
               {{ headStatusLabel[item.head_status] }}<template v-if="item.head_by && result?.sees_all"> ({{ item.head_by }})</template> · {{ dateTime(item.acted_at) }}
               <template v-if="item.head_remarks"> — {{ item.head_remarks }}</template>

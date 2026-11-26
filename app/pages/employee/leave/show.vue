@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ArrowLeft, CalendarDays, FileText, Paperclip, Pencil, Umbrella, X } from 'lucide-vue-next'
 import ConfirmationModal from '~/components/ui/ConfirmationModal.vue'
+import DepartmentApprovalProgress from '~/components/admin/approvals/DepartmentApprovalProgress.vue'
 import { employeeRequestError, useLeave } from '~/composables/employee/leave/useLeave'
 import type { LeaveRequestRecord } from '~/types/employee/leave/leave'
 
@@ -45,6 +46,12 @@ const formatDate = (value?: string | null) => {
 }
 
 const statusLabel = (value: string) => value.charAt(0).toUpperCase() + value.slice(1).toLowerCase()
+const approvalLabel = (value: string) => ({
+  waiting_for_department: 'Waiting for all department approvers',
+  not_required: 'Not required',
+  pending: 'Pending approval',
+  overridden: 'Overridden by HR',
+} as Record<string, string>)[value] || statusLabel(value)
 const badgeClass = (value: string) => {
   const status = value.toLowerCase()
   return status === 'approved' ? 'green' : status === 'pending' ? 'orange' : 'neutral'
@@ -120,6 +127,13 @@ const confirmCancel = async () => {
           <Paperclip :size="14" /> {{ request.image?.name || 'View attachment' }}
         </a>
       </article>
+
+      <DepartmentApprovalProgress
+        :approvals="request.department_approvals"
+        :department-status="request.department_approval_status"
+        :status="request.status"
+        :reviewed-by="request.hr_approval?.name"
+      />
 
       <div class="actions">
         <NuxtLink :to="BASE" class="secondary">Close</NuxtLink>

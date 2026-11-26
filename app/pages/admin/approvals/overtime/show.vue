@@ -2,6 +2,7 @@
 import { AlertTriangle, ArrowLeft, Check, Clock3, RefreshCw, RotateCcw, ShieldCheck, Timer, UserRound, X } from 'lucide-vue-next'
 import { useOvertimeApprovals } from '~/composables/admin/approvals/useOvertimeApprovals'
 import { useToast } from '~/composables/useToast'
+import DepartmentApprovalProgress from '~/components/admin/approvals/DepartmentApprovalProgress.vue'
 
 definePageMeta({ layout: 'admin' })
 useHead({ title: 'Overtime Request Details | RWorkCentral' })
@@ -110,6 +111,7 @@ const durationMinutes = computed(() => Math.round(Number(request.value?.requeste
         </div>
       </article>
 
+      <DepartmentApprovalProgress :approvals="request.departmentApprovals" :department-status="request.supervisorStatus" :status="request.status" :reviewed-by="request.reviewedBy" :reviewed-at="request.reviewedAt" />
       <article class="details-card reason-card">
         <div class="card-heading"><Timer :size="18" /><div><h2>Reason &amp; Review</h2><p>Employee justification and approval information</p></div></div>
         <h3>Reason for Overtime</h3><p class="reason-text">{{ request.reason || 'No reason provided.' }}</p>

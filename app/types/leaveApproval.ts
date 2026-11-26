@@ -40,6 +40,13 @@ export interface LeaveApproval {
   /** Supervisor (first-level) approval: pending | approved | rejected | overridden | skipped */
   dept_head_status?: string | null
   dept_head_id?: number | null
+  department_approvals?: {
+    approver_name: string
+    approver_position: string | null
+    status: string
+    acted_at: string | null
+    remarks: string | null
+  }[]
 }
 
 export interface LeaveApprovalStats {

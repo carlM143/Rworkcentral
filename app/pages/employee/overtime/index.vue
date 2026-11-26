@@ -2,6 +2,7 @@
 import { Clock, Paperclip, Plus, Search, TimerReset, X } from 'lucide-vue-next'
 import OvertimeTable from '~/components/employee/overtime/OvertimeTable.vue'
 import ConfirmationModal from '~/components/ui/ConfirmationModal.vue'
+import DepartmentApprovalProgress from '~/components/admin/approvals/DepartmentApprovalProgress.vue'
 import { employeeRequestError } from '~/composables/employee/leave/useLeave'
 import { useOvertime } from '~/composables/employee/overtime/useOvertime'
 import type { EmployeeRequest } from '~/composables/employee/useEmployeePortal'
@@ -311,6 +312,7 @@ onMounted(async () => {
               <dd><a :href="detail.file_url" target="_blank" rel="noopener noreferrer" class="attachment"><Paperclip :size="14" /> {{ detail.image?.name || 'View attachment' }}</a></dd>
             </div>
           </dl>
+          <DepartmentApprovalProgress :approvals="detail.department_approvals" :department-status="detail.department_approval_status" :status="detail.status" :reviewed-by="detail.reviewed_by" :reviewed-at="detail.reviewed_at" />
           <div class="dialog-actions">
             <button type="button" class="secondary" @click="detail = null">Close</button>
             <template v-if="detail.status.toLowerCase() === 'pending'">
