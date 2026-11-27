@@ -87,9 +87,26 @@ export const useOvertimeApprovals = () => {
     }
   }
 
+  const { can, user, roleName } = useAuth()
+  const { $api } = useNuxtApp()
+  const canFinalApprove = computed(() => roleName.value !== 'supervisor' && can('approvals', 'overtime.approve'))
+  const isPendingDepartmentApprover = (item: OvertimeApproval | undefined) => {
+    if (!item || item.status.toLowerCase() !== 'pending' || item.supervisorStatus !== 'pending') return false
+    return can('approvals', 'overtime.edit')
+      && Boolean(item.departmentApprovals?.some(a => a.user_id === user.value?.id && a.status === 'pending'))
+  }
+
   const approveRequest = async (requestId: number) => {
     approvingId.value = requestId
     try {
+      const target = requests.value.find(item => item.id === requestId)
+      if (isPendingDepartmentApprover(target)) {
+        const deptRes = await $api<{ success?: boolean; message?: string }>(`/admin/overtime-requests/${requestId}/department-approve`, { method: 'PATCH', body: { remarks: '' } })
+        if (deptRes.success === false) throw new Error(deptRes.message)
+        await loadRequests()
+        return deptRes.message || 'Overtime approved as department approver.'
+      }
+      if (!canFinalApprove.value) throw new Error('Supervisors can only perform department approval.')
       const response = await approveOvertimeRequest(requestId)
       if (response.success === false) throw new Error(response.message)
       const index = requests.value.findIndex(item => item.id === requestId)
@@ -103,6 +120,16 @@ export const useOvertimeApprovals = () => {
   const rejectRequest = async (requestId: number) => {
     approvingId.value = requestId
     try {
+      const target = requests.value.find(item => item.id === requestId)
+      if (isPendingDepartmentApprover(target)) {
+        const input = window.prompt('Reason for rejecting this request:')
+        if (input === null || !input.trim()) return ''
+        const deptRes = await $api<{ success?: boolean; message?: string }>(`/admin/overtime-requests/${requestId}/department-reject`, { method: 'PATCH', body: { remarks: input.trim() } })
+        if (deptRes.success === false) throw new Error(deptRes.message)
+        await loadRequests()
+        return deptRes.message || 'Overtime rejected as department approver.'
+      }
+      if (!canFinalApprove.value) throw new Error('Supervisors can only perform department approval.')
       const response = await rejectOvertimeRequest(requestId)
       if (response.success === false) throw new Error(response.message)
       const index = requests.value.findIndex(item => item.id === requestId)
@@ -180,7 +207,7 @@ export const useOvertimeApprovals = () => {
   watch(totalPages, value => { if (currentPage.value > value) currentPage.value = value })
 
   return {
-    requests, loading, loadError, approvingId, loadRequests, approveRequest, rejectRequest, revertRequest,
+    requests, loading, loadError, approvingId, loadRequests, approveRequest, rejectRequest, revertRequest, isPendingDepartmentApprover, canFinalApprove,
     search, department, status, dateFrom, dateTo, currentPage,
     filteredRequests, paginatedRequests, totalPages, showingFrom, showingTo, stats,
     departmentOptions, statusOptions, hasFilters, exportRecords, resetFilters,

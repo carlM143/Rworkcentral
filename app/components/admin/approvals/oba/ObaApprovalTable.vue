@@ -40,12 +40,18 @@ const employeeSummary = (record: ObaRequestRecord) => {
 // Mirrors the backend rules:
 //   approve: only after the department head approved
 //   reject:  while pending or after the department head approved
+const { can, user, roleName } = useAuth()
+const canFinalApprove = computed(() => roleName.value !== 'supervisor' && can('approvals', 'oba.approve'))
+const isPendingDepartmentApprover = (record: ObaRequestRecord) =>
+  record.status === 'pending' && can('approvals', 'oba.edit')
+  && Boolean(record.department_approvals?.some(a => a.user_id === user.value?.id && a.status === 'pending'))
+
 const menuItems = (record: ObaRequestRecord) => [
   { key: 'view', label: 'View Details', icon: Eye },
-  ...(record.status === 'dept_head_approved'
+  ...(isPendingDepartmentApprover(record) || (canFinalApprove.value && record.status === 'dept_head_approved')
     ? [{ key: 'approve', label: 'Approve', icon: CheckCircle2 }]
     : []),
-  ...(record.status === 'pending' || record.status === 'dept_head_approved'
+  ...(isPendingDepartmentApprover(record) || (canFinalApprove.value && (record.status === 'pending' || record.status === 'dept_head_approved'))
     ? [{ key: 'reject', label: 'Reject', icon: XCircle, danger: true, dividerBefore: true }]
     : []),
 ]

@@ -10,7 +10,7 @@ useHead({ title: 'Overtime Request Details | RWorkCentral' })
 const route = useRoute()
 const router = useRouter()
 const { success, warning } = useToast()
-const { requests, loading, loadError, approvingId, loadRequests, approveRequest, rejectRequest, revertRequest } = useOvertimeApprovals()
+const { requests, loading, loadError, approvingId, loadRequests, approveRequest, rejectRequest, revertRequest, isPendingDepartmentApprover, canFinalApprove } = useOvertimeApprovals()
 
 const requestId = computed(() => {
   const raw = route.query.id
@@ -38,7 +38,7 @@ const approve = async () => {
 }
 const reject = async () => {
   if (!request.value || processing.value) return
-  try { success('Overtime Rejected', await rejectRequest(request.value.id)) }
+  try { const message = await rejectRequest(request.value.id); if (message) success('Overtime Rejected', message) }
   catch (problem: any) { warning('Rejection Failed', apiError(problem)) }
 }
 const revert = async () => {
@@ -124,10 +124,10 @@ const durationMinutes = computed(() => Math.round(Number(request.value?.requeste
         <p>Approval decisions are submitted to the existing Laravel Overtime API.</p>
         <div class="footer-buttons">
           <button type="button" class="secondary-button" :disabled="processing" @click="goBack">Back</button>
-          <button v-if="request.status === 'Approved' || request.status === 'Rejected'" type="button" class="revert-button" :disabled="processing" @click="revert"><RotateCcw :size="15" />{{ processing ? 'Processing...' : 'Undo / Revert' }}</button>
-          <template v-if="request.status === 'Pending' || request.status === 'For Review'">
+          <button v-if="canFinalApprove && (request.status === 'Approved' || request.status === 'Rejected')" type="button" class="revert-button" :disabled="processing" @click="revert"><RotateCcw :size="15" />{{ processing ? 'Processing...' : 'Undo / Revert' }}</button>
+          <template v-if="(request.status === 'Pending' || request.status === 'For Review') && (isPendingDepartmentApprover(request) || canFinalApprove)">
             <button type="button" class="reject-button" :disabled="processing" @click="reject"><X :size="16" />{{ processing ? 'Processing...' : 'Reject' }}</button>
-            <button type="button" class="approve-button" :disabled="processing" @click="approve"><Check :size="16" />{{ processing ? 'Processing...' : 'Approve' }}</button>
+            <button type="button" class="approve-button" :disabled="processing || (!isPendingDepartmentApprover(request) && request.supervisorStatus === 'pending')" :title="!isPendingDepartmentApprover(request) && request.supervisorStatus === 'pending' ? 'Department approval must be completed or skipped first' : ''" @click="approve"><Check :size="16" />{{ processing ? 'Processing...' : 'Approve' }}</button>
           </template>
         </div>
       </footer>

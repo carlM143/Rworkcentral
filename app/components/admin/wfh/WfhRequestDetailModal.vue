@@ -18,6 +18,7 @@ import {
   Ban,
 } from 'lucide-vue-next'
 import WfhModalShell from '~/components/admin/wfh/WfhModalShell.vue'
+import DepartmentApprovalProgress from '~/components/admin/approvals/DepartmentApprovalProgress.vue'
 import WfhStatusPill from '~/components/admin/wfh/WfhStatusPill.vue'
 import EmployeeLeaveDateCalendar from '~/components/employee/EmployeeLeaveDateCalendar.vue'
 import { wfhErrorMessage } from '~/composables/admin/wfh/useWfhDocumentApi'
@@ -39,11 +40,21 @@ const emit = defineEmits<{
   close: []
   saved: [record: WfhRequestRecord, message: string]
   delete: [record: WfhRequestRecord]
+  overridden: []
 }>()
 
 const STATUS_LABELS: Record<string, string> = { pending: 'Pending', approved: 'Approved', rejected: 'Rejected' }
 
 const api = useWfhRequestApi()
+const { can, user, roleName } = useAuth()
+const { $api } = useNuxtApp()
+const canFinalApprove = computed(() => roleName.value !== 'supervisor' && can('wfh', 'requests.approve'))
+const isPendingDepartmentApprover = computed(() => {
+  const r = props.record
+  if (!r || r.status !== 'pending' || r.dept_head_status !== 'pending') return false
+  return (can('wfh', 'requests.edit') || can('wfh', 'requests.approve'))
+    && Boolean(r.department_approvals?.some(a => a.user_id === user.value?.id && a.status === 'pending'))
+})
 const mode = ref<WfhRequestModalMode>(props.initialMode)
 const action = ref<'approve' | 'reject'>(props.initialAction)
 const note = ref('')
@@ -51,6 +62,10 @@ const error = ref('')
 const saving = ref(false)
 const showCalendar = ref(false)
 const showBreakdown = ref(true)
+
+const awaitingDepartment = computed(() =>
+  !isPendingDepartmentApprover.value && props.record.dept_head_status === 'pending',
+)
 
 const title = computed(() => ({
   view: 'WFH Request Details',
@@ -106,6 +121,19 @@ const submit = async () => {
   saving.value = true
   error.value = ''
   try {
+    if (isPendingDepartmentApprover.value) {
+      const deptRes = await $api<{ message?: string }>(`/admin/wfh-requests/${props.record.id}/department-${action.value === 'approve' ? 'approve' : 'reject'}`, {
+        method: 'PATCH',
+        body: { remarks: note.value.trim() },
+      })
+      emit('overridden')
+      mode.value = 'view'
+      return
+    }
+    if (!canFinalApprove.value) {
+      error.value = 'Supervisors can only perform department approval.'
+      return
+    }
     const response = action.value === 'approve'
       ? await api.approve(props.record.id, note.value.trim())
       : await api.reject(props.record.id, note.value.trim())
@@ -249,6 +277,18 @@ const openDocuments = () => navigateTo('/admin/wfh/documents')
         </div>
       </div>
 
+      <!-- Approval Progress -->
+      <DepartmentApprovalProgress
+        :approvals="record.department_approvals"
+        :department-status="record.dept_head_status"
+        :status="record.status"
+        :reviewed-by="record.approved_by"
+        :reviewed-at="record.approved_at"
+        request-type="wfh"
+        :request-id="record.id"
+        @overridden="emit('overridden')"
+      />
+
       <!-- Reason Box -->
       <div class="detail-box">
         <div class="detail-box-head">
@@ -271,9 +311,9 @@ const openDocuments = () => navigateTo('/admin/wfh/documents')
         <button v-if="['pending', 'approved'].includes(record.status)" type="button" class="btn reject" @click="emit('delete', record)">
           <Ban :size="15" /> Cancel WFH
         </button>
-        <template v-if="record.status === 'pending'">
+        <template v-if="record.status === 'pending' && (isPendingDepartmentApprover || canFinalApprove)">
           <button class="btn reject" @click="startDecision('reject')"><X :size="15" /> Reject</button>
-          <button class="btn approve" @click="startDecision('approve')"><Check :size="15" /> Approve</button>
+          <button class="btn approve" :disabled="awaitingDepartment" :title="awaitingDepartment ? 'Department approval must be completed or skipped first' : ''" @click="startDecision('approve')"><Check :size="15" /> Approve</button>
         </template>
         <button v-else-if="record.status === 'approved'" class="btn primary" @click="openDocuments">
           <ClipboardList :size="15" /> Open Document Review
@@ -287,7 +327,11 @@ const openDocuments = () => navigateTo('/admin/wfh/documents')
       <div class="review-note">
         {{ action === 'approve' ? 'Approve' : 'Reject' }} the WFH request of <strong>{{ record.employee.name }}</strong>
         for <strong>{{ wfhPeriodText(record.start_date, record.end_date) }}</strong> ({{ daysLabel }}).
-        <template v-if="action === 'approve'"> Once approved, the request appears in WFH Document Review for daily proof of work.</template>
+        <template v-if="action === 'approve'">
+          {{ isPendingDepartmentApprover
+            ? ' This records your department approval. Once all department approvers approve, it will move to HR for final approval.'
+            : ' Once approved, the request appears in WFH Document Review for daily proof of work.' }}
+        </template>
       </div>
 
       <div class="detail-box">
@@ -298,7 +342,7 @@ const openDocuments = () => navigateTo('/admin/wfh/documents')
         <p class="detail-box-text">{{ record.reason }}</p>
       </div>
 
-      <label for="req-note">HR remarks {{ action === 'reject' ? '(required)' : '(optional)' }}</label>
+      <label for="req-note">{{ isPendingDepartmentApprover ? 'Department approver remarks' : 'HR remarks' }} {{ action === 'reject' ? '(required)' : '(optional)' }}</label>
       <textarea
         id="req-note"
         v-model="note"

@@ -78,9 +78,26 @@ export const useUndertimeApprovals = () => {
     }
   }
 
+  const { can, user, roleName } = useAuth()
+  const { $api } = useNuxtApp()
+  const canFinalApprove = computed(() => roleName.value !== 'supervisor' && can('approvals', 'undertime.approve'))
+  const isPendingDepartmentApprover = (item: UndertimeRequest | undefined) => {
+    if (!item || item.status.toLowerCase() !== 'pending' || item.supervisorStatus !== 'pending') return false
+    return can('approvals', 'undertime.edit')
+      && Boolean(item.departmentApprovals?.some(a => a.user_id === user.value?.id && a.status === 'pending'))
+  }
+
   const approveRequest = async (requestId: number) => {
     approvingId.value = requestId
     try {
+      const target = requests.value.find(request => request.id === requestId)
+      if (isPendingDepartmentApprover(target)) {
+        const deptRes = await $api<{ success?: boolean; message?: string }>(`/admin/undertime-requests/${requestId}/department-approve`, { method: 'PATCH', body: { remarks: '' } })
+        if (deptRes.success === false) throw new Error(deptRes.message)
+        await loadRequests()
+        return deptRes.message || 'Undertime approved as department approver.'
+      }
+      if (!canFinalApprove.value) throw new Error('Supervisors can only perform department approval.')
       const response = await approveUndertimeRequest(requestId)
       if (response.success === false) throw new Error(response.message)
       const index = requests.value.findIndex(request => request.id === requestId)
@@ -94,6 +111,16 @@ export const useUndertimeApprovals = () => {
   const rejectRequest = async (requestId: number) => {
     approvingId.value = requestId
     try {
+      const target = requests.value.find(request => request.id === requestId)
+      if (isPendingDepartmentApprover(target)) {
+        const input = window.prompt('Reason for rejecting this request:')
+        if (input === null || !input.trim()) return ''
+        const deptRes = await $api<{ success?: boolean; message?: string }>(`/admin/undertime-requests/${requestId}/department-reject`, { method: 'PATCH', body: { remarks: input.trim() } })
+        if (deptRes.success === false) throw new Error(deptRes.message)
+        await loadRequests()
+        return deptRes.message || 'Undertime rejected as department approver.'
+      }
+      if (!canFinalApprove.value) throw new Error('Supervisors can only perform department approval.')
       const response = await rejectUndertimeRequest(requestId)
       if (response.success === false) throw new Error(response.message)
       const index = requests.value.findIndex(request => request.id === requestId)
@@ -212,6 +239,8 @@ export const useUndertimeApprovals = () => {
     approveRequest,
     rejectRequest,
     revertRequest,
+    isPendingDepartmentApprover,
+    canFinalApprove,
     resetFilters,
   }
 }

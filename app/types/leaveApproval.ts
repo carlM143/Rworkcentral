@@ -41,6 +41,7 @@ export interface LeaveApproval {
   dept_head_status?: string | null
   dept_head_id?: number | null
   department_approvals?: {
+    user_id?: number | null
     approver_name: string
     approver_position: string | null
     status: string

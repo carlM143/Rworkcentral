@@ -316,12 +316,8 @@ onMounted(() => {
           <span>Select your start and end dates on the calendar above to calculate scheduled days.</span>
         </div>
 
-        <!-- Supervisor & reason -->
+        <!-- Reason -->
         <div class="fields">
-          <label>
-            <span>Supervisor name <b>*</b></span>
-            <input v-model="form.supervisor_name" placeholder="Enter supervisor's full name" maxlength="255" required>
-          </label>
           <label>
             <span>Reason for work from home <b>*</b></span>
             <textarea

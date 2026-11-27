@@ -15,7 +15,7 @@ const {
   requests, summary, search, statusFilter, dateFrom, dateTo,
   currentPage, totalPages, total, showingFrom, showingTo,
   loading, loadError, loadRequests, resetFilters,
-  actingId, actionError, approveRequest, rejectRequest,
+  actingId, actionError, approveRequest, rejectRequest, isPendingDepartmentApprover,
 } = useObaApprovals()
 
 const { success } = useToast()
@@ -51,7 +51,7 @@ const approveMessage = computed(() => {
   const target = approveTarget.value
   if (!target) return ''
   const count = target.oba_employees?.length ?? 0
-  return `${target.filer_name || 'This employee'}'s request to ${target.destination} for ${count} employee(s) will be approved.\nThis is the final HR approval.`
+  return `${target.filer_name || 'This employee'}'s request to ${target.destination} for ${count} employee(s) will be approved.\n${isPendingDepartmentApprover(target) ? 'This records your department approval.' : 'This is the final HR approval.'}`
 })
 
 const confirmApproveFromTable = async () => {
@@ -76,6 +76,12 @@ const handleReject = async (id: number, reason: string) => {
   if (!res) return
   selected.value = res.data
   success('OBA Request Rejected', res.message || 'OBA request rejected.')
+}
+
+const refreshSelected = async () => {
+  const id = selected.value?.id
+  await loadRequests()
+  if (id) selected.value = requests.value.find(item => item.id === id) ?? null
 }
 
 onMounted(() => { void loadRequests() })
@@ -149,6 +155,7 @@ onMounted(() => { void loadRequests() })
       @close="closeDetails"
       @approve="handleApprove"
       @reject="handleReject"
+      @overridden="refreshSelected"
     />
   </section>
 </template>

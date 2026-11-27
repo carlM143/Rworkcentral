@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { CheckCircle2, X, XCircle } from 'lucide-vue-next'
+import DepartmentApprovalProgress from '~/components/admin/approvals/DepartmentApprovalProgress.vue'
 import type { ObaImage, ObaRequestRecord } from '~/types/oba-request/obaRequest'
 
 const statusLabels: Record<string, string> = {
@@ -35,6 +36,7 @@ const emit = defineEmits<{
   close: []
   approve: [id: number]
   reject: [id: number, reason: string]
+  overridden: []
 }>()
 
 const dialog = ref<HTMLDialogElement | null>(null)
@@ -52,11 +54,17 @@ const step = ref<Step>('view')
 const reason = ref('')
 const reasonError = ref('')
 
-const canApprove = computed(() =>
-  props.request?.status === 'dept_head_approved',
-)
+const { can, user, roleName } = useAuth()
+const canFinalApprove = computed(() => roleName.value !== 'supervisor' && can('approvals', 'oba.approve'))
+const isPendingDepartmentApprover = computed(() => {
+  const item = props.request
+  if (!item || item.status !== 'pending') return false
+  return can('approvals', 'oba.edit')
+    && Boolean(item.department_approvals?.some(a => a.user_id === user.value?.id && a.status === 'pending'))
+})
+const canApprove = computed(() => isPendingDepartmentApprover.value || (canFinalApprove.value && props.request?.status === 'dept_head_approved'))
 const canReject = computed(() =>
-  props.request?.status === 'pending' || props.request?.status === 'dept_head_approved',
+  isPendingDepartmentApprover.value || (canFinalApprove.value && (props.request?.status === 'pending' || props.request?.status === 'dept_head_approved')),
 )
 
 const resetStep = () => {
@@ -135,6 +143,19 @@ const onCancel = (event: Event) => {
         </div>
       </dl>
 
+      <div class="approval-progress-wrap">
+        <DepartmentApprovalProgress
+          :approvals="request.department_approvals"
+          :department-status="request.dept_head_status"
+          :status="request.status"
+          :reviewed-by="request.approver?.name"
+          :reviewed-at="request.status === 'approved' || request.status === 'rejected' ? request.updated_at : null"
+          request-type="oba"
+          :request-id="request.id"
+          @overridden="emit('overridden')"
+        />
+      </div>
+
       <div class="images">
         <h3>Supporting Images</h3>
         <div v-if="images.length" class="thumbs">
@@ -150,7 +171,7 @@ const onCancel = (event: Event) => {
       <!-- Approve: confirm step -->
       <div v-if="step === 'approve'" class="action-panel">
         <p class="action-text">
-          Approve this OBA request for <strong>{{ employeeNames(request).length }}</strong> employee(s)? This is the final HR approval.
+          Approve this OBA request for <strong>{{ employeeNames(request).length }}</strong> employee(s)? {{ isPendingDepartmentApprover ? 'This records your department approval.' : 'This is the final HR approval.' }}
         </p>
         <div class="dialog-actions">
           <button type="button" class="close-button" :disabled="busy" @click="resetStep">Back</button>
@@ -184,8 +205,8 @@ const onCancel = (event: Event) => {
 
       <!-- Default footer -->
       <div v-else class="dialog-actions">
-        <p v-if="request.status === 'pending'" class="footer-note">
-          Waiting for department approval in Approval Center › For My Approval.
+        <p v-if="request.status === 'pending' && !isPendingDepartmentApprover" class="footer-note">
+          Waiting for department approval.
         </p>
         <button type="button" class="close-button" @click="close">Close</button>
         <button v-if="canReject" type="button" class="reject-button" @click="step = 'reject'">
@@ -229,6 +250,7 @@ p { margin: 4px 0 0; color: var(--text-secondary); font-size: 12px; }
 .reason { white-space: pre-wrap; line-height: 1.7; }
 .chips { display: flex; flex-wrap: wrap; gap: 8px; }
 .chip { padding: 5px 10px; border: 1px solid var(--border); border-radius: 999px; background: var(--bg-card-soft); font-size: 11px; }
+.approval-progress-wrap { padding: 0 20px; }
 .images { padding: 0 20px 18px; }
 .muted { color: var(--text-muted); }
 .thumbs { display: flex; flex-wrap: wrap; gap: 10px; }

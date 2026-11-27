@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import { ShieldCheck, Info } from 'lucide-vue-next'
 import type { LeaveApproval } from '~/types/leaveApproval'
+import { formatApprovalDateTime } from '~/utils/approvalDateTime'
 import DepartmentOverrideDialog from './DepartmentOverrideDialog.vue'
 
 const props = defineProps<{
@@ -10,18 +11,27 @@ const props = defineProps<{
   status: string
   reviewedBy?: string | null
   reviewedAt?: string | null
-  requestType?: 'leave' | 'overtime' | 'undertime'
+  requestType?: 'leave' | 'overtime' | 'undertime' | 'oba' | 'wfh'
   requestId?: number
 }>()
 const emit = defineEmits<{ overridden: [] }>()
 const { can } = useAuth()
 const overrideOpen = ref(false)
-const showOverride = computed(() => props.requestType && props.requestId && props.status.toLowerCase() === 'pending'
-  && props.departmentStatus === 'pending' && can('approvals', 'department_override.approve')
-  && can('approvals', `${props.requestType === 'leave' ? 'leaves' : props.requestType}.approve`))
+const showOverride = computed(() => {
+  if (!props.requestType || !props.requestId) return false
+  const s = props.status.toLowerCase()
+  if ((s !== 'pending' && s !== 'for review') || props.departmentStatus !== 'pending') return false
+  if (!can('approvals', 'department_override.approve')) return false
+  if (props.requestType === 'wfh') return can('wfh', 'requests.approve')
+  const feature = props.requestType === 'leave' ? 'leaves' : props.requestType
+  return can('approvals', `${feature}.approve`)
+})
 
 const hrStatus = computed(() => {
   const s = props.status?.toLowerCase() || ''
+  if (s === 'dept_head_approved') {
+    return { label: 'Pending HR approval', badge: 'pending' }
+  }
   if (s === 'pending') {
     return props.departmentStatus === 'pending'
       ? { label: 'Waiting for department', badge: 'neutral' }
@@ -45,16 +55,7 @@ const badgeClass = (st?: string | null) => {
 }
 
 const formatDate = (val?: string | null) => {
-  if (!val) return ''
-  const parsed = new Date(val.includes('T') || val.includes(' ') ? val.replace(' ', 'T') : `${val}T12:00:00`)
-  return Number.isNaN(parsed.getTime())
-    ? val
-    : new Intl.DateTimeFormat('en-PH', {
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric',
-        ...(val.includes(':') ? { hour: 'numeric', minute: '2-digit' } : {}),
-      }).format(parsed)
+  return formatApprovalDateTime(val)
 }
 </script>
 
@@ -108,9 +109,8 @@ const formatDate = (val?: string | null) => {
       <!-- HR Final Approval Row -->
       <div class="approver-item hr-item">
         <div class="approver-info">
-          <span class="approver-name">HR — Final Approval</span>
-          <span v-if="reviewedBy" class="approver-position">Reviewed by {{ reviewedBy }}</span>
-          <span v-else class="approver-position">Human Resources Department</span>
+          <span class="approver-name">{{ reviewedBy || 'HR — Final Approval' }}</span>
+          <span class="approver-position">{{ reviewedBy ? 'HR — Final Approval' : 'Human Resources Department' }}</span>
         </div>
         <div class="approver-meta">
           <span class="badge" :class="`badge-${hrStatus.badge}`">

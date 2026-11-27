@@ -34,6 +34,8 @@ export interface WfhRequestRecord {
   request_date: string
   remarks: string | null
   status: WfhRequestStatus
+  dept_head_status?: string | null
+  department_approvals?: { user_id: number, approver_name: string, approver_position: string | null, status: string, acted_at: string | null, remarks: string | null }[]
   approved_by: string | null // user who approved OR rejected
   approved_at: string | null
   has_data?: boolean
