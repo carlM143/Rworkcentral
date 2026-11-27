@@ -10,9 +10,12 @@ import {
   Check,
 } from 'lucide-vue-next'
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   currentStep: number
-}>()
+  allowAllSteps?: boolean
+}>(), {
+  allowAllSteps: false,
+})
 
 const emit = defineEmits<{
   change: [step: number]
@@ -72,7 +75,7 @@ const isActive = (step: number) => {
 }
 
 const canNavigate = (step: number) => {
-  return step <= props.currentStep
+  return props.allowAllSteps || step <= props.currentStep
 }
 
 const selectStep = (step: number) => {
@@ -98,6 +101,7 @@ const selectStep = (step: number) => {
           disabled: !canNavigate(step.number),
         }"
         :disabled="!canNavigate(step.number)"
+        :aria-current="isActive(step.number) ? 'step' : undefined"
         @click="selectStep(step.number)"
       >
         <div class="step-circle">

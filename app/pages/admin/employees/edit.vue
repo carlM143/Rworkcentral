@@ -537,7 +537,11 @@ const handleCancel = () => { void router.push('/admin/employees') }
       </div>
 
       <!-- STEPPER -->
-      <EmployeeFormStepper :current-step="currentStep" @change="handleStepChange" />
+      <EmployeeFormStepper
+        :current-step="currentStep"
+        allow-all-steps
+        @change="handleStepChange"
+      />
 
       <!-- CURRENT STEP -->
       <div class="current-step-info">
