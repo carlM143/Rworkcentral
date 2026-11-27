@@ -8,10 +8,11 @@ definePageMeta({ layout: 'admin' })
 useHead({ title: 'Leave Request Details | RWorkCentral' })
 
 const route = useRoute()
+const { can } = useAuth()
 const router = useRouter()
 const {
   requests, selectedRequest, loading, loadError, approving, approvalProblem,
-  loadRequests, openApproval, handleApprove, handleReject, handleRevert,
+  loadRequests, openApproval, handleApprove, handleReject, handleRevert, isPendingDepartmentApprover, canFinalApprove,
 } = useLeaveApprovals()
 
 const requestId = computed(() => {
@@ -54,7 +55,7 @@ watch(() => route.query.id, () => { void loadDetail() })
 const goBack = () => router.push('/admin/approvals/leaves')
 
 const approve = async () => {
-  if (!request.value || approving.value || approvalProblem.value) return
+  if (!request.value || approving.value || (!isPendingDepartmentApprover(request.value) && approvalProblem.value)) return
   await handleApprove()
   // Existing composable clears selectedRequest only after a successful API call.
   if (!selectedRequest.value) await goBack()
@@ -260,7 +261,7 @@ const totalScheduledDays = computed(() => {
         :approvals="request.department_approvals"
         :department-status="request.dept_head_status"
         :status="request.status"
-        :reviewed-by="request.approver_name"
+        :reviewed-by="request.approver_name || request.approver?.name"
         :reviewed-at="request.approved_at"
         request-type="leave"
         :request-id="request.id"
@@ -289,7 +290,7 @@ const totalScheduledDays = computed(() => {
           <button type="button" class="secondary-button" :disabled="approving" @click="goBack">Back</button>
 
           <button
-            v-if="request.status === 'approved' || request.status === 'rejected'"
+            v-if="canFinalApprove && (request.status === 'approved' || request.status === 'rejected')"
             type="button"
             class="revert-button"
             :disabled="approving"
@@ -298,11 +299,11 @@ const totalScheduledDays = computed(() => {
             <RotateCcw :size="15" /> Undo / Revert
           </button>
 
-          <template v-if="request.status === 'pending'">
+          <template v-if="request.status === 'pending' && (isPendingDepartmentApprover(request) || canFinalApprove)">
             <button type="button" class="reject-button" :disabled="approving" @click="reject">
               <X :size="16" /> {{ approving ? 'Processing...' : 'Reject' }}
             </button>
-            <button type="button" class="approve-button" :disabled="approving || !!approvalProblem" @click="approve">
+            <button type="button" class="approve-button" :disabled="approving || (!isPendingDepartmentApprover(request) && (request.dept_head_status === 'pending' || !!approvalProblem))" :title="!isPendingDepartmentApprover(request) && request.dept_head_status === 'pending' ? 'Department approval must be completed or skipped first' : ''" @click="approve">
               <Check :size="16" /> {{ approving ? 'Processing...' : 'Approve' }}
             </button>
           </template>

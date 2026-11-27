@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
+import { formatApprovalDateTime } from '~/utils/approvalDateTime'
 import { Briefcase, CalendarDays, Check, Clock3, House, RefreshCw, TimerReset, Users, X } from 'lucide-vue-next'
 import {
   supervisorApprovalError as teamApprovalError,
@@ -53,7 +54,7 @@ const items = computed(() => result.value?.data ?? [])
 const count = (t: TeamRequestType | 'all') => (t === 'all' ? result.value?.counts.total : result.value?.counts[t]) ?? 0
 
 const dateTime = (v: string | null) =>
-  v ? new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }).format(new Date(v.replace(' ', 'T'))) : '—'
+  formatApprovalDateTime(v)
 
 // =====================================================
 // APPROVE / REJECT

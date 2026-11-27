@@ -26,6 +26,13 @@ import {
 
 // Success messages show as a toast, like the other modules.
 const { success: toastSuccess } = useToast()
+const { can, user, roleName } = useAuth()
+const canCreateWfh = computed(() => can('wfh', 'requests.create'))
+const canFinalApproveWfh = computed(() => roleName.value !== 'supervisor' && can('wfh', 'requests.approve'))
+const isPendingDepartmentApprover = (record: WfhRequestRecord) =>
+  record.status === 'pending' && record.dept_head_status === 'pending'
+  && (can('wfh', 'requests.edit') || can('wfh', 'requests.approve'))
+  && Boolean(record.department_approvals?.some(a => a.user_id === user.value?.id && a.status === 'pending'))
 
 
 const STATUS_LABELS: Record<string, string> = {
@@ -72,7 +79,7 @@ const loadEmployees = async () => {
 
 onMounted(() => {
   load()
-  loadEmployees()
+  if (canCreateWfh.value) loadEmployees()
 })
 
 // =====================================================
@@ -118,9 +125,11 @@ const stats = computed(() => [
 
 const menuItems = (record: WfhRequestRecord): WfhMenuItem[] => [
   { key: 'view', label: 'View Request', icon: Eye },
-  ...(record.status === 'pending'
+  ...(record.status === 'pending' && (isPendingDepartmentApprover(record) || canFinalApproveWfh.value)
     ? [
-        { key: 'approve', label: 'Approve', icon: Check },
+        ...(isPendingDepartmentApprover(record) || record.dept_head_status !== 'pending'
+          ? [{ key: 'approve', label: 'Approve', icon: Check }]
+          : []),
         { key: 'reject', label: 'Reject', icon: X, danger: true },
       ]
     : []),
@@ -169,6 +178,12 @@ const handleDeleteConfirm = async (id: number) => {
   }
 }
 
+const onOverridden = async () => {
+  const id = detailRecord.value?.id
+  await load()
+  if (id) detailRecord.value = records.value.find(r => r.id === id) ?? null
+}
+
 const onSaved = (record: WfhRequestRecord, message: string) => {
   const index = records.value.findIndex(r => r.id === record.id)
   if (index >= 0) records.value[index] = record
@@ -197,7 +212,7 @@ const exportCsv = () => {
     >
       <button type="button" class="btn ghost" :disabled="loading" @click="load"><RefreshCw :size="15" /> Refresh</button>
       <button type="button" class="btn ghost" :disabled="!filtered.length" @click="exportCsv"><Download :size="15" /> Export</button>
-      <button type="button" class="btn primary" @click="createOpen = true"><Plus :size="15" /> New WFH Request</button>
+      <button v-if="canCreateWfh" type="button" class="btn primary" @click="createOpen = true"><Plus :size="15" /> New WFH Request</button>
     </PageHeader>
 
     <div class="stats-grid">
@@ -227,7 +242,7 @@ const exportCsv = () => {
       :has-rows="pageRows.length > 0"
       :loading="loading"
       :empty-title="records.length ? 'No requests match your filters' : 'No WFH requests yet'"
-      :empty-description="records.length ? 'Try adjusting your filters.' : 'Use New WFH Request to file one.'"
+      :empty-description="records.length ? 'Try adjusting your filters.' : (canCreateWfh ? 'Use New WFH Request to file one.' : 'Filed WFH requests will appear here.')"
     >
       <template #headers>
         <th>Request / Employee</th>
@@ -278,10 +293,11 @@ const exportCsv = () => {
     />
 
     <WfhRequestFormModal
-      v-if="createOpen"
+      v-if="canCreateWfh && createOpen"
       :employees="employees"
       @close="createOpen = false"
       @saved="onSaved"
+      @overridden="onOverridden"
     />
 
     <WfhRequestDetailModal
@@ -292,6 +308,7 @@ const exportCsv = () => {
       :initial-action="detailAction"
       @close="detailRecord = null"
       @saved="onSaved"
+      @overridden="onOverridden"
       @delete="r => { detailRecord = null; deleteRecord = r; }"
     />
 

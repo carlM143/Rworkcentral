@@ -9,6 +9,7 @@ import type { LeaveApproval } from '~/types/leaveApproval'
 definePageMeta({ layout: 'admin' })
 
 const router = useRouter()
+const { can } = useAuth()
 const {
   requests, search, statusFilter, department, dateFrom, dateTo,
   currentPage, stats, paginatedRequests, filteredRequests,
@@ -44,7 +45,7 @@ onMounted(() => { void loadRequests() })
       description="Review employee leave applications, payment classifications and approval status."
     >
       <div class="header-actions">
-        <AppButton :icon="Plus" @click="handleFileRequest">File Request</AppButton>
+        <AppButton v-if="can('approvals', 'leaves.approve')" :icon="Plus" @click="handleFileRequest">File Request</AppButton>
         <AppButton variant="secondary" :icon="Download" @click="exportOpen = true">Export</AppButton>
         <AppButton variant="secondary" :icon="RefreshCw" :disabled="loading" @click="loadRequests">
           {{ loading ? 'Refreshing...' : 'Refresh' }}

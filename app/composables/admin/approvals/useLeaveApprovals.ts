@@ -6,6 +6,15 @@ import { useToast } from '~/composables/useToast'
 export const useLeaveApprovals = () => {
   const { getLeaveApprovals, approveLeaveRequest, rejectLeaveRequest, revertLeaveRequest } = useLeaveApprovalApi()
   const { success, error: showError } = useToast()
+  const { can, user, roleName } = useAuth()
+  const { $api } = useNuxtApp()
+  const canFinalApprove = computed(() => roleName.value !== 'supervisor' && can('approvals', 'leaves.approve'))
+
+  const isPendingDepartmentApprover = (item: LeaveApproval | null | undefined) => {
+    if (!item || item.status !== 'pending' || item.dept_head_status !== 'pending') return false
+    return can('approvals', 'leaves.edit')
+      && Boolean(item.department_approvals?.some(a => a.user_id === user.value?.id && a.status === 'pending'))
+  }
 
   const requests = ref<LeaveApproval[]>([])
   const loading = ref(false)
@@ -189,16 +198,27 @@ const approvalProblem = computed(() => {
 
 
   const handleApprove = async () => {
-    if (!selectedRequest.value || approving.value || approvalProblem.value) return
+    if (!selectedRequest.value || approving.value) return
+    const deptApprover = isPendingDepartmentApprover(selectedRequest.value)
+    if (!deptApprover && !canFinalApprove.value) return
+    if (!deptApprover && approvalProblem.value) return
 
     approving.value = true
 
     try {
-      const response = await approveLeaveRequest(selectedRequest.value.id)
+      const response = deptApprover
+        ? await $api<{ success?: boolean; message?: string }>(`/admin/leave-requests/${selectedRequest.value.id}/department-approve`, {
+            method: 'PATCH',
+            body: { remarks: '' },
+          })
+        : await approveLeaveRequest(selectedRequest.value.id)
       if (response.success === false) throw new Error(response.message)
 
       selectedRequest.value = null
-      success('Leave Request Approved', response.message || 'Leave request approved successfully.')
+      success(
+        deptApprover ? 'Department Approval Recorded' : 'Leave Request Approved',
+        response.message || 'Leave request approved successfully.',
+      )
       await loadRequests()
     } catch (problem) {
       showError('Unable to Approve Leave', getErrorMessage(problem))
@@ -209,15 +229,31 @@ const approvalProblem = computed(() => {
 
   const handleReject = async () => {
     if (!selectedRequest.value || approving.value) return
+    const deptApprover = isPendingDepartmentApprover(selectedRequest.value)
+    if (!deptApprover && !canFinalApprove.value) return
+    let remarks = ''
+    if (deptApprover) {
+      const input = window.prompt('Reason for rejecting this request:')
+      if (input === null || !input.trim()) return
+      remarks = input.trim()
+    }
 
     approving.value = true
 
     try {
-      const response = await rejectLeaveRequest(selectedRequest.value.id)
+      const response = deptApprover
+        ? await $api<{ success?: boolean; message?: string }>(`/admin/leave-requests/${selectedRequest.value.id}/department-reject`, {
+            method: 'PATCH',
+            body: { remarks },
+          })
+        : await rejectLeaveRequest(selectedRequest.value.id)
       if (response.success === false) throw new Error(response.message)
 
       selectedRequest.value = null
-      success('Leave Request Rejected', response.message || 'Leave request rejected successfully.')
+      success(
+        deptApprover ? 'Department Rejection Recorded' : 'Leave Request Rejected',
+        response.message || 'Leave request rejected successfully.',
+      )
       await loadRequests()
     } catch (problem) {
       showError('Unable to Reject Leave', getErrorMessage(problem))
@@ -254,6 +290,6 @@ const approvalProblem = computed(() => {
     stats, filteredRequests, paginatedRequests,
     totalPages, showingFrom, showingTo, approvalProblem,
     departmentOptions, hasFilters, exportRecords,
-    loadRequests, resetFilters, openApproval, closeApproval, handleApprove, handleReject, handleRevert,
+    loadRequests, resetFilters, openApproval, closeApproval, handleApprove, handleReject, handleRevert, isPendingDepartmentApprover, canFinalApprove,
   }
 }

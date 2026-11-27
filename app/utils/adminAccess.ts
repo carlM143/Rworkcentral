@@ -149,7 +149,6 @@ export const ADMIN_MENU: AdminMenuItem[] = [
   {
     label: 'Approval Center', key: 'approvals', icon: ClipboardCheck,
     children: [
-      { label: 'For My Approval', to: '/admin/approvals/for-my-approval', access: a('approvals', 'first_level.view') },
       { label: 'Leave Approvals', to: '/admin/approvals/leaves', access: a('approvals', 'leaves.view') },
       { label: 'Overtime Approvals', to: '/admin/approvals/overtime', access: a('approvals', 'overtime.view') },
       { label: 'Undertime Approvals', to: '/admin/approvals/undertime', access: a('approvals', 'undertime.view') },
@@ -207,6 +206,7 @@ export const SYSTEM_MENU: AdminMenuItem[] = [
 
 /** Pages outside the sidebar that also need a privilege. */
 const EXTRA_PAGES: { to: string, access: Access }[] = [
+  { to: '/admin/approvals/for-my-approval', access: a('approvals', 'first_level.view') },
   { to: '/admin/settings/company', access: a('settings', 'company.view') },
   { to: '/admin/settings/qr-generation', access: a('settings', 'qr.view') },
   { to: '/admin/settings/system', access: a('settings', 'system.view') },
