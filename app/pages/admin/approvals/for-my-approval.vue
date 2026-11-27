@@ -119,8 +119,7 @@ watch(notice, (value) => {
       <div>
         <h1>For My Approval</h1>
         <p>
-          Requests filed by employees that need your approval first. After you approve, HR gives the final approval.
-          <template v-if="result?.departments.length"> You head {{ result.departments.join(', ') }}.</template>
+          {{ result?.sees_all ? 'View employee requests and their approval progress. Requests assigned to you can be approved here.' : 'Requests assigned to you for department approval. HR gives the final approval afterward.' }}
         </p>
       </div>
       <button type="button" class="ghost" :disabled="loading" @click="load"><RefreshCw :size="15" /> Refresh</button>
@@ -177,9 +176,14 @@ watch(notice, (value) => {
               <template v-if="item.head_remarks"> — {{ item.head_remarks }}</template>
             </p>
           </div>
-          <div v-if="tab === 'pending'" class="card-actions">
+          <div v-if="tab === 'pending' && item.can_act" class="card-actions">
             <button type="button" class="btn reject" @click="open(item, 'reject')"><X :size="15" /> Reject</button>
             <button type="button" class="btn approve" @click="open(item, 'approve')"><Check :size="15" /> Approve</button>
+          </div>
+          <div v-else-if="tab === 'pending' && result?.sees_all" class="card-actions">
+            <NuxtLink v-if="['leave', 'overtime', 'undertime'].includes(item.type)" class="btn" :to="`/admin/approvals/${item.type === 'leave' ? 'leaves' : item.type}/show?id=${item.id}`">View details</NuxtLink>
+            <NuxtLink v-else-if="item.type === 'oba'" class="btn" to="/admin/approvals/oba-request">View OBA requests</NuxtLink>
+            <NuxtLink v-else class="btn" to="/admin/wfh/requests">View WFH requests</NuxtLink>
           </div>
         </li>
       </ul>
@@ -192,7 +196,7 @@ watch(notice, (value) => {
         <p>{{ acting.employee }} · {{ acting.request_no }}<br>{{ acting.summary }}</p>
         <label for="ta-remarks">{{ mode === 'approve' ? 'Remarks (optional)' : 'Reason for rejecting' }}</label>
         <textarea id="ta-remarks" v-model="remarks" rows="3" maxlength="1000" />
-        <p v-if="mode === 'approve'" class="hint">After your approval, the request goes to HR for the final approval.</p>
+        <p v-if="mode === 'approve'" class="hint">All assigned department approvers must approve before HR's final approval.</p>
         <p v-if="actionError" class="error" role="alert">{{ actionError }}</p>
         <div class="dialog-actions">
           <button type="button" class="ghost" :disabled="busy" @click="acting = null">Cancel</button>

@@ -19,8 +19,8 @@ export const useSupervisorStage = () => {
 
   const nameOf = (userId?: number | null) => (userId ? names.value[userId] ?? null : null)
 
-  const override = (type: SupervisorRequestType, id: number) =>
-    $api<{ message: string }>(`/admin/supervisor-approvals/${type}/${id}/override`, { method: 'PATCH' })
+  const override = (type: SupervisorRequestType, id: number, reason: string) =>
+    $api<{ message: string }>(`/admin/supervisor-approvals/${type}/${id}/override`, { method: 'PATCH', body: { reason } })
 
   return { loadNames, nameOf, override }
 }

@@ -149,6 +149,7 @@ export const ADMIN_MENU: AdminMenuItem[] = [
   {
     label: 'Approval Center', key: 'approvals', icon: ClipboardCheck,
     children: [
+      { label: 'For My Approval', to: '/admin/approvals/for-my-approval', access: a('approvals', 'first_level.view') },
       { label: 'Leave Approvals', to: '/admin/approvals/leaves', access: a('approvals', 'leaves.view') },
       { label: 'Overtime Approvals', to: '/admin/approvals/overtime', access: a('approvals', 'overtime.view') },
       { label: 'Undertime Approvals', to: '/admin/approvals/undertime', access: a('approvals', 'undertime.view') },

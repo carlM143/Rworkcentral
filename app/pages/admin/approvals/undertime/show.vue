@@ -197,7 +197,7 @@ const durationLabel = (minutes?: number) => {
         </div>
       </article>
 
-      <DepartmentApprovalProgress :approvals="request.departmentApprovals" :department-status="request.supervisorStatus" :status="request.status" :reviewed-by="request.reviewedBy" :reviewed-at="request.reviewedAt" />
+      <DepartmentApprovalProgress :approvals="request.departmentApprovals" :department-status="request.supervisorStatus" :status="request.status" :reviewed-by="request.reviewedBy" :reviewed-at="request.reviewedAt" request-type="undertime" :request-id="request.id" @overridden="loadDetail" />
       <article class="details-card reason-card">
         <div class="card-heading">
           <TimerReset :size="18" />
