@@ -9,6 +9,7 @@ export type TeamRequestType = 'leave' | 'overtime' | 'undertime' | 'wfh' | 'oba'
 
 export interface TeamApprovalItem {
   type: TeamRequestType
+  can_act: boolean
   type_label: string
   id: number
   request_no: string

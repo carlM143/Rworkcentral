@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
+import DepartmentOverrideDialog from './DepartmentOverrideDialog.vue'
 import {
   useSupervisorStage,
   type SupervisorRequestType,
@@ -19,8 +20,9 @@ const props = withDefaults(defineProps<{
   requestStatus: 'pending',
 })
 
-const { loadNames, nameOf, override } = useSupervisorStage()
-const { success, error: toastError } = useToast()
+const { loadNames, nameOf } = useSupervisorStage()
+const { success } = useToast()
+const { can } = useAuth()
 
 const current = ref<SupervisorStageStatus>((props.status as SupervisorStageStatus) || 'skipped')
 watch(() => props.status, (v) => { current.value = (v as SupervisorStageStatus) || 'skipped' })
@@ -32,45 +34,31 @@ const requestPending = computed(() => String(props.requestStatus ?? '').toLowerC
 
 const label = computed(() => {
   switch (current.value) {
-    case 'pending': return who.value ? `Waiting for ${who.value}` : 'Waiting for supervisor'
-    case 'approved': return who.value ? `Approved by ${who.value}` : 'Approved by supervisor'
-    case 'rejected': return who.value ? `Rejected by ${who.value}` : 'Rejected by supervisor'
-    case 'overridden': return 'Skipped by HR'
+    case 'pending': return 'Waiting for department approvers'
+    case 'approved': return 'Department approved'
+    case 'rejected': return who.value ? `Rejected by ${who.value}` : 'Department rejected'
+    case 'overridden': return 'Department approval skipped'
     default: return 'Not required'
   }
 })
 
-const busy = ref(false)
-
-const approveAnyway = async () => {
-  const name = who.value ?? 'the supervisor'
-  if (!window.confirm(`Skip ${name}'s approval? You can then approve this request yourself. This is recorded as "Skipped by HR".`)) return
-  busy.value = true
-  try {
-    const response = await override(props.type, props.id)
-    current.value = 'overridden'
-    success('Supervisor step skipped', response.message)
-  } catch (err) {
-    const e = err as { data?: { message?: string, errors?: Record<string, string[]> } }
-    toastError('Unable to skip', Object.values(e?.data?.errors ?? {})[0]?.[0] ?? e?.data?.message ?? 'Please try again.')
-  } finally {
-    busy.value = false
-  }
-}
+const dialogOpen = ref(false)
+const saved = () => { current.value = 'overridden'; success('Department approval skipped', 'The request is ready for final approval.') }
+const finalPermission = computed(() => props.type === 'wfh' ? ['wfh', 'requests.approve'] : ['approvals', `${props.type === 'leave' ? 'leaves' : props.type}.approve`])
 </script>
 
 <template>
   <div class="stage">
     <span class="stage-pill" :class="current">{{ label }}</span>
     <button
-      v-if="current === 'pending' && requestPending"
+      v-if="current === 'pending' && requestPending && can('approvals', 'department_override.approve') && can(finalPermission[0]!, finalPermission[1]!)"
       type="button"
       class="stage-skip"
-      :disabled="busy"
-      @click.stop="approveAnyway"
+      @click.stop="dialogOpen = true"
     >
-      {{ busy ? 'Skipping...' : 'Approve anyway' }}
+      Skip department approval
     </button>
+    <DepartmentOverrideDialog :open="dialogOpen" :type="type" :id="id" @close="dialogOpen = false" @saved="saved" />
   </div>
 </template>
 

@@ -262,6 +262,9 @@ const totalScheduledDays = computed(() => {
         :status="request.status"
         :reviewed-by="request.approver_name"
         :reviewed-at="request.approved_at"
+        request-type="leave"
+        :request-id="request.id"
+        @overridden="loadDetail"
       />
 
       <article class="details-card reason-card">

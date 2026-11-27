@@ -52,9 +52,8 @@ const step = ref<Step>('view')
 const reason = ref('')
 const reasonError = ref('')
 
-// No supervisor step: HR approves pending requests directly.
 const canApprove = computed(() =>
-  props.request?.status === 'pending' || props.request?.status === 'dept_head_approved',
+  props.request?.status === 'dept_head_approved',
 )
 const canReject = computed(() =>
   props.request?.status === 'pending' || props.request?.status === 'dept_head_approved',
@@ -185,6 +184,9 @@ const onCancel = (event: Event) => {
 
       <!-- Default footer -->
       <div v-else class="dialog-actions">
+        <p v-if="request.status === 'pending'" class="footer-note">
+          Waiting for department approval in Approval Center › For My Approval.
+        </p>
         <button type="button" class="close-button" @click="close">Close</button>
         <button v-if="canReject" type="button" class="reject-button" @click="step = 'reject'">
           <XCircle :size="15" /> Reject
@@ -194,7 +196,7 @@ const onCancel = (event: Event) => {
           type="button"
           class="approve-button"
           :disabled="!canApprove"
-          :title="canApprove ? '' : 'Only pending requests can be approved'"
+          :title="canApprove ? '' : 'Department approval must be completed first'"
           @click="step = 'approve'"
         >
           <CheckCircle2 :size="15" /> Approve

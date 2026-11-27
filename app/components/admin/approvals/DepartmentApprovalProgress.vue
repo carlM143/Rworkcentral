@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import { ShieldCheck, Info } from 'lucide-vue-next'
 import type { LeaveApproval } from '~/types/leaveApproval'
+import DepartmentOverrideDialog from './DepartmentOverrideDialog.vue'
 
 const props = defineProps<{
   approvals?: LeaveApproval['department_approvals']
@@ -9,7 +10,15 @@ const props = defineProps<{
   status: string
   reviewedBy?: string | null
   reviewedAt?: string | null
+  requestType?: 'leave' | 'overtime' | 'undertime'
+  requestId?: number
 }>()
+const emit = defineEmits<{ overridden: [] }>()
+const { can } = useAuth()
+const overrideOpen = ref(false)
+const showOverride = computed(() => props.requestType && props.requestId && props.status.toLowerCase() === 'pending'
+  && props.departmentStatus === 'pending' && can('approvals', 'department_override.approve')
+  && can('approvals', `${props.requestType === 'leave' ? 'leaves' : props.requestType}.approve`))
 
 const hrStatus = computed(() => {
   const s = props.status?.toLowerCase() || ''
@@ -89,8 +98,12 @@ const formatDate = (val?: string | null) => {
       <!-- HR Override Alert -->
       <div v-if="departmentStatus === 'overridden'" class="override-alert">
         <Info :size="15" />
-        <span>HR overrode the department approval step.</span>
+        <span>Department approval was skipped.</span>
       </div>
+      <div v-if="showOverride" class="override-action">
+        <button type="button" @click="overrideOpen = true">Skip department approval</button>
+      </div>
+      <DepartmentOverrideDialog v-if="requestType && requestId" :open="overrideOpen" :type="requestType" :id="requestId" @close="overrideOpen = false" @saved="emit('overridden')" />
 
       <!-- HR Final Approval Row -->
       <div class="approver-item hr-item">
@@ -112,6 +125,9 @@ const formatDate = (val?: string | null) => {
 </template>
 
 <style scoped>
+.override-action { margin-top: 12px; }
+.override-action button { padding: 8px 12px; border: 1px solid var(--orange); border-radius: 8px; color: var(--orange); background: transparent; cursor: pointer; font: inherit; font-size: 12px; }
+.override-action p { color: var(--red); font-size: 12px; }
 .approval-card {
   margin-bottom: 16px;
   border: 1px solid var(--border);
