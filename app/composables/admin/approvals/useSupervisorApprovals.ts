@@ -22,6 +22,7 @@ export interface TeamApprovalItem {
   head_remarks: string | null
   head_by?: string | null
   acted_at: string | null
+  department_approvals?: { approver_name: string, approver_position: string | null, status: string, acted_at: string | null, remarks: string | null }[]
 }
 
 export interface TeamApprovalsResponse {

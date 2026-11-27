@@ -13,6 +13,7 @@ import {
 } from 'lucide-vue-next'
 import { useUndertimeApprovals } from '~/composables/admin/approvals/useUndertimeApprovals'
 import { useToast } from '~/composables/useToast'
+import DepartmentApprovalProgress from '~/components/admin/approvals/DepartmentApprovalProgress.vue'
 
 definePageMeta({ layout: 'admin' })
 useHead({ title: 'Undertime Request Details | RWorkCentral' })
@@ -196,6 +197,7 @@ const durationLabel = (minutes?: number) => {
         </div>
       </article>
 
+      <DepartmentApprovalProgress :approvals="request.departmentApprovals" :department-status="request.supervisorStatus" :status="request.status" :reviewed-by="request.reviewedBy" :reviewed-at="request.reviewedAt" />
       <article class="details-card reason-card">
         <div class="card-heading">
           <TimerReset :size="18" />

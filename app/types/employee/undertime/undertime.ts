@@ -8,6 +8,10 @@ export type UndertimeRequestStatus = 'pending' | 'approved' | 'rejected' | 'canc
 
 /** One undertime request (UndertimeRequestController › formatUndertimeRequest). */
 export interface UndertimeRequestRecord {
+  department_approvals?: import('~/types/leaveApproval').LeaveApproval['department_approvals']
+  department_approval_status?: string | null
+  reviewed_by?: string | null
+  reviewed_at?: string | null
   /** Request number, e.g. "UT-2026-0001" (falls back to "UT-{raw_id}"). */
   id: string
   raw_id: number

@@ -2,6 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { AlertTriangle, ArrowLeft, CalendarDays, Check, ClipboardList, RefreshCw, RotateCcw, ShieldCheck, X } from 'lucide-vue-next'
 import { useLeaveApprovals } from '~/composables/admin/approvals/useLeaveApprovals'
+import DepartmentApprovalProgress from '~/components/admin/approvals/DepartmentApprovalProgress.vue'
 
 definePageMeta({ layout: 'admin' })
 useHead({ title: 'Leave Request Details | RWorkCentral' })
@@ -254,6 +255,14 @@ const totalScheduledDays = computed(() => {
           </div>
         </div>
       </article>
+
+      <DepartmentApprovalProgress
+        :approvals="request.department_approvals"
+        :department-status="request.dept_head_status"
+        :status="request.status"
+        :reviewed-by="request.approver_name"
+        :reviewed-at="request.approved_at"
+      />
 
       <article class="details-card reason-card">
         <div class="card-heading"><ClipboardList :size="18" /><div><h2>Reason &amp; Review</h2><p>Employee explanation and policy validation</p></div></div>

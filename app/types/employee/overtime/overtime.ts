@@ -8,6 +8,10 @@ export type OvertimeRequestStatus = 'pending' | 'approved' | 'rejected' | 'cance
 
 /** One overtime request (OvertimeRequestController › formatOvertimeRequest). */
 export interface OvertimeRequestRecord {
+  department_approvals?: import('~/types/leaveApproval').LeaveApproval['department_approvals']
+  department_approval_status?: string | null
+  reviewed_by?: string | null
+  reviewed_at?: string | null
   /** Request number, e.g. "OT-2026-0001" (falls back to "OT-{raw_id}"). */
   id: string
   raw_id: number
